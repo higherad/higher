@@ -1,43 +1,31 @@
 <div id="expire-page">
 <style>
-  #expire-page .summary-bar {
-    background:#fff; border:1px solid var(--border); border-radius:10px;
-    padding:16px 20px; display:flex; gap:40px; align-items:center; margin-bottom:14px;
-  }
+  #expire-page .summary-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px 20px; display:flex; gap:40px; align-items:center; margin-bottom:14px; }
   #expire-page .sum-item .sum-label { font-size:11px; color:var(--text2); margin-bottom:4px; }
   #expire-page .sum-item .sum-val { font-size:20px; font-weight:800; }
-  #expire-page .filter-bar {
-    background:#fff; border:1px solid var(--border); border-radius:10px;
-    padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px;
-  }
-  #expire-page select, #expire-page input {
-    padding:6px 10px; border:1px solid var(--border); border-radius:6px;
-    font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none;
-  }
-  #expire-page .tbl-wrap {
-    background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto;
-  }
+  #expire-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+  #expire-page select, #expire-page input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
+  #expire-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
   #expire-page table { width:100%; min-width:1200px; border-collapse:collapse; font-size:12px; }
-  #expire-page thead th {
-    background:#1e293b; color:#fff; padding:11px 8px; font-weight:500;
-    border-right:1px solid #2d3f55; white-space:nowrap; text-align:center;
-  }
-  #expire-page tbody td {
-    padding:10px 8px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle;
-  }
+  #expire-page thead th { background:#1e293b; color:#fff; padding:11px 8px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; }
+  #expire-page tbody td { padding:10px 8px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #expire-page tbody tr:last-child td { border-bottom:none; }
   #expire-page tbody tr:hover { background:#f8fafc; }
-
-  .dday-today   { background:#fef2f2; color:var(--danger); font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
-  .dday-urgent  { background:#fff7ed; color:#c2410c; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
-  .dday-soon    { background:#fefce8; color:#a16207; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
-  .dday-normal  { background:#f0fdf4; color:#15803d; font-weight:600; padding:2px 8px; border-radius:4px; font-size:11px; }
-  .action-btn   { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
-  .btn-extend   { background:#f0fdf4; color:#15803d; }
+  .dday-today  { background:#fef2f2; color:var(--danger); font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
+  .dday-urgent { background:#fff7ed; color:#c2410c; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
+  .dday-soon   { background:#fefce8; color:#a16207; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
+  .dday-normal { background:#f0fdf4; color:#15803d; font-weight:600; padding:2px 8px; border-radius:4px; font-size:11px; }
+  .action-btn  { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+  .btn-extend  { background:#f0fdf4; color:#15803d; }
   .empty-row td { height:200px; text-align:center; color:var(--muted); font-size:13px; }
+  .loading-wrap { display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:8px; }
+  .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
 </style>
 
-<div class="summary-bar" id="expire-summary"></div>
+<div class="summary-bar" id="expire-summary">
+  <div class="loading-wrap"><div class="spinner"></div> 로드 중...</div>
+</div>
 
 <div class="filter-bar">
   <select id="ef-range" onchange="renderExpire()">
@@ -49,7 +37,6 @@
   </select>
   <select id="ef-type" onchange="renderExpire()">
     <option value="">슬롯타입 전체</option>
-    ${HA.SLOT_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
   </select>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="ef-kw" placeholder="스토어명 검색" style="width:180px;">
@@ -61,26 +48,31 @@
   <table>
     <thead>
       <tr>
-        <th>번호</th>
-        <th>대행사</th>
-        <th>유저ID</th>
-        <th>슬롯타입</th>
-        <th>스토어명</th>
-        <th>순위키워드</th>
-        <th>시작일</th>
-        <th>종료일</th>
-        <th>D-Day</th>
-        <th>순위</th>
-        <th>유입수</th>
-        <th>관리</th>
+        <th>번호</th><th>대행사</th><th>유저ID</th><th>슬롯타입</th>
+        <th>스토어명</th><th>순위키워드</th><th>시작일</th><th>종료일</th>
+        <th>D-Day</th><th>순위</th><th>유입수</th><th>관리</th>
       </tr>
     </thead>
-    <tbody id="expire-body"></tbody>
+    <tbody id="expire-body">
+      <tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+    </tbody>
   </table>
 </div>
 
 <script>
 (function(){
+  let allSlots = [];
+
+  // 슬롯 타입 옵션 채우기
+  const typeSelect = document.getElementById('ef-type');
+  if (typeSelect && window.HA) {
+    HA.SLOT_TYPES.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      typeSelect.appendChild(o);
+    });
+  }
+
   function getDday(endDate) {
     const today = new Date(); today.setHours(0,0,0,0);
     const end   = new Date(endDate); end.setHours(0,0,0,0);
@@ -96,9 +88,9 @@
   }
 
   function renderSummary(slots) {
-    const t3 = slots.filter(s=>getDday(s.endDate)<=3).length;
-    const t7 = slots.filter(s=>getDday(s.endDate)<=7).length;
-    const inflow = slots.reduce((a,s)=>a+(s.inflow||0),0);
+    const t3     = slots.filter(s => getDday(s.endDate) <= 3).length;
+    const t7     = slots.filter(s => getDday(s.endDate) <= 7).length;
+    const inflow = slots.reduce((a,s) => a+(s.inflow||0), 0);
     const el = document.getElementById('expire-summary');
     if(!el) return;
     el.innerHTML = `
@@ -108,34 +100,39 @@
       <div class="sum-item"><div class="sum-label">총 유입수</div><div class="sum-val" style="color:var(--accent)">${inflow.toLocaleString()} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>`;
   }
 
-  window.renderExpire = function() {
-    const range  = document.getElementById('ef-range').value;
-    const type   = document.getElementById('ef-type').value;
-    const kw     = (document.getElementById('ef-kw').value||'').toLowerCase();
-    const today  = new Date(); today.setHours(0,0,0,0);
+  window.renderExpire = async function() {
+    document.getElementById('expire-body').innerHTML =
+      '<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    let slots = HA.getSlots().filter(s=>s.status==='active');
+    allSlots = await HA.getSlots();
+
+    const range = document.getElementById('ef-range').value;
+    const type  = document.getElementById('ef-type').value;
+    const kw    = (document.getElementById('ef-kw').value||'').toLowerCase();
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    let slots = allSlots.filter(s => s.status === 'active');
 
     if(range !== 'all') {
       const limit = new Date(today);
       limit.setDate(today.getDate()+Number(range));
-      slots = slots.filter(s=>{
-        const d=new Date(s.endDate); return d>=today && d<=limit;
+      slots = slots.filter(s => {
+        const d = new Date(s.endDate);
+        return d >= today && d <= limit;
       });
     }
-    if(type) slots=slots.filter(s=>s.slotType===type);
-    if(kw)   slots=slots.filter(s=>(s.storeName||'').toLowerCase().includes(kw));
+    if(type) slots = slots.filter(s => s.slotType === type);
+    if(kw)   slots = slots.filter(s => (s.storeName||'').toLowerCase().includes(kw));
+    slots.sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
 
-    // 종료일 오름차순
-    slots.sort((a,b)=>new Date(a.endDate)-new Date(b.endDate));
     renderSummary(slots);
 
     const body = document.getElementById('expire-body');
     if(!slots.length) {
-      body.innerHTML='<tr class="empty-row"><td colspan="12">만료 예정 슬롯이 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="12">만료 예정 슬롯이 없습니다.</td></tr>';
       return;
     }
-    body.innerHTML = slots.map((s,i)=>`
+    body.innerHTML = slots.map((s,i) => `
       <tr>
         <td style="color:var(--text2)">${i+1}</td>
         <td style="font-weight:600">${s.agencyId||'-'}</td>
@@ -146,22 +143,23 @@
         <td style="color:var(--text2)">${s.startDate}</td>
         <td style="color:var(--text2);font-weight:600">${s.endDate}</td>
         <td>${ddayBadge(getDday(s.endDate))}</td>
-        <td>${s.rank?`<span class="rank-badge">${s.rank}위`:'<span style="color:var(--muted)">-'}</span></td>
+        <td>${s.rank?`<span class="rank-badge">${s.rank}위</span>`:'<span style="color:var(--muted)">-</span>'}</td>
         <td><strong>${(s.inflow||0).toLocaleString()}</strong></td>
-        <td><button class="action-btn btn-extend" onclick="extendFromExpire(${s.id})">연장</button></td>
+        <td><button class="action-btn btn-extend" onclick="extendFromExpire('${s._key}')">연장</button></td>
       </tr>`).join('');
     if(window.lucide) lucide.createIcons();
   };
 
-  window.extendFromExpire = function(id) {
-    const s = HA.getSlots().find(x=>x.id===id);
+  window.extendFromExpire = async function(key) {
+    const s = allSlots.find(x => x._key === key);
     if(!s) return;
     const days = prompt('연장할 일수를 입력하세요 (예: 30)', '30');
     if(!days || isNaN(days)) return;
     const newEnd = new Date(s.endDate);
     newEnd.setDate(newEnd.getDate()+Number(days));
-    HA.updateSlot(id, { endDate: newEnd.toISOString().slice(0,10) });
-    renderExpire(); alert(`${days}일 연장되었습니다.`);
+    await HA.updateSlot(key, { endDate: newEnd.toISOString().slice(0,10) });
+    renderExpire();
+    alert(`${days}일 연장되었습니다.`);
   };
 
   renderExpire();
