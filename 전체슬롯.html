@@ -1,0 +1,304 @@
+<div id="slots-page">
+<style>
+  #slots-page .summary-bar {
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    padding:16px 20px; display:flex; gap:40px; align-items:center; margin-bottom:14px;
+  }
+  #slots-page .sum-item .sum-label { font-size:11px; color:var(--text2); margin-bottom:4px; }
+  #slots-page .sum-item .sum-val { font-size:20px; font-weight:800; }
+  #slots-page .filter-bar {
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;
+  }
+  #slots-page select, #slots-page input[type=text], #slots-page input[type=date] {
+    padding:6px 10px; border:1px solid var(--border); border-radius:6px;
+    font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none;
+  }
+  #slots-page .tbl-wrap {
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    overflow-x:auto;
+  }
+  #slots-page table { width:100%; min-width:1400px; border-collapse:collapse; font-size:12px; }
+  #slots-page thead th {
+    background:#1e293b; color:#fff; padding:11px 8px; font-weight:500;
+    border-right:1px solid #2d3f55; white-space:nowrap; text-align:center;
+  }
+  #slots-page tbody td {
+    padding:10px 8px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle;
+  }
+  #slots-page tbody tr:last-child td { border-bottom:none; }
+  #slots-page tbody tr:hover { background:#f8fafc; }
+  .rank-badge { color:var(--info); border:1px solid var(--info); padding:2px 8px; border-radius:4px; font-weight:700; font-size:11px; }
+  .action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+  .btn-edit   { background:#eff6ff; color:#1d4ed8; }
+  .btn-extend { background:#f0fdf4; color:#15803d; }
+  .btn-del    { background:#fef2f2; color:var(--danger); }
+
+  .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center; }
+  .modal-box { background:#fff;border-radius:16px;width:520px;max-height:85vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  .modal-title { font-size:17px;font-weight:700;margin-bottom:20px; }
+  .modal-field { margin-bottom:14px; }
+  .modal-field label { display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px; }
+  .modal-field input,.modal-field textarea,.modal-field select { width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;outline:none;color:var(--text); }
+  .modal-field input:focus,.modal-field textarea:focus,.modal-field select:focus { border-color:var(--accent); }
+  .modal-row { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+  .modal-footer { display:flex;justify-content:flex-end;gap:10px;margin-top:20px; }
+  .btn-cancel { padding:8px 20px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;font-size:13px; }
+  .btn-save   { padding:8px 20px;border:none;border-radius:7px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600; }
+  .btn-save:hover { background:var(--accent2); }
+  .empty-row td { height:200px;text-align:center;color:var(--muted);font-size:13px; }
+  .pagination { display:flex;justify-content:center;gap:5px;margin-top:16px; }
+  .pg-btn { width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center; }
+  .pg-btn.active { background:var(--info);color:#fff;border-color:var(--info); }
+</style>
+
+<div class="summary-bar" id="slots-summary"></div>
+
+<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">
+  <button class="action-btn" style="background:#1e293b;color:#fff;padding:7px 16px;font-size:12px;" onclick="openAddModal()">+ 슬롯 직접 등록</button>
+  <button class="action-btn btn-del" style="padding:7px 16px;font-size:12px;" onclick="bulkDelete()">선택 삭제</button>
+</div>
+
+<div class="filter-bar">
+  <select id="f-type" onchange="renderSlots()">
+    <option value="">슬롯타입 전체</option>
+    ${HA.SLOT_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
+  </select>
+  <select id="f-status" onchange="renderSlots()">
+    <option value="">상태 전체</option>
+    <option value="active">진행중</option>
+    <option value="pending">대기</option>
+    <option value="rejected">반려</option>
+    <option value="expired">만료</option>
+  </select>
+  <div style="margin-left:auto;display:flex;gap:6px;">
+    <input type="text" id="f-kw" placeholder="스토어명/키워드 검색" style="width:200px;">
+    <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSlots()">검색</button>
+    <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetFilter()">초기화</button>
+  </div>
+</div>
+
+<div class="tbl-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th><input type="checkbox" id="s-check-all" onchange="toggleAll(this)"></th>
+        <th>번호</th>
+        <th>대행사</th>
+        <th>유저ID</th>
+        <th>슬롯타입</th>
+        <th>시작일</th>
+        <th>종료일</th>
+        <th>스토어명</th>
+        <th>순위키워드</th>
+        <th>순위</th>
+        <th>유입수</th>
+        <th>상태</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody id="slots-body"></tbody>
+  </table>
+</div>
+<div class="pagination" id="slots-pagination"></div>
+
+<script>
+(function(){
+  let page = 1; const PER = 20;
+
+  function getFiltered() {
+    const type   = document.getElementById('f-type').value;
+    const status = document.getElementById('f-status').value;
+    const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
+    return HA.getSlots().filter(s=>{
+      if(type   && s.slotType !== type)   return false;
+      if(status && s.status  !== status)  return false;
+      if(kw && ![(s.storeName||''),(s.rankKeyword||'')].some(v=>v.toLowerCase().includes(kw))) return false;
+      return true;
+    });
+  }
+
+  function renderSummary() {
+    const slots = HA.getSlots();
+    const active = slots.filter(s=>s.status==='active');
+    const inflow = active.reduce((a,s)=>a+(s.inflow||0),0);
+    const summary = document.getElementById('slots-summary');
+    if(!summary) return;
+    summary.innerHTML = `
+      <div class="sum-item"><div class="sum-label">진행중 슬롯</div><div class="sum-val" style="color:var(--info)">${active.length} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>
+      <div class="sum-item"><div class="sum-label">총 유입수</div><div class="sum-val" style="color:var(--accent)">${inflow.toLocaleString()} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>
+      <div class="sum-item"><div class="sum-label">대기중</div><div class="sum-val" style="color:var(--warn)">${slots.filter(s=>s.status==='pending').length} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>
+      <span style="margin-left:auto;font-size:12px;color:var(--text2)" id="s-sel-count">선택: 0건</span>`;
+  }
+
+  const stLabel = {
+    active:'<span class="status-badge s-active">진행</span>',
+    pending:'<span class="status-badge s-pending">대기</span>',
+    rejected:'<span class="status-badge s-rejected">반려</span>',
+    expired:'<span class="status-badge s-expired">만료</span>',
+  };
+
+  window.renderSlots = function() {
+    renderSummary();
+    const all = getFiltered();
+    const start = (page-1)*PER;
+    const list  = all.slice(start, start+PER);
+
+    const body = document.getElementById('slots-body');
+    if (!list.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="13">데이터가 없습니다.</td></tr>';
+    } else {
+      body.innerHTML = list.map((s,i)=>`
+        <tr>
+          <td><input type="checkbox" class="s-check" data-id="${s.id}" onchange="updateSelCount()"></td>
+          <td style="color:var(--text2)">${start+i+1}</td>
+          <td style="font-weight:600">${s.agencyId||'-'}</td>
+          <td>${s.userId||'-'}</td>
+          <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
+          <td style="color:var(--text2)">${s.startDate||'-'}</td>
+          <td style="color:var(--text2)">${s.endDate||'-'}</td>
+          <td style="font-weight:500">${s.storeName||'-'}</td>
+          <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
+          <td>${s.rank ? `<span class="rank-badge">${s.rank}위</span>` : '<span style="color:var(--muted)">-</span>'}</td>
+          <td><strong>${(s.inflow||0).toLocaleString()}</strong></td>
+          <td>${stLabel[s.status]||s.status}</td>
+          <td>
+            <div style="display:flex;gap:4px;justify-content:center;">
+              <button class="action-btn btn-edit"   onclick="openEditSlot(${s.id})">수정</button>
+              <button class="action-btn btn-extend" onclick="extendSlot(${s.id})">연장</button>
+              <button class="action-btn btn-del"    onclick="delSlot(${s.id})">삭제</button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    // pagination
+    const pages = Math.ceil(all.length/PER)||1;
+    const pg = document.getElementById('slots-pagination');
+    let ph = `<button class="pg-btn" onclick="goP(1)">&laquo;</button><button class="pg-btn" onclick="goP(${Math.max(1,page-1)})">&lsaquo;</button>`;
+    for(let i=1;i<=pages;i++) ph+=`<button class="pg-btn ${i===page?'active':''}" onclick="goP(${i})">${i}</button>`;
+    ph+=`<button class="pg-btn" onclick="goP(${Math.min(pages,page+1)})">&rsaquo;</button><button class="pg-btn" onclick="goP(${pages})">&raquo;</button>`;
+    pg.innerHTML = ph;
+    if(window.lucide) lucide.createIcons();
+  };
+
+  window.goP = n => { page=n; renderSlots(); };
+  window.toggleAll = cb => { document.querySelectorAll('.s-check').forEach(c=>c.checked=cb.checked); updateSelCount(); };
+  window.updateSelCount = () => {
+    const n = document.querySelectorAll('.s-check:checked').length;
+    const el = document.getElementById('s-sel-count');
+    if(el) el.textContent = `선택: ${n}건`;
+  };
+  window.resetFilter = () => {
+    document.getElementById('f-type').value='';
+    document.getElementById('f-status').value='';
+    document.getElementById('f-kw').value='';
+    page=1; renderSlots();
+  };
+  window.bulkDelete = () => {
+    const ids=[...document.querySelectorAll('.s-check:checked')].map(c=>Number(c.dataset.id));
+    if(!ids.length) return alert('선택된 항목이 없습니다.');
+    if(!confirm(`${ids.length}건을 삭제하시겠습니까?`)) return;
+    ids.forEach(id=>HA.deleteSlot(id)); renderSlots();
+  };
+  window.delSlot = id => {
+    if(!confirm('삭제하시겠습니까?')) return;
+    HA.deleteSlot(id); renderSlots();
+  };
+  window.extendSlot = id => {
+    const s = HA.getSlots().find(x=>x.id===id);
+    if(!s) return;
+    const days = prompt('연장할 일수를 입력하세요 (예: 30)', '30');
+    if(!days || isNaN(days)) return;
+    const newEnd = new Date(s.endDate);
+    newEnd.setDate(newEnd.getDate()+Number(days));
+    HA.updateSlot(id, { endDate: newEnd.toISOString().slice(0,10), status:'active' });
+    renderSlots(); alert(`${days}일 연장되었습니다.`);
+  };
+
+  function slotModal(s, title, onSave) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-title">${title}</div>
+        <div class="modal-row">
+          <div class="modal-field"><label>대행사 ID</label><input id="m-agencyId" value="${s.agencyId||''}"></div>
+          <div class="modal-field"><label>유저 ID</label><input id="m-userId" value="${s.userId||''}"></div>
+        </div>
+        <div class="modal-row">
+          <div class="modal-field"><label>슬롯타입</label>
+            <select id="m-slotType">${HA.SLOT_TYPES.map(t=>`<option ${t===(s.slotType||'')?' selected':''}>${t}</option>`).join('')}</select>
+          </div>
+          <div class="modal-field"><label>상태</label>
+            <select id="m-status">
+              ${['pending','active','rejected','expired'].map(st=>`<option ${st===s.status?'selected':''}>${st}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="modal-field"><label>스토어명</label><input id="m-storeName" value="${s.storeName||''}"></div>
+        <div class="modal-field"><label>순위키워드</label><input id="m-rankKeyword" value="${s.rankKeyword||''}"></div>
+        <div class="modal-field"><label>URL</label><input id="m-url" value="${s.url||''}"></div>
+        <div class="modal-row">
+          <div class="modal-field"><label>MID</label><input id="m-mid" value="${s.mid||''}"></div>
+          <div class="modal-field"><label>작업키워드</label><input id="m-workKeyword" value="${s.workKeyword||''}"></div>
+        </div>
+        <div class="modal-row">
+          <div class="modal-field"><label>시작일</label><input type="date" id="m-startDate" value="${s.startDate||''}"></div>
+          <div class="modal-field"><label>종료일</label><input type="date" id="m-endDate" value="${s.endDate||''}"></div>
+        </div>
+        <div class="modal-row">
+          <div class="modal-field"><label>유입수</label><input type="number" id="m-inflow" value="${s.inflow||0}"></div>
+          <div class="modal-field"><label>순위</label><input type="number" id="m-rank" value="${s.rank||''}"></div>
+        </div>
+        <div class="modal-field"><label>메모</label><textarea id="m-memo">${s.memo||''}</textarea></div>
+        <div class="modal-footer">
+          <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">취소</button>
+          <button class="btn-save" onclick="(${onSave.toString()})()">저장</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
+  function getFormData() {
+    return {
+      agencyId: document.getElementById('m-agencyId').value,
+      userId:   document.getElementById('m-userId').value,
+      slotType: document.getElementById('m-slotType').value,
+      status:   document.getElementById('m-status').value,
+      storeName:   document.getElementById('m-storeName').value,
+      rankKeyword: document.getElementById('m-rankKeyword').value,
+      url:         document.getElementById('m-url').value,
+      mid:         document.getElementById('m-mid').value,
+      workKeyword: document.getElementById('m-workKeyword').value,
+      startDate:   document.getElementById('m-startDate').value,
+      endDate:     document.getElementById('m-endDate').value,
+      inflow:      Number(document.getElementById('m-inflow').value)||0,
+      rank:        Number(document.getElementById('m-rank').value)||null,
+      memo:        document.getElementById('m-memo').value,
+    };
+  }
+
+  window.openEditSlot = id => {
+    const s = HA.getSlots().find(x=>x.id===id) || {};
+    slotModal(s, '슬롯 정보 수정', function(){
+      HA.updateSlot(id, getFormData());
+      document.querySelector('.modal-overlay').remove();
+      renderSlots();
+    });
+  };
+
+  window.openAddModal = () => {
+    slotModal({}, '슬롯 직접 등록', function(){
+      const data = getFormData();
+      const slot = HA.addSlot(data);
+      HA.updateSlot(slot.id, { status: data.status });
+      document.querySelector('.modal-overlay').remove();
+      renderSlots();
+    });
+  };
+
+  renderSlots();
+})();
+</script>
+</div>

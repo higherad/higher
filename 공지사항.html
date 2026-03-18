@@ -1,0 +1,200 @@
+<div id="notice-page">
+<style>
+  #notice-page .action-bar {
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    padding:12px 16px; display:flex; align-items:center; gap:10px; margin-bottom:14px;
+  }
+  #notice-page input[type=text] {
+    padding:6px 10px; border:1px solid var(--border); border-radius:6px;
+    font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none;
+  }
+  #notice-page .tbl-wrap {
+    background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:16px;
+  }
+  #notice-page table { width:100%; border-collapse:collapse; font-size:12px; }
+  #notice-page thead th {
+    background:#1e293b; color:#fff; padding:12px 10px; font-weight:500;
+    border-right:1px solid #2d3f55; text-align:center;
+  }
+  #notice-page tbody td {
+    padding:12px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle;
+  }
+  #notice-page tbody tr:last-child td { border-bottom:none; }
+  #notice-page tbody tr:hover { background:#f8fafc; }
+  .notice-title-cell { text-align:left !important; cursor:pointer; font-weight:500; color:var(--text); }
+  .notice-title-cell:hover { color:var(--accent); }
+  .pin-badge { background:rgba(239,68,68,.1); color:var(--danger); font-size:10px; font-weight:700; padding:1px 6px; border-radius:3px; margin-right:6px; }
+
+  .action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+  .btn-edit { background:#eff6ff; color:#1d4ed8; }
+  .btn-del  { background:#fef2f2; color:var(--danger); }
+  .btn-write { background:var(--info); color:#fff; padding:7px 16px; font-size:12px; }
+
+  .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center; }
+  .modal-box { background:#fff;border-radius:16px;width:560px;max-height:85vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  .modal-title { font-size:17px;font-weight:700;margin-bottom:20px; }
+  .modal-field { margin-bottom:14px; }
+  .modal-field label { display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px; }
+  .modal-field input,.modal-field textarea { width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;outline:none;color:var(--text); }
+  .modal-field input:focus,.modal-field textarea:focus { border-color:var(--accent); }
+  .modal-field textarea { resize:vertical; min-height:120px; }
+  .modal-footer { display:flex;justify-content:flex-end;gap:10px;margin-top:20px; }
+  .btn-cancel { padding:8px 20px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;font-size:13px; }
+  .btn-save   { padding:8px 20px;border:none;border-radius:7px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600; }
+  .btn-save:hover { background:var(--accent2); }
+  .empty-row td { height:200px;text-align:center;color:var(--muted);font-size:13px; }
+  .pagination { display:flex;justify-content:center;gap:5px;margin-top:16px; }
+  .pg-btn { width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center; }
+  .pg-btn.active { background:var(--info);color:#fff;border-color:var(--info); }
+
+  /* 상세보기 */
+  .notice-detail-box { background:#f8fafc; border-radius:8px; padding:16px; font-size:13px; line-height:1.7; color:var(--text); white-space:pre-wrap; min-height:80px; margin-top:8px; }
+</style>
+
+<div class="action-bar">
+  <input type="text" id="n-kw" placeholder="제목 검색" style="width:250px;">
+  <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderNotices()">검색</button>
+  <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="document.getElementById('n-kw').value='';renderNotices()">초기화</button>
+  <div style="margin-left:auto;">
+    <button class="action-btn btn-write" onclick="openNoticeModal(null)">공지 작성</button>
+  </div>
+</div>
+
+<div class="tbl-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px"><input type="checkbox" id="n-all" onchange="toggleAll(this)"></th>
+        <th style="width:70px">번호</th>
+        <th>제목</th>
+        <th style="width:100px">작성자</th>
+        <th style="width:160px">등록일</th>
+        <th style="width:60px">조회</th>
+        <th style="width:120px">관리</th>
+      </tr>
+    </thead>
+    <tbody id="notice-body"></tbody>
+  </table>
+</div>
+<div class="pagination" id="notice-pagination"></div>
+
+<script>
+(function(){
+  let page = 1; const PER = 20;
+
+  function getFiltered() {
+    const kw = (document.getElementById('n-kw').value||'').toLowerCase();
+    return HA.getNotices().filter(n=>!kw || (n.title||'').toLowerCase().includes(kw));
+  }
+
+  window.renderNotices = function() {
+    const all = getFiltered();
+    const start = (page-1)*PER;
+    const list  = all.slice(start, start+PER);
+
+    const body = document.getElementById('notice-body');
+    if(!list.length) {
+      body.innerHTML='<tr class="empty-row"><td colspan="7">데이터가 없습니다.</td></tr>';
+    } else {
+      body.innerHTML = list.map((n,i)=>`
+        <tr>
+          <td><input type="checkbox" class="n-check" data-id="${n.id}"></td>
+          <td style="color:var(--text2)">${n.id}</td>
+          <td class="notice-title-cell" onclick="openNoticeDetail(${n.id})">
+            ${n.pinned?'<span class="pin-badge">필독</span>':''}${n.title}
+          </td>
+          <td>${n.author}</td>
+          <td style="color:var(--text2)">${n.date}</td>
+          <td style="color:var(--text2)">${n.views}</td>
+          <td>
+            <div style="display:flex;gap:5px;justify-content:center;">
+              <button class="action-btn btn-edit" onclick="openNoticeModal(${n.id})">수정</button>
+              <button class="action-btn btn-del"  onclick="deleteNotice(${n.id})">삭제</button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    const pages = Math.ceil(all.length/PER)||1;
+    const pg = document.getElementById('notice-pagination');
+    let ph = `<button class="pg-btn" onclick="goNP(1)">&laquo;</button><button class="pg-btn" onclick="goNP(${Math.max(1,page-1)})">&lsaquo;</button>`;
+    for(let i=1;i<=pages;i++) ph+=`<button class="pg-btn ${i===page?'active':''}" onclick="goNP(${i})">${i}</button>`;
+    ph+=`<button class="pg-btn" onclick="goNP(${Math.min(pages,page+1)})">&rsaquo;</button><button class="pg-btn" onclick="goNP(${pages})">&raquo;</button>`;
+    pg.innerHTML = ph;
+  };
+
+  window.goNP = n => { page=n; renderNotices(); };
+  window.toggleAll = cb => document.querySelectorAll('.n-check').forEach(c=>c.checked=cb.checked);
+
+  window.deleteNotice = function(id) {
+    if(!confirm('삭제하시겠습니까?')) return;
+    HA.deleteNotice(id); renderNotices();
+  };
+
+  window.openNoticeDetail = function(id) {
+    const n = HA.getNotices().find(x=>x.id===id);
+    if(!n) return;
+    // 조회수 +1
+    HA.updateNotice(id, { views: n.views+1 });
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:8px">${n.date} | ${n.author} | 조회 ${n.views+1}</div>
+        <div class="modal-title">${n.pinned?'<span class="pin-badge">필독</span>':''}${n.title}</div>
+        <div class="notice-detail-box">${n.content||'내용 없음'}</div>
+        <div class="modal-footer">
+          <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">닫기</button>
+          <button class="btn-save" onclick="this.closest('.modal-overlay').remove();openNoticeModal(${id})">수정</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    renderNotices();
+  };
+
+  window.openNoticeModal = function(id) {
+    const n = id ? HA.getNotices().find(x=>x.id===id) : {};
+    const isEdit = !!id;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-title">${isEdit?'공지 수정':'공지 작성'}</div>
+        <div class="modal-field">
+          <label>제목 *</label>
+          <input id="nm-title" value="${(n.title||'').replace(/"/g,'&quot;')}" placeholder="공지 제목을 입력하세요.">
+        </div>
+        <div class="modal-field">
+          <label>내용</label>
+          <textarea id="nm-content" rows="6">${n.content||''}</textarea>
+        </div>
+        <div class="modal-field" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="nm-pinned" ${n.pinned?'checked':''} style="width:auto;padding:0;">
+          <label for="nm-pinned" style="margin:0;font-size:13px;cursor:pointer;">필독 공지로 설정</label>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">취소</button>
+          <button class="btn-save" onclick="saveNotice(${id||'null'})">${isEdit?'저장':'등록'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  };
+
+  window.saveNotice = function(id) {
+    const title = document.getElementById('nm-title').value.trim();
+    if(!title) return alert('제목을 입력하세요.');
+    const data = {
+      title,
+      content: document.getElementById('nm-content').value,
+      pinned:  document.getElementById('nm-pinned').checked,
+    };
+    if(id) HA.updateNotice(id, data);
+    else   HA.addNotice(data);
+    document.querySelector('.modal-overlay').remove();
+    renderNotices();
+  };
+
+  renderNotices();
+})();
+</script>
+</div>

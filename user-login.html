@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HIGHER AD | 로그인</title>
+  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0f172a;
+      --accent: #10b981;
+      --accent2:#059669;
+      --muted:  #94a3b8;
+      --border: #e2e8f0;
+      --text:   #1e293b;
+      --text2:  #64748b;
+      --bg:     #f8fafc;
+    }
+
+    body {
+      font-family: 'Pretendard', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 배경 장식 */
+    .bg-deco {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    }
+    .bg-deco::before {
+      content: '';
+      position: absolute;
+      top: -200px; right: -200px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(16,185,129,.07) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .bg-deco::after {
+      content: '';
+      position: absolute;
+      bottom: -150px; left: -150px;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(15,23,42,.05) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    /* 카드 */
+    .login-wrap {
+      position: relative; z-index: 1;
+      width: 420px;
+      animation: slideUp .5s cubic-bezier(.22,.68,0,1.2) both;
+    }
+    @keyframes slideUp {
+      from { opacity:0; transform:translateY(24px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .login-logo {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 26px; font-weight: 900; letter-spacing: -1px; color: var(--navy);
+    }
+    .login-logo span { color: var(--accent); }
+    .login-logo-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { transform:scale(1); opacity:1; }
+      50%      { transform:scale(1.4); opacity:.6; }
+    }
+    .login-sub {
+      font-size: 13px; color: var(--text2); margin-top: 8px; letter-spacing: .3px;
+    }
+
+    .login-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 4px 40px rgba(0,0,0,.06);
+    }
+
+    .field-group { margin-bottom: 18px; }
+    .field-label {
+      display: block; font-size: 12px; font-weight: 700;
+      color: var(--text2); margin-bottom: 7px; letter-spacing: .3px;
+      text-transform: uppercase;
+    }
+    .field-input {
+      width: 100%; padding: 13px 16px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 14px; font-family: inherit; color: var(--text);
+      background: #fff; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .field-input::placeholder { color: var(--muted); }
+    .field-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(16,185,129,.1);
+    }
+    .field-input.error { border-color: #ef4444; }
+
+    .error-msg {
+      display: none; font-size: 12px; color: #ef4444;
+      margin-top: 8px; padding: 10px 14px;
+      background: rgba(239,68,68,.06); border-radius: 8px;
+      border-left: 3px solid #ef4444;
+    }
+    .error-msg.show { display: block; }
+
+    .login-btn {
+      width: 100%; padding: 14px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 10px; cursor: pointer;
+      font-size: 15px; font-weight: 700; font-family: inherit;
+      transition: background .2s, transform .1s, box-shadow .2s;
+      margin-top: 8px;
+      box-shadow: 0 4px 16px rgba(16,185,129,.25);
+    }
+    .login-btn:hover { background: var(--accent2); box-shadow: 0 6px 20px rgba(16,185,129,.35); }
+    .login-btn:active { transform: scale(.98); }
+    .login-btn:disabled { background: var(--muted); box-shadow: none; cursor: not-allowed; }
+
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 24px 0 20px; color: var(--muted); font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    .admin-link {
+      text-align: center; font-size: 12px; color: var(--text2);
+    }
+    .admin-link a {
+      color: var(--accent); font-weight: 600; text-decoration: none;
+    }
+    .admin-link a:hover { text-decoration: underline; }
+
+    .notice-box {
+      background: rgba(16,185,129,.05);
+      border: 1px solid rgba(16,185,129,.2);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+    .notice-box strong { color: var(--accent); }
+
+    /* 로딩 스피너 */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      margin-right: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div class="bg-deco"></div>
+
+<div class="login-wrap">
+  <div class="login-header">
+    <div class="login-logo">
+      HIGHER <span>AD</span>
+      <div class="login-logo-dot"></div>
+    </div>
+    <p class="login-sub">슬롯 접수 및 현황 관리 포털</p>
+  </div>
+
+  <div class="login-card">
+    <div class="notice-box">
+      <strong>테스트 계정 안내</strong><br>
+      아이디: <strong>higher</strong> &nbsp;/&nbsp; 비밀번호: <strong>test1234</strong>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">아이디</label>
+      <input class="field-input" id="inp-id" type="text" placeholder="아이디를 입력하세요" autocomplete="username">
+    </div>
+    <div class="field-group">
+      <label class="field-label">비밀번호</label>
+      <input class="field-input" id="inp-pw" type="password" placeholder="비밀번호를 입력하세요" autocomplete="current-password">
+    </div>
+
+    <div class="error-msg" id="login-error">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+
+    <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
+
+    <div class="divider">또는</div>
+
+    <div class="admin-link">
+      관리자이신가요? <a href="index.html">어드민 페이지로 이동</a>
+    </div>
+  </div>
+</div>
+
+<script src="ha-store.js"></script>
+<script>
+  // 이미 로그인된 경우 바로 이동
+  const cur = HA.getCurrentUser();
+  if (cur && cur.role !== 'admin') location.href = 'user-dashboard.html';
+
+  // Enter 키 처리
+  document.getElementById('inp-pw').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('inp-id').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('inp-pw').focus();
+  });
+
+  // 입력 시 에러 초기화
+  ['inp-id','inp-pw'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      document.getElementById('login-error').classList.remove('show');
+      document.getElementById(id).classList.remove('error');
+    });
+  });
+
+  function doLogin() {
+    const username = document.getElementById('inp-id').value.trim();
+    const password = document.getElementById('inp-pw').value;
+    const btn = document.getElementById('login-btn');
+
+    if (!username || !password) {
+      document.getElementById('login-error').textContent = '아이디와 비밀번호를 모두 입력해주세요.';
+      document.getElementById('login-error').classList.add('show');
+      return;
+    }
+
+    // 어드민은 이 페이지로 로그인 불가
+    if (username === 'admin') {
+      document.getElementById('login-error').textContent = '관리자 계정은 어드민 페이지를 이용해주세요.';
+      document.getElementById('login-error').classList.add('show');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>로그인 중...';
+
+    setTimeout(() => {
+      const result = HA.login(username, password);
+      if (result.ok) {
+        location.href = 'user-dashboard.html';
+      } else {
+        document.getElementById('login-error').textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+        document.getElementById('login-error').classList.add('show');
+        ['inp-id','inp-pw'].forEach(id => document.getElementById(id).classList.add('error'));
+        btn.disabled = false;
+        btn.textContent = '로그인';
+      }
+    }, 500);
+  }
+</script>
+</body>
+</html>
