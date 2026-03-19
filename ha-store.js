@@ -85,7 +85,7 @@ function dispatch(event) {
 // ════════════════════════════════════════════════════════════
 const HA = {
 
-  SLOT_TYPES: ['리워드'],
+  SLOT_TYPES: ['땡초','텍사스','유토피아','갤럭시','메리','퍼블릭','리무진','이슬'],
 
   // ── 현재 로그인 유저 ───────────────────────────────────────
   getCurrentUser() {
@@ -106,6 +106,10 @@ const HA = {
       const users = snapToArray(snapshot);
       const found = users.find(u => u.username === username && u.password === password);
       if (found) {
+        // 승인 대기 중인 계정 로그인 차단
+        if (found.approved === false) {
+          return { ok: false, reason: 'pending' };
+        }
         const user = { ...found };
         sessionStorage.setItem('ha_current_user', JSON.stringify(user));
         return { ok: true, user };
@@ -235,6 +239,7 @@ ${lines}
       unitPrice:  Number(data.unitPrice) || 0,
       memo:       data.memo       || '',
       createdAt:  new Date().toISOString().slice(0, 10),
+      approved:   data.approved !== undefined ? data.approved : false,
     };
     const newRef = await push(ref(db, PATHS.users), newUser);
     dispatch('ha:users:updated');
