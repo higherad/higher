@@ -35,21 +35,29 @@ const PATHS = {
 
 // ── 텔레그램 알림 설정 ────────────────────────────────────────
 const TELEGRAM = {
-  token:  '8696324609:AAFo10CLRJiWdDahGtCqHfLKY16HsHZOnE8',
-  chatId: '6071423703',
+  token:   '8696324609:AAFo10CLRJiWdDahGtCqHfLKY16HsHZOnE8',
+  chatIds: [
+    '6071423703',   // 관리자1
+    '여기에추가',    // 관리자2
+    '여기에추가',    // 관리자3
+  ],
 };
 
 async function sendTelegram(message) {
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM.token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: TELEGRAM.chatId,
-        text: message,
-        parse_mode: 'HTML',
-      }),
-    });
+    await Promise.all(
+      TELEGRAM.chatIds.map(chatId =>
+        fetch(`https://api.telegram.org/bot${TELEGRAM.token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: message,
+            parse_mode: 'HTML',
+          }),
+        })
+      )
+    );
   } catch (e) {
     console.warn('텔레그램 알림 실패:', e);
   }
