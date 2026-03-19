@@ -180,12 +180,12 @@
               ` : ''}
               ${s.status==='active' ? `
                 <button class="action-btn" style="background:#fff3cd;color:#92400e;" onclick="openEditModal('${s._key}')">수정</button>
-                <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기로</button>
+                <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기</button>
                 <button class="action-btn btn-reject" onclick="openRejectModal('${s._key}')">반려</button>
               ` : ''}
               ${s.status==='rejected' ? `
                 <button class="action-btn btn-approve" onclick="approveOne('${s._key}')">승인</button>
-                <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기로</button>
+                <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기</button>
               ` : ''}
               <button class="action-btn" style="background:rgba(239,68,68,.1);color:var(--danger);" onclick="deleteOne('${s._key}')">삭제</button>
             </div>
