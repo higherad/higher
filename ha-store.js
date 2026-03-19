@@ -134,24 +134,26 @@ const HA = {
 
   async addSlot(data) {
     const newSlot = {
-      status:        'pending',
-      createdAt:     new Date().toISOString(),
-      agencyId:      data.agencyId      || '',
-      userId:        data.userId        || '',
-      slotType:      data.slotType      || '',
-      startDate:     data.startDate     || '',
-      endDate:       data.endDate       || '',
-      storeName:     data.storeName     || '',
-      rankKeyword:   data.rankKeyword   || '',
-      url:           data.url           || '',
-      mid:           data.mid           || '',
-      compareUrl:    data.compareUrl    || '',
-      compareMid:    data.compareMid    || '',
-      workKeyword:   data.workKeyword   || '',
-      sellerControl: data.sellerControl || '',
-      memo:          data.memo          || '',
-      rank:          null,
-      inflow:        0,
+      status:       'pending',
+      createdAt:    new Date().toISOString(),
+      agencyId:     data.agencyId     || '',
+      userId:       data.userId       || '',
+      slotType:     data.slotType     || '',
+      startDate:    data.startDate    || '',
+      endDate:      data.endDate      || '',
+      storeName:    data.storeName    || '',
+      rankKeyword:  data.rankKeyword  || '',
+      url:          data.url          || '',
+      mid:          data.mid          || '',
+      compareUrl:   data.compareUrl   || '',
+      compareMid:   data.compareMid   || '',
+      workKeyword:  data.workKeyword  || '',
+      sellerControl:data.sellerControl|| '',
+      memo:         data.memo         || '',
+      days:         Number(data.days)        || 0,
+      dailyTarget:  Number(data.dailyTarget) || 0,
+      rank:         null,
+      inflow:       0,
     };
     const newRef = await push(ref(db, PATHS.slots), newSlot);
     const result = { ...newSlot, _key: newRef.key };
@@ -226,13 +228,13 @@ ${lines}
 
   async addUser(data) {
     const newUser = {
-      username:  data.username  || '',
-      password:  data.password  || '',
-      agency:    data.agency    || '',
-      role:      'member',
-      unitPrice: Number(data.unitPrice) || 0,
-      memo:      data.memo      || '',
-      createdAt: new Date().toISOString().slice(0, 10),
+      username:   data.username   || '',
+      password:   data.password   || '',
+      agency:     data.agency     || '',
+      role:       'member',
+      unitPrice:  Number(data.unitPrice) || 0,
+      memo:       data.memo       || '',
+      createdAt:  new Date().toISOString().slice(0, 10),
     };
     const newRef = await push(ref(db, PATHS.users), newUser);
     dispatch('ha:users:updated');
