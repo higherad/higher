@@ -41,9 +41,48 @@
     .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
     .page-heading { font-size:22px; font-weight:800; color:var(--text); }
     .top-right { display:flex; align-items:center; gap:12px; }
-    .status-pill { background:rgba(16,185,129,.08); color:var(--accent); padding:5px 14px; border-radius:20px; font-size:11px; font-weight:700; border:1px solid rgba(16,185,129,.3); letter-spacing:.5px; }
-    .icon-btn { width:34px; height:34px; border-radius:8px; background:var(--card); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.2s; color:var(--text2); }
+
+    /* 상태 pill */
+    .status-pill { padding:5px 14px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.5px; border:1px solid; transition:.3s; }
+    .status-pill.ok      { background:rgba(16,185,129,.08); color:var(--accent); border-color:rgba(16,185,129,.3); }
+    .status-pill.loading { background:rgba(245,158,11,.08); color:var(--warn); border-color:rgba(245,158,11,.3); }
+    .status-pill.error   { background:rgba(239,68,68,.08); color:var(--danger); border-color:rgba(239,68,68,.3); }
+
+    /* 알림 버튼 */
+    .icon-btn {
+      width:34px; height:34px; border-radius:8px; background:var(--card);
+      border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+      cursor:pointer; transition:.2s; color:var(--text2); position:relative;
+    }
     .icon-btn:hover { background:var(--bg); color:var(--text); }
+    .notif-dot {
+      position:absolute; top:-3px; right:-3px;
+      width:16px; height:16px; border-radius:50%;
+      background:var(--danger); color:#fff;
+      font-size:9px; font-weight:700;
+      display:none; align-items:center; justify-content:center;
+      border:2px solid var(--bg);
+    }
+    .notif-dot.show { display:flex; }
+
+    /* 알림 드롭다운 */
+    .notif-panel {
+      position:absolute; top:calc(100% + 8px); right:0;
+      width:320px; background:#fff; border:1px solid var(--border);
+      border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.12);
+      z-index:200; display:none;
+    }
+    .notif-panel.show { display:block; }
+    .notif-header { padding:14px 16px; border-bottom:1px solid var(--border); font-size:13px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+    .notif-clear { font-size:11px; color:var(--accent); cursor:pointer; font-weight:600; }
+    .notif-list { max-height:280px; overflow-y:auto; }
+    .notif-item { padding:12px 16px; border-bottom:1px solid #f8fafc; cursor:pointer; transition:.15s; }
+    .notif-item:hover { background:#f8fafc; }
+    .notif-item:last-child { border-bottom:none; }
+    .notif-item-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:3px; }
+    .notif-item-desc  { font-size:11px; color:var(--text2); }
+    .notif-empty { padding:28px 16px; text-align:center; color:var(--muted); font-size:12px; }
+    .notif-wrap { position:relative; }
 
     .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px; }
     .stat-card { background:var(--card); border-radius:14px; padding:20px; border:1px solid var(--border); position:relative; overflow:hidden; transition:.2s; }
@@ -68,8 +107,8 @@
     .notice-item { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px dashed var(--border); }
     .notice-item:last-child { border:none; padding-bottom:0; }
     .notice-tag { flex-shrink:0; font-size:10px; padding:2px 7px; border-radius:4px; font-weight:700; }
-    .tag-urgent { background:rgba(239,68,68,.1); color:var(--danger); }
-    .tag-general{ background:var(--bg); color:var(--text2); }
+    .tag-urgent  { background:rgba(239,68,68,.1); color:var(--danger); }
+    .tag-general { background:var(--bg); color:var(--text2); }
     .notice-title { flex:1; font-size:13px; color:var(--text); cursor:pointer; }
     .notice-title:hover { color:var(--accent); }
     .notice-date { font-size:11px; color:var(--muted); flex-shrink:0; }
@@ -77,11 +116,10 @@
     .quick-title { font-size:15px; font-weight:700; color:#fff; margin-bottom:18px; }
     .quick-btn { display:block; width:100%; text-align:left; padding:14px 16px; border-radius:10px; border:none; cursor:pointer; font-size:13px; font-weight:500; margin-bottom:10px; transition:.2s; }
     .quick-btn:last-child { margin-bottom:0; }
-    .quick-btn.ghost { background:rgba(255,255,255,.07); color:#fff; }
+    .quick-btn.ghost   { background:rgba(255,255,255,.07); color:#fff; }
     .quick-btn.ghost:hover { background:rgba(255,255,255,.12); }
     .quick-btn.primary { background:var(--accent); color:#fff; }
     .quick-btn.primary:hover { background:var(--accent2); }
-    .page-title { font-size:20px; font-weight:800; color:var(--text); margin-bottom:20px; }
 
     .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:14px; gap:10px; }
     .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
@@ -120,8 +158,25 @@
   <div class="top-bar">
     <div class="page-heading" id="page-heading">운영 현황 대시보드</div>
     <div class="top-right">
-      <div class="status-pill">OPERATING NORMAL</div>
-      <div class="icon-btn"><i data-lucide="bell" size="16"></i></div>
+      <!-- Firebase 연결 상태 -->
+      <div class="status-pill loading" id="status-pill">● 연결 중...</div>
+
+      <!-- 알림 버튼 -->
+      <div class="notif-wrap">
+        <div class="icon-btn" onclick="toggleNotif()">
+          <i data-lucide="bell" size="16"></i>
+          <div class="notif-dot" id="notif-dot"></div>
+        </div>
+        <div class="notif-panel" id="notif-panel">
+          <div class="notif-header">
+            알림
+            <span class="notif-clear" onclick="clearNotifs()">모두 지우기</span>
+          </div>
+          <div class="notif-list" id="notif-list">
+            <div class="notif-empty">새 알림이 없습니다.</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <div id="content-area">
@@ -132,8 +187,6 @@
 <script type="module">
   import HA from './ha-store.js';
 
-  // ── 전역 노출 ─────────────────────────────────────────────
-  // 서브페이지(접수관리.html 등)의 일반 <script>에서 window.HA로 접근 가능
   window.HA = HA;
 
   // ── 로그아웃 ──────────────────────────────────────────────
@@ -142,6 +195,58 @@
     sessionStorage.removeItem('ha_admin_auth');
     location.href = 'admin-login.html';
   };
+
+  // ── 알림 관련 ─────────────────────────────────────────────
+  let notifications = JSON.parse(sessionStorage.getItem('ha_notifs') || '[]');
+  let prevPending   = null;
+  let notifOpen     = false;
+
+  function saveNotifs() {
+    sessionStorage.setItem('ha_notifs', JSON.stringify(notifications.slice(0, 20)));
+  }
+
+  function renderNotifPanel() {
+    const dot  = document.getElementById('notif-dot');
+    const list = document.getElementById('notif-list');
+    if (!notifications.length) {
+      dot.classList.remove('show');
+      list.innerHTML = '<div class="notif-empty">새 알림이 없습니다.</div>';
+      return;
+    }
+    dot.textContent = notifications.length > 9 ? '9+' : notifications.length;
+    dot.classList.add('show');
+    list.innerHTML = notifications.map((n, i) => `
+      <div class="notif-item" onclick="handleNotif(${i})">
+        <div class="notif-item-title">${n.title}</div>
+        <div class="notif-item-desc">${n.desc}</div>
+      </div>`).join('');
+  }
+
+  window.toggleNotif = function() {
+    const panel = document.getElementById('notif-panel');
+    notifOpen = !notifOpen;
+    panel.classList.toggle('show', notifOpen);
+  };
+
+  window.clearNotifs = function() {
+    notifications = [];
+    saveNotifs();
+    renderNotifPanel();
+  };
+
+  window.handleNotif = function(i) {
+    document.getElementById('notif-panel').classList.remove('show');
+    notifOpen = false;
+    loadPage('접수관리.html', document.getElementById('nav-pending'));
+  };
+
+  // 패널 외부 클릭 시 닫기
+  document.addEventListener('click', e => {
+    if (notifOpen && !e.target.closest('.notif-wrap')) {
+      document.getElementById('notif-panel').classList.remove('show');
+      notifOpen = false;
+    }
+  });
 
   // ── 대시보드 렌더 ─────────────────────────────────────────
   window.renderDashboard = async function() {
@@ -179,16 +284,16 @@
         </div>
         <div class="quick-box">
           <div class="quick-title">Quick Action</div>
-          <button class="quick-btn ghost" onclick="loadPage('접수관리.html',document.getElementById('nav-pending'))">📥 &nbsp;신규 접수 확인하기</button>
+          <button class="quick-btn ghost"   onclick="loadPage('접수관리.html',document.getElementById('nav-pending'))">📥 &nbsp;신규 접수 확인하기</button>
           <button class="quick-btn primary" onclick="loadPage('정산관리.html',document.getElementById('nav-settle'))">💰 &nbsp;미정산 내역 확인</button>
-          <button class="quick-btn ghost" onclick="loadPage('만료예정.html',document.getElementById('nav-expire'))">⏰ &nbsp;만료 예정 슬롯 보기</button>
+          <button class="quick-btn ghost"   onclick="loadPage('만료예정.html',document.getElementById('nav-expire'))">⏰ &nbsp;만료 예정 슬롯 보기</button>
+          <button class="quick-btn ghost"   onclick="loadPage('회원관리.html',document.getElementById('nav-users'))">👤 &nbsp;신규 회원 승인하기</button>
         </div>
       </div>`;
 
     lucide.createIcons();
   };
 
-  // ── 대시보드로 이동 ───────────────────────────────────────
   window.loadDashboard = function() {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     document.getElementById('page-heading').textContent = '운영 현황 대시보드';
@@ -196,7 +301,6 @@
     window.scrollTo(0, 0);
   };
 
-  // ── 서브 페이지 전환 ──────────────────────────────────────
   window.loadPage = async function(page, navEl) {
     if (navEl) {
       document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -216,16 +320,12 @@
       const res = await fetch(page + '?v=' + Date.now());
       if (!res.ok) throw new Error();
       area.innerHTML = await res.text();
-
-      // 서브 페이지 내 <script> 실행
-      // 서브 페이지들은 window.HA를 그대로 사용
       area.querySelectorAll('script').forEach(old => {
         const s = document.createElement('script');
         s.textContent = old.textContent;
         document.body.appendChild(s);
         document.body.removeChild(s);
       });
-
       lucide.createIcons();
       window.scrollTo(0, 0);
     } catch {
@@ -234,22 +334,41 @@
     }
   };
 
-  // ── 접수 대기 배지 — Firebase 실시간 리스너 ──────────────
-  // 업체가 신청하는 순간 배지 숫자가 자동으로 바뀜
+  // ── Firebase 실시간 리스너 ────────────────────────────────
   HA.onSlotsChange(slots => {
     const n = slots.filter(s => s.status === 'pending').length;
+
+    // 배지 업데이트
     const el = document.getElementById('pending-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
+
+    // Firebase 연결 성공 표시
+    const pill = document.getElementById('status-pill');
+    if (pill) {
+      pill.textContent = '● 연결됨';
+      pill.className = 'status-pill ok';
+    }
+
+    // 새 접수 알림 생성
+    if (prevPending !== null && n > prevPending) {
+      const diff = n - prevPending;
+      notifications.unshift({
+        title: `📥 새 슬롯 접수 ${diff}건`,
+        desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
+      });
+      saveNotifs();
+      renderNotifPanel();
+    }
+    prevPending = n;
+    renderNotifPanel();
   });
 
   // ── 앱 시작 ───────────────────────────────────────────────
   async function init() {
-    // 미인증 시 즉시 로그인 페이지로 — body는 숨긴 채로
     if (sessionStorage.getItem('ha_admin_auth') !== '1') {
       location.href = 'admin-login.html';
       return;
     }
-    // 인증 확인 후 body 표시
     document.body.style.display = 'flex';
     await HA.seedIfEmpty();
     await renderDashboard();
@@ -258,6 +377,5 @@
 
   init();
 </script>
-
 </body>
 </html>
