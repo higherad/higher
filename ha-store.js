@@ -63,6 +63,13 @@ async function sendTelegram(message) {
   }
 }
 
+// ── 텔레그램 배치 큐 ─────────────────────────────────────────
+const _telegramBatch = {
+  queue: [],
+  timer: null,
+  DELAY: 5000,  // 5초 묶음 대기 (ms)
+};
+
 // ── 유틸: Firebase 스냅샷 → 배열 변환 ───────────────────────
 function snapToArray(snapshot) {
   if (!snapshot.exists()) return [];
@@ -127,43 +134,64 @@ const HA = {
 
   async addSlot(data) {
     const newSlot = {
-      status:       'pending',
-      createdAt:    new Date().toISOString(),
-      agencyId:     data.agencyId     || '',
-      userId:       data.userId       || '',
-      slotType:     data.slotType     || '',
-      startDate:    data.startDate    || '',
-      endDate:      data.endDate      || '',
-      storeName:    data.storeName    || '',
-      rankKeyword:  data.rankKeyword  || '',
-      url:          data.url          || '',
-      mid:          data.mid          || '',
-      compareUrl:   data.compareUrl   || '',
-      compareMid:   data.compareMid   || '',
-      workKeyword:  data.workKeyword  || '',
-      sellerControl:data.sellerControl|| '',
-      memo:         data.memo         || '',
-      rank:         null,
-      inflow:       0,
+      status:        'pending',
+      createdAt:     new Date().toISOString(),
+      agencyId:      data.agencyId      || '',
+      userId:        data.userId        || '',
+      slotType:      data.slotType      || '',
+      startDate:     data.startDate     || '',
+      endDate:       data.endDate       || '',
+      storeName:     data.storeName     || '',
+      rankKeyword:   data.rankKeyword   || '',
+      url:           data.url           || '',
+      mid:           data.mid           || '',
+      compareUrl:    data.compareUrl    || '',
+      compareMid:    data.compareMid    || '',
+      workKeyword:   data.workKeyword   || '',
+      sellerControl: data.sellerControl || '',
+      memo:          data.memo          || '',
+      rank:          null,
+      inflow:        0,
     };
     const newRef = await push(ref(db, PATHS.slots), newSlot);
     const result = { ...newSlot, _key: newRef.key };
     dispatch('ha:slots:updated');
 
-    // ── 텔레그램 알림 발송 ──────────────────────────────────
-    const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-  await sendTelegram(
-`📥 <b>새 슬롯 접수</b>
+    // ── 텔레그램 배치 알림 ──────────────────────────────────
+    _telegramBatch.queue.push(newSlot);
+
+    if (_telegramBatch.timer) clearTimeout(_telegramBatch.timer);
+
+    _telegramBatch.timer = setTimeout(async () => {
+      const batch = [..._telegramBatch.queue];
+      _telegramBatch.queue = [];
+      _telegramBatch.timer = null;
+
+      const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+
+      // 대행사 + 슬롯타입 조합별 집계
+      const grouped = {};
+      for (const s of batch) {
+        const key = `${s.agencyId}||${s.slotType}`;
+        grouped[key] = (grouped[key] || 0) + 1;
+      }
+
+      const lines = Object.entries(grouped)
+        .map(([key, cnt]) => {
+          const [agency, type] = key.split('||');
+          return `  • ${agency} / ${type} / ${cnt}개`;
+        })
+        .join('\n');
+
+      await sendTelegram(
+`📥 <b>새 슬롯 접수 (총 ${batch.length}개)</b>
 ━━━━━━━━━━━━━━━━
-🏷 슬롯타입: ${newSlot.slotType}
-🏪 스토어명: ${newSlot.storeName}
-🔑 순위키워드: ${newSlot.rankKeyword}
-👤 업체: ${newSlot.agencyId} / ${newSlot.userId}
-📅 기간: ${newSlot.startDate} ~ ${newSlot.endDate}
+${lines}
 ⏰ 접수시간: ${now}
 ━━━━━━━━━━━━━━━━
 👉 <a href="https://higherad.kro.kr/index.html">어드민에서 확인하세요</a>`
-  );
+      );
+    }, _telegramBatch.DELAY);
 
     return result;
   },
@@ -198,13 +226,13 @@ const HA = {
 
   async addUser(data) {
     const newUser = {
-      username:   data.username   || '',
-      password:   data.password   || '',
-      agency:     data.agency     || '',
-      role:       'member',
-      unitPrice:  Number(data.unitPrice) || 0,
-      memo:       data.memo       || '',
-      createdAt:  new Date().toISOString().slice(0, 10),
+      username:  data.username  || '',
+      password:  data.password  || '',
+      agency:    data.agency    || '',
+      role:      'member',
+      unitPrice: Number(data.unitPrice) || 0,
+      memo:      data.memo      || '',
+      createdAt: new Date().toISOString().slice(0, 10),
     };
     const newRef = await push(ref(db, PATHS.users), newUser);
     dispatch('ha:users:updated');
