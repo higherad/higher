@@ -38,8 +38,8 @@ const TELEGRAM = {
   token:   '8696324609:AAFo10CLRJiWdDahGtCqHfLKY16HsHZOnE8',
   chatIds: [
     '6071423703',   // 관리자1
-    '여기에추가',    // 관리자2
-    '여기에추가',    // 관리자3
+    // '여기에추가',  // 관리자2
+    // '여기에추가',  // 관리자3
   ],
 };
 
