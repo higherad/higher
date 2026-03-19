@@ -92,13 +92,13 @@
     <thead>
       <tr>
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
-        <th>번호</th><th>접수일시</th><th>대행사</th><th>유저ID</th>
+        <th>번호</th><th>접수일시</th><th>대행사</th><th>유저MID</th>
         <th>슬롯타입</th><th>스토어명</th><th>순위키워드</th>
-        <th>시작일</th><th>종료일</th><th>상태</th><th>액션</th>
+        <th>일수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="receipt-body">
-      <tr><td colspan="12" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
+      <tr><td colspan="14" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
     </tbody>
   </table>
 </div>
@@ -141,7 +141,7 @@
 
   window.renderReceipts = async function() {
     document.getElementById('receipt-body').innerHTML =
-      '<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
 
@@ -154,7 +154,7 @@
     const body  = document.getElementById('receipt-body');
 
     if (!page.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="12">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = page.map((s,i) => `
         <tr>
@@ -166,8 +166,10 @@
           <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
           <td>${s.storeName||'-'}</td>
           <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
+          <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
+          <td style="color:var(--text2)">${s.dailyTarget||'-'}</td>
           <td>${stMap[s.status]||s.status}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
@@ -300,7 +302,8 @@
           <dt>순위키워드</dt><dd>${s.rankKeyword}</dd>
           <dt>URL</dt><dd><a href="${s.url}" target="_blank" style="color:var(--accent)">${s.url}</a></dd>
           <dt>MID</dt><dd>${s.mid||'-'}</dd>
-          <dt>작업키워드</dt><dd>${s.workKeyword||'-'}</dd>
+          <dt>일 목표</dt><dd>${s.dailyTarget||'-'}</dd>
+          <dt>일 수</dt><dd>${s.days||'-'}</dd>
           <dt>기간</dt><dd>${s.startDate} ~ ${s.endDate}</dd>
           <dt>상태</dt><dd>${stMap[s.status]||s.status}</dd>
           ${s.rejectReason ? `<dt>반려사유</dt><dd style="color:var(--danger)">${s.rejectReason}</dd>` : ''}
@@ -400,46 +403,9 @@
 
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
 
-      // 헤더 스타일 (노란 배경 + 빨간 텍스트 - 이미지 기준)
-      const headerStyle = {
-        fill: { fgColor: { rgb: 'FFFF00' } },
-        font: { bold: true, color: { rgb: 'FF0000' } },
-        alignment: { horizontal: 'center', vertical: 'center' },
-        border: {
-          top: { style:'thin', color:{ rgb:'000000' } },
-          bottom: { style:'thin', color:{ rgb:'000000' } },
-          left: { style:'thin', color:{ rgb:'000000' } },
-          right: { style:'thin', color:{ rgb:'000000' } },
-        }
-      };
-      const cellStyle = {
-        alignment: { horizontal: 'center', vertical: 'center' },
-        border: {
-          top: { style:'thin', color:{ rgb:'DDDDDD' } },
-          bottom: { style:'thin', color:{ rgb:'DDDDDD' } },
-          left: { style:'thin', color:{ rgb:'DDDDDD' } },
-          right: { style:'thin', color:{ rgb:'DDDDDD' } },
-        }
-      };
-
-      // 헤더 행 스타일 적용
-      header.forEach((_, ci) => {
-        const cellRef = XLSX.utils.encode_cell({ r: 0, c: ci });
-        if (!ws[cellRef]) ws[cellRef] = { v: header[ci] };
-        ws[cellRef].s = headerStyle;
-      });
-      // 데이터 행 스타일 적용
-      rows.forEach((row, ri) => {
-        row.forEach((_, ci) => {
-          const cellRef = XLSX.utils.encode_cell({ r: ri+1, c: ci });
-          if (ws[cellRef]) ws[cellRef].s = cellStyle;
-        });
-      });
-
       ws['!cols'] = [
         {wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20}
       ];
-      ws['!rows'] = [{ hpt: 20 }]; // 헤더 행 높이
 
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
