@@ -58,16 +58,8 @@
   .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:13px; gap:8px; }
   .spinner { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
-  .status-change-section { border:1px solid var(--border); border-radius:8px; padding:14px; margin-top:16px; background:#fafbfc; }
-  .status-change-section h4 { font-size:12px; color:var(--text2); font-weight:600; margin:0 0 10px 0; }
-  .status-btns { display:flex; gap:8px; flex-wrap:wrap; }
-  .detail-kw-section { border:1px solid #e0f2fe; border-radius:8px; padding:14px; margin-top:10px; background:#f0f9ff; }
-  .detail-kw-section h4 { font-size:12px; color:#0369a1; font-weight:600; margin:0 0 10px 0; }
-  .kw-input-row { display:flex; gap:8px; }
-  .kw-input-row input { flex:1; padding:7px 10px; border:1px solid #bae6fd; border-radius:6px; font-size:13px; outline:none; }
-  .kw-input-row input:focus { border-color:#0284c7; }
-  .kw-save-btn { padding:7px 14px; background:#0284c7; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
-  .kw-save-btn:hover { background:#0369a1; }
+  .detail-kw-input { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; outline:none; color:var(--text); box-sizing:border-box; margin-top:3px; }
+  .detail-kw-input:focus { border-color:var(--accent); }
 </style>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -291,20 +283,12 @@
     renderReceipts();
   };
 
-  // ── 상세 보기 (키워드 직접 입력 포함) ─────────────────────
+  // ── 상세 보기 ─────────────────────────────────────────────
   window.viewDetail = function(key) {
     const s = allSlots.find(x => x._key === key);
     if (!s) return;
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-
-    const statusBtns = (() => {
-      let btns = '';
-      if (s.status !== 'active')   btns += `<button class="action-btn btn-approve" style="padding:6px 14px;" onclick="approveOne('${s._key}')">승인으로 변경</button>`;
-      if (s.status !== 'pending')  btns += `<button class="action-btn btn-warning-save" style="padding:6px 14px;" onclick="changeStatusTo('${s._key}','pending')">대기로 변경</button>`;
-      if (s.status !== 'rejected') btns += `<button class="action-btn btn-reject" style="padding:6px 14px;" onclick="openRejectFromDetail('${s._key}')">반려로 변경</button>`;
-      return btns;
-    })();
 
     overlay.innerHTML = `
       <div class="modal-box">
@@ -321,49 +305,27 @@
           <dt>상태</dt><dd>${stMap[s.status]||s.status}</dd>
           ${s.rejectReason ? `<dt>반려사유</dt><dd style="color:var(--danger)">${s.rejectReason}</dd>` : ''}
           <dt>메모</dt><dd>${s.memo||'-'}</dd>
+          <dt>키워드</dt>
+          <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="키워드를 입력해주세요"></dd>
         </dl>
-
-        <!-- 키워드 입력 영역 -->
-        <div class="detail-kw-section">
-          <h4>🔑 검색 키워드 입력</h4>
-          <div class="kw-input-row">
-            <input type="text" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="검색 키워드를 입력해주세요">
-            <button class="kw-save-btn" onclick="saveDetailKeyword('${s._key}')">저장</button>
-          </div>
-        </div>
-
-        <!-- 상태 변경 영역 -->
-        <div class="status-change-section">
-          <h4>상태 변경</h4>
-          <div class="status-btns">
-            ${statusBtns}
-          </div>
-        </div>
-
         <div class="modal-footer">
-          <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">닫기</button>
+          <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
   };
 
-  // 상세 모달에서 키워드 저장
-  window.saveDetailKeyword = async function(key) {
-    const kw = document.getElementById('detail-keyword-input').value.trim();
-    await HA.updateSlot(key, { searchKeyword: kw });
-    // allSlots 캐시 업데이트
-    const idx = allSlots.findIndex(x => x._key === key);
-    if (idx !== -1) allSlots[idx].searchKeyword = kw;
-    // 저장 확인 피드백
-    const btn = document.querySelector('.kw-save-btn');
-    if (btn) { btn.textContent = '저장됨 ✓'; btn.style.background = '#16a34a'; setTimeout(() => { btn.textContent = '저장'; btn.style.background = '#0284c7'; }, 1500); }
-  };
-
-  // 상세 모달에서 반려 처리
-  window.openRejectFromDetail = function(key) {
-    const existingOverlay = document.querySelector('.modal-overlay');
-    if (existingOverlay) existingOverlay.remove();
-    openRejectModal(key);
+  // 닫기 시 키워드 자동저장
+  window.closeDetailModal = async function(key) {
+    const input = document.getElementById('detail-keyword-input');
+    const kw = input ? input.value.trim() : null;
+    const s = allSlots.find(x => x._key === key);
+    if (kw !== null && kw !== (s.searchKeyword||'')) {
+      await HA.updateSlot(key, { searchKeyword: kw });
+      const idx = allSlots.findIndex(x => x._key === key);
+      if (idx !== -1) allSlots[idx].searchKeyword = kw;
+    }
+    document.querySelector('.modal-overlay').remove();
   };
 
   // ── 수정 ─────────────────────────────────────────────────
@@ -414,107 +376,73 @@
     renderReceipts();
   };
 
-  // ── 엑셀 다운로드 (접수 시트 형식) ───────────────────────
+  // ── 엑셀 다운로드 (접수 시트 형식 - 이미지 기준) ────────────
   window.downloadExcel = function() {
     const filtered = getFiltered();
     if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
 
-    // SheetJS CDN 동적 로드 후 생성
     function buildAndDownload() {
       const XLSX = window.XLSX;
-
       const wb = XLSX.utils.book_new();
 
-      // ── 접수 시트 ──────────────────────────────────────
-      const receiptHeader = ['업체명','업체URL','업체PID번호','순위키워드','일수','시작일','트래픽 수량','분류','길찾기 수량','분류','비고','블랙','올리브','트-합계','길-합계'];
-      const receiptRows = filtered.map(s => [
+      // ── 접수 시트: 업체명/URL/PID번호/순위키워드/일수/시작일/일 목표/키워드
+      const header = ['업체명','업체URL','업체PID번호','순위키워드','일수','시작일','일 목표','키워드'];
+      const rows = filtered.map(s => [
         s.storeName||'',
         s.url||'',
         s.mid||'',
         s.rankKeyword||'',
         s.days||'',
         s.startDate||'',
-        s.trafficQty||'',
-        s.trafficType||'',
-        s.naverMapQty||'',
-        s.naverMapType||'',
-        s.memo||'',
-        s.black||'',
-        s.olive||'',
-        s.trafficTotal||'',
-        s.naverMapTotal||'',
-      ]);
-
-      const receiptData = [receiptHeader, ...receiptRows];
-      const wsReceipt = XLSX.utils.aoa_to_sheet(receiptData);
-
-      // 컬럼 너비
-      wsReceipt['!cols'] = [
-        {wch:20},{wch:50},{wch:14},{wch:14},{wch:6},{wch:12},
-        {wch:10},{wch:6},{wch:10},{wch:6},{wch:16},
-        {wch:8},{wch:8},{wch:10},{wch:10}
-      ];
-      XLSX.utils.book_append_sheet(wb, wsReceipt, '접수');
-
-      // ── 슬롯타입별 시트 (블랙, 올리브 등) ──────────────
-      const typeGroups = {};
-      filtered.forEach(s => {
-        const t = s.slotType || '기타';
-        if (!typeGroups[t]) typeGroups[t] = [];
-        typeGroups[t].push(s);
-      });
-
-      Object.entries(typeGroups).forEach(([type, slots]) => {
-        const header = ['상품등급명','업체명','업체URL','업체PID번호','순위키워드','일 목표','일 수','예약일','검색키워드'];
-        const rows = slots.map(s => [
-          s.slotType||'',
-          s.storeName||'',
-          s.url||'',
-          s.mid||'',
-          s.rankKeyword||'',
-          s.dailyTarget||'',
-          s.days||'',
-          s.startDate||'',
-          s.searchKeyword||'',
-        ]);
-        const wsType = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        wsType['!cols'] = [
-          {wch:10},{wch:20},{wch:50},{wch:14},{wch:14},
-          {wch:8},{wch:6},{wch:12},{wch:20}
-        ];
-        // 시트 이름 30자 이내 제한
-        const sheetName = String(type).slice(0,30);
-        XLSX.utils.book_append_sheet(wb, wsType, sheetName);
-      });
-
-      // ── 전체 목록 시트 ──────────────────────────────────
-      const allHeader = ['번호','접수일시','대행사','유저ID','슬롯타입','스토어명','순위키워드','검색키워드','URL','MID','시작일','종료일','상태','반려사유','메모'];
-      const allRows = filtered.map((s,i) => [
-        i+1,
-        (s.createdAt||'').slice(0,10),
-        s.agencyId||'',
-        s.userId||'',
-        s.slotType||'',
-        s.storeName||'',
-        s.rankKeyword||'',
+        s.dailyTarget||'',
         s.searchKeyword||'',
-        s.url||'',
-        s.mid||'',
-        s.startDate||'',
-        s.endDate||'',
-        { pending:'대기', active:'승인', rejected:'반려', expired:'만료' }[s.status] || s.status,
-        s.rejectReason||'',
-        s.memo||'',
       ]);
-      const wsAll = XLSX.utils.aoa_to_sheet([allHeader, ...allRows]);
-      wsAll['!cols'] = [
-        {wch:5},{wch:12},{wch:10},{wch:12},{wch:10},{wch:20},
-        {wch:14},{wch:20},{wch:50},{wch:14},{wch:12},{wch:12},
-        {wch:6},{wch:20},{wch:20}
-      ];
-      XLSX.utils.book_append_sheet(wb, wsAll, '전체목록');
 
-      // 파일명: 접수_YYYYMMDD.xlsx
+      const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+
+      // 헤더 스타일 (노란 배경 + 빨간 텍스트 - 이미지 기준)
+      const headerStyle = {
+        fill: { fgColor: { rgb: 'FFFF00' } },
+        font: { bold: true, color: { rgb: 'FF0000' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style:'thin', color:{ rgb:'000000' } },
+          bottom: { style:'thin', color:{ rgb:'000000' } },
+          left: { style:'thin', color:{ rgb:'000000' } },
+          right: { style:'thin', color:{ rgb:'000000' } },
+        }
+      };
+      const cellStyle = {
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style:'thin', color:{ rgb:'DDDDDD' } },
+          bottom: { style:'thin', color:{ rgb:'DDDDDD' } },
+          left: { style:'thin', color:{ rgb:'DDDDDD' } },
+          right: { style:'thin', color:{ rgb:'DDDDDD' } },
+        }
+      };
+
+      // 헤더 행 스타일 적용
+      header.forEach((_, ci) => {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c: ci });
+        if (!ws[cellRef]) ws[cellRef] = { v: header[ci] };
+        ws[cellRef].s = headerStyle;
+      });
+      // 데이터 행 스타일 적용
+      rows.forEach((row, ri) => {
+        row.forEach((_, ci) => {
+          const cellRef = XLSX.utils.encode_cell({ r: ri+1, c: ci });
+          if (ws[cellRef]) ws[cellRef].s = cellStyle;
+        });
+      });
+
+      ws['!cols'] = [
+        {wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20}
+      ];
+      ws['!rows'] = [{ hpt: 20 }]; // 헤더 행 높이
+
+      XLSX.utils.book_append_sheet(wb, ws, '접수');
+
       const today = new Date();
       const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
       XLSX.writeFile(wb, `접수_${dateStr}.xlsx`);
