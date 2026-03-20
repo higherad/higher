@@ -56,7 +56,7 @@
 </style>
 
 <div class="action-bar">
-  <input type="text" id="u-kw" placeholder="아이디 검색" style="width:200px;">
+  <input type="text" id="u-kw" placeholder="아이디/대행사 검색" style="width:200px;">
   <select id="u-status" onchange="renderUsers()">
     <option value="">전체</option>
     <option value="active">승인됨</option>
@@ -100,7 +100,7 @@
     return allUsers.filter(u => {
       if (status === 'active'  && u.approved === false) return false;
       if (status === 'pending' && u.approved !== false) return false;
-      return !kw || (u.username||'').toLowerCase().includes(kw);
+      return !kw || [(u.username||''),(u.agency||''),(u.agencyId||'')].some(v=>v.toLowerCase().includes(kw));
     });
   }
 
@@ -134,7 +134,7 @@
           : '<span class="user-status-badge us-active">승인됨</span>';
         return `<tr class="${isPending ? 'row-pending' : ''}">
           <td><input type="checkbox" class="u-check" data-key="${u._key}"></td>
-          <td style="color:var(--text2)">${start+i+1}</td>
+          <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="font-weight:700">${u.username}</td>
           <td>
             <div class="pw-wrap">
