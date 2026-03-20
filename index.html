@@ -321,18 +321,15 @@
       if (!res.ok) throw new Error();
       const html = await res.text();
 
-      // DOMParser로 파싱 — innerHTML의 </script> 파싱 문제 방지
       const doc = new DOMParser().parseFromString(html, 'text/html');
       area.innerHTML = '';
 
-      // body 자식 노드 복사 (script 제외)
       doc.body.childNodes.forEach(node => {
         if (node.nodeName !== 'SCRIPT') {
           area.appendChild(document.importNode(node, true));
         }
       });
 
-      // script 태그 별도 실행
       doc.body.querySelectorAll('script').forEach(old => {
         const s = document.createElement('script');
         s.textContent = old.textContent;
@@ -342,7 +339,8 @@
 
       lucide.createIcons();
       window.scrollTo(0, 0);
-    } catch {
+    } catch(err) {
+      console.error('loadPage error:', err);
       area.innerHTML = `<div style="padding:80px;text-align:center;background:#fff;border-radius:16px;border:1px solid var(--border)">
         <p style="color:var(--text2);font-size:14px">${page} 파일을 찾을 수 없습니다.</p></div>`;
     }
