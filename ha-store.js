@@ -31,6 +31,7 @@ const PATHS = {
   users:   'ha/users',
   notices: 'ha/notices',
   paid:    'ha/paid_slots',
+  refunds: 'ha/refunds',
 };
 
 // ── 텔레그램 알림 설정 ────────────────────────────────────────
@@ -309,6 +310,24 @@ ${lines}
       await set(ref(db, `${PATHS.paid}/${key}`), true);
     } else {
       await remove(ref(db, `${PATHS.paid}/${key}`));
+    }
+  },
+
+  // ════════════════════════════════════════════════════════
+  // 환불 관리
+  // ════════════════════════════════════════════════════════
+
+  async getRefunds() {
+    const snapshot = await get(ref(db, PATHS.refunds));
+    if (!snapshot.exists()) return {};
+    return snapshot.val();
+  },
+
+  async setRefundAmount(key, amount) {
+    if (!amount || amount <= 0) {
+      await remove(ref(db, `${PATHS.refunds}/${key}`));
+    } else {
+      await set(ref(db, `${PATHS.refunds}/${key}`), amount);
     }
   },
 
