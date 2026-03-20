@@ -319,13 +319,27 @@
     try {
       const res = await fetch(page + '?v=' + Date.now());
       if (!res.ok) throw new Error();
-      area.innerHTML = await res.text();
-      area.querySelectorAll('script').forEach(old => {
+      const html = await res.text();
+
+      // DOMParser로 파싱 — innerHTML의 </script> 파싱 문제 방지
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      area.innerHTML = '';
+
+      // body 자식 노드 복사 (script 제외)
+      doc.body.childNodes.forEach(node => {
+        if (node.nodeName !== 'SCRIPT') {
+          area.appendChild(document.importNode(node, true));
+        }
+      });
+
+      // script 태그 별도 실행
+      doc.body.querySelectorAll('script').forEach(old => {
         const s = document.createElement('script');
         s.textContent = old.textContent;
         document.body.appendChild(s);
         document.body.removeChild(s);
       });
+
       lucide.createIcons();
       window.scrollTo(0, 0);
     } catch {
