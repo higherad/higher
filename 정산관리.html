@@ -33,14 +33,18 @@
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
   .sp-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px; }
-  .sp-box { background:#fff;border-radius:16px;width:580px;max-height:82vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
-  .sp-title { font-size:18px;font-weight:800;margin-bottom:4px; }
-  .sp-sub { font-size:12px;color:var(--muted);margin-bottom:18px; }
-  .sp-cards { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px; }
-  .sp-card { background:#f8fafc;border-radius:8px;padding:12px 16px; }
-  .sp-card-label { font-size:11px;color:var(--text2);margin-bottom:4px; }
-  .sp-card-value { font-size:18px;font-weight:800; }
-  .sp-section { font-size:13px;font-weight:700;margin-bottom:8px;margin-top:16px; }
+  .sp-box { background:#fff;border-radius:16px;width:480px;max-height:85vh;overflow-y:auto;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  .sp-title { font-size:17px;font-weight:800;margin-bottom:2px; }
+  .sp-sub { font-size:12px;color:var(--muted);margin-bottom:16px; }
+  .sp-cards { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px; }
+  .sp-card { background:#f8fafc;border-radius:10px;padding:14px 16px;position:relative;overflow:hidden; }
+  .sp-card::after { content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--border); }
+  .sp-card.c-green::after { background:var(--accent); }
+  .sp-card.c-blue::after  { background:var(--info); }
+  .sp-card.c-red::after   { background:var(--danger); }
+  .sp-card-label { font-size:11px;color:var(--text2);font-weight:600;margin-bottom:8px; }
+  .sp-card-value { font-size:20px;font-weight:800;line-height:1; }
+  .sp-section { font-size:13px;font-weight:700;margin-bottom:8px;margin-top:16px;color:var(--text); }
   .sp-tbl { width:100%;border-collapse:collapse;font-size:12px; }
   .sp-tbl th { background:#1e293b;color:#fff;padding:8px 10px;font-weight:500;text-align:center; }
   .sp-tbl td { padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2); }
@@ -227,13 +231,46 @@
 
   window.setRefund=async function(date,agencyId,userId){
     const current=getRefund(date,agencyId,userId);
-    const input=prompt(`환불금액을 입력하세요 (현재: ${current.toLocaleString()}원)\n0 입력 시 환불 삭제`,current||'');
-    if(input===null) return;
-    const val=Number(input.replace(/,/g,''))||0;
-    const key=refundKey(date,agencyId,userId);
-    await HA.setRefundAmount(key,val);
-    refundMap[key]=val;
-    renderSettle();
+    // 기존 팝업 있으면 제거
+    const existing=document.getElementById('refund-modal');
+    if(existing) existing.remove();
+
+    const modal=document.createElement('div');
+    modal.id='refund-modal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML=`
+      <div style="background:#fff;border-radius:16px;padding:28px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px;">환불 금액 입력</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">${agencyId} · ${date}</div>
+        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--text2);">현재 환불금액</span>
+          <span style="font-weight:700;color:var(--danger);">${current.toLocaleString()}원</span>
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">환불금액 (0 입력 시 삭제)</label>
+          <input id="refund-input" type="number" value="${current||''}" placeholder="예: 70000"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button onclick="document.getElementById('refund-modal').remove()"
+            style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;">취소</button>
+          <button id="refund-confirm-btn"
+            style="padding:9px 20px;border:none;border-radius:8px;background:var(--danger);color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">저장</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('refund-input').focus();
+
+    document.getElementById('refund-confirm-btn').onclick=async()=>{
+      const val=Number(document.getElementById('refund-input').value)||0;
+      const key=refundKey(date,agencyId,userId);
+      await HA.setRefundAmount(key,val);
+      refundMap[key]=val;
+      modal.remove();
+      renderSettle();
+    };
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
   };
 
   window.bulkRow=async function(date,agencyId,userId){
@@ -264,10 +301,10 @@
       <div class="sp-title">${agencyId}</div>
       <div class="sp-sub">유저ID: ${userId} · 단가: ${p.toLocaleString()}원/개</div>
       <div class="sp-cards">
-        <div class="sp-card"><div class="sp-card-label">총 정산금액</div><div class="sp-card-value" style="color:var(--accent)">${netTotA.toLocaleString()}원</div></div>
-        <div class="sp-card"><div class="sp-card-label">총 입금액</div><div class="sp-card-value" style="color:var(--info)">${Math.round(netTotA*1.1).toLocaleString()}원</div></div>
-        <div class="sp-card"><div class="sp-card-label">정산 완료</div><div class="sp-card-value" style="color:var(--accent)">${paidA.toLocaleString()}원</div></div>
-        <div class="sp-card"><div class="sp-card-label">환불금액</div><div class="sp-card-value" style="color:var(--danger)">${totalRefund.toLocaleString()}원</div></div>
+        <div class="sp-card c-green"><div class="sp-card-label">총 정산금액</div><div class="sp-card-value" style="color:var(--accent)">${netTotA.toLocaleString()}원</div></div>
+        <div class="sp-card c-blue"><div class="sp-card-label">총 입금액</div><div class="sp-card-value" style="color:var(--info)">${Math.round(netTotA*1.1).toLocaleString()}원</div></div>
+        <div class="sp-card c-green"><div class="sp-card-label">정산 완료</div><div class="sp-card-value" style="color:var(--accent)">${paidA.toLocaleString()}원</div></div>
+        <div class="sp-card c-red"><div class="sp-card-label">환불금액</div><div class="sp-card-value" style="color:var(--danger)">${totalRefund.toLocaleString()}원</div></div>
       </div>
       <div class="sp-section">월별 합산</div>
       <table class="sp-tbl"><thead><tr><th>월</th><th>슬롯 수</th><th>월별 목표 합산</th><th>정산금액</th><th>입금액</th></tr></thead>
