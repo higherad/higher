@@ -152,25 +152,30 @@
     const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
     const mA=mS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
     const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
+    // 이번 달/오늘 환불금액 합산
+    const mRefund=Object.entries(refundMap).filter(([k])=>k.startsWith(monthStr)).reduce((a,[,v])=>a+v,0);
+    const dRefund=Object.entries(refundMap).filter(([k])=>k.startsWith(todayStr)).reduce((a,[,v])=>a+v,0);
+    const mNet=mA-mRefund;
+    const dNet=dA-dRefund;
     document.getElementById('settle-summary').innerHTML=`
       <div class="sum-card month">
         <div class="sc-label">이번 달 합산 (${monthStr})</div>
-        <div class="sc-value">${mA.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-value">${mNet.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
         <div class="sc-sub">${mS.length}건 접수</div>
       </div>
       <div class="sum-card month">
         <div class="sc-label">이번 달 입금액</div>
-        <div class="sc-value">${Math.round(mA*1.1).toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-value">${Math.round(mNet*1.1).toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
         <div class="sc-sub">VAT 10% 포함</div>
       </div>
       <div class="sum-card today">
         <div class="sc-label">오늘 합산 (${todayStr})</div>
-        <div class="sc-value">${dA.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-value">${dNet.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
         <div class="sc-sub">${dS.length}건 접수</div>
       </div>
       <div class="sum-card today">
         <div class="sc-label">오늘 입금액</div>
-        <div class="sc-value">${Math.round(dA*1.1).toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-value">${Math.round(dNet*1.1).toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
         <div class="sc-sub">VAT 10% 포함</div>
       </div>`;
   }
@@ -248,7 +253,7 @@
         </div>
         <div style="margin-bottom:20px;">
           <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">환불금액 (0 입력 시 삭제)</label>
-          <input id="refund-input" type="number" value="${current||''}" placeholder="예: 70000"
+          <input id="refund-input" type="number" value="${current||''}" placeholder=""
             style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;"
             onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         </div>
