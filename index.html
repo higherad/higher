@@ -331,10 +331,12 @@
       });
 
       doc.body.querySelectorAll('script').forEach(old => {
-        const s = document.createElement('script');
-        s.textContent = old.textContent;
+        const blob = new Blob([old.textContent], { type: 'application/javascript' });
+        const url  = URL.createObjectURL(blob);
+        const s    = document.createElement('script');
+        s.src      = url;
         document.body.appendChild(s);
-        document.body.removeChild(s);
+        s.onload = () => URL.revokeObjectURL(url);
       });
 
       lucide.createIcons();
