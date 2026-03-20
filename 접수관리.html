@@ -160,7 +160,7 @@
     document.getElementById('receipt-body').innerHTML =
       '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    allSlots = (await HA.getSlots()).reverse();
+    allSlots = await HA.getSlots();
 
     const all      = getFiltered();
     const pending  = allSlots.filter(s => s.status === 'pending').length;
@@ -180,7 +180,7 @@
       body.innerHTML = page.map((s,i) => `
         <tr>
           <td><input type="checkbox" class="row-check" data-key="${s._key}"></td>
-          <td style="color:var(--text2)">${start+i+1}</td>
+          <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="color:var(--text2)">${(s.createdAt||'').slice(0,10)}</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
