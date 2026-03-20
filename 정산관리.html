@@ -9,7 +9,6 @@
   #settle-page .sum-card.month .sc-value { font-size:28px; font-weight:800; color:var(--accent); line-height:1; }
   #settle-page .sum-card.today .sc-value { font-size:28px; font-weight:800; color:var(--info); line-height:1; }
   #settle-page .sum-card .sc-sub { font-size:12px; color:var(--muted); margin-top:6px; }
-
   #settle-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
   #settle-page select, #settle-page input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
   #settle-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
@@ -17,29 +16,14 @@
   #settle-page thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; }
   #settle-page tbody td { padding:10px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #settle-page tbody tr:last-child td { border-bottom:none; }
-
-  .agency-row { cursor:pointer; transition:.15s; }
-  .agency-row:hover { background:#f0fdf4 !important; }
-  .agency-row td:first-child { text-align:left; padding-left:16px; }
-  .agency-name { font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px; }
-  .toggle-icon { font-size:10px; color:var(--muted); display:inline-block; transition:.2s; }
-  .toggle-icon.open { transform:rotate(90deg); }
-
-  .detail-row { display:none; }
-  .detail-row.show { display:table-row; }
-  .detail-row > td { padding:0 !important; border-bottom:2px solid var(--accent) !important; }
-  .detail-inner { padding:12px 20px; background:#f8fafc; }
-  .detail-table { width:100%; border-collapse:collapse; font-size:11px; }
-  .detail-table th { color:var(--text2); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--border); text-align:center; background:#f1f5f9; }
-  .detail-table td { padding:7px 8px; border-bottom:1px solid #eef2f7; text-align:center; }
-  .detail-table tr:last-child td { border-bottom:none; }
-
+  #settle-page tbody tr:hover { background:#f8fafc; }
+  .agency-link { color:var(--info); font-weight:700; cursor:pointer; text-decoration:underline; }
+  .agency-link:hover { color:var(--accent); }
   .paid-badge   { background:rgba(16,185,129,.1); color:#059669; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
   .unpaid-badge { background:rgba(239,68,68,.1); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
   .partial-badge{ background:rgba(245,158,11,.1); color:#b45309; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
   .action-btn  { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
   .btn-confirm { background:var(--accent); color:#fff; }
-  .btn-confirm:hover { background:var(--accent2); }
   .empty-row td { height:200px; text-align:center; color:var(--muted); font-size:13px; }
   .pagination { display:flex;justify-content:center;gap:5px;margin-top:16px; }
   .pg-btn { width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center; }
@@ -47,18 +31,29 @@
   .loading-wrap { display:flex;align-items:center;justify-content:center;height:120px;color:var(--muted);font-size:13px;gap:8px; }
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
+  .sp-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px; }
+  .sp-box { background:#fff;border-radius:16px;width:580px;max-height:82vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  .sp-title { font-size:18px;font-weight:800;margin-bottom:4px; }
+  .sp-sub { font-size:12px;color:var(--muted);margin-bottom:18px; }
+  .sp-cards { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px; }
+  .sp-card { background:#f8fafc;border-radius:8px;padding:12px 16px; }
+  .sp-card-label { font-size:11px;color:var(--text2);margin-bottom:4px; }
+  .sp-card-value { font-size:18px;font-weight:800; }
+  .sp-section { font-size:13px;font-weight:700;margin-bottom:8px;margin-top:16px; }
+  .sp-tbl { width:100%;border-collapse:collapse;font-size:12px; }
+  .sp-tbl th { background:#1e293b;color:#fff;padding:8px 10px;font-weight:500;text-align:center; }
+  .sp-tbl td { padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2); }
+  .sp-tbl tr:last-child td { border-bottom:none; }
+  .sp-footer { display:flex;justify-content:flex-end;margin-top:20px; }
+  .btn-close-sp { padding:9px 24px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit; }
 </style>
 
-<!-- 요약 카드 -->
 <div class="summary-grid" id="settle-summary">
   <div style="grid-column:1/-1"><div class="loading-wrap"><div class="spinner"></div> 로드 중...</div></div>
 </div>
 
-<!-- 필터 -->
 <div class="filter-bar">
-  <select id="sf-type" onchange="renderSettle()">
-    <option value="">슬롯타입 전체</option>
-  </select>
+  <select id="sf-type" onchange="renderSettle()"><option value="">슬롯타입 전체</option></select>
   <select id="sf-paid" onchange="renderSettle()">
     <option value="">정산상태 전체</option>
     <option value="paid">정산완료</option>
@@ -72,27 +67,20 @@
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="sf-kw" placeholder="대행사/아이디 검색" style="width:180px;">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSettle()">검색</button>
-    <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="exportCSV()">엑셀 다운로드</button>
+    <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="exportSettleCSV()">엑셀 다운로드</button>
   </div>
 </div>
 
-<!-- 테이블 -->
 <div class="tbl-wrap">
   <table>
     <thead>
       <tr>
-        <th style="text-align:left;padding-left:16px">대행사</th>
-        <th>유저ID</th>
-        <th>접수일</th>
-        <th>일 목표 합산</th>
-        <th>단가(원)</th>
-        <th>정산금액</th>
-        <th>정산상태</th>
-        <th>확인</th>
+        <th>접수일</th><th>대행사</th><th>유저ID</th><th>슬롯 수</th>
+        <th>일 목표 합산</th><th>단가(원)</th><th>정산금액</th><th>정산상태</th><th>확인</th>
       </tr>
     </thead>
     <tbody id="settle-body">
-      <tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -100,212 +88,157 @@
 
 <script>
 (function(){
-  let page = 1;
-  const PER = 20;
-  let allSlots = [];
-  let allUsers = [];
-  let paidSet  = new Set();
-  const todayStr = new Date().toISOString().slice(0,10);
-  const monthStr = todayStr.slice(0,7);
+  let sPage=1; const PER=20;
+  let allSlots=[],allUsers=[],paidSet=new Set();
+  const todayStr=new Date().toISOString().slice(0,10);
+  const monthStr=todayStr.slice(0,7);
 
-  const typeSelect = document.getElementById('sf-type');
-  if (typeSelect && window.HA) {
-    HA.SLOT_TYPES.forEach(t => {
-      const o = document.createElement('option');
-      o.value = t; o.textContent = t;
-      typeSelect.appendChild(o);
-    });
-  }
+  const typeEl=document.getElementById('sf-type');
+  if(typeEl&&window.HA) HA.SLOT_TYPES.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;typeEl.appendChild(o);});
 
-  function getUserPrice(userId) {
-    const u = allUsers.find(u => u.username === userId);
-    return u ? (u.unitPrice||0) : 0;
-  }
+  function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
 
-  function getFiltered() {
-    const type = document.getElementById('sf-type').value;
-    const paid = document.getElementById('sf-paid').value;
-    const from = document.getElementById('sf-from').value;
-    const to   = document.getElementById('sf-to').value;
-    const kw   = (document.getElementById('sf-kw').value||'').toLowerCase();
-    return allSlots.filter(s => s.status==='active' || s.status==='expired').filter(s => {
-      if (type && s.slotType !== type) return false;
-      if (paid==='paid'   && !paidSet.has(s._key)) return false;
-      if (paid==='unpaid' &&  paidSet.has(s._key)) return false;
-      if (from && s.startDate < from) return false;
-      if (to   && s.endDate   > to)   return false;
-      if (kw && ![(s.agencyId||''),(s.userId||'')].some(v=>v.toLowerCase().includes(kw))) return false;
+  function getFiltered(){
+    const type=document.getElementById('sf-type').value;
+    const paid=document.getElementById('sf-paid').value;
+    const from=document.getElementById('sf-from').value;
+    const to=document.getElementById('sf-to').value;
+    const kw=(document.getElementById('sf-kw').value||'').toLowerCase();
+    return allSlots.filter(s=>s.status==='active'||s.status==='expired').filter(s=>{
+      if(type&&s.slotType!==type)return false;
+      if(paid==='paid'&&!paidSet.has(s._key))return false;
+      if(paid==='unpaid'&&paidSet.has(s._key))return false;
+      if(from&&s.startDate<from)return false;
+      if(to&&s.endDate>to)return false;
+      if(kw&&![(s.agencyId||''),(s.userId||'')].some(v=>v.toLowerCase().includes(kw)))return false;
       return true;
     });
   }
 
-  function groupByAgency(slots) {
-    const map = {};
-    slots.forEach(s => {
-      const key = `${s.agencyId||'-'}__${s.userId||'-'}`;
-      if (!map[key]) map[key] = { agencyId: s.agencyId||'-', userId: s.userId||'-', slots: [] };
-      map[key].slots.push(s);
+  function groupByDateAgency(slots){
+    const map={};
+    slots.forEach(s=>{
+      const d=(s.createdAt||'').slice(0,10);
+      const k=d+'||'+(s.agencyId||'-')+'||'+(s.userId||'-');
+      if(!map[k])map[k]={date:d,agencyId:s.agencyId||'-',userId:s.userId||'-',slots:[]};
+      map[k].slots.push(s);
     });
-    return Object.values(map);
+    return Object.values(map).sort((a,b)=>b.date.localeCompare(a.date)||a.agencyId.localeCompare(b.agencyId));
   }
 
-  function renderSummary() {
-    const base = allSlots.filter(s => s.status==='active' || s.status==='expired');
-    const monthSlots = base.filter(s => (s.createdAt||'').slice(0,7) === monthStr);
-    const todaySlots = base.filter(s => (s.createdAt||'').slice(0,10) === todayStr);
-    const monthAmt = monthSlots.reduce((a,s) => a + (s.dailyTarget||0) * getUserPrice(s.userId), 0);
-    const todayAmt = todaySlots.reduce((a,s) => a + (s.dailyTarget||0) * getUserPrice(s.userId), 0);
-    document.getElementById('settle-summary').innerHTML = `
+  function renderSummary(){
+    const base=allSlots.filter(s=>s.status==='active'||s.status==='expired');
+    const mS=base.filter(s=>(s.createdAt||'').slice(0,7)===monthStr);
+    const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
+    const mA=mS.reduce((a,s)=>a+(s.dailyTarget||0)*getPrice(s.userId),0);
+    const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*getPrice(s.userId),0);
+    document.getElementById('settle-summary').innerHTML=`
       <div class="sum-card month">
         <div class="sc-label">이번 달 전체 합산 (${monthStr})</div>
-        <div class="sc-value">${monthAmt.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
-        <div class="sc-sub">${monthSlots.length}건 접수</div>
+        <div class="sc-value">${mA.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-sub">${mS.length}건 접수</div>
       </div>
       <div class="sum-card today">
         <div class="sc-label">오늘 합산 (${todayStr})</div>
-        <div class="sc-value">${todayAmt.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
-        <div class="sc-sub">${todaySlots.length}건 접수</div>
+        <div class="sc-value">${dA.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-sub">${dS.length}건 접수</div>
       </div>`;
   }
 
-  window.renderSettle = async function() {
-    document.getElementById('settle-body').innerHTML =
-      '<tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-
-    [allSlots, allUsers, paidSet] = await Promise.all([
-      HA.getSlots(), HA.getUsers(), HA.getPaidSet(),
-    ]);
-
+  window.renderSettle=async function(){
+    document.getElementById('settle-body').innerHTML='<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+    [allSlots,allUsers,paidSet]=await Promise.all([HA.getSlots(),HA.getUsers(),HA.getPaidSet()]);
     renderSummary();
-
-    const groups = groupByAgency(getFiltered());
-    const start  = (page-1)*PER;
-    const list   = groups.slice(start, start+PER);
-    const body   = document.getElementById('settle-body');
-
-    if (!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="8">데이터가 없습니다.</td></tr>';
-    } else {
-      body.innerHTML = list.map((g, gi) => {
-        const price       = getUserPrice(g.userId);
-        const totalTarget = g.slots.reduce((a,s) => a+(s.dailyTarget||0), 0);
-        const totalAmt    = totalTarget * price;
-        const paidCount   = g.slots.filter(s => paidSet.has(s._key)).length;
-        const allPaid     = paidCount === g.slots.length;
-        const somePaid    = paidCount > 0 && !allPaid;
-        const statusBadge = allPaid
-          ? '<span class="paid-badge">정산완료</span>'
-          : somePaid
-            ? '<span class="partial-badge">일부완료</span>'
-            : '<span class="unpaid-badge">미정산</span>';
-        const firstDate = g.slots.map(s=>s.createdAt||'').sort()[0]?.slice(0,10)||'-';
-        const rowId = `ag-${gi}`;
-
-        const detailRows = g.slots.map(s => {
-          const amt = (s.dailyTarget||0) * price;
-          const ip  = paidSet.has(s._key);
-          return `<tr>
-            <td>${(s.createdAt||'').slice(0,10)}</td>
-            <td style="font-weight:500;text-align:left">${s.storeName||'-'}</td>
-            <td>${(s.dailyTarget||0).toLocaleString()}</td>
-            <td>${price.toLocaleString()}원</td>
-            <td style="font-weight:700;color:var(--accent)">${amt.toLocaleString()}원</td>
-            <td>${ip?'<span class="paid-badge">완료</span>':'<span class="unpaid-badge">미정산</span>'}</td>
-            <td><button class="action-btn ${ip?'':'btn-confirm'}" style="${ip?'background:#f1f5f9;color:var(--text2)':''}"
-              onclick="togglePaid('${s._key}',${!ip});event.stopPropagation()">${ip?'취소':'입금확인'}</button></td>
-          </tr>`;
-        }).join('');
-
-        return `
-          <tr class="agency-row" onclick="toggleDetail('${rowId}')">
-            <td>
-              <div class="agency-name">
-                <span class="toggle-icon" id="icon-${rowId}">▶</span>
-                ${g.agencyId}
-              </div>
-            </td>
-            <td>${g.userId}</td>
-            <td style="color:var(--text2)">${firstDate}</td>
-            <td><strong>${totalTarget.toLocaleString()}</strong></td>
-            <td style="color:var(--text2)">${price.toLocaleString()}원</td>
-            <td style="font-weight:700;color:var(--accent)">${totalAmt.toLocaleString()}원</td>
-            <td>${statusBadge}</td>
-            <td>
-              <button class="action-btn" style="${allPaid?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
-                onclick="bulkToggle('${rowId}',event)">${allPaid?'전체취소':'전체확인'}</button>
-            </td>
-          </tr>
-          <tr class="detail-row" id="${rowId}">
-            <td colspan="8">
-              <div class="detail-inner">
-                <table class="detail-table">
-                  <thead><tr>
-                    <th>접수일</th><th style="text-align:left">스토어명</th>
-                    <th>일 목표</th><th>단가</th><th>정산금액</th><th>상태</th><th>확인</th>
-                  </tr></thead>
-                  <tbody>${detailRows}</tbody>
-                </table>
-              </div>
-            </td>
-          </tr>`;
-      }).join('');
-    }
-
-    const pages = Math.ceil(groups.length/PER)||1;
-    const pg = document.getElementById('settle-pagination');
-    let ph = `<button class="pg-btn" onclick="goSP(1)">&laquo;</button><button class="pg-btn" onclick="goSP(${Math.max(1,page-1)})">&lsaquo;</button>`;
-    for(let i=1;i<=pages;i++) ph+=`<button class="pg-btn ${i===page?'active':''}" onclick="goSP(${i})">${i}</button>`;
-    ph+=`<button class="pg-btn" onclick="goSP(${Math.min(pages,page+1)})">&rsaquo;</button><button class="pg-btn" onclick="goSP(${pages})">&raquo;</button>`;
-    pg.innerHTML = ph;
+    const rows=groupByDateAgency(getFiltered());
+    const start=(sPage-1)*PER;
+    const list=rows.slice(start,start+PER);
+    const body=document.getElementById('settle-body');
+    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="9">데이터가 없습니다.</td></tr>';return;}
+    body.innerHTML=list.map(g=>{
+      const p=getPrice(g.userId);
+      const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);
+      const amt=tot*p;
+      const pc=g.slots.filter(s=>paidSet.has(s._key)).length;
+      const allP=pc===g.slots.length;
+      const badge=allP?'<span class="paid-badge">정산완료</span>':pc>0?'<span class="partial-badge">일부완료</span>':'<span class="unpaid-badge">미정산</span>';
+      const ea=g.agencyId.replace(/'/g,"\\'");
+      const eu=g.userId.replace(/'/g,"\\'");
+      return `<tr>
+        <td style="color:var(--text2)">${g.date}</td>
+        <td><span class="agency-link" onclick="openAgencyPopup('${ea}','${eu}')">${g.agencyId}</span></td>
+        <td>${g.userId}</td>
+        <td>${g.slots.length}건</td>
+        <td><strong>${tot.toLocaleString()}</strong></td>
+        <td style="color:var(--text2)">${p.toLocaleString()}원</td>
+        <td style="font-weight:700;color:var(--accent)">${amt.toLocaleString()}원</td>
+        <td>${badge}</td>
+        <td><button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
+          onclick="bulkRow('${g.date}','${ea}','${eu}')">${allP?'취소':'입금확인'}</button></td>
+      </tr>`;
+    }).join('');
+    const pages=Math.ceil(rows.length/PER)||1;
+    const pg=document.getElementById('settle-pagination');
+    let ph=`<button class="pg-btn" onclick="goSP(1)">&laquo;</button><button class="pg-btn" onclick="goSP(${Math.max(1,sPage-1)})">&lsaquo;</button>`;
+    for(let i=1;i<=pages;i++)ph+=`<button class="pg-btn ${i===sPage?'active':''}" onclick="goSP(${i})">${i}</button>`;
+    ph+=`<button class="pg-btn" onclick="goSP(${Math.min(pages,sPage+1)})">&rsaquo;</button><button class="pg-btn" onclick="goSP(${pages})">&raquo;</button>`;
+    pg.innerHTML=ph;
   };
 
-  window.toggleDetail = function(rowId) {
-    const row  = document.getElementById(rowId);
-    const icon = document.getElementById('icon-'+rowId);
-    if (!row) return;
-    row.classList.toggle('show');
-    if (icon) icon.classList.toggle('open');
-  };
+  window.goSP=n=>{sPage=n;renderSettle();};
 
-  window.bulkToggle = async function(rowId, e) {
-    e.stopPropagation();
-    const row = document.getElementById(rowId);
-    if (!row) return;
-    // 해당 행의 모든 togglePaid 버튼에서 key 추출
-    const keys = [...row.querySelectorAll('button[onclick*="togglePaid"]')]
-      .map(b => { const m = b.getAttribute('onclick').match(/'([^']+)'/); return m?m[1]:null; })
-      .filter(Boolean);
-    if (!keys.length) return;
-    const allPaid = keys.every(k => paidSet.has(k));
-    await Promise.all(keys.map(k => HA.setPaid(k, !allPaid)));
+  window.bulkRow=async function(date,agencyId,userId){
+    const keys=allSlots.filter(s=>(s.createdAt||'').slice(0,10)===date&&s.agencyId===agencyId&&s.userId===userId).map(s=>s._key);
+    const allP=keys.every(k=>paidSet.has(k));
+    await Promise.all(keys.map(k=>HA.setPaid(k,!allP)));
     renderSettle();
   };
 
-  window.goSP = n => { page=n; renderSettle(); };
-
-  window.togglePaid = async function(key, val) {
-    await HA.setPaid(key, val);
-    renderSettle();
-  };
-
-  window.exportCSV = function() {
-    const groups = groupByAgency(getFiltered());
-    const rows   = [['대행사','유저ID','접수일','일목표합산','단가','정산금액','정산상태']];
-    groups.forEach(g => {
-      const price    = getUserPrice(g.userId);
-      const total    = g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);
-      const allPaid  = g.slots.every(s=>paidSet.has(s._key));
-      const firstDate= g.slots.map(s=>s.createdAt||'').sort()[0]?.slice(0,10)||'-';
-      rows.push([g.agencyId, g.userId, firstDate, total, price, total*price, allPaid?'완료':'미완료']);
+  window.openAgencyPopup=function(agencyId,userId){
+    const p=getPrice(userId);
+    const ag=allSlots.filter(s=>(s.status==='active'||s.status==='expired')&&s.agencyId===agencyId&&s.userId===userId);
+    const bm={},bd={};
+    ag.forEach(s=>{
+      const m=(s.createdAt||'').slice(0,7); if(!bm[m])bm[m]=[]; bm[m].push(s);
+      const d=(s.createdAt||'').slice(0,10); if(!bd[d])bd[d]=[]; bd[d].push(s);
     });
-    const csv = rows.map(r=>r.join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
-    a.download = `정산내역_${new Date().toISOString().slice(0,10)}.csv`;
+    const totT=ag.reduce((a,s)=>a+(s.dailyTarget||0),0);
+    const totA=totT*p;
+    const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*p,0);
+    const mRows=Object.keys(bm).sort().reverse().map(m=>{const ms=bm[m];const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0),0);return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${(mt*p).toLocaleString()}원</td></tr>`;}).join('');
+    const dRows=Object.keys(bd).sort().reverse().map(d=>{const ds=bd[d];const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0),0);return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${(dt*p).toLocaleString()}원</td></tr>`;}).join('');
+    const ov=document.createElement('div');
+    ov.className='sp-overlay';
+    ov.innerHTML=`<div class="sp-box">
+      <div class="sp-title">${agencyId}</div>
+      <div class="sp-sub">유저ID: ${userId} · 단가: ${p.toLocaleString()}원/개</div>
+      <div class="sp-cards">
+        <div class="sp-card"><div class="sp-card-label">총 정산금액</div><div class="sp-card-value" style="color:var(--accent)">${totA.toLocaleString()}원</div></div>
+        <div class="sp-card"><div class="sp-card-label">정산 완료</div><div class="sp-card-value" style="color:var(--info)">${paidA.toLocaleString()}원</div></div>
+      </div>
+      <div class="sp-section">월별 합산</div>
+      <table class="sp-tbl"><thead><tr><th>월</th><th>슬롯수</th><th>일목표합산</th><th>정산금액</th></tr></thead>
+        <tbody>${mRows||'<tr><td colspan="4" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
+      <div class="sp-section">일별 합산</div>
+      <table class="sp-tbl"><thead><tr><th>날짜</th><th>슬롯수</th><th>일목표합산</th><th>정산금액</th></tr></thead>
+        <tbody>${dRows||'<tr><td colspan="4" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
+      <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  };
+
+  window.exportSettleCSV=function(){
+    const rows=groupByDateAgency(getFiltered());
+    const lines=[['접수일','대행사','유저ID','슬롯수','일목표합산','단가','정산금액','정산상태']];
+    rows.forEach(g=>{const p=getPrice(g.userId);const t=g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);lines.push([g.date,g.agencyId,g.userId,g.slots.length,t,p,t*p,g.slots.every(s=>paidSet.has(s._key))?'완료':'미완료']);});
+    const csv=lines.map(r=>r.join(',')).join('\n');
+    const a=document.createElement('a');
+    a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+    a.download=`정산내역_${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
   };
 
   renderSettle();
 })();
-</script>
+<\/script>
 </div>
