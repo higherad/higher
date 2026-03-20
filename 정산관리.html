@@ -88,7 +88,7 @@
     <thead>
       <tr>
         <th>접수일</th><th>대행사</th><th>유저ID</th><th>슬롯 수</th>
-        <th>일 목표 합산</th><th>단가(원)</th><th>정산금액</th><th>입금액(VAT10%)</th><th>정산상태</th><th>확인</th>
+        <th>일 목표 합산</th><th>단가(원)</th><th>정산금액</th><th>입금액</th><th>정산상태</th><th>확인</th>
       </tr>
     </thead>
     <tbody id="settle-body">
@@ -240,10 +240,10 @@
         <div class="sp-card"><div class="sp-card-label">정산 완료</div><div class="sp-card-value" style="color:var(--accent)">${paidA.toLocaleString()}원</div></div>
       </div>
       <div class="sp-section">월별 합산</div>
-      <table class="sp-tbl"><thead><tr><th>월</th><th>슬롯수</th><th>일목표합산</th><th>정산금액</th><th>입금액(VAT10%)</th></tr></thead>
+      <table class="sp-tbl"><thead><tr><th>월</th><th>슬롯 수</th><th>월별 목표 합산</th><th>정산금액</th><th>입금액</th></tr></thead>
         <tbody>${mRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
       <div class="sp-section">일별 합산</div>
-      <table class="sp-tbl"><thead><tr><th>날짜</th><th>슬롯수</th><th>일목표합산</th><th>정산금액</th><th>입금액(VAT10%)</th></tr></thead>
+      <table class="sp-tbl"><thead><tr><th>날짜</th><th>슬롯 수</th><th>일 목표 합산</th><th>정산금액</th><th>입금액</th></tr></thead>
         <tbody>${dRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
     </div>`;
@@ -253,7 +253,7 @@
 
   window.exportSettleCSV=function(){
     const rows=groupByDateAgency(getFiltered());
-    const lines=[['접수일','대행사','유저ID','슬롯수','일목표합산','단가','정산금액','정산상태']];
+    const lines=[['접수일','대행사','유저ID','슬롯 수','일 목표 합산','단가','정산금액','정산상태']];
     rows.forEach(g=>{const p=getPrice(g.userId);const t=g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);const a=g.slots.reduce((ac,s)=>ac+(s.dailyTarget||0)*(s.days||0)*p,0);lines.push([g.date,g.agencyId,g.userId,g.slots.length,t,p,a,g.slots.every(s=>paidSet.has(s._key))?'완료':'미완료']);});
     const csv=lines.map(r=>r.join(',')).join('\n');
     const a=document.createElement('a');
