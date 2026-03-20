@@ -68,7 +68,7 @@ async function sendTelegram(message) {
 const _telegramBatch = {
   queue: [],
   timer: null,
-  DELAY: 5000,  // 5초 묶음 대기 (ms)
+  DELAY: 15000,  // 15초 묶음 대기 (ms) — 대량 업로드 대응
 };
 
 // ── 유틸: Firebase 스냅샷 → 배열 변환 ───────────────────────
