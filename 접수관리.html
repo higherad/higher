@@ -126,12 +126,12 @@
       <tr>
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저MID</th>
-        <th>슬롯타입</th><th>스토어명</th><th>순위키워드</th>
+        <th>슬롯타입</th><th>스토어명</th><th>MID</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="receipt-body">
-      <tr><td colspan="14" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
+      <tr><td colspan="15" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
     </tbody>
   </table>
 </div>
@@ -174,7 +174,7 @@
 
   window.renderReceipts = async function() {
     document.getElementById('receipt-body').innerHTML =
-      '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
 
@@ -192,7 +192,7 @@
     const body  = document.getElementById('receipt-body');
 
     if (!page.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="15">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = page.map((s,i) => `
         <tr>
@@ -202,7 +202,8 @@
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
           <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
-          <td>${s.storeName||'-'}</td>
+          <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : (s.storeName||'-')}</td>
+          <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
           <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
@@ -350,7 +351,6 @@
         </dl>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
-          <button class="btn-save" onclick="approveOne('${key}');closeDetailModal('${key}')">승인</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
