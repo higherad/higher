@@ -136,7 +136,7 @@
     document.getElementById('slots-body').innerHTML =
       '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    allSlots = (await HA.getSlots()).reverse();
+    allSlots = await HA.getSlots();
     renderSummary();
 
     const all   = getFiltered();
@@ -151,7 +151,7 @@
       body.innerHTML = list.map((s,i) => `
         <tr>
           <td><input type="checkbox" class="s-check" data-key="${s._key}"></td>
-          <td style="color:var(--text2)">${start+i+1}</td>
+          <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
           <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : `<span style="font-weight:500">${s.storeName||'-'}</span>`}</td>
