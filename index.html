@@ -3,496 +3,230 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HIGHER AD | ADMIN</title>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <title>HIGHER AD | 로그인</title>
   <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"/>
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:#f0f4f8; --sidebar:#0f172a; --accent:#10b981; --accent2:#059669;
-      --muted:#94a3b8; --card:#ffffff; --border:#e2e8f0;
-      --text:#1e293b; --text2:#64748b; --danger:#ef4444; --warn:#f59e0b; --info:#3b82f6;
+      --navy:#0f172a; --accent:#10b981; --accent2:#059669; --muted:#94a3b8;
+      --border:#e2e8f0; --text:#1e293b; --text2:#64748b; --bg:#f8fafc;
     }
-    *, *::before, *::after { box-sizing:border-box; }
-    body { margin:0; font-family:'Pretendard',sans-serif; background:var(--bg); display:none; min-height:100vh; color:var(--text); }
-
-    aside { width:240px; background:var(--sidebar); color:#fff; display:flex; flex-direction:column; position:fixed; height:100vh; z-index:100; }
-    .brand { padding:32px 24px 24px; cursor:pointer; }
-    .brand-name { font-size:20px; font-weight:900; letter-spacing:-0.5px; }
-    .brand-name span { color:var(--accent); }
-    .brand-sub { font-size:10px; color:var(--muted); margin-top:3px; letter-spacing:2px; text-transform:uppercase; }
-    .nav-section { padding:0 12px; }
-    .nav-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; padding:16px 10px 6px; }
-    .nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer; color:var(--muted); font-size:13px; font-weight:500; transition:all .2s; margin-bottom:2px; user-select:none; }
-    .nav-item:hover { color:#fff; background:rgba(255,255,255,.06); }
-    .nav-item.active { color:#fff; background:var(--accent); box-shadow:0 4px 12px rgba(16,185,129,.25); }
-    .nav-item .badge { margin-left:auto; background:var(--warn); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; border-radius:10px; }
-    .nav-item.active .badge { background:rgba(255,255,255,.3); }
-    .sidebar-bottom { margin-top:auto; padding:16px 12px; border-top:1px solid rgba(255,255,255,.06); }
-    .admin-info { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; }
-    .admin-avatar { width:34px; height:34px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:#fff; flex-shrink:0; }
-    .admin-name { font-size:13px; font-weight:600; }
-    .admin-role { font-size:11px; color:var(--muted); }
-    .btn-logout { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--muted); font-size:13px; transition:.2s; margin-top:4px; }
-    .btn-logout:hover { color:#fff; background:rgba(255,255,255,.06); }
-
-    main { flex-grow:1; margin-left:240px; padding:32px 36px; }
-    #content-area { animation:fadeIn .3s ease-out; }
-    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
-    .page-heading { font-size:22px; font-weight:800; color:var(--text); }
-    .top-right { display:flex; align-items:center; gap:12px; }
-
-    /* 상태 pill */
-    .status-pill { padding:5px 14px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.5px; border:1px solid; transition:.3s; }
-    .status-pill.ok      { background:rgba(16,185,129,.08); color:var(--accent); border-color:rgba(16,185,129,.3); }
-    .status-pill.loading { background:rgba(245,158,11,.08); color:var(--warn); border-color:rgba(245,158,11,.3); }
-    .status-pill.error   { background:rgba(239,68,68,.08); color:var(--danger); border-color:rgba(239,68,68,.3); }
-
-    /* 알림 버튼 */
-    .icon-btn {
-      width:34px; height:34px; border-radius:8px; background:var(--card);
-      border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
-      cursor:pointer; transition:.2s; color:var(--text2); position:relative;
-    }
-    .icon-btn:hover { background:var(--bg); color:var(--text); }
-    .notif-dot {
-      position:absolute; top:-3px; right:-3px;
-      width:16px; height:16px; border-radius:50%;
-      background:var(--danger); color:#fff;
-      font-size:9px; font-weight:700;
-      display:none; align-items:center; justify-content:center;
-      border:2px solid var(--bg);
-    }
-    .notif-dot.show { display:flex; }
-
-    /* 알림 드롭다운 */
-    .notif-panel {
-      position:absolute; top:calc(100% + 8px); right:0;
-      width:320px; background:#fff; border:1px solid var(--border);
-      border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.12);
-      z-index:200; display:none;
-    }
-    .notif-panel.show { display:block; }
-    .notif-header { padding:14px 16px; border-bottom:1px solid var(--border); font-size:13px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
-    .notif-clear { font-size:11px; color:var(--accent); cursor:pointer; font-weight:600; }
-    .notif-list { max-height:280px; overflow-y:auto; }
-    .notif-item { padding:12px 16px; border-bottom:1px solid #f8fafc; cursor:pointer; transition:.15s; }
-    .notif-item:hover { background:#f8fafc; }
-    .notif-item:last-child { border-bottom:none; }
-    .notif-item-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:3px; }
-    .notif-item-desc  { font-size:11px; color:var(--text2); }
-    .notif-empty { padding:28px 16px; text-align:center; color:var(--muted); font-size:12px; }
-    .notif-wrap { position:relative; }
-
-    .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px; }
-    .stat-card { background:var(--card); border-radius:14px; padding:20px; border:1px solid var(--border); position:relative; overflow:hidden; transition:.2s; }
-    .stat-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.06); }
-    .stat-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; }
-    .stat-card.c-green::after { background:var(--accent); }
-    .stat-card.c-warn::after  { background:var(--warn); }
-    .stat-card.c-danger::after{ background:var(--danger); }
-    .stat-card.c-info::after  { background:var(--info); }
-    .stat-label { font-size:11px; color:var(--text2); font-weight:600; margin-bottom:10px; text-transform:uppercase; letter-spacing:.5px; }
-    .stat-value { font-size:28px; font-weight:800; color:var(--text); line-height:1; }
-    .stat-unit  { font-size:13px; color:var(--muted); font-weight:400; margin-left:2px; }
-    .stat-card.c-warn  .stat-value { color:var(--warn); }
-    .stat-card.c-danger .stat-value{ color:var(--danger); }
-
-    .bottom-grid { display:grid; grid-template-columns:2fr 1.1fr; gap:20px; }
-    .ha-box { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; }
-    .box-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
-    .box-title { font-size:15px; font-weight:700; }
-    .box-more { font-size:12px; color:var(--accent); cursor:pointer; font-weight:600; background:none; border:none; }
-    .notice-list { list-style:none; margin:0; padding:0; }
-    .notice-item { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px dashed var(--border); }
-    .notice-item:last-child { border:none; padding-bottom:0; }
-    .notice-tag { flex-shrink:0; font-size:10px; padding:2px 7px; border-radius:4px; font-weight:700; }
-    .tag-urgent  { background:rgba(239,68,68,.1); color:var(--danger); }
-    .tag-general { background:var(--bg); color:var(--text2); }
-    .notice-title { flex:1; font-size:13px; color:var(--text); cursor:pointer; }
-    .notice-title:hover { color:var(--accent); }
-    .notice-date { font-size:11px; color:var(--muted); flex-shrink:0; }
-    .quick-box { background:var(--sidebar); border-radius:16px; padding:24px; }
-    .quick-title { font-size:15px; font-weight:700; color:#fff; margin-bottom:18px; }
-    .quick-btn { display:block; width:100%; text-align:left; padding:14px 16px; border-radius:10px; border:none; cursor:pointer; font-size:13px; font-weight:500; margin-bottom:10px; transition:.2s; }
-    .quick-btn:last-child { margin-bottom:0; }
-    .quick-btn.ghost   { background:rgba(255,255,255,.07); color:#fff; }
-    .quick-btn.ghost:hover { background:rgba(255,255,255,.12); }
-    .quick-btn.primary { background:var(--accent); color:#fff; }
-    .quick-btn.primary:hover { background:var(--accent2); }
-
-    .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:14px; gap:10px; }
-    .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
+    body { font-family:'Pretendard',sans-serif; background:var(--bg); min-height:100vh; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; }
+    .bg-deco { position:fixed; inset:0; pointer-events:none; z-index:0; }
+    .bg-deco::before { content:''; position:absolute; top:-200px; right:-200px; width:600px; height:600px; background:radial-gradient(circle, rgba(16,185,129,.07) 0%, transparent 70%); border-radius:50%; }
+    .bg-deco::after  { content:''; position:absolute; bottom:-150px; left:-150px; width:500px; height:500px; background:radial-gradient(circle, rgba(15,23,42,.05) 0%, transparent 70%); border-radius:50%; }
+    .login-wrap { position:relative; z-index:1; width:420px; animation:slideUp .5s cubic-bezier(.22,.68,0,1.2) both; }
+    @keyframes slideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+    .login-header { text-align:center; margin-bottom:32px; }
+    .login-logo { display:inline-flex; align-items:center; gap:8px; font-size:26px; font-weight:900; letter-spacing:-1px; color:var(--navy); }
+    .login-logo span { color:var(--accent); }
+    .login-logo-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.4);opacity:.6} }
+    .login-sub { font-size:13px; color:var(--text2); margin-top:8px; letter-spacing:.3px; }
+    .tab-bar { display:flex; background:#f1f5f9; border-radius:10px; padding:4px; margin-bottom:24px; }
+    .tab-btn { flex:1; padding:9px; border:none; border-radius:7px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; background:transparent; color:var(--text2); transition:.2s; }
+    .tab-btn.active { background:#fff; color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.08); }
+    .login-card { background:#fff; border:1px solid var(--border); border-radius:20px; padding:32px 40px 40px; box-shadow:0 4px 40px rgba(0,0,0,.06); }
+    .field-group { margin-bottom:16px; }
+    .field-label { display:block; font-size:12px; font-weight:700; color:var(--text2); margin-bottom:7px; letter-spacing:.3px; text-transform:uppercase; }
+    .field-input { width:100%; padding:13px 16px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; font-family:inherit; color:var(--text); background:#fff; outline:none; transition:border-color .2s, box-shadow .2s; }
+    .field-input::placeholder { color:var(--muted); }
+    .field-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(16,185,129,.1); }
+    .field-input.error { border-color:#ef4444; }
+    .error-msg { display:none; font-size:12px; color:#ef4444; margin-top:8px; padding:10px 14px; background:rgba(239,68,68,.06); border-radius:8px; border-left:3px solid #ef4444; }
+    .error-msg.show { display:block; }
+    .success-msg { display:none; font-size:12px; color:#059669; margin-top:8px; padding:10px 14px; background:rgba(16,185,129,.06); border-radius:8px; border-left:3px solid var(--accent); }
+    .success-msg.show { display:block; }
+    .login-btn { width:100%; padding:14px; background:var(--accent); color:#fff; border:none; border-radius:10px; cursor:pointer; font-size:15px; font-weight:700; font-family:inherit; transition:background .2s, transform .1s, box-shadow .2s; margin-top:8px; box-shadow:0 4px 16px rgba(16,185,129,.25); }
+    .login-btn:hover { background:var(--accent2); box-shadow:0 6px 20px rgba(16,185,129,.35); }
+    .login-btn:active { transform:scale(.98); }
+    .login-btn:disabled { background:var(--muted); box-shadow:none; cursor:not-allowed; }
+    .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; margin-right:8px; vertical-align:middle; }
     @keyframes spin { to{transform:rotate(360deg)} }
-
-    /* ── 햄버거 버튼 ── */
-    .hamburger {
-      display:none; flex-direction:column; justify-content:center; gap:5px;
-      width:36px; height:36px; cursor:pointer; padding:6px;
-      border-radius:8px; border:1px solid var(--border); background:var(--card);
-    }
-    .hamburger span { display:block; height:2px; background:var(--text); border-radius:2px; transition:.3s; }
-
-    /* ── 사이드바 오버레이 (모바일) ── */
-    .sidebar-overlay {
-      display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:99;
-    }
-    .sidebar-overlay.show { display:block; }
+    .field-hint { font-size:11px; color:var(--muted); margin-top:4px; }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
 
     /* ── 반응형 ── */
-    @media (max-width:768px) {
-      aside {
-        transform:translateX(-100%);
-        transition:transform .3s ease;
-        z-index:200;
-      }
-      aside.open { transform:translateX(0); }
-
-      main { margin-left:0; padding:16px; }
-
-      .top-bar { margin-bottom:16px; }
-      .page-heading { font-size:17px; }
-      .status-pill { display:none; }
-
-      .hamburger { display:flex; }
-
-      /* 카드 그리드 — 2열 */
-      .stat-grid { grid-template-columns:repeat(2,1fr) !important; gap:10px; }
-      .stat-card { padding:14px; }
-      .stat-value { font-size:22px; }
-
-      /* 하단 그리드 — 1열 */
-      .bottom-grid { grid-template-columns:1fr; }
-
-      /* 테이블 — 가로 스크롤 */
-      .tbl-wrap, #receipt-page .tbl-wrap, #slots-page .tbl-wrap,
-      #settle-page .tbl-wrap, #expire-page .tbl-wrap {
-        overflow-x:auto;
-        -webkit-overflow-scrolling:touch;
-      }
-
-      /* 필터바 — 줄바꿈 */
-      .filter-bar, #receipt-page .filter-bar, #slots-page .filter-bar,
-      #settle-page .filter-bar, #expire-page .filter-bar {
-        flex-wrap:wrap;
-        gap:6px;
-      }
-
-      /* 현황 카드 (접수관리, 전체슬롯) */
-      .stat-bar { grid-template-columns:1fr 1fr !important; gap:8px; }
-      .sb-val { font-size:18px !important; }
-
-      /* 알림 패널 */
-      .notif-panel { width:280px; right:-60px; }
+    @media (max-width: 480px) {
+      .login-wrap { width: 100%; padding: 0 16px; }
+      .login-card { padding: 24px 20px 32px; border-radius: 16px; }
+      .login-logo { font-size: 22px; }
+      .login-sub { font-size: 12px; }
+      .login-header { margin-bottom: 24px; }
+      .field-input { padding: 11px 14px; font-size: 13px; }
+      .login-btn { padding: 13px; font-size: 14px; }
     }
   </style>
 </head>
 <body>
 
-<aside id="sidebar">
-  <div class="brand" onclick="loadDashboard()">
-    <div class="brand-name">HIGHER <span>AD</span></div>
-    <div class="brand-sub">Admin Portal</div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">Management</div>
-    <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)"><i data-lucide="layers" size="16"></i> 진행 현황</div>
-    <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)"><i data-lucide="inbox" size="16"></i> 접수 관리<span class="badge" id="pending-badge" style="display:none">0</span></div>
-    <div class="nav-item" id="nav-expire"  onclick="loadPage('만료예정.html',this)"><i data-lucide="clock-alert" size="16"></i> 만료 예정</div>
-    <div class="nav-label">Finance & Users</div>
-    <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)"><i data-lucide="wallet" size="16"></i> 정산 관리</div>
-    <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)"><i data-lucide="users" size="16"></i> 회원 관리</div>
-    <div class="nav-item" id="nav-notice"  onclick="loadPage('공지사항.html',this)"><i data-lucide="megaphone" size="16"></i> 공지사항</div>
-  </div>
-  <div class="sidebar-bottom">
-    <div class="admin-info">
-      <div class="admin-avatar">A</div>
-      <div><div class="admin-name">관리자</div><div class="admin-role">Super Admin</div></div>
-    </div>
-    <div class="btn-logout" onclick="doLogout()">
-      <i data-lucide="log-out" size="15"></i> 로그아웃
-    </div>
-  </div>
-</aside>
+<div class="bg-deco"></div>
 
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+<div class="login-wrap">
+  <div class="login-header">
+    <div class="login-logo">
+      HIGHER <span>AD</span>
+      <div class="login-logo-dot"></div>
+    </div>
+    <p class="login-sub">슬롯 접수 및 현황 관리 포털</p>
+  </div>
 
-<main>
-  <div class="top-bar">
-    <div style="display:flex;align-items:center;gap:12px;">
-      <div class="hamburger" id="hamburger" onclick="toggleSidebar()">
-        <span></span><span></span><span></span>
+  <div class="login-card">
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">로그인</button>
+      <button class="tab-btn" id="tab-signup" onclick="switchTab('signup')">회원가입</button>
+    </div>
+
+    <!-- 로그인 탭 -->
+    <div class="tab-content active" id="content-login">
+      <div class="field-group">
+        <label class="field-label">아이디</label>
+        <input class="field-input" id="inp-id" type="text" placeholder="아이디를 입력하세요" autocomplete="username">
       </div>
-      <div class="page-heading" id="page-heading">운영 현황 대시보드</div>
-    </div>
-    <div class="top-right">
-      <!-- Firebase 연결 상태 -->
-      <div class="status-pill loading" id="status-pill">● 연결 중...</div>
-
-      <!-- 알림 버튼 -->
-      <div class="notif-wrap">
-        <div class="icon-btn" onclick="toggleNotif()">
-          <i data-lucide="bell" size="16"></i>
-          <div class="notif-dot" id="notif-dot"></div>
-        </div>
-        <div class="notif-panel" id="notif-panel">
-          <div class="notif-header">
-            알림
-            <span class="notif-clear" onclick="clearNotifs()">모두 지우기</span>
-          </div>
-          <div class="notif-list" id="notif-list">
-            <div class="notif-empty">새 알림이 없습니다.</div>
-          </div>
-        </div>
+      <div class="field-group">
+        <label class="field-label">비밀번호</label>
+        <input class="field-input" id="inp-pw" type="password" placeholder="비밀번호를 입력하세요" autocomplete="current-password">
       </div>
+      <div class="error-msg" id="login-error"></div>
+      <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
+    </div>
+
+    <!-- 회원가입 탭 -->
+    <div class="tab-content" id="content-signup">
+      <div class="field-group">
+        <label class="field-label">아이디 *</label>
+        <input class="field-input" id="su-id" type="text" placeholder="영문/숫자 4자 이상">
+        <div class="field-hint">로그인에 사용할 아이디를 입력하세요.</div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">비밀번호 *</label>
+        <input class="field-input" id="su-pw" type="password" placeholder="6자 이상 입력">
+      </div>
+      <div class="field-group">
+        <label class="field-label">비밀번호 확인 *</label>
+        <input class="field-input" id="su-pw2" type="password" placeholder="비밀번호를 다시 입력하세요">
+      </div>
+      <div class="field-group">
+        <label class="field-label">업체명 *</label>
+        <input class="field-input" id="su-agency" type="text" placeholder="업체명을 입력하세요">
+      </div>
+      <div class="error-msg" id="signup-error"></div>
+      <div class="success-msg" id="signup-success"></div>
+      <button class="login-btn" id="signup-btn" onclick="doSignup()">회원가입</button>
     </div>
   </div>
-  <div id="content-area">
-    <div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>
-  </div>
-</main>
+</div>
 
 <script type="module">
   import HA from './ha-store.js';
 
-  window.HA = HA;
+  // 이미 로그인된 경우 바로 이동 (member 역할만)
+  const cur = HA.getCurrentUser();
+  if (cur && cur.role === 'member') location.href = 'user-dashboard.html';
 
-  // ── 로그아웃 ──────────────────────────────────────────────
-  window.doLogout = () => {
-    HA.logout();
-    sessionStorage.removeItem('ha_admin_auth');
-    location.href = 'admin-login.html';
+  window.switchTab = function(tab) {
+    ['login','signup'].forEach(t => {
+      document.getElementById('content-'+t).classList.toggle('active', t===tab);
+      document.getElementById('tab-'+t).classList.toggle('active', t===tab);
+    });
   };
 
-  // ── 알림 관련 ─────────────────────────────────────────────
-  let notifications = JSON.parse(sessionStorage.getItem('ha_notifs') || '[]');
-  let prevPending   = null;
-  let notifOpen     = false;
+  document.getElementById('inp-pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('inp-id').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inp-pw').focus(); });
+  document.getElementById('su-pw2').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
 
-  function saveNotifs() {
-    sessionStorage.setItem('ha_notifs', JSON.stringify(notifications.slice(0, 20)));
-  }
-
-  function renderNotifPanel() {
-    const dot  = document.getElementById('notif-dot');
-    const list = document.getElementById('notif-list');
-    if (!notifications.length) {
-      dot.classList.remove('show');
-      list.innerHTML = '<div class="notif-empty">새 알림이 없습니다.</div>';
-      return;
-    }
-    dot.textContent = notifications.length > 9 ? '9+' : notifications.length;
-    dot.classList.add('show');
-    list.innerHTML = notifications.map((n, i) => `
-      <div class="notif-item" onclick="handleNotif(${i})">
-        <div class="notif-item-title">${n.title}</div>
-        <div class="notif-item-desc">${n.desc}</div>
-      </div>`).join('');
-  }
-
-  window.toggleNotif = function() {
-    const panel = document.getElementById('notif-panel');
-    notifOpen = !notifOpen;
-    panel.classList.toggle('show', notifOpen);
-  };
-
-  window.clearNotifs = function() {
-    notifications = [];
-    saveNotifs();
-    renderNotifPanel();
-  };
-
-  window.handleNotif = function(i) {
-    document.getElementById('notif-panel').classList.remove('show');
-    notifOpen = false;
-    loadPage('접수관리.html', document.getElementById('nav-pending'));
-  };
-
-  // 패널 외부 클릭 시 닫기
-  document.addEventListener('click', e => {
-    if (notifOpen && !e.target.closest('.notif-wrap')) {
-      document.getElementById('notif-panel').classList.remove('show');
-      notifOpen = false;
-    }
+  ['inp-id','inp-pw'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      document.getElementById('login-error').classList.remove('show');
+      document.getElementById(id).classList.remove('error');
+    });
   });
 
-  // ── 대시보드 렌더 ─────────────────────────────────────────
-  window.renderDashboard = async function() {
-    const area = document.getElementById('content-area');
-    area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>';
+  window.doLogin = async function() {
+    const username = document.getElementById('inp-id').value.trim();
+    const password = document.getElementById('inp-pw').value;
+    const btn = document.getElementById('login-btn');
 
-    const [s, allNotices, allUsers, allSlots] = await Promise.all([
-      HA.getDashboardStats(),
-      HA.getNotices(),
-      HA.getUsers(),
-      HA.getSlots(),
-    ]);
-    const notices = allNotices.slice(0, 4);
-
-    const agencies       = allUsers.filter(u => u.approved !== false).length;
-    const activeSlots    = allSlots.filter(sl => sl.status === 'active');
-    const activeAgencies = new Set(activeSlots.map(sl => sl.agencyId)).size;
-    const totalTarget    = activeSlots.reduce((a, sl) => a + (sl.dailyTarget||0), 0);
-
-    area.innerHTML = `
-      <div class="stat-grid" style="grid-template-columns:repeat(7,1fr)">
-        <div class="stat-card c-info"><div class="stat-label">영업점</div><div class="stat-value">${agencies}<span class="stat-unit">곳</span></div></div>
-        <div class="stat-card c-green"><div class="stat-label">진행중 영업점</div><div class="stat-value">${activeAgencies}<span class="stat-unit">곳</span></div></div>
-        <div class="stat-card c-green"><div class="stat-label">진행중 슬롯</div><div class="stat-value">${s.activeSlots}<span class="stat-unit">개</span></div></div>
-        <div class="stat-card c-green"><div class="stat-label">전체 목표</div><div class="stat-value">${totalTarget.toLocaleString()}<span class="stat-unit">개</span></div></div>
-        <div class="stat-card c-warn"><div class="stat-label">만료 예정(3일)</div><div class="stat-value">${s.expiringSoon}<span class="stat-unit">건</span></div></div>
-        <div class="stat-card c-info"><div class="stat-label">승인 대기</div><div class="stat-value">${s.pending}<span class="stat-unit">건</span></div></div>
-        <div class="stat-card c-danger"><div class="stat-label">반려</div><div class="stat-value">${s.rejected}<span class="stat-unit">건</span></div></div>
-      </div>
-      <div class="bottom-grid">
-        <div class="ha-box">
-          <div class="box-header">
-            <span class="box-title">공지사항</span>
-            <button class="box-more" onclick="loadPage('공지사항.html',document.getElementById('nav-notice'))">더보기</button>
-          </div>
-          <ul class="notice-list">
-            ${notices.length ? notices.map(n => `
-              <li class="notice-item">
-                ${n.pinned ? '<span class="notice-tag tag-urgent">필독</span>' : '<span class="notice-tag tag-general">일반</span>'}
-                <span class="notice-title" onclick="loadPage('공지사항.html',document.getElementById('nav-notice'))">${n.title}</span>
-                <span class="notice-date">${(n.date||'').slice(5,10)}</span>
-              </li>`).join('') : '<li style="color:var(--muted);font-size:13px;padding:12px 0">공지사항이 없습니다.</li>'}
-          </ul>
-        </div>
-        <div class="quick-box">
-          <div class="quick-title">Quick Action</div>
-          <button class="quick-btn ghost"   onclick="loadPage('접수관리.html',document.getElementById('nav-pending'))">📥 &nbsp;신규 접수 확인하기</button>
-          <button class="quick-btn primary" onclick="loadPage('정산관리.html',document.getElementById('nav-settle'))">💰 &nbsp;미정산 내역 확인</button>
-          <button class="quick-btn ghost"   onclick="loadPage('만료예정.html',document.getElementById('nav-expire'))">⏰ &nbsp;만료 예정 슬롯 보기</button>
-          <button class="quick-btn ghost"   onclick="loadPage('회원관리.html',document.getElementById('nav-users'))">👤 &nbsp;신규 회원 승인하기</button>
-        </div>
-      </div>`;
-
-    lucide.createIcons();
-  };
-
-  window.loadDashboard = function() {
-    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    document.getElementById('page-heading').textContent = '운영 현황 대시보드';
-    renderDashboard();
-    window.scrollTo(0, 0);
-  };
-
-  window.loadPage = async function(page, navEl) {
-    if (navEl) {
-      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-      navEl.classList.add('active');
+    if (!username || !password) {
+      document.getElementById('login-error').textContent = '아이디와 비밀번호를 모두 입력해주세요.';
+      document.getElementById('login-error').classList.add('show');
+      return;
     }
-    const titles = {
-      '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
-      '만료예정.html':'만료 예정 현황', '정산관리.html':'정산 관리',
-      '회원관리.html':'회원 관리',      '공지사항.html':'공지사항',
-    };
-    document.getElementById('page-heading').textContent = titles[page] || page;
 
-    const area = document.getElementById('content-area');
-    area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>로그인 중...';
+
+    const result = await HA.login(username, password);
+    if (result.ok) {
+      location.href = 'user-dashboard.html';
+    } else {
+      const msg = result.reason === 'pending'
+        ? '관리자 승인 대기 중입니다. 승인 후 로그인 가능합니다.'
+        : '아이디 또는 비밀번호가 올바르지 않습니다.';
+      document.getElementById('login-error').textContent = msg;
+      document.getElementById('login-error').classList.add('show');
+      ['inp-id','inp-pw'].forEach(id => document.getElementById(id).classList.add('error'));
+      btn.disabled = false;
+      btn.textContent = '로그인';
+    }
+  };
+
+  window.doSignup = async function() {
+    const username  = document.getElementById('su-id').value.trim();
+    const password  = document.getElementById('su-pw').value;
+    const password2 = document.getElementById('su-pw2').value;
+    const agency    = document.getElementById('su-agency').value.trim();
+    const errEl     = document.getElementById('signup-error');
+    const sucEl     = document.getElementById('signup-success');
+    const btn       = document.getElementById('signup-btn');
+
+    errEl.classList.remove('show');
+    sucEl.classList.remove('show');
+
+    if (!username || !password) { errEl.textContent = '아이디와 비밀번호를 입력해주세요.'; errEl.classList.add('show'); return; }
+    if (username.length < 4)    { errEl.textContent = '아이디는 4자 이상 입력해주세요.';    errEl.classList.add('show'); return; }
+    if (password.length < 6)    { errEl.textContent = '비밀번호는 6자 이상 입력해주세요.';  errEl.classList.add('show'); return; }
+    if (password !== password2)  { errEl.textContent = '비밀번호가 일치하지 않습니다.';       errEl.classList.add('show'); return; }
+    if (!agency)                 { errEl.textContent = '업체명을 입력해주세요.';              errEl.classList.add('show'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>처리 중...';
 
     try {
-      const res = await fetch(page + '?v=' + Date.now());
-      if (!res.ok) throw new Error();
-      const html = await res.text();
+      const users  = await HA.getUsers();
+      const exists = users.find(u => u.username === username);
+      if (exists) {
+        errEl.textContent = '이미 사용 중인 아이디입니다.';
+        errEl.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = '회원가입';
+        return;
+      }
 
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      area.innerHTML = '';
+      await HA.addUser({ username, password, agency, agencyId: agency, unitPrice: 0 });
 
-      doc.body.childNodes.forEach(node => {
-        if (node.nodeName !== 'SCRIPT') {
-          area.appendChild(document.importNode(node, true));
-        }
-      });
+      sucEl.textContent = '회원가입이 완료되었습니다! 관리자 승인 후 로그인 가능합니다.';
+      sucEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = '회원가입';
 
-      doc.body.querySelectorAll('script').forEach(old => {
-        const blob = new Blob([old.textContent], { type: 'application/javascript' });
-        const url  = URL.createObjectURL(blob);
-        const s    = document.createElement('script');
-        s.src      = url;
-        document.body.appendChild(s);
-        s.onload = () => URL.revokeObjectURL(url);
-      });
+      setTimeout(() => {
+        document.getElementById('su-id').value = '';
+        document.getElementById('su-pw').value = '';
+        document.getElementById('su-pw2').value = '';
+        document.getElementById('su-agency').value = '';
+        sucEl.classList.remove('show');
+        switchTab('login');
+      }, 2500);
 
-      lucide.createIcons();
-      window.scrollTo(0, 0);
-    } catch(err) {
-      console.error('loadPage error:', err);
-      area.innerHTML = `<div style="padding:80px;text-align:center;background:#fff;border-radius:16px;border:1px solid var(--border)">
-        <p style="color:var(--text2);font-size:14px">${page} 파일을 찾을 수 없습니다.</p></div>`;
+    } catch (err) {
+      errEl.textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = '회원가입';
     }
   };
-
-  // ── Firebase 실시간 리스너 ────────────────────────────────
-  // ── 알림 디바운스 ─────────────────────────────────────────
-  let notifTimer = null;
-  let pendingDiff = 0;
-
-  HA.onSlotsChange(slots => {
-    const n = slots.filter(s => s.status === 'pending').length;
-
-    // 배지 업데이트
-    const el = document.getElementById('pending-badge');
-    if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
-
-    // Firebase 연결 성공 표시
-    const pill = document.getElementById('status-pill');
-    if (pill) {
-      pill.textContent = '● 연결됨';
-      pill.className = 'status-pill ok';
-    }
-
-    // 새 접수 알림 — 디바운스로 묶어서 한 번만 생성
-    if (prevPending !== null && n > prevPending) {
-      pendingDiff += n - prevPending;
-      if (notifTimer) clearTimeout(notifTimer);
-      notifTimer = setTimeout(() => {
-        notifications.unshift({
-          title: `📥 새 슬롯 접수 ${pendingDiff}건`,
-          desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
-        });
-        pendingDiff = 0;
-        notifTimer = null;
-        saveNotifs();
-        renderNotifPanel();
-      }, 1500);
-    }
-    prevPending = n;
-    renderNotifPanel();
-  });
-
-  // ── 앱 시작 ───────────────────────────────────────────────
-  async function init() {
-    if (sessionStorage.getItem('ha_admin_auth') !== '1') {
-      location.href = 'admin-login.html';
-      return;
-    }
-    document.body.style.display = 'flex';
-    await HA.seedIfEmpty();
-    await renderDashboard();
-    lucide.createIcons();
-  }
-
-  // ── 사이드바 토글 (모바일) ──────────────────────────────────
-  window.toggleSidebar = function() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('sidebar-overlay').classList.toggle('show');
-  };
-  window.closeSidebar = function() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebar-overlay').classList.remove('show');
-  };
-
-  // 메뉴 클릭 시 모바일에서 자동으로 사이드바 닫기
-  const origLoadPage = window.loadPage;
-  window.loadPage = function(page, el) {
-    closeSidebar();
-    origLoadPage(page, el);
-  };
-
-  init();
 </script>
 </body>
 </html>
