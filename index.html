@@ -196,7 +196,7 @@
   </div>
   <div class="nav-section">
     <div class="nav-label">Management</div>
-    <div class="nav-item" id="nav-slots"   onclick="loadPage('전체슬롯.html',this)"><i data-lucide="layers" size="16"></i> 진행 현황</div>
+    <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)"><i data-lucide="layers" size="16"></i> 진행 현황</div>
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)"><i data-lucide="inbox" size="16"></i> 접수 관리<span class="badge" id="pending-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-expire"  onclick="loadPage('만료예정.html',this)"><i data-lucide="clock-alert" size="16"></i> 만료 예정</div>
     <div class="nav-label">Finance & Users</div>
@@ -321,16 +321,25 @@
     const area = document.getElementById('content-area');
     area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>';
 
-    const [s, allNotices] = await Promise.all([
+    const [s, allNotices, allUsers, allSlots] = await Promise.all([
       HA.getDashboardStats(),
-      HA.getNotices()
+      HA.getNotices(),
+      HA.getUsers(),
+      HA.getSlots(),
     ]);
     const notices = allNotices.slice(0, 4);
 
+    const agencies       = allUsers.filter(u => u.approved !== false).length;
+    const activeSlots    = allSlots.filter(sl => sl.status === 'active');
+    const activeAgencies = new Set(activeSlots.map(sl => sl.agencyId)).size;
+    const totalTarget    = activeSlots.reduce((a, sl) => a + (sl.dailyTarget||0), 0);
+
     area.innerHTML = `
-      <div class="stat-grid">
-        <div class="stat-card c-green"><div class="stat-label">진행중 업체</div><div class="stat-value">${s.activeAgencies}<span class="stat-unit">곳</span></div></div>
+      <div class="stat-grid" style="grid-template-columns:repeat(7,1fr)">
+        <div class="stat-card c-info"><div class="stat-label">영업점</div><div class="stat-value">${agencies}<span class="stat-unit">곳</span></div></div>
+        <div class="stat-card c-green"><div class="stat-label">진행중 업체</div><div class="stat-value">${activeAgencies}<span class="stat-unit">곳</span></div></div>
         <div class="stat-card c-green"><div class="stat-label">진행중 슬롯</div><div class="stat-value">${s.activeSlots}<span class="stat-unit">개</span></div></div>
+        <div class="stat-card c-green"><div class="stat-label">전체 목표</div><div class="stat-value">${totalTarget.toLocaleString()}<span class="stat-unit">개</span></div></div>
         <div class="stat-card c-warn"><div class="stat-label">만료 예정(3일)</div><div class="stat-value">${s.expiringSoon}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-info"><div class="stat-label">승인 대기</div><div class="stat-value">${s.pending}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-danger"><div class="stat-label">반려</div><div class="stat-value">${s.rejected}<span class="stat-unit">건</span></div></div>
@@ -338,7 +347,7 @@
       <div class="bottom-grid">
         <div class="ha-box">
           <div class="box-header">
-            <span class="box-title">최근 공지사항</span>
+            <span class="box-title">공지사항</span>
             <button class="box-more" onclick="loadPage('공지사항.html',document.getElementById('nav-notice'))">더보기</button>
           </div>
           <ul class="notice-list">
@@ -362,6 +371,9 @@
     lucide.createIcons();
   };
 
+    lucide.createIcons();
+  };
+
   window.loadDashboard = function() {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     document.getElementById('page-heading').textContent = '운영 현황 대시보드';
@@ -375,7 +387,7 @@
       navEl.classList.add('active');
     }
     const titles = {
-      '전체슬롯.html':'전체 슬롯 관리', '접수관리.html':'접수 관리',
+      '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
       '만료예정.html':'만료 예정 현황', '정산관리.html':'정산 관리',
       '회원관리.html':'회원 관리',      '공지사항.html':'공지사항',
     };
