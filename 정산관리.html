@@ -142,8 +142,8 @@
     const base=allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');
     const mS=base.filter(s=>(s.createdAt||'').slice(0,7)===monthStr);
     const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
-    const mA=mS.reduce((a,s)=>a+(s.dailyTarget||0)*getPrice(s.userId),0);
-    const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*getPrice(s.userId),0);
+    const mA=mS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
+    const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
     document.getElementById('settle-summary').innerHTML=`
       <div class="sum-card month">
         <div class="sc-label">이번 달 전체 합산 (${monthStr})</div>
@@ -169,7 +169,7 @@
     body.innerHTML=list.map(g=>{
       const p=getPrice(g.userId);
       const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);
-      const amt=tot*p;
+      const amt=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
       const pc=g.slots.filter(s=>paidSet.has(s._key)).length;
       const allP=pc===g.slots.length;
       const badge=allP?'<span class="paid-badge">정산완료</span>':pc>0?'<span class="partial-badge">일부완료</span>':'<span class="unpaid-badge">미정산</span>';
@@ -214,10 +214,10 @@
       const d=(s.createdAt||'').slice(0,10); if(!bd[d])bd[d]=[]; bd[d].push(s);
     });
     const totT=ag.reduce((a,s)=>a+(s.dailyTarget||0),0);
-    const totA=totT*p;
-    const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*p,0);
-    const mRows=Object.keys(bm).sort().reverse().map(m=>{const ms=bm[m];const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0),0);return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${(mt*p).toLocaleString()}원</td></tr>`;}).join('');
-    const dRows=Object.keys(bd).sort().reverse().map(d=>{const ds=bd[d];const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0),0);return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${(dt*p).toLocaleString()}원</td></tr>`;}).join('');
+    const totA=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+    const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+    const mRows=Object.keys(bm).sort().reverse().map(m=>{const ms=bm[m];const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0),0);const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${ma.toLocaleString()}원</td></tr>`;}).join('');
+    const dRows=Object.keys(bd).sort().reverse().map(d=>{const ds=bd[d];const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0),0);const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${da.toLocaleString()}원</td></tr>`;}).join('');
     const ov=document.createElement('div');
     ov.className='sp-overlay';
     ov.innerHTML=`<div class="sp-box">
@@ -242,7 +242,7 @@
   window.exportSettleCSV=function(){
     const rows=groupByDateAgency(getFiltered());
     const lines=[['접수일','대행사','유저ID','슬롯수','일목표합산','단가','정산금액','정산상태']];
-    rows.forEach(g=>{const p=getPrice(g.userId);const t=g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);lines.push([g.date,g.agencyId,g.userId,g.slots.length,t,p,t*p,g.slots.every(s=>paidSet.has(s._key))?'완료':'미완료']);});
+    rows.forEach(g=>{const p=getPrice(g.userId);const t=g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);const a=g.slots.reduce((ac,s)=>ac+(s.dailyTarget||0)*(s.days||0)*p,0);lines.push([g.date,g.agencyId,g.userId,g.slots.length,t,p,a,g.slots.every(s=>paidSet.has(s._key))?'완료':'미완료']);});
     const csv=lines.map(r=>r.join(',')).join('\n');
     const a=document.createElement('a');
     a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
