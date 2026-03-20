@@ -156,7 +156,7 @@
           <td>${s.userId||'-'}</td>
           <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : `<span style="font-weight:500">${s.storeName||'-'}</span>`}</td>
           <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
-          <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
+          <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${s.rankKeyword}</a>` : '-'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
@@ -263,7 +263,7 @@
           </div>
           <div class="modal-field">
             <label>작업 키워드</label>
-            <input id="m-workKeyword" value="${s.workKeyword||''}">
+            <input id="m-workKeyword" value="${s.searchKeyword||s.workKeyword||''}">
           </div>
         </div>
         <div class="modal-row">
@@ -316,7 +316,8 @@
       rankKeyword: document.getElementById('m-rankKeyword').value,
       url:         document.getElementById('m-url').value,
       mid:         document.getElementById('m-mid').value,
-      workKeyword: document.getElementById('m-workKeyword').value,
+      workKeyword:   document.getElementById('m-workKeyword').value,
+      searchKeyword: document.getElementById('m-workKeyword').value,
       days:        Number(document.getElementById('m-days').value)||0,
       dailyTarget: Number(document.getElementById('m-dailyTarget').value)||0,
       startDate:   document.getElementById('m-startDate').value,
