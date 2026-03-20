@@ -93,7 +93,6 @@
   const PER = 20;
   let allUsers = [];
   let allSlots = [];
-  let allAgencies = [];
 
   function getFiltered() {
     const kw     = (document.getElementById('u-kw').value||'').toLowerCase();
@@ -109,17 +108,11 @@
     return allSlots.filter(s => s.userId === username && s.status === 'active').length;
   }
 
-  function getAgencyName(agencyCode) {
-    if (!agencyCode) return '-';
-    const a = allAgencies.find(ag => ag.code === agencyCode || ag._key === agencyCode || ag.name === agencyCode);
-    return a ? a.name : agencyCode;
-  }
-
   window.renderUsers = async function() {
     document.getElementById('user-body').innerHTML =
       '<tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    [allUsers, allSlots, allAgencies] = await Promise.all([HA.getUsers(), HA.getSlots(), HA.getAgencies()]);
+    [allUsers, allSlots] = await Promise.all([HA.getUsers(), HA.getSlots()]);
 
     // 승인 대기 카운트
     const pendingCount = allUsers.filter(u => u.approved === false).length;
@@ -149,7 +142,7 @@
               <span class="pw-toggle" onclick="togglePw(this)">보기</span>
             </div>
           </td>
-          <td style="color:var(--text2);font-size:11px">${getAgencyName(u.agency)}</td>
+          <td style="color:var(--text2);font-size:11px">${u.agency||u.agencyId||'-'}</td>
           <td style="font-weight:700;color:var(--accent)">${(u.unitPrice||0).toLocaleString()}원</td>
           <td>${getUserSlotCount(u.username)}</td>
           <td style="color:var(--text2);font-size:11px">${u.memo||'-'}</td>
@@ -207,11 +200,7 @@
   window.openUserModal = function(key) {
     const u = key ? (allUsers.find(x => x._key === key) || {}) : {};
     const isEdit = !!key;
-
-    // 대행사 드롭다운 옵션 생성
-    const agencyOptions = allAgencies.map(ag =>
-      `<option value="${ag.code || ag._key}" ${(u.agency === ag.code || u.agency === ag._key || u.agency === ag.name) ? 'selected' : ''}>${ag.name}</option>`
-    ).join('');
+    const currentAgency = u.agency || u.agencyId || '';
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -224,11 +213,8 @@
         </div>
         <div class="modal-row">
           <div class="modal-field">
-            <label>대행사</label>
-            <select id="um-agency">
-              <option value="">-- 대행사 없음 --</option>
-              ${agencyOptions}
-            </select>
+            <label>업체명 (대행사)</label>
+            <input id="um-agency" value="${currentAgency}" placeholder="업체명을 입력하세요">
           </div>
           <div class="modal-field">
             <label>단가 (원) *</label>
@@ -250,9 +236,11 @@
     const username = document.getElementById('um-username').value.trim();
     const password = document.getElementById('um-password').value.trim();
     if (!username) return alert('아이디를 입력하세요.');
+    const agencyVal = document.getElementById('um-agency').value.trim();
     const data = {
       username,
-      agency:    document.getElementById('um-agency').value || '',
+      agency:    agencyVal,   // 회원 테이블
+      agencyId:  agencyVal,   // 슬롯과 동일한 키
       unitPrice: Number(document.getElementById('um-price').value)||0,
       memo:      document.getElementById('um-memo').value.trim(),
       approved:  true,  // 어드민이 직접 추가하면 바로 승인
