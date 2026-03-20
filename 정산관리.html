@@ -88,11 +88,11 @@
     <thead>
       <tr>
         <th>접수일</th><th>대행사</th><th>유저ID</th><th>슬롯 수</th>
-        <th>일 목표 합산</th><th>단가(원)</th><th>정산금액</th><th>정산상태</th><th>확인</th>
+        <th>일 목표 합산</th><th>단가(원)</th><th>정산금액</th><th>입금액</th><th>정산상태</th><th>확인</th>
       </tr>
     </thead>
     <tbody id="settle-body">
-      <tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -158,14 +158,14 @@
   }
 
   window.renderSettle=async function(){
-    document.getElementById('settle-body').innerHTML='<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+    document.getElementById('settle-body').innerHTML='<tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
     [allSlots,allUsers,paidSet]=await Promise.all([HA.getSlots(),HA.getUsers(),HA.getPaidSet()]);
     renderSummary();
     const rows=groupByDateAgency(getFiltered());
     const start=(sPage-1)*PER;
     const list=rows.slice(start,start+PER);
     const body=document.getElementById('settle-body');
-    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="9">데이터가 없습니다.</td></tr>';return;}
+    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="10">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
       const p=getPrice(g.userId);
       const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
@@ -183,6 +183,7 @@
         <td><strong>${tot.toLocaleString()}</strong></td>
         <td style="color:var(--text2)">${p.toLocaleString()}원</td>
         <td style="font-weight:700;color:var(--accent)">${amt.toLocaleString()}원</td>
+        <td style="font-weight:700;color:var(--info)">${Math.round(amt*1.1).toLocaleString()}원</td>
         <td>${badge}</td>
         <td><button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
           onclick="bulkRow('${g.date}',decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${allP?'취소':'입금확인'}</button></td>
