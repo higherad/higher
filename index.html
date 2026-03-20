@@ -349,6 +349,10 @@
   };
 
   // ── Firebase 실시간 리스너 ────────────────────────────────
+  // ── 알림 디바운스 ─────────────────────────────────────────
+  let notifTimer = null;
+  let pendingDiff = 0;
+
   HA.onSlotsChange(slots => {
     const n = slots.filter(s => s.status === 'pending').length;
 
@@ -363,15 +367,20 @@
       pill.className = 'status-pill ok';
     }
 
-    // 새 접수 알림 생성
+    // 새 접수 알림 — 디바운스로 묶어서 한 번만 생성
     if (prevPending !== null && n > prevPending) {
-      const diff = n - prevPending;
-      notifications.unshift({
-        title: `📥 새 슬롯 접수 ${diff}건`,
-        desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
-      });
-      saveNotifs();
-      renderNotifPanel();
+      pendingDiff += n - prevPending;
+      if (notifTimer) clearTimeout(notifTimer);
+      notifTimer = setTimeout(() => {
+        notifications.unshift({
+          title: `📥 새 슬롯 접수 ${pendingDiff}건`,
+          desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
+        });
+        pendingDiff = 0;
+        notifTimer = null;
+        saveNotifs();
+        renderNotifPanel();
+      }, 1500);
     }
     prevPending = n;
     renderNotifPanel();
