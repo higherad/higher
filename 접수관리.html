@@ -312,6 +312,7 @@
         </dl>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
+          <button class="btn-save" onclick="approveOne('${key}');closeDetailModal('${key}')">승인</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
