@@ -135,7 +135,7 @@
       if(!map[k])map[k]={date:d,agencyId:s.agencyId||'-',userId:s.userId||'-',slots:[]};
       map[k].slots.push(s);
     });
-    return Object.values(map).sort((a,b)=>b.date.localeCompare(a.date)||a.agencyId.localeCompare(b.agencyId));
+    return Object.values(map).sort((a,b)=>b.date.localeCompare(a.date));
   }
 
   function renderSummary(){
