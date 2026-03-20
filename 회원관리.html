@@ -239,15 +239,18 @@
     const agencyVal = document.getElementById('um-agency').value.trim();
     const data = {
       username,
-      agency:    agencyVal,   // 회원 테이블
-      agencyId:  agencyVal,   // 슬롯과 동일한 키
+      agency:    agencyVal,
+      agencyId:  agencyVal,
       unitPrice: Number(document.getElementById('um-price').value)||0,
       memo:      document.getElementById('um-memo').value.trim(),
-      approved:  true,  // 어드민이 직접 추가하면 바로 승인
+      approved:  true,
     };
     if (password) data.password = password;
     if (key) {
       await HA.updateUser(key, data);
+      // 해당 유저의 모든 슬롯 agencyId 동기화
+      const userSlots = allSlots.filter(s => s.userId === username);
+      await Promise.all(userSlots.map(s => HA.updateSlot(s._key, { agencyId: agencyVal })));
     } else {
       if (!password) return alert('비밀번호를 입력하세요.');
       await HA.addUser({ ...data, password });
