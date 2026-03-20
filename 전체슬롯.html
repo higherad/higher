@@ -1,11 +1,10 @@
 <div id="slots-page">
 <style>
-  #slots-page .summary-bar {
-    background:#fff; border:1px solid var(--border); border-radius:10px;
-    padding:16px 20px; display:flex; gap:40px; align-items:center; margin-bottom:14px;
-  }
-  #slots-page .sum-item .sum-label { font-size:11px; color:var(--text2); margin-bottom:4px; }
-  #slots-page .sum-item .sum-val { font-size:20px; font-weight:800; }
+  #slots-page .stat-bar { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:16px; }
+  #slots-page .stat-box { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px 20px; display:flex; align-items:center; gap:14px; }
+  #slots-page .stat-box .sb-icon { width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  #slots-page .stat-box .sb-label { font-size:11px; color:var(--text2); font-weight:600; margin-bottom:4px; }
+  #slots-page .stat-box .sb-val { font-size:22px; font-weight:800; line-height:1; }
   #slots-page .filter-bar {
     background:#fff; border:1px solid var(--border); border-radius:10px;
     padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;
@@ -15,7 +14,7 @@
     font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none;
   }
   #slots-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
-  #slots-page table { width:100%; min-width:1400px; border-collapse:collapse; font-size:12px; }
+  #slots-page table { width:100%; min-width:1200px; border-collapse:collapse; font-size:12px; }
   #slots-page thead th { background:#1e293b; color:#fff; padding:11px 8px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; }
   #slots-page tbody td { padding:10px 8px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #slots-page tbody tr:last-child td { border-bottom:none; }
@@ -23,8 +22,7 @@
   .rank-badge { color:var(--info); border:1px solid var(--info); padding:2px 8px; border-radius:4px; font-weight:700; font-size:11px; }
   .action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
   .btn-edit   { background:#eff6ff; color:#1d4ed8; }
-  .btn-extend { background:#f0fdf4; color:#15803d; }
-  .btn-del    { background:#fef2f2; color:var(--danger); }
+  .btn-del    { background:#1e293b; color:#fff; }
   .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center; }
   .modal-box { background:#fff;border-radius:16px;width:520px;max-height:85vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
   .modal-title { font-size:17px;font-weight:700;margin-bottom:20px; }
@@ -46,23 +44,28 @@
   @keyframes spin { to{transform:rotate(360deg)} }
 </style>
 
-<div class="summary-bar" id="slots-summary">
-  <div class="loading-wrap"><div class="spinner"></div> 로드 중...</div>
+<div class="stat-bar">
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(16,185,129,.1)">🏢</div>
+    <div><div class="sb-label">진행중 업체</div><div class="sb-val" id="stat-companies" style="color:var(--accent)">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(59,130,246,.1)">🎯</div>
+    <div><div class="sb-label">총 일 목표</div><div class="sb-val" id="stat-target" style="color:var(--info)">-</div></div>
+  </div>
 </div>
 
-<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">
-  <button class="action-btn btn-del" style="padding:7px 16px;font-size:12px;" onclick="bulkDelete()">선택 삭제</button>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+  <span id="slots-count" style="font-size:13px;color:var(--text2)">로드 중...</span>
+  <div style="display:flex;gap:8px;">
+    <button class="action-btn btn-del" style="padding:7px 16px;font-size:12px;" onclick="bulkDelete()">선택 삭제</button>
+  </div>
 </div>
 
 <div class="filter-bar">
-  <select id="f-type" onchange="renderSlots()">
-    <option value="">슬롯타입 전체</option>
-  </select>
   <select id="f-status" onchange="renderSlots()">
-    <option value="">상태 전체</option>
     <option value="active">진행중</option>
-    <option value="pending">대기</option>
-    <option value="rejected">반려</option>
+    <option value="">상태 전체</option>
     <option value="expired">만료</option>
   </select>
   <input type="text" id="f-agency" placeholder="대행사 검색" style="width:130px;" oninput="renderSlots()">
@@ -79,9 +82,9 @@
     <thead>
       <tr>
         <th><input type="checkbox" id="s-check-all" onchange="toggleAll(this)"></th>
-        <th>번호</th><th>대행사</th><th>유저ID</th><th>슬롯타입</th>
+        <th>번호</th><th>대행사</th><th>유저ID</th>
         <th>시작일</th><th>종료일</th><th>스토어명</th><th>순위키워드</th>
-        <th>일 목표</th><th>상태</th><th>관리</th>
+        <th>일 수</th><th>일 목표</th><th>상태</th><th>관리</th>
       </tr>
     </thead>
     <tbody id="slots-body">
@@ -104,25 +107,14 @@
     expired:  '<span class="status-badge s-expired">만료</span>',
   };
 
-  // 슬롯 타입 옵션 채우기
-  const typeSelect = document.getElementById('f-type');
-  if (typeSelect && window.HA) {
-    HA.SLOT_TYPES.forEach(t => {
-      const o = document.createElement('option');
-      o.value = t; o.textContent = t;
-      typeSelect.appendChild(o);
-    });
-  }
-
   function getFiltered() {
-    const type   = document.getElementById('f-type').value;
     const status = document.getElementById('f-status').value;
     const agency = (document.getElementById('f-agency').value||'').toLowerCase();
     const userid = (document.getElementById('f-userid').value||'').toLowerCase();
     const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
     return allSlots.filter(s => {
-      if (type   && s.slotType !== type)  return false;
-      if (status && s.status  !== status) return false;
+      const st = status || 'active';
+      if (s.status !== st) return false;
       if (agency && !(s.agencyId||'').toLowerCase().includes(agency)) return false;
       if (userid && !(s.userId||'').toLowerCase().includes(userid))   return false;
       if (kw && ![(s.storeName||''),(s.rankKeyword||'')].some(v=>v.toLowerCase().includes(kw))) return false;
@@ -130,27 +122,23 @@
     });
   }
 
-  async function renderSummary() {
+  function renderSummary() {
     const active      = allSlots.filter(s => s.status === 'active');
     const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0), 0);
-    const summary = document.getElementById('slots-summary');
-    if (!summary) return;
-    summary.innerHTML = `
-      <div class="sum-item"><div class="sum-label">진행중 슬롯</div><div class="sum-val" style="color:var(--info)">${active.length} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>
-      <div class="sum-item"><div class="sum-label">총 일 목표</div><div class="sum-val" style="color:var(--accent)">${totalTarget.toLocaleString()} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>
-      <div class="sum-item"><div class="sum-label">대기중</div><div class="sum-val" style="color:var(--warn)">${allSlots.filter(s=>s.status==='pending').length} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>
-      <span style="margin-left:auto;font-size:12px;color:var(--text2)" id="s-sel-count">선택: 0건</span>`;
+    document.getElementById('stat-companies').textContent = active.length;
+    document.getElementById('stat-target').textContent    = totalTarget.toLocaleString();
   }
 
   // ── Firebase에서 데이터 불러와서 렌더 ──────────────────────
   window.renderSlots = async function() {
     document.getElementById('slots-body').innerHTML =
-      '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
-    await renderSummary();
+    renderSummary();
 
     const all   = getFiltered();
+    document.getElementById('slots-count').textContent = `전체 ${all.length}건`;
     const start = (page-1)*PER;
     const list  = all.slice(start, start+PER);
     const body  = document.getElementById('slots-body');
@@ -160,15 +148,15 @@
     } else {
       body.innerHTML = list.map((s,i) => `
         <tr>
-          <td><input type="checkbox" class="s-check" data-key="${s._key}" onchange="updateSelCount()"></td>
+          <td><input type="checkbox" class="s-check" data-key="${s._key}"></td>
           <td style="color:var(--text2)">${start+i+1}</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
-          <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td style="font-weight:500">${s.storeName||'-'}</td>
           <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
+          <td style="color:var(--text2)">${s.days||'-'}</td>
           <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
           <td>${stLabel[s.status]||s.status}</td>
           <td>
@@ -197,8 +185,7 @@
     if(el) el.textContent = `선택: ${n}건`;
   };
   window.resetFilter = () => {
-    document.getElementById('f-type').value='';
-    document.getElementById('f-status').value='';
+    document.getElementById('f-status').value='active';
     document.getElementById('f-agency').value='';
     document.getElementById('f-userid').value='';
     document.getElementById('f-kw').value='';
