@@ -101,14 +101,14 @@
 
   function renderSummary(slots) {
     const t3     = slots.filter(s => getDday(s.endDate) <= 3).length;
-    const t7     = slots.filter(s => getDday(s.endDate) <= 7).length;
+    const t7     = slots.filter(s => { const d=getDday(s.endDate); return d>=4 && d<=7; }).length;
     const inflow = slots.reduce((a,s) => a+(s.dailyTarget||0), 0);
     const el = document.getElementById('expire-summary');
     if(!el) return;
     el.innerHTML = `
       <div class="sum-item"><div class="sum-label">표시 슬롯</div><div class="sum-val" style="color:var(--info)">${slots.length} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>
       <div class="sum-item"><div class="sum-label">3일 이내 만료</div><div class="sum-val" style="color:var(--danger)">${t3} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>
-      <div class="sum-item"><div class="sum-label">7일 이내 만료</div><div class="sum-val" style="color:var(--warn)">${t7} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>
+      <div class="sum-item"><div class="sum-label">4~7일 만료</div><div class="sum-val" style="color:var(--warn)">${t7} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>
       <div class="sum-item"><div class="sum-label">총 일 목표</div><div class="sum-val" style="color:var(--accent)">${inflow.toLocaleString()} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>`;
   }
 
