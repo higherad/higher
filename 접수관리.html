@@ -189,6 +189,16 @@
 
     allSlots = await HA.getSlots();
 
+    // ── 종료일 지난 active 슬롯 자동 만료 처리 ──────────────
+    const todayStr = new Date().toISOString().slice(0,10);
+    const toExpire = allSlots.filter(s =>
+      s.status === 'active' && s.endDate && s.endDate < todayStr
+    );
+    if (toExpire.length) {
+      await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
+      toExpire.forEach(s => { s.status = 'expired'; });
+    }
+
     const all      = getFiltered();
     const pending  = allSlots.filter(s => s.status === 'pending').length;
     const active   = allSlots.filter(s => s.status === 'active').length;
@@ -234,6 +244,10 @@
               ${s.status==='rejected' ? `
                 <button class="action-btn btn-approve" onclick="approveOne('${s._key}')">승인</button>
                 <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기</button>
+              ` : ''}
+              ${s.status==='expired' ? `
+                <button class="action-btn btn-approve" onclick="approveOne('${s._key}')">승인</button>
+                <button class="action-btn btn-reject"  onclick="openRejectModal('${s._key}')">반려</button>
               ` : ''}
               <button class="action-btn" style="background:#1e293b;color:#fff;" onclick="deleteOne('${s._key}')">삭제</button>
             </div>
