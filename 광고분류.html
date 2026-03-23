@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>광고 분류</title>
+  <style>
+    :root {
+      --bg:#f0f4f8; --accent:#10b981; --accent2:#059669; --sidebar:#0f172a;
+      --muted:#94a3b8; --card:#ffffff; --border:#e2e8f0;
+      --text:#1e293b; --text2:#64748b; --danger:#ef4444; --warn:#f59e0b; --info:#3b82f6;
+    }
+    *, *::before, *::after { box-sizing:border-box; }
+    body { margin:0; font-family:'Pretendard',sans-serif; color:var(--text); }
+
+    /* ── 업로드 존 ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 40px 24px;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all .2s;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(16,185,129,.04);
+    }
+    .upload-zone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 36px; margin-bottom: 12px; }
+    .upload-label { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .upload-sub { font-size: 12px; color: var(--muted); }
+    .upload-filename {
+      margin-top: 12px; font-size: 13px; font-weight: 600;
+      color: var(--accent); display: none;
+    }
+
+    /* ── 구분 설정 ── */
+    .section-title {
+      font-size: 13px; font-weight: 700; color: var(--text2);
+      text-transform: uppercase; letter-spacing: .8px;
+      margin: 24px 0 12px;
+    }
+    .group-editor {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .group-row {
+      display: flex; align-items: flex-start; gap: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .group-row:last-child { border-bottom: none; }
+    .group-name {
+      width: 100px; padding: 12px 14px; font-size: 13px; font-weight: 700;
+      background: #f8fafc; border-right: 1px solid var(--border);
+      display: flex; align-items: center; color: var(--text); flex-shrink: 0;
+    }
+    .group-name.agency  { color: #22c55e; }
+    .group-name.direct  { color: var(--warn); }
+    .group-name.solo    { color: var(--info); }
+    .group-stores {
+      flex: 1; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 48px;
+    }
+    .store-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 500; color: var(--text);
+    }
+    .store-tag .del {
+      cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1;
+      transition: .15s;
+    }
+    .store-tag .del:hover { color: var(--danger); }
+    .add-store-input {
+      border: none; outline: none; font-size: 12px; background: transparent;
+      width: 100px; padding: 3px 4px; color: var(--text); font-family: inherit;
+    }
+
+    /* ── 실행 버튼 ── */
+    .run-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 14px; border-radius: 12px; border: none;
+      background: var(--accent); color: #fff; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: .2s; margin-top: 20px;
+      font-family: inherit;
+    }
+    .run-btn:hover:not(:disabled) { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,.3); }
+    .run-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ── 결과 테이블 ── */
+    .result-wrap { margin-top: 28px; }
+    .result-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .result-title { font-size: 16px; font-weight: 800; }
+    .result-meta { font-size: 12px; color: var(--muted); }
+    .export-btn {
+      padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card); font-size: 12px; font-weight: 600;
+      cursor: pointer; color: var(--text2); transition: .2s; font-family: inherit;
+    }
+    .export-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .tbl-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      background: #f8fafc; padding: 10px 14px; text-align: center;
+      font-size: 11px; font-weight: 700; color: var(--text2);
+      text-transform: uppercase; letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+    }
+    thead th:nth-child(2) { text-align: left; }
+    tbody td {
+      padding: 9px 14px; border-bottom: 1px solid #f1f5f9;
+      text-align: center; color: var(--text);
+    }
+    tbody td:nth-child(2) { text-align: left; font-weight: 500; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr.group-header-row td {
+      font-weight: 800; font-size: 12px;
+    }
+    tbody tr.total-row td {
+      background: #f1f5f9; font-weight: 800; border-top: 2px solid var(--border);
+    }
+
+    /* 구분별 색상 */
+    .bg-agency { background: rgba(34,197,94,.06); }
+    .bg-direct  { background: rgba(245,158,11,.06); }
+    .bg-solo    { background: rgba(59,130,246,.06); }
+    .bg-agency-h { background: rgba(34,197,94,.15); }
+    .bg-direct-h  { background: rgba(245,158,11,.15); }
+    .bg-solo-h    { background: rgba(59,130,246,.15); }
+
+    .num-cell { font-variant-numeric: tabular-nums; }
+    .sum-badge {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 10px; margin-left: 6px;
+    }
+    .badge-agency { background: rgba(34,197,94,.15); color: #16a34a; }
+    .badge-direct  { background: rgba(245,158,11,.15); color: #d97706; }
+    .badge-solo    { background: rgba(59,130,246,.15); color: #2563eb; }
+
+    /* ── 스켈레톤 / 빈 상태 ── */
+    .empty-state {
+      padding: 40px; text-align: center;
+      color: var(--muted); font-size: 13px;
+    }
+    .empty-icon { font-size: 32px; margin-bottom: 8px; }
+
+    /* ── 상태 토스트 ── */
+    #ad-toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      padding: 12px 18px; border-radius: 10px;
+      font-size: 13px; font-weight: 600; color: #fff;
+      opacity: 0; transform: translateY(8px);
+      transition: all .3s; pointer-events: none;
+    }
+    #ad-toast.show { opacity: 1; transform: translateY(0); }
+    #ad-toast.success { background: var(--accent); }
+    #ad-toast.error   { background: var(--danger); }
+  </style>
+</head>
+<body>
+
+<div id="ad-classify-page">
+
+  <!-- 업로드 존 -->
+  <div class="section-title">📂 엑셀 파일 업로드</div>
+  <div class="upload-zone" id="upload-zone">
+    <input type="file" id="xls-input" accept=".xls,.xlsx">
+    <div class="upload-icon">📊</div>
+    <div class="upload-label">파일을 클릭하거나 드래그하여 업로드</div>
+    <div class="upload-sub">.xls / .xlsx 형식 지원</div>
+    <div class="upload-filename" id="upload-filename"></div>
+  </div>
+
+  <!-- 구분 설정 -->
+  <div class="section-title">🏷️ 구분 설정</div>
+  <div class="group-editor" id="group-editor">
+    <!-- JS로 렌더링 -->
+  </div>
+
+  <!-- 실행 버튼 -->
+  <button class="run-btn" id="run-btn" disabled onclick="runClassify()">
+    ▶&nbsp; 분류 실행
+  </button>
+
+  <!-- 결과 -->
+  <div class="result-wrap" id="result-wrap" style="display:none">
+    <div class="result-header">
+      <div>
+        <div class="result-title">분류 결과</div>
+        <div class="result-meta" id="result-meta"></div>
+      </div>
+      <button class="export-btn" onclick="exportCSV()">⬇ CSV 다운로드</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="result-table">
+        <thead>
+          <tr>
+            <th>구분</th><th>업체명</th>
+            <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
+            <th>N자동완성</th><th>방문미션</th>
+            <th>합계</th><th>총합계</th>
+          </tr>
+        </thead>
+        <tbody id="result-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="ad-toast"></div>
+
+<!-- SheetJS (XLS/XLSX 파싱) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function() {
+
+  /* ────────────────────────────────────────────────
+     1. 상태 관리 (sessionStorage로 탭 닫기 전까지 보존)
+  ──────────────────────────────────────────────── */
+  const GROUPS_KEY  = 'ha_ad_groups';
+  const RESULT_KEY  = 'ha_ad_result';
+  const FILE_KEY    = 'ha_ad_filename';
+
+  const DEFAULT_GROUPS = [
+    { name:'대행사',   stores:[] },
+    { name:'직광고주', stores:[] },
+    { name:'단독',     stores:[] },
+  ];
+
+  function loadGroups() {
+    try { return JSON.parse(sessionStorage.getItem(GROUPS_KEY)) || DEFAULT_GROUPS; }
+    catch { return DEFAULT_GROUPS; }
+  }
+  function saveGroups(g) { sessionStorage.setItem(GROUPS_KEY, JSON.stringify(g)); }
+  function loadResult() {
+    try { return JSON.parse(sessionStorage.getItem(RESULT_KEY)) || null; }
+    catch { return null; }
+  }
+  function saveResult(r) { sessionStorage.setItem(RESULT_KEY, JSON.stringify(r)); }
+
+  let groups = loadGroups();
+  let uploadedData = null;   // 파싱된 XLS 행 배열
+
+  /* ────────────────────────────────────────────────
+     2. 유틸
+  ──────────────────────────────────────────────── */
+  function normStore(s) {
+    return String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^\w가-힣]/g,'').trim();
+  }
+  function normType(s) {
+    return String(s||'').toLowerCase().replace(/\s+/g,'').trim();
+  }
+  function fmt(n) {
+    return n ? Number(n).toLocaleString() : '';
+  }
+  function toast(msg, type='success') {
+    const el = document.getElementById('ad-toast');
+    el.textContent = msg; el.className = 'show ' + type;
+    setTimeout(() => el.className = '', 2500);
+  }
+  function groupClass(name) {
+    if (name==='대행사')   return 'agency';
+    if (name==='직광고주') return 'direct';
+    return 'solo';
+  }
+
+  /* ────────────────────────────────────────────────
+     3. 구분 편집기 렌더링
+  ──────────────────────────────────────────────── */
+  function renderGroupEditor() {
+    const el = document.getElementById('group-editor');
+    el.innerHTML = groups.map((g, gi) => {
+      const cls = groupClass(g.name);
+      const tags = g.stores.map((s, si) =>
+        `<span class="store-tag">
+          ${s.replace(/주식회사|\(주\)/g,'').trim()}
+          <span class="del" onclick="removeStore(${gi},${si})">×</span>
+        </span>`
+      ).join('');
+      return `
+        <div class="group-row">
+          <div class="group-name ${cls}">${g.name}</div>
+          <div class="group-stores" id="stores-${gi}">
+            ${tags}
+            <input class="add-store-input" placeholder="업체명 입력 후 Enter"
+              onkeydown="addStoreKey(event,${gi})" id="input-${gi}">
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  window.removeStore = function(gi, si) {
+    groups[gi].stores.splice(si, 1);
+    saveGroups(groups);
+    renderGroupEditor();
+  };
+
+  window.addStoreKey = function(e, gi) {
+    if (e.key !== 'Enter') return;
+    const val = e.target.value.trim();
+    if (!val) return;
+    if (!groups[gi].stores.includes(val)) {
+      groups[gi].stores.push(val);
+      saveGroups(groups);
+    }
+    renderGroupEditor();
+    // 포커스 유지
+    setTimeout(() => { const inp = document.getElementById(`input-${gi}`); if(inp) inp.focus(); }, 0);
+  };
+
+  /* ────────────────────────────────────────────────
+     4. 파일 업로드 & 파싱
+  ──────────────────────────────────────────────── */
+  const zone = document.getElementById('upload-zone');
+  const fileInput = document.getElementById('xls-input');
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file) {
+    const fn = document.getElementById('upload-filename');
+    fn.textContent = '📎 ' + file.name;
+    fn.style.display = 'block';
+    sessionStorage.setItem(FILE_KEY, file.name);
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type:'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        // 헤더 제외
+        uploadedData = rows.slice(1).map(r => ({
+          storeN: normStore(String(r[2]||'').split(',').pop()),
+          typeN:  normType(r[9]),
+          goal:   Number(r[15])||0
+        })).filter(r => r.storeN);
+
+        document.getElementById('run-btn').disabled = false;
+        toast(`✅ ${file.name} 로드 완료 (${uploadedData.length}행)`);
+      } catch(err) {
+        toast('파일 파싱 실패: ' + err.message, 'error');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ────────────────────────────────────────────────
+     5. 분류 실행
+  ──────────────────────────────────────────────── */
+  window.runClassify = function() {
+    if (!uploadedData) return;
+
+    const rows = [];
+    const groupSums = [];
+
+    groups.forEach(g => {
+      const storeSums = [];
+      g.stores.forEach(sName => {
+        const key = normStore(sName);
+        let ns=0, np=0, nps=0, na=0, vm=0;
+        uploadedData.forEach(r => {
+          if (r.storeN === key) {
+            const t = r.typeN;
+            if      (t.startsWith('ns트래픽'))   ns  += r.goal;
+            else if (t.startsWith('np트래픽'))   np  += r.goal;
+            else if (t.startsWith('np저장'))     nps += r.goal;
+            else if (t.startsWith('n자동완성'))  na  += r.goal;
+            else if (t.startsWith('방문미션'))   vm  += r.goal;
+          }
+        });
+        const disp = sName.replace(/주식회사|\(주\)/g,'').trim();
+        const sum  = ns + np + nps + na + vm;
+        storeSums.push({ name: disp, ns, np, nps, na, vm, sum });
+      });
+      const gSum = storeSums.reduce((a,r) => a + r.sum, 0);
+      groupSums.push({ name: g.name, stores: storeSums, gSum });
+    });
+
+    const total = { ns:0, np:0, nps:0, na:0, vm:0, sum:0 };
+    groupSums.forEach(g => g.stores.forEach(r => {
+      total.ns  += r.ns;  total.np  += r.np;
+      total.nps += r.nps; total.na  += r.na;
+      total.vm  += r.vm;  total.sum += r.sum;
+    }));
+
+    const result = { groupSums, total, ts: new Date().toLocaleString('ko-KR') };
+    saveResult(result);
+    renderResult(result);
+  };
+
+  /* ────────────────────────────────────────────────
+     6. 결과 렌더링
+  ──────────────────────────────────────────────── */
+  function renderResult(result) {
+    const { groupSums, total, ts } = result;
+    document.getElementById('result-meta').textContent = `생성: ${ts}`;
+    document.getElementById('result-wrap').style.display = 'block';
+
+    const tbody = document.getElementById('result-tbody');
+    let html = '';
+
+    groupSums.forEach(g => {
+      if (!g.stores.length) return;
+      const cls   = groupClass(g.name);
+      const bgRow = `bg-${cls}`;
+      const bgHdr = `bg-${cls}-h`;
+      const bdg   = `badge-${cls}`;
+
+      g.stores.forEach((r, i) => {
+        html += `
+          <tr class="${bgRow}">
+            ${i === 0
+              ? `<td rowspan="${g.stores.length}" style="font-weight:700;vertical-align:middle">${g.name}</td>`
+              : ''}
+            <td>${r.name}</td>
+            <td class="num-cell">${fmt(r.ns)}</td>
+            <td class="num-cell">${fmt(r.np)}</td>
+            <td class="num-cell">${fmt(r.nps)}</td>
+            <td class="num-cell">${fmt(r.na)}</td>
+            <td class="num-cell">${fmt(r.vm)}</td>
+            <td class="num-cell" style="font-weight:700">${fmt(r.sum)}</td>
+            ${i === 0
+              ? `<td rowspan="${g.stores.length}" class="num-cell" style="font-weight:800;vertical-align:middle">
+                  ${fmt(g.gSum)}<span class="sum-badge ${bdg}">${g.name}</span>
+                </td>`
+              : ''}
+          </tr>`;
+      });
+    });
+
+    // 총합 행
+    html += `
+      <tr class="total-row">
+        <td colspan="2">총합</td>
+        <td class="num-cell">${fmt(total.ns)}</td>
+        <td class="num-cell">${fmt(total.np)}</td>
+        <td class="num-cell">${fmt(total.nps)}</td>
+        <td class="num-cell">${fmt(total.na)}</td>
+        <td class="num-cell">${fmt(total.vm)}</td>
+        <td class="num-cell">${fmt(total.sum)}</td>
+        <td></td>
+      </tr>`;
+
+    tbody.innerHTML = html;
+
+    // 스크롤
+    document.getElementById('result-wrap').scrollIntoView({ behavior:'smooth', block:'start' });
+    toast('✅ 분류 완료');
+  }
+
+  /* ────────────────────────────────────────────────
+     7. CSV 내보내기
+  ──────────────────────────────────────────────── */
+  window.exportCSV = function() {
+    const result = loadResult();
+    if (!result) return;
+    const { groupSums, total } = result;
+
+    let csv = '\uFEFF구분,업체명,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,합계,총합계\n';
+    groupSums.forEach(g => {
+      g.stores.forEach((r, i) => {
+        csv += `${i===0?g.name:''},${r.name},${r.ns||''},${r.np||''},${r.nps||''},${r.na||''},${r.vm||''},${r.sum||''},${i===0?g.gSum:''}\n`;
+      });
+    });
+    csv += `총합,총합,${total.ns||''},${total.np||''},${total.nps||''},${total.na||''},${total.vm||''},${total.sum||''}\n`;
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8;' }));
+    a.download = `광고분류_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  };
+
+  /* ────────────────────────────────────────────────
+     8. 초기화 — 이전 결과 복원
+  ──────────────────────────────────────────────── */
+  renderGroupEditor();
+
+  const savedResult = loadResult();
+  if (savedResult) {
+    renderResult(savedResult);
+    // 파일명 복원
+    const fname = sessionStorage.getItem(FILE_KEY);
+    if (fname) {
+      const fn = document.getElementById('upload-filename');
+      fn.textContent = '📎 ' + fname + ' (이전 결과 유지 중)';
+      fn.style.display = 'block';
+      document.getElementById('run-btn').disabled = false;
+    }
+  }
+
+})();
+</script>
+</body>
+</html>
