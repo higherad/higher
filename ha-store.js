@@ -411,9 +411,11 @@ ${lines}
     // 최신 결과 저장
     await set(ref(db, `${PATHS.adClassify}/result`), result);
     // 일별 이력 저장 (yyMMdd 키)
-    const dateKey = new Date().toLocaleDateString('ko-KR', {timeZone:'Asia/Seoul'})
-      .replace(/\. /g,'').replace('.','').replace(/(\d{4})(\d{1,2})(\d{1,2})/,(_,y,m,d)=>
-        y.slice(2)+m.padStart(2,'0')+d.padStart(2,'0'));
+    const now = new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Seoul'}));
+    const yy  = String(now.getFullYear()).slice(2);
+    const mm  = String(now.getMonth()+1).padStart(2,'0');
+    const dd  = String(now.getDate()).padStart(2,'0');
+    const dateKey = yy+mm+dd;
     await set(ref(db, `${PATHS.adClassify}/daily/${dateKey}`), result);
   },
 
