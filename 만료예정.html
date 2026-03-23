@@ -46,9 +46,6 @@
     <option value="30">30일 이내</option>
     <option value="all">전체 진행중</option>
   </select>
-  <select id="ef-type" onchange="renderExpire()">
-    <option value="">슬롯타입 전체</option>
-  </select>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="ef-kw" placeholder="스토어명 검색" style="width:180px;">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderExpire()">검색</button>
@@ -74,16 +71,6 @@
 (function(){
   let allSlots = [];
 
-  // 슬롯 타입 옵션 채우기
-  const typeSelect = document.getElementById('ef-type');
-  if (typeSelect && window.HA) {
-    HA.SLOT_TYPES.forEach(t => {
-      const o = document.createElement('option');
-      o.value = t; o.textContent = t;
-      typeSelect.appendChild(o);
-    });
-  }
-
   function getDday(endDate) {
     const today = new Date(); today.setHours(0,0,0,0);
     const end   = new Date(endDate); end.setHours(0,0,0,0);
@@ -108,7 +95,7 @@
     el.innerHTML = `
       <div class="sum-item"><div class="sum-label">표시 슬롯</div><div class="sum-val" style="color:var(--info)">${slots.length} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>
       <div class="sum-item"><div class="sum-label">3일 이내 만료</div><div class="sum-val" style="color:var(--danger)">${t3} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>
-      <div class="sum-item"><div class="sum-label">7일 이내 만료</div><div class="sum-val" style="color:var(--warn)">${t7} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>
+      <div class="sum-item"><div class="sum-label">4~7일 만료</div><div class="sum-val" style="color:var(--warn)">${t7} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>
       <div class="sum-item"><div class="sum-label">총 일 목표</div><div class="sum-val" style="color:var(--accent)">${inflow.toLocaleString()} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>`;
   }
 
@@ -119,7 +106,6 @@
     allSlots = await HA.getSlots();
 
     const range = document.getElementById('ef-range').value;
-    const type  = document.getElementById('ef-type').value;
     const kw    = (document.getElementById('ef-kw').value||'').toLowerCase();
     const today = new Date(); today.setHours(0,0,0,0);
 
@@ -136,7 +122,6 @@
         return d <= limit;
       });
     }
-    if(type) slots = slots.filter(s => s.slotType === type);
     if(kw)   slots = slots.filter(s => (s.storeName||'').toLowerCase().includes(kw));
     slots.sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
 
