@@ -27,11 +27,12 @@ const auth = getAuth(app);
 
 // ── DB 경로 상수 ─────────────────────────────────────────────
 const PATHS = {
-  slots:   'ha/slots',
-  users:   'ha/users',
-  notices: 'ha/notices',
-  paid:    'ha/paid_slots',
-  refunds: 'ha/refunds',
+  slots:      'ha/slots',
+  users:      'ha/users',
+  notices:    'ha/notices',
+  paid:       'ha/paid_slots',
+  refunds:    'ha/refunds',
+  adClassify: 'ha/ad_classify',
 };
 
 // ── 텔레그램 알림 설정 ────────────────────────────────────────
@@ -391,6 +392,25 @@ ${lines}
       }
     }
   },
+
+  // ════════════════════════════════════════════════════════
+  // 광고 분류
+  // ════════════════════════════════════════════════════════
+
+  async getAdClassify() {
+    const snapshot = await get(ref(db, PATHS.adClassify));
+    if (!snapshot.exists()) return { groups: null, result: null };
+    return snapshot.val();
+  },
+
+  async saveAdClassifyGroups(groups) {
+    await set(ref(db, `${PATHS.adClassify}/groups`), groups);
+  },
+
+  async saveAdClassifyResult(result) {
+    await set(ref(db, `${PATHS.adClassify}/result`), result);
+  },
+
 };
 
 // ── 기본 데이터 ───────────────────────────────────────────────
