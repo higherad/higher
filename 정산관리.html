@@ -70,16 +70,17 @@
 </div>
 
 <div class="filter-bar">
-  <select id="sf-type" onchange="renderSettle()"><option value="">슬롯타입 전체</option></select>
   <select id="sf-paid" onchange="renderSettle()">
     <option value="">정산상태 전체</option>
     <option value="paid">정산완료</option>
     <option value="unpaid">미정산</option>
   </select>
-  <div style="display:flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;gap:4px;">
-    <input type="date" id="sf-from" style="border:none;outline:none;font-size:12px;width:110px;">
-    <span style="color:var(--muted)">~</span>
-    <input type="date" id="sf-to" style="border:none;outline:none;font-size:12px;width:110px;">
+  <div style="position:relative;display:flex;align-items:center;">
+    <button id="sf-date-btn" onclick="document.getElementById('sf-from').showPicker?document.getElementById('sf-from').showPicker():document.getElementById('sf-from').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
+      📅 <span id="sf-date-label">접수일 선택</span>
+    </button>
+    <input type="date" id="sf-from" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="onSettleDateChange()">
+    <button id="sf-date-clear" onclick="clearSettleDate()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="sf-kw" placeholder="대행사/아이디 검색" style="width:180px;">
@@ -110,30 +111,41 @@
   const todayStr=new Date().toISOString().slice(0,10);
   const monthStr=todayStr.slice(0,7);
 
-  const typeEl=document.getElementById('sf-type');
-  if(typeEl&&window.HA) HA.SLOT_TYPES.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;typeEl.appendChild(o);});
-
   function refundKey(date,agencyId,userId){return `${date}__${agencyId}__${userId}`;}
   function getRefund(date,agencyId,userId){return refundMap[refundKey(date,agencyId,userId)]||0;}
 
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
 
   function getFiltered(){
-    const type=document.getElementById('sf-type').value;
     const paid=document.getElementById('sf-paid').value;
     const from=document.getElementById('sf-from').value;
-    const to=document.getElementById('sf-to').value;
     const kw=(document.getElementById('sf-kw').value||'').toLowerCase();
     return allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending').filter(s=>{
-      if(type&&s.slotType!==type)return false;
       if(paid==='paid'&&!paidSet.has(s._key))return false;
       if(paid==='unpaid'&&paidSet.has(s._key))return false;
-      if(from&&s.startDate<from)return false;
-      if(to&&s.endDate>to)return false;
+      if(from&&(s.createdAt||'').slice(0,10)!==from)return false;
       if(kw&&![(s.agencyId||''),(s.userId||'')].some(v=>v.toLowerCase().includes(kw)))return false;
       return true;
     });
   }
+
+  window.onSettleDateChange = function() {
+    const val = document.getElementById('sf-from').value;
+    if (val) {
+      document.getElementById('sf-date-label').textContent = val;
+      document.getElementById('sf-date-btn').style.color = 'var(--text)';
+      document.getElementById('sf-date-clear').style.display = 'inline';
+    }
+    renderSettle();
+  };
+
+  window.clearSettleDate = function() {
+    document.getElementById('sf-from').value = '';
+    document.getElementById('sf-date-label').textContent = '접수일 선택';
+    document.getElementById('sf-date-btn').style.color = 'var(--text2)';
+    document.getElementById('sf-date-clear').style.display = 'none';
+    renderSettle();
+  };
 
   function groupByDateAgency(slots){
     const map={};
