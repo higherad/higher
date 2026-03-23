@@ -118,7 +118,7 @@
     <button id="date-clear-btn" onclick="clearDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="receipt-search" placeholder="업체/아이디/스토어명 검색" style="width:220px;">
+    <input type="text" id="receipt-search" placeholder="대행사/스토어명/MID 검색" style="width:220px;">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderReceipts()">검색</button>
   </div>
 </div>
@@ -128,7 +128,7 @@
     <thead>
       <tr>
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
-        <th>번호</th><th>접수일시</th><th>대행사</th><th>유저MID</th>
+        <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
         <th>슬롯타입</th><th>스토어명</th><th>MID</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th>
       </tr>
@@ -159,7 +159,7 @@
     const dateFrom = document.getElementById('filter-date-from').value;
     return allSlots.filter(s => {
       if (status && s.status !== status) return false;
-      if (kw && ![s.agencyId,s.userId,s.storeName].some(v=>(v||'').toLowerCase().includes(kw))) return false;
+      if (kw && ![s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       const slotDate = (s.createdAt||'').slice(0,10);
       if (dateFrom && slotDate !== dateFrom) return false;
       return true;
