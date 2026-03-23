@@ -408,7 +408,19 @@ ${lines}
   },
 
   async saveAdClassifyResult(result) {
+    // 최신 결과 저장
     await set(ref(db, `${PATHS.adClassify}/result`), result);
+    // 일별 이력 저장 (yyMMdd 키)
+    const dateKey = new Date().toLocaleDateString('ko-KR', {timeZone:'Asia/Seoul'})
+      .replace(/\. /g,'').replace('.','').replace(/(\d{4})(\d{1,2})(\d{1,2})/,(_,y,m,d)=>
+        y.slice(2)+m.padStart(2,'0')+d.padStart(2,'0'));
+    await set(ref(db, `${PATHS.adClassify}/daily/${dateKey}`), result);
+  },
+
+  async getAdClassifyDaily() {
+    const snapshot = await get(ref(db, `${PATHS.adClassify}/daily`));
+    if (!snapshot.exists()) return {};
+    return snapshot.val(); // { "260323": result, "260324": result, ... }
   },
 
 };
