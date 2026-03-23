@@ -151,7 +151,7 @@
           <td>${statusBadge}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
-              ${isPending ? `<button class="action-btn btn-approve" onclick="approveUser('${u._key}')">승인</button>` : ''}
+              ${isPending ? `<button class="action-btn btn-approve" onclick="approveUser('${u._key}')">승인</button>` : `<button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="pendingUser('${u._key}')">대기</button>`}
               <button class="action-btn btn-edit" onclick="openUserModal('${u._key}')">수정</button>
               <button class="action-btn btn-del"  onclick="deleteUser('${u._key}')">삭제</button>
             </div>
@@ -181,6 +181,12 @@
   window.approveUser = async function(key) {
     if (!confirm('이 회원을 승인하시겠습니까?')) return;
     await HA.updateUser(key, { approved: true });
+    renderUsers();
+  };
+
+  window.pendingUser = async function(key) {
+    if (!confirm('이 회원을 승인 대기 상태로 변경하시겠습니까?')) return;
+    await HA.updateUser(key, { approved: false });
     renderUsers();
   };
 
