@@ -370,8 +370,15 @@
           <dt>상태</dt><dd>${stMap[s.status]||s.status}</dd>
           ${s.rejectReason ? `<dt>반려사유</dt><dd style="color:var(--danger)">${s.rejectReason}</dd>` : ''}
           <dt>메모</dt><dd>${s.memo||'-'}</dd>
-          <dt>키워드</dt>
+          <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+            키워드
+            ${s.mid ? `<button onclick="toggleMidHistory('${s.mid}','${key}')" id="mid-hist-btn"
+              style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
+              이전 키워드 보기
+            </button>` : ''}
+          </dt>
           <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="키워드를 입력해주세요"></dd>
+          <dd id="mid-history-area" style="display:none;margin-top:8px;"></dd>
         </dl>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
@@ -379,6 +386,45 @@
         </div>
       </div>`;
     document.body.appendChild(overlay);
+  };
+
+  // ── MID 이전 키워드 히스토리 ──────────────────────────────
+  window.toggleMidHistory = function(mid, currentKey) {
+    const area = document.getElementById('mid-history-area');
+    const btn  = document.getElementById('mid-hist-btn');
+    if (!area) return;
+
+    if (area.style.display !== 'none') {
+      area.style.display = 'none';
+      btn.textContent = '이전 키워드 보기';
+      return;
+    }
+
+    // 동일 MID 슬롯 중 현재 슬롯 제외, searchKeyword 있는 것만, 최신순
+    const history = allSlots
+      .filter(s => s.mid === mid && s._key !== currentKey && s.searchKeyword)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    if (!history.length) {
+      area.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px 0;">이전 키워드 내역이 없습니다.</div>';
+    } else {
+      area.innerHTML = `
+        <div style="background:#f8fafc;border-radius:8px;padding:10px 12px;border:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">MID ${mid} 이전 키워드</div>
+          ${history.map(s => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:8px;">
+              <span style="font-size:11px;color:var(--text2);white-space:nowrap;">${(s.createdAt||'').slice(0,10)}</span>
+              <span style="font-size:12px;font-weight:600;color:var(--text);flex:1;text-align:left;padding-left:8px;">${s.searchKeyword}</span>
+              <button onclick="document.getElementById('detail-keyword-input').value='${s.searchKeyword.replace(/'/g,"\'")}'"
+                style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
+                적용
+              </button>
+            </div>`).join('')}
+        </div>`;
+    }
+
+    area.style.display = 'block';
+    btn.textContent = '닫기';
   };
 
   // 닫기 시 키워드 자동저장
