@@ -410,7 +410,6 @@
     } else {
       area.innerHTML = `
         <div style="background:#f8fafc;border-radius:8px;padding:10px 12px;border:1px solid var(--border);">
-          <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">MID ${mid} 이전 키워드</div>
           ${history.map(s => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:8px;">
               <span style="font-size:11px;color:var(--text2);white-space:nowrap;">${(s.createdAt||'').slice(0,10)}</span>
