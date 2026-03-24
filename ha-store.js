@@ -429,13 +429,7 @@ ${lines}
 
 // ── 기본 데이터 ───────────────────────────────────────────────
 function getDefaultNotices() {
-  return [
-    { title:'3월 결산 정산 일정 확인 바랍니다.', author:'관리자', date:'2026-03-18 11:27:28', views:13, pinned:true,  content:'3월 결산 정산은 3/31까지 완료 예정입니다.' },
-    { title:'신규 서버 증설 작업 안내 (03/20)',  author:'관리자', date:'2026-03-17 13:36:34', views:73, pinned:false, content:'03/20 새벽 2~4시 서버 점검이 있습니다.' },
-    { title:'회원사 등급 산정 기준 변경 공지',    author:'관리자', date:'2026-03-15 11:42:51', views:32, pinned:false, content:'2026년 2분기부터 등급 기준이 변경됩니다.' },
-    { title:'슬롯 대량 신청 시 가이드 준수 요청', author:'관리자', date:'2026-03-12 18:38:13', views:44, pinned:false, content:'슬롯 10개 이상 신청 시 가이드를 준수해주세요.' },
-    { title:'☆ 필독 공지사항 ☆',               author:'관리자', date:'2026-01-08 17:42:55', views:50, pinned:true,  content:'반드시 읽어주세요.' },
-  ];
+  return [];
 }
 
 function getDefaultUsers() {
