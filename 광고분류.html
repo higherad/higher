@@ -384,9 +384,9 @@
         const groupCell=isFirst
           ?`<td rowspan="${stores.length}" style="background:${bgDeep};${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle;color:#1e293b">${g.name}</td>`
           :'';
-        // 총합계 셀 — 단일 다크 색상으로 통일
+        // 총합계 셀
         const totalCell=isFirst
-          ?`<td rowspan="${stores.length}" style="background:#334155;${topB}border-bottom:2px solid #1e293b;font-weight:800;text-align:center;vertical-align:middle;white-space:nowrap;color:#fff">${fmt(g.gSum)}<span class="ac-badge ac-badge-${cls}">${g.name}</span></td>`
+          ?`<td rowspan="${stores.length}" style="background:${bgDeep};${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle;white-space:nowrap;color:#1e293b">${fmt(g.gSum)}<span class="ac-badge ac-badge-${cls}">${g.name}</span></td>`
           :'';
 
         // 월별 합계 셀 (업체별)
