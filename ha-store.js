@@ -372,6 +372,42 @@ ${lines}
     });
   },
 
+  // 회원 실시간 리스너 (회원관리 배지용)
+  onUsersChange(callback) {
+    return onValue(ref(db, PATHS.users), snapshot => {
+      callback(snapToArray(snapshot));
+    });
+  },
+
+  // 정산 실시간 리스너 — slots + paid_slots 를 함께 구독해
+  // 미정산(active 슬롯 중 paid_slots 에 없는 것) 목록을 콜백으로 전달
+  onSettlementsChange(callback) {
+    let latestSlots = [];
+    let latestPaid  = new Set();
+
+    function notify() {
+      const unpaid = latestSlots.filter(
+        s => s.status === 'active' && !latestPaid.has(s._key)
+      );
+      callback(unpaid);
+    }
+
+    const unsubSlots = onValue(ref(db, PATHS.slots), snap => {
+      latestSlots = snapToArray(snap).sort((a, b) =>
+        new Date(b.createdAt) - new Date(a.createdAt)
+      );
+      notify();
+    });
+
+    const unsubPaid = onValue(ref(db, PATHS.paid), snap => {
+      latestPaid = snap.exists() ? new Set(Object.keys(snap.val())) : new Set();
+      notify();
+    });
+
+    // 두 리스너를 한 번에 해제할 수 있도록 unsubscribe 함수 반환
+    return () => { unsubSlots(); unsubPaid(); };
+  },
+
   // ════════════════════════════════════════════════════════
   // 초기 데이터 시드 (Firebase가 비어있을 때 한 번만 실행)
   // ════════════════════════════════════════════════════════

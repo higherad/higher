@@ -275,8 +275,8 @@
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)"><i data-lucide="inbox" size="16"></i> 접수 관리<span class="badge" id="pending-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-expire"  onclick="loadPage('만료예정.html',this)"><i data-lucide="clock-alert" size="16"></i> 만료 예정</div>
     <div class="nav-label">Finance & Users</div>
-    <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)"><i data-lucide="wallet" size="16"></i> 정산 관리</div>
-    <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)"><i data-lucide="users" size="16"></i> 회원 관리</div>
+    <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)"><i data-lucide="wallet" size="16"></i> 정산 관리<span class="badge" id="settle-badge" style="display:none">0</span></div>
+    <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)"><i data-lucide="users" size="16"></i> 회원 관리<span class="badge" id="users-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-notice"  onclick="loadPage('공지사항.html',this)"><i data-lucide="megaphone" size="16"></i> 공지사항</div>
     <div class="nav-label">Tools</div>
     <div class="nav-item" id="nav-adclassify" onclick="loadPage('광고분류.html',this)"><i data-lucide="table-2" size="16"></i> 광고 분류</div>
@@ -540,6 +540,65 @@
     prevPending = n;
     renderNotifPanel();
   });
+
+  // ── 회원관리 배지 (신규 미승인 회원) ──────────────────────
+  let prevNewUsers = null;
+  let newUserTimer = null;
+  let pendingUserDiff = 0;
+
+  HA.onUsersChange && HA.onUsersChange(users => {
+    const n = users.filter(u => u.approved === false || u.approved === undefined).length;
+
+    const el = document.getElementById('users-badge');
+    if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
+
+    if (prevNewUsers !== null && n > prevNewUsers) {
+      pendingUserDiff += n - prevNewUsers;
+      if (newUserTimer) clearTimeout(newUserTimer);
+      newUserTimer = setTimeout(() => {
+        notifications.unshift({
+          title: `👤 신규 회원 가입 ${pendingUserDiff}건`,
+          desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
+        });
+        pendingUserDiff = 0;
+        newUserTimer = null;
+        saveNotifs();
+        renderNotifPanel();
+      }, 1500);
+    }
+    prevNewUsers = n;
+  });
+
+  // ── 정산관리 배지 (미정산 건) ──────────────────────────────
+  let prevUnsettled = null;
+  let unsettledTimer = null;
+  let pendingSettleDiff = 0;
+
+  HA.onSettlementsChange(unpaidSlots => {
+    const n = unpaidSlots.length;
+    _updateSettleBadge(n);
+  });
+
+  function _updateSettleBadge(n) {
+    const el = document.getElementById('settle-badge');
+    if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
+
+    if (prevUnsettled !== null && n > prevUnsettled) {
+      pendingSettleDiff += n - prevUnsettled;
+      if (unsettledTimer) clearTimeout(unsettledTimer);
+      unsettledTimer = setTimeout(() => {
+        notifications.unshift({
+          title: `💰 미정산 슬롯 ${pendingSettleDiff}건 추가`,
+          desc:  `미정산 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
+        });
+        pendingSettleDiff = 0;
+        unsettledTimer = null;
+        saveNotifs();
+        renderNotifPanel();
+      }, 1500);
+    }
+    prevUnsettled = n;
+  }
 
   // ── 앱 시작 ───────────────────────────────────────────────
   async function init() {
