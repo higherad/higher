@@ -202,7 +202,7 @@ const HA = {
 ${lines}
 ⏰ 접수시간: ${now}
 ━━━━━━━━━━━━━━━━
-👉 <a href="https://higherad.kro.kr/index.html">어드민에서 확인하세요</a>`
+👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
       );
     }, _telegramBatch.DELAY);
 
