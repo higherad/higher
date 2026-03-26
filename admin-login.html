@@ -194,6 +194,9 @@
 <script type="module">
   import HA from './ha-store.js';
 
+  // URL에서 파일명 숨기기 — 항상 / 로만 표시
+  history.replaceState(null, '', '/');
+
   // 이미 인증된 경우 바로 이동
   if (sessionStorage.getItem('ha_admin_auth') === '1') {
     location.href = 'index.html';

@@ -334,6 +334,9 @@
 
   window.HA = HA;
 
+  // URL에서 파일명 숨기기 — 항상 / 로만 표시
+  history.replaceState(null, '', '/');
+
   // ── 로그아웃 ──────────────────────────────────────────────
   window.doLogout = () => {
     HA.logout();
