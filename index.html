@@ -343,7 +343,6 @@
 
   // ── 알림 관련 ─────────────────────────────────────────────
   let notifications = JSON.parse(sessionStorage.getItem('ha_notifs') || '[]');
-  let prevPending   = null;
   let notifOpen     = false;
 
   function saveNotifs() {
@@ -508,11 +507,15 @@
 
   // ── Firebase 실시간 리스너 ────────────────────────────────
   // ── 알림 디바운스 ─────────────────────────────────────────
-  let notifTimer = null;
-  let pendingDiff = 0;
+  // ※ _key 집합으로 추적: 관리자가 상태값을 바꿔도 key는 그대로이므로
+  //   진짜 '신규 접수/신규 가입'이 생겼을 때만 알림이 발생합니다.
+  let notifTimer   = null;
+  let newSlotKeys  = null;   // 초기화 전: null (첫 스냅샷은 알림 없이 기준값만 저장)
+  let pendingDiff  = 0;
 
   HA.onSlotsChange(slots => {
-    const n = slots.filter(s => s.status === 'pending').length;
+    const pendingSlots = slots.filter(s => s.status === 'pending');
+    const n = pendingSlots.length;
 
     // 배지 업데이트
     const el = document.getElementById('pending-badge');
@@ -520,14 +523,23 @@
 
     // Firebase 연결 성공 표시
     const pill = document.getElementById('status-pill');
-    if (pill) {
-      pill.textContent = '● 연결됨';
-      pill.className = 'status-pill ok';
+    if (pill) { pill.textContent = '● 연결됨'; pill.className = 'status-pill ok'; }
+
+    const currentKeys = new Set(pendingSlots.map(s => s._key));
+
+    if (newSlotKeys === null) {
+      // 첫 스냅샷: 기준값만 저장하고 알림은 띄우지 않음
+      newSlotKeys = currentKeys;
+      renderNotifPanel();
+      return;
     }
 
-    // 새 접수 알림 — 디바운스로 묶어서 한 번만 생성
-    if (prevPending !== null && n > prevPending) {
-      pendingDiff += n - prevPending;
+    // 이전에 없던 _key 가 새로 생긴 경우만 → 진짜 신규 접수
+    const addedCount = [...currentKeys].filter(k => !newSlotKeys.has(k)).length;
+    newSlotKeys = currentKeys;
+
+    if (addedCount > 0) {
+      pendingDiff += addedCount;
       if (notifTimer) clearTimeout(notifTimer);
       notifTimer = setTimeout(() => {
         notifications.unshift({
@@ -537,28 +549,41 @@
           navId: 'nav-pending',
         });
         pendingDiff = 0;
-        notifTimer = null;
+        notifTimer  = null;
         saveNotifs();
         renderNotifPanel();
       }, 1500);
     }
-    prevPending = n;
+
     renderNotifPanel();
   });
 
   // ── 회원관리 배지 (신규 미승인 회원) ──────────────────────
-  let prevNewUsers = null;
-  let newUserTimer = null;
+  let newUserTimer  = null;
+  let knownUserKeys = null;  // 초기화 전: null
   let pendingUserDiff = 0;
 
   HA.onUsersChange && HA.onUsersChange(users => {
-    const n = users.filter(u => u.approved === false || u.approved === undefined).length;
+    const pendingUsers = users.filter(u => u.approved === false || u.approved === undefined);
+    const n = pendingUsers.length;
 
     const el = document.getElementById('users-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
 
-    if (prevNewUsers !== null && n > prevNewUsers) {
-      pendingUserDiff += n - prevNewUsers;
+    const currentKeys = new Set(pendingUsers.map(u => u._key));
+
+    if (knownUserKeys === null) {
+      // 첫 스냅샷: 기준값만 저장
+      knownUserKeys = currentKeys;
+      return;
+    }
+
+    // 이전에 없던 _key 가 새로 생긴 경우만 → 진짜 신규 가입
+    const addedCount = [...currentKeys].filter(k => !knownUserKeys.has(k)).length;
+    knownUserKeys = currentKeys;
+
+    if (addedCount > 0) {
+      pendingUserDiff += addedCount;
       if (newUserTimer) clearTimeout(newUserTimer);
       newUserTimer = setTimeout(() => {
         notifications.unshift({
@@ -568,12 +593,11 @@
           navId: 'nav-users',
         });
         pendingUserDiff = 0;
-        newUserTimer = null;
+        newUserTimer    = null;
         saveNotifs();
         renderNotifPanel();
       }, 1500);
     }
-    prevNewUsers = n;
   });
 
   // ── 정산관리 배지 (미정산 건) ──────────────────────────────
