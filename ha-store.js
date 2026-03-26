@@ -28,12 +28,12 @@ const auth = getAuth(app);
 
 // ── DB 경로 상수 ─────────────────────────────────────────────
 const PATHS = {
-  slots:      'ha/slots',
-  users:      'ha/users',
-  notices:    'ha/notices',
-  paid:       'ha/paid_slots',
-  refunds:    'ha/refunds',
-  adClassify: 'ha/ad_classify',
+  slots:      'higherad-admin/slots',
+  users:      'higherad-admin/users',
+  notices:    'higherad-admin/notices',
+  paid:       'higherad-admin/paid_slots',
+  refunds:    'higherad-admin/refunds',
+  adClassify: 'higherad-admin/ad_classify',
 };
 
 // ── 텔레그램 알림 설정 ────────────────────────────────────────
