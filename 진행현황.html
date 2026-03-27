@@ -377,8 +377,7 @@
       .rank-top3 { background:#eff6ff; color:#1d4ed8; }
       .rank-top10 { background:#f0fdf4; color:#15803d; }
       .rank-other { background:#f1f5f9; color:#475569; }
-      .rank-sync-btn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; font-size:14px; font-family:inherit; color:var(--text2); padding:0; line-height:1; flex-shrink:0; }
-      .rank-sync-btn:hover { background:#f8fafc; }
+
       .rank-empty { text-align:center; padding:40px 0; color:var(--muted); font-size:13px; }
     `;
     document.head.appendChild(st);
@@ -399,10 +398,7 @@
     overlay.innerHTML = `
       <div class="rank-modal-box">
         <div style="margin-bottom:4px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <div class="rank-modal-title" style="margin-bottom:0;">📊 일자별 순위</div>
-            <button class="rank-sync-btn" id="rank-sync-btn" onclick="syncRankFromSheet('${slotKey}')" title="시트에서 업데이트">🔄</button>
-          </div>
+          <div class="rank-modal-title">📊 일자별 순위</div>
           <div class="rank-modal-sub">${s.storeName} &nbsp;·&nbsp; MID: ${s.mid} &nbsp;·&nbsp; 순위키워드: <strong>${s.rankKeyword||'-'}</strong></div>
         </div>
         <div id="rank-table-area">
@@ -428,7 +424,7 @@
       const snap = await get(ref(dbInst, rankPath));
 
       if (!snap.exists()) {
-        area.innerHTML = `<div class="rank-empty">저장된 순위 데이터가 없습니다.<br><small style="color:var(--muted)">업데이트 버튼을 눌러 데이터를 가져오세요.</small></div>`;
+        area.innerHTML = `<div class="rank-empty">저장된 순위 데이터가 없습니다.<br><small style="color:var(--muted)">매일 오후 자동으로 업데이트됩니다.</small></div>`;
         return;
       }
 
@@ -467,86 +463,6 @@
     }
   }
 
-  // ── 시트에서 순위 데이터 동기화 ──────────────────────────
-  window.syncRankFromSheet = async function(slotKey) {
-    const s = allSlots.find(x => x._key === slotKey);
-    if (!s || !s.mid) return;
-
-    const btn = document.getElementById('rank-sync-btn');
-    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
-
-    const SHEET_ID  = '14j9wwFedE-kwAebFSnBWjgCYcoCUW2L0hDdBmtGqAf8';
-    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dashboard`;
-    const RANK_PATH = `ha/ranks/${s.mid.replace(/[.#$[\]/]/g, '_')}`;
-
-    try {
-      const res = await fetch(SHEET_URL);
-      if (!res.ok) throw new Error('시트 fetch 실패');
-      const text = await res.text();
-      const lines = text.split('\n').filter(l => l.trim());
-
-      // 헤더 행 파싱 (0번째 행): N열(index 13)부터 날짜
-      function parseCsvLine(line) {
-        const result = []; let cur = '', inQ = false;
-        for (let i = 0; i < line.length; i++) {
-          const c = line[i];
-          if (c === '"') { if (inQ && line[i+1]==='"') { cur+='"'; i++; } else inQ=!inQ; }
-          else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
-          else cur += c;
-        }
-        result.push(cur.trim()); return result;
-      }
-
-      const headerCols = parseCsvLine(lines[0]);
-      // N열 = index 13 부터 날짜 헤더 파싱 (MM-DD 형식)
-      const dateHeaders = []; // [{colIdx, dateStr}]
-      const currentYear = new Date().getFullYear();
-      for (let ci = 13; ci < headerCols.length; ci++) {
-        const h = headerCols[ci].replace(/"/g,'').trim();
-        if (/^\d{2}-\d{2}$/.test(h)) {
-          dateHeaders.push({ colIdx: ci, dateStr: `${currentYear}-${h}` });
-        }
-      }
-
-      // MID 매칭 행 찾기 (G열=index 6), J열=index 9 (순위키워드)
-      const updates = {};
-      for (let ri = 1; ri < lines.length; ri++) {
-        const cols = parseCsvLine(lines[ri]);
-        const sheetMid = (cols[6]||'').replace(/"/g,'').trim();
-        if (sheetMid !== String(s.mid).trim()) continue;
-
-        const keyword = (cols[9]||'').replace(/"/g,'').trim() || s.rankKeyword || '-';
-
-        for (const { colIdx, dateStr } of dateHeaders) {
-          const rankRaw = (cols[colIdx]||'').replace(/"/g,'').trim();
-          const rank = rankRaw && rankRaw !== '-' ? rankRaw : null;
-          if (rank) {
-            // 신규 날짜만 저장 (기존 데이터 덮어쓰지 않으려면 아래 주석처리)
-            updates[dateStr] = { keyword, rank };
-          }
-        }
-      }
-
-      if (!Object.keys(updates).length) {
-        if (btn) { btn.textContent = '🔄'; btn.disabled = false; }
-        alert('해당 MID의 순위 데이터를 찾을 수 없습니다.');
-        return;
-      }
-
-      // Firebase에 저장
-      const { getDatabase, ref, update: fbUpdate } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const dbInst = getDatabase();
-      await fbUpdate(ref(dbInst, RANK_PATH), updates);
-
-      if (btn) { btn.textContent = '✅'; btn.disabled = false; }
-      await renderRankTable(s.mid, RANK_PATH);
-
-    } catch(e) {
-      console.error(e);
-      if (btn) { btn.textContent = '🔄'; btn.disabled = false; }
-      alert('시트 데이터 가져오기 실패: ' + e.message);
-    }
-  };
 
   renderSlots();
 })();
