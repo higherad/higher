@@ -181,6 +181,15 @@ const HA = {
       _telegramBatch.timer = null;
 
       const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        await sendTelegram(
+        `📥 <b>새 슬롯 접수 (1개)</b>
+        ━━━━━━━━━━━━━━━━
+          • ${newSlot.agencyId} / ${newSlot.slotType}
+          • 업체명: ${newSlot.storeName}
+        ⏰ 접수시간: ${now}
+        ━━━━━━━━━━━━━━━━
+        👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
+        );
 
       // 대행사 + 슬롯타입 조합별 집계
       const grouped = {};
@@ -197,14 +206,14 @@ const HA = {
         .join('\n');
 
       await sendTelegram(
-`📥 <b>새 슬롯 접수 (총 ${batch.length}개)</b>
-━━━━━━━━━━━━━━━━
-${lines}
-⏰ 접수시간: ${now}
-━━━━━━━━━━━━━━━━
-👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
+      `📥 <b>새 슬롯 접수 (총 ${batch.length}개)</b>
+      ━━━━━━━━━━━━━━━━
+      ${lines}
+      ⏰ 접수시간: ${now}
+      ━━━━━━━━━━━━━━━━
+      👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
       );
-    }, _telegramBatch.DELAY);
+     }, _telegramBatch.DELAY);
 
     return result;
   },
