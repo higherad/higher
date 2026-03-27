@@ -66,15 +66,7 @@ async function sendTelegram(message) {
   }
 }
 
-// ── 텔레그램 배치 큐 ─────────────────────────────────────────
-// ※ leading-timer 방식: 첫 접수 시점 기준으로 DELAY 후 일괄 발송.
-//    타이머가 이미 돌고 있으면 clearTimeout 하지 않으므로
-//    연속 접수가 이어져도 메시지가 씹히지 않는다.
-const _telegramBatch = {
-  queue: [],
-  timer: null,
-  DELAY: 15000,  // 15초 묶음 대기 (ms)
-};
+// (배치 큐 제거 — 개별/엑셀 알림을 호출부에서 각각 처리)
 
 // ── 유틸: Firebase 스냅샷 → 배열 변환 ───────────────────────
 function snapToArray(snapshot) {
@@ -144,78 +136,75 @@ const HA = {
 
   async addSlot(data) {
     const newSlot = {
-      status:       'pending',
-      createdAt:    new Date().toISOString(),
-      agencyId:     data.agencyId     || '',
-      userId:       data.userId       || '',
-      slotType:     data.slotType     || '',
-      startDate:    data.startDate    || '',
-      endDate:      data.endDate      || '',
-      storeName:    data.storeName    || '',
-      rankKeyword:  data.rankKeyword  || '',
-      url:          data.url          || '',
-      mid:          data.mid          || '',
-      compareUrl:   data.compareUrl   || '',
-      compareMid:   data.compareMid   || '',
-      workKeyword:  data.workKeyword  || '',
-      sellerControl:data.sellerControl|| '',
-      memo:         data.memo         || '',
-      days:         Number(data.days)        || 0,
-      dailyTarget:  Number(data.dailyTarget) || 0,
-      rank:         null,
-      inflow:       0,
+      status:        'pending',
+      createdAt:     new Date().toISOString(),
+      agencyId:      data.agencyId      || '',
+      userId:        data.userId        || '',
+      slotType:      data.slotType      || '',
+      startDate:     data.startDate     || '',
+      endDate:       data.endDate       || '',
+      storeName:     data.storeName     || '',
+      rankKeyword:   data.rankKeyword   || '',
+      url:           data.url           || '',
+      mid:           data.mid           || '',
+      compareUrl:    data.compareUrl    || '',
+      compareMid:    data.compareMid    || '',
+      workKeyword:   data.workKeyword   || '',
+      sellerControl: data.sellerControl || '',
+      memo:          data.memo          || '',
+      days:          Number(data.days)        || 0,
+      dailyTarget:   Number(data.dailyTarget) || 0,
+      rank:          null,
+      inflow:        0,
     };
     const newRef = await push(ref(db, PATHS.slots), newSlot);
     const result = { ...newSlot, _key: newRef.key };
     dispatch('ha:slots:updated');
-
-
-    // ── 텔레그램 배치 알림 (leading-timer) ─────────────────
-    // 타이머가 없을 때만 새로 걸어둔다.
-    // 이미 타이머가 돌고 있으면 큐에만 추가하고 타이머는 건드리지 않음.
-    _telegramBatch.queue.push(newSlot);
-
-    if (!_telegramBatch.timer) _telegramBatch.timer = setTimeout(async () => {
-      const batch = [..._telegramBatch.queue];
-      _telegramBatch.queue = [];
-      _telegramBatch.timer = null;
-
-      const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-        await sendTelegram(
-        `📥 <b>새 슬롯 접수 (1개)</b>
-        ━━━━━━━━━━━━━━━━
-          • ${newSlot.agencyId} / ${newSlot.slotType}
-          • 업체명: ${newSlot.storeName}
-        ⏰ 접수시간: ${now}
-        ━━━━━━━━━━━━━━━━
-        👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
-        );
-
-      // 대행사 + 슬롯타입 조합별 집계
-      const grouped = {};
-      for (const s of batch) {
-        const key = `${s.agencyId}||${s.slotType}`;
-        grouped[key] = (grouped[key] || 0) + 1;
-      }
-
-      const lines = Object.entries(grouped)
-        .map(([key, cnt]) => {
-          const [agency, type] = key.split('||');
-          return `  • ${agency} / ${type} / ${cnt}개`;
-        })
-        .join('\n');
-
-      await sendTelegram(
-      `📥 <b>새 슬롯 접수 (총 ${batch.length}개)</b>
-      ━━━━━━━━━━━━━━━━
-      ${lines}
-      ⏰ 접수시간: ${now}
-      ━━━━━━━━━━━━━━━━
-      👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
-      );
-     }, _telegramBatch.DELAY);
-
     return result;
+  },
+
+  // ── 개별접수 텔레그램 알림 ───────────────────────────────
+  async notifySingle(slot) {
+    const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+    await sendTelegram(
+`📥 <b>새 슬롯 접수 (개별)</b>
+━━━━━━━━━━━━━━━━
+• ${slot.agencyId} / ${slot.slotType}
+• 업체명: ${slot.storeName}
+• MID: ${slot.mid || '-'}
+• 순위키워드: ${slot.rankKeyword || '-'}
+⏰ 접수시간: ${now}
+━━━━━━━━━━━━━━━━
+👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
+    );
+  },
+
+  // ── 엑셀 일괄접수 텔레그램 알림 ─────────────────────────
+  async notifyExcelBatch(slots) {
+    if (!slots.length) return;
+    const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+
+    // 대행사 + 슬롯타입 조합별 집계
+    const grouped = {};
+    for (const s of slots) {
+      const key = `${s.agencyId}||${s.slotType}`;
+      grouped[key] = (grouped[key] || 0) + 1;
+    }
+    const lines = Object.entries(grouped)
+      .map(([key, cnt]) => {
+        const [agency, type] = key.split('||');
+        return `• ${agency} / ${type} / ${cnt}개`;
+      })
+      .join('\n');
+
+    await sendTelegram(
+`📊 <b>엑셀 일괄 접수 (총 ${slots.length}건)</b>
+━━━━━━━━━━━━━━━━
+${lines}
+⏰ 접수시간: ${now}
+━━━━━━━━━━━━━━━━
+👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
+    );
   },
 
   async updateSlot(key, patch) {
