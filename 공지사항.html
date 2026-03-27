@@ -135,7 +135,7 @@
   window.deleteNotice = async function(key) {
     if(!confirm('삭제하시겠습니까?')) return;
     await HA.deleteNotice(key);
-    renderNotices();
+    renderNotices(false);
   };
 
   window.openNoticeDetail = async function(key) {
@@ -198,10 +198,10 @@
     if(key) await HA.updateNotice(key, data);
     else    await HA.addNotice(data);
     document.querySelector('.modal-overlay').remove();
-    renderNotices();
+    renderNotices(false);
   };
 
-  renderNotices();
+  renderNotices(false);
 })();
 </script>
 </div>

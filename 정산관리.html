@@ -70,7 +70,7 @@
 </div>
 
 <div class="filter-bar">
-  <select id="sf-paid" onchange="renderSettle()">
+  <select id="sf-paid" onchange="renderSettle(false)">
     <option value="">정산상태 전체</option>
     <option value="paid">정산완료</option>
     <option value="unpaid">미정산</option>
@@ -281,7 +281,7 @@
       await HA.setRefundAmount(key,val);
       refundMap[key]=val;
       modal.remove();
-      renderSettle();
+      renderSettle(false);
     };
     modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
   };
@@ -290,7 +290,7 @@
     const keys=allSlots.filter(s=>(s.createdAt||'').slice(0,10)===date&&s.agencyId===agencyId&&s.userId===userId).map(s=>s._key);
     const allP=keys.every(k=>paidSet.has(k));
     await Promise.all(keys.map(k=>HA.setPaid(k,!allP)));
-    renderSettle();
+    renderSettle(false);
   };
 
   window.openAgencyPopup=function(agencyId,userId){
@@ -342,7 +342,7 @@
     a.click();
   };
 
-  renderSettle();
+  renderSettle(false);
 })();
 </script>
 </div>

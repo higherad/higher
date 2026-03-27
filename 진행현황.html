@@ -68,8 +68,8 @@
     <option value="active">진행중</option>
     <option value="expired">만료</option>
   </select>
-  <input type="text" id="f-agency" placeholder="대행사 검색" style="width:130px;" oninput="renderSlots()">
-  <input type="text" id="f-userid" placeholder="유저ID 검색" style="width:130px;" oninput="renderSlots()">
+  <input type="text" id="f-agency" placeholder="대행사 검색" style="width:130px;" oninput="renderSlots(false)">
+  <input type="text" id="f-userid" placeholder="유저ID 검색" style="width:130px;" oninput="renderSlots(false)">
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="f-kw" placeholder="스토어명/키워드 검색" style="width:200px;">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSlots()">검색</button>
@@ -207,7 +207,7 @@
     document.getElementById('f-agency').value='';
     document.getElementById('f-userid').value='';
     document.getElementById('f-kw').value='';
-    page=1; renderSlots();
+    page=1; renderSlots(false);
   };
 
   window.bulkDelete = async () => {
@@ -215,13 +215,13 @@
     if(!keys.length) return alert('선택된 항목이 없습니다.');
     if(!confirm(`${keys.length}건을 삭제하시겠습니까?`)) return;
     await Promise.all(keys.map(k => HA.deleteSlot(k)));
-    renderSlots();
+    renderSlots(false);
   };
 
   window.delSlot = async key => {
     if(!confirm('삭제하시겠습니까?')) return;
     await HA.deleteSlot(key);
-    renderSlots();
+    renderSlots(false);
   };
 
   const STATUS_KO = { pending:'승인대기', active:'진행중', rejected:'반려', expired:'만료' };
@@ -346,7 +346,7 @@
     slotModal(s, '슬롯 정보 수정', async () => {
       await HA.updateSlot(key, getFormData());
       document.querySelector('.modal-overlay').remove();
-      renderSlots();
+      renderSlots(false);
     });
   };
 
@@ -356,7 +356,7 @@
       const slot = await HA.addSlot(data);
       await HA.updateSlot(slot._key, { status: data.status });
       document.querySelector('.modal-overlay').remove();
-      renderSlots();
+      renderSlots(false);
     });
   };
 
@@ -470,7 +470,7 @@
   }
 
 
-  renderSlots();
+  renderSlots(false);
 })();
 </script>
 </div>

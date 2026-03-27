@@ -309,14 +309,14 @@
     await HA.approveSlot(key);
     const overlay = document.querySelector('.modal-overlay');
     if (overlay) overlay.remove();
-    renderReceipts();
+    renderReceipts(false);
   };
 
   window.bulkApprove = async function() {
     const keys = getCheckedKeys();
     if (!keys.length) return alert('선택된 항목이 없습니다.');
     await Promise.all(keys.map(k => HA.approveSlot(k)));
-    renderReceipts();
+    renderReceipts(false);
   };
 
   // ── 상태 변경 (승인→대기, 반려→대기 등) ─────────────────
@@ -326,7 +326,7 @@
     await HA.updateSlot(key, { status: newStatus, rejectReason: newStatus !== 'rejected' ? '' : undefined });
     const overlay = document.querySelector('.modal-overlay');
     if (overlay) overlay.remove();
-    renderReceipts();
+    renderReceipts(false);
   };
 
   // ── 종료 처리 (승인 → 종료) ──────────────────────────────
@@ -335,7 +335,7 @@
     await HA.updateSlot(key, { status: 'terminated' });
     const overlay = document.querySelector('.modal-overlay');
     if (overlay) overlay.remove();
-    renderReceipts();
+    renderReceipts(false);
   };
 
   // ── 반려 ─────────────────────────────────────────────────
@@ -344,7 +344,7 @@
     if (!keys.length) return alert('선택된 항목이 없습니다.');
     const reason = prompt('반려 사유를 입력해주세요:') || '';
     await Promise.all(keys.map(k => HA.rejectSlot(k, reason)));
-    renderReceipts();
+    renderReceipts(false);
   };
 
   window.openRejectModal = function(key) {
@@ -369,14 +369,14 @@
     const reason = document.getElementById('reject-reason').value.trim();
     await HA.rejectSlot(key, reason);
     document.querySelector('.modal-overlay').remove();
-    renderReceipts();
+    renderReceipts(false);
   };
 
   // ── 삭제 ─────────────────────────────────────────────────
   window.deleteOne = async function(key) {
     if (!confirm('정말 삭제하시겠습니까?')) return;
     await HA.deleteSlot(key);
-    renderReceipts();
+    renderReceipts(false);
   };
 
   // ── 상세 보기 ─────────────────────────────────────────────
@@ -574,7 +574,7 @@
       memo:          document.getElementById('e-memo').value,
     });
     document.querySelector('.modal-overlay').remove();
-    renderReceipts();
+    renderReceipts(false);
   };
 
   // ── 엑셀 다운로드 (접수 시트 형식 - 이미지 기준) ────────────
@@ -628,7 +628,7 @@
   };
 
   // 최초 로드
-  renderReceipts();
+  renderReceipts(false);
 
   // ── 순위 팝업 (접수관리) ─────────────────────────────────
   window.openRankPopup = async function(slotKey) {
