@@ -265,28 +265,42 @@
       return;
     }
 
-    // 합산: 각 업체별로 수치 누적
-    // 기준 구조는 첫 번째 result의 groupSums에서 가져옴
-    const base=JSON.parse(JSON.stringify(daily[monthKeys[0]]));
-    // 수치 초기화 후 합산
-    base.groupSums.forEach(g=>g.stores.forEach(r=>{r.ns=0;r.np=0;r.nps=0;r.na=0;r.vm=0;r.sum=0;}));
-    base.total={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+    // ★ 수정: 현재 _groups 설정 기준으로 base 구조를 직접 생성
+    //    (저장된 첫 번째 날 데이터를 기준으로 쓰면 구분 설정 변경이 반영되지 않음)
+    const base = {
+      groupSums: _groups.map(g => ({
+        name: g.name,
+        stores: (g.stores || []).map(sName => ({
+          name: sName.replace(/주식회사|\(주\)/g,'').trim(),
+          raw: sName,
+          ns:0, np:0, nps:0, na:0, vm:0, sum:0
+        })),
+        gSum: 0
+      })),
+      total: {ns:0, np:0, nps:0, na:0, vm:0, sum:0}
+    };
 
+    // 저장된 일별 데이터를 순회하며 raw 또는 name으로 매칭해 누적
     monthKeys.forEach(k=>{
       const day=daily[k];
+      if(!day||!day.groupSums) return;
       day.groupSums.forEach(dg=>{
         const bg=base.groupSums.find(g=>g.name===dg.name);
-        if(!bg)return;
+        if(!bg) return;
         dg.stores.forEach(dr=>{
           const bs=bg.stores.find(s=>s.raw===dr.raw||s.name===dr.name);
-          if(!bs)return;
+          if(!bs) return;
           bs.ns+=dr.ns||0; bs.np+=dr.np||0; bs.nps+=dr.nps||0;
           bs.na+=dr.na||0; bs.vm+=dr.vm||0; bs.sum+=dr.sum||0;
         });
       });
     });
-    // gSum, total 재계산
-    base.groupSums.forEach(g=>{g.gSum=g.stores.reduce((a,r)=>a+r.sum,0);});
+    // 합계가 0인 업체 제거 후 gSum, total 재계산
+    base.groupSums.forEach(g=>{
+      g.stores=g.stores.filter(r=>r.sum>0);
+      g.gSum=g.stores.reduce((a,r)=>a+r.sum,0);
+    });
+    base.groupSums=base.groupSums.filter(g=>g.stores.length>0);
     base.groupSums.forEach(g=>g.stores.forEach(r=>{
       base.total.ns+=r.ns;base.total.np+=r.np;base.total.nps+=r.nps;
       base.total.na+=r.na;base.total.vm+=r.vm;base.total.sum+=r.sum;
