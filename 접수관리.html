@@ -612,8 +612,8 @@
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
 
-      // ── 접수 시트: 업체명/URL/PID번호/순위키워드/일 수/시작일/일 목표/검색키워드
-      const header = ['접수일시','대행사','업체명','업체URL','업체PID번호','순위키워드','일 수','시작일','일 목표','검색키워드'];
+      // ── 접수 시트: 업체명/URL/MID번호/순위키워드/일 수/시작일/일 목표/검색키워드
+      const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드'];
       const rows = filtered.map(s => [
         (s.createdAt||'').slice(0,10),
         s.agencyId||'',
