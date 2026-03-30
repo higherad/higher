@@ -426,7 +426,7 @@
           ${s.rejectReason ? `<dt>반려사유</dt><dd style="color:var(--danger)">${s.rejectReason}</dd>` : ''}
           <dt>메모</dt><dd>${s.memo||'-'}</dd>
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
-            키워드
+            검색키워드
             ${s.mid ? `<button onclick="toggleMidHistory('${s.mid}','${key}')" id="mid-hist-btn"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
@@ -612,8 +612,8 @@
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
 
-      // ── 접수 시트: 업체명/URL/PID번호/순위키워드/일 수/시작일/일 목표/키워드
-      const header = ['접수일시','대행사','업체명','업체URL','업체PID번호','순위키워드','일 수','시작일','일 목표','키워드'];
+      // ── 접수 시트: 업체명/URL/PID번호/순위키워드/일 수/시작일/일 목표/검색키워드
+      const header = ['접수일시','대행사','업체명','업체URL','업체PID번호','순위키워드','일 수','시작일','일 목표','검색키워드'];
       const rows = filtered.map(s => [
         (s.createdAt||'').slice(0,10),
         s.agencyId||'',
