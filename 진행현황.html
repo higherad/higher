@@ -131,7 +131,7 @@
   function renderSummary() {
     const todayStr = new Date().toISOString().slice(0,10);
     const active      = allSlots.filter(s => s.status === 'active');
-    const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0), 0);
+    const totalTarget = active.reduce((a,s) => a+((s.dailyTarget||0)*(s.days||0)), 0);
     const todayActive = active.filter(s => s.startDate <= todayStr && s.endDate >= todayStr);
     const todayTarget = todayActive.reduce((a,s) => a+(s.dailyTarget||0), 0);
     document.getElementById('stat-companies').textContent    = active.length;
