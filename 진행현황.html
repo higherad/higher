@@ -246,11 +246,11 @@
         <div class="modal-row">
           <div class="modal-field">
             <label>대행사 ID</label>
-            <input value="${s.agencyId||'-'}" readonly style="${READONLY_STYLE}">
+            <input id="m-agencyId" value="${s.agencyId||''}" readonly style="${READONLY_STYLE}">
           </div>
           <div class="modal-field">
             <label>유저 ID</label>
-            <input value="${s.userId||'-'}" readonly style="${READONLY_STYLE}">
+            <input id="m-userId" value="${s.userId||''}" readonly style="${READONLY_STYLE}">
           </div>
         </div>
         <div class="modal-row">
@@ -335,6 +335,8 @@
 
   function getFormData() {
     return {
+      agencyId:    document.getElementById('m-agencyId')?.value || '',
+      userId:      document.getElementById('m-userId')?.value   || '',
       storeName:   document.getElementById('m-storeName').value,
       rankKeyword: document.getElementById('m-rankKeyword').value,
       url:         document.getElementById('m-url').value,

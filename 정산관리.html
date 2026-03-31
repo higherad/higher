@@ -118,8 +118,8 @@
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
   function getRefund(timeKey,agencyId,userId){return refundMap[refundKey(timeKey,agencyId,userId)]||0;}
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
-  // 슬롯 저장 단가 우선, 없으면 현재 유저 단가 (기존 데이터 호환)
-  function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!=='')?s.unitPrice:getPrice(s.userId);}
+  // 슬롯 저장 단가 우선, 없거나 0이면 현재 유저 단가 (기존 데이터 호환)
+  function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!==''&&s.unitPrice>0)?s.unitPrice:getPrice(s.userId);}
 
   // 분 단위 키
   function getMinuteKey(isoStr){
