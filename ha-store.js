@@ -201,7 +201,7 @@ const HA = {
 • 캠페인 수: 1건
 • 전체 목표: ${totalTarget.toLocaleString()}개
 • 단가: ${unitPrice.toLocaleString()}원
-• 금액: ${amount.toLocaleString()}원 (VAT 미포함)
+• 금액: ${amount.toLocaleString()}원 (VAT 별도)
 • 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)
 ⏰ 접수시간: ${now}
 ━━━━━━━━━━━━━━━━
@@ -234,7 +234,7 @@ const HA = {
 • 캠페인 수: ${slots.length}건
 • 전체 목표: ${totalTarget.toLocaleString()}개
 • 단가: ${unitPrice.toLocaleString()}원
-• 금액: ${amount.toLocaleString()}원 (VAT 미포함)
+• 금액: ${amount.toLocaleString()}원 (VAT 별도)
 • 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)
 ⏰ 접수시간: ${now}
 ━━━━━━━━━━━━━━━━
