@@ -283,8 +283,8 @@
   </div>
   <div class="sidebar-bottom">
     <div class="admin-info">
-      <div class="admin-avatar">A</div>
-      <div><div class="admin-name">관리자</div><div class="admin-role">Super Admin</div></div>
+      <div class="admin-avatar" id="sidebar-avatar">A</div>
+      <div><div class="admin-name" id="sidebar-name">관리자</div><div class="admin-role" id="sidebar-role">Super Admin</div></div>
     </div>
     <div class="btn-logout" onclick="doLogout()">
       <i data-lucide="log-out" size="15"></i> 로그아웃
@@ -622,6 +622,16 @@
     if (sessionStorage.getItem('ha_admin_auth') !== '1') {
       location.href = 'admin-login.html';
       return;
+    }
+    // 사이드바 유저 정보 표시
+    const cur = HA.getCurrentUser();
+    if (cur) {
+      const nameEl   = document.getElementById('sidebar-name');
+      const roleEl   = document.getElementById('sidebar-role');
+      const avatarEl = document.getElementById('sidebar-avatar');
+      if (nameEl)   nameEl.textContent   = cur.name || cur.username;
+      if (roleEl)   roleEl.textContent   = cur.role === 'admin' ? 'Super Admin' : '담당자';
+      if (avatarEl) avatarEl.textContent = (cur.name || cur.username).charAt(0).toUpperCase();
     }
     document.body.style.display = 'flex';
     await HA.seedIfEmpty();
