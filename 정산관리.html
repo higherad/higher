@@ -430,15 +430,19 @@
     const staffId=currentUser?currentUser.username:'-';
     if(nowPaid){
       const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
-      const p=getPrice(userId); // 스냅샷 표시용
+      const p=getPrice(userId);
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const refund=getRefund(timeKey,agencyId,userId);
+      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+      const snapKey=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
       const snap={slotCount:slots.length,totalTarget:tot,amount:amt,unitPrice:p,refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
-      await HA.saveSettleSnapshot(timeKey,agencyId,userId,snap,true);
+      await HA.saveSettleSnapshot(snapKey,snap,true);
     } else {
-      try{await HA.deleteSettleSnapshot(timeKey,agencyId,userId);}catch(e){}
+      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+      const snapKey=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
+      try{await HA.deleteSettleSnapshot(snapKey);}catch(e){}
     }
     await Promise.all(keys.map(k=>HA.setPaid(k,nowPaid)));
     renderSettle(false);
