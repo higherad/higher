@@ -44,14 +44,18 @@
   @keyframes spin { to{transform:rotate(360deg)} }
 </style>
 
-<div class="stat-bar">
+<div class="stat-bar" style="grid-template-columns:repeat(3,1fr)">
   <div class="stat-box">
-    <div class="sb-icon" style="background:rgba(16,185,129,.1)">🏢</div>
-    <div><div class="sb-label">진행중 업체</div><div class="sb-val" id="stat-companies" style="color:var(--accent)">-</div></div>
+    <div class="sb-icon" style="background:rgba(16,185,129,.1)">▶️</div>
+    <div><div class="sb-label">진행중</div><div class="sb-val" id="stat-companies" style="color:var(--accent)">-</div></div>
   </div>
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(59,130,246,.1)">🎯</div>
-    <div><div class="sb-label">총 일 목표</div><div class="sb-val" id="stat-target" style="color:var(--info)">-</div></div>
+    <div><div class="sb-label">전체 목표</div><div class="sb-val" id="stat-target" style="color:var(--info)">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(139,92,246,.1)">📅</div>
+    <div><div class="sb-label">진행중 일 목표</div><div class="sb-val" id="stat-today-target" style="color:#7c3aed">-</div></div>
   </div>
 </div>
 
@@ -125,10 +129,14 @@
   }
 
   function renderSummary() {
+    const todayStr = new Date().toISOString().slice(0,10);
     const active      = allSlots.filter(s => s.status === 'active');
     const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0), 0);
-    document.getElementById('stat-companies').textContent = active.length;
-    document.getElementById('stat-target').textContent    = totalTarget.toLocaleString();
+    const todayActive = active.filter(s => s.startDate <= todayStr && s.endDate >= todayStr);
+    const todayTarget = todayActive.reduce((a,s) => a+(s.dailyTarget||0), 0);
+    document.getElementById('stat-companies').textContent    = active.length;
+    document.getElementById('stat-target').textContent      = totalTarget.toLocaleString();
+    document.getElementById('stat-today-target').textContent = todayTarget.toLocaleString();
   }
 
   // ── Firebase에서 데이터 불러와서 렌더 ──────────────────────
