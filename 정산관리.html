@@ -144,10 +144,12 @@
   }
 
   function calcGroup(g){
-    const p   = getSlotPrice(g.slots[0]); // 표시용 단가 (첫 슬롯 기준)
+    const prices = [...new Set(g.slots.map(s=>getSlotPrice(s)))];
+    const p   = prices.length === 1 ? prices[0] : prices[0]; // 표시용 (복수 단가면 첫번째)
+    const pDisplay = prices.length > 1 ? `${Math.min(...prices).toLocaleString()}~${Math.max(...prices).toLocaleString()}` : prices[0].toLocaleString();
     const tot = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
     const amt = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-    return {p, tot, amt};
+    return {p, pDisplay, tot, amt};
   }
 
   // 분 단위 + 대행사 + 유저ID 그룹핑
@@ -330,7 +332,7 @@
     const body=document.getElementById('settle-body');
     if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="12">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
-      const {p, tot, amt} = calcGroup(g);
+      const {p, pDisplay, tot, amt} = calcGroup(g);
       const refund = getRefund(g.timeKey,g.agencyId,g.userId);
       const netAmt = amt-refund;
       const netVat = Math.round(netAmt*1.1);
@@ -355,7 +357,7 @@
         <td>${g.userId}</td>
         <td>${g.slots.length}건</td>
         <td><strong>${tot.toLocaleString()}</strong></td>
-        <td style="color:var(--text2)">${p.toLocaleString()}원</td>
+        <td style="color:var(--text2)">${pDisplay}원</td>
         <td style="font-weight:700;color:var(--accent)">${netAmt.toLocaleString()}원</td>
         <td style="font-weight:700;color:var(--info)">${netVat.toLocaleString()}원</td>
         <td style="color:var(--danger);font-weight:700">${refund>0?refund.toLocaleString()+'원':'-'}</td>

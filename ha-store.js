@@ -5,10 +5,8 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-import { getDatabase, ref, set, get, push, update, remove, onValue, child }
+import { getDatabase, ref, set, get, push, update, remove, onValue }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
 
 // ── Firebase 초기화 ──────────────────────────────────────────
 const firebaseConfig = {
@@ -24,7 +22,6 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
-const auth = getAuth(app);
 
 // ── DB 경로 상수 ─────────────────────────────────────────────
 const PATHS = {
@@ -173,10 +170,7 @@ const HA = {
       rankKeyword:   data.rankKeyword   || '',
       url:           data.url           || '',
       mid:           data.mid           || '',
-      compareUrl:    data.compareUrl    || '',
-      compareMid:    data.compareMid    || '',
       workKeyword:   data.workKeyword   || '',
-      sellerControl: data.sellerControl || '',
       memo:          data.memo          || '',
       days:          Number(data.days)        || 0,
       dailyTarget:   Number(data.dailyTarget) || 0,
@@ -193,14 +187,16 @@ const HA = {
   // ── 개별접수 텔레그램 알림 ───────────────────────────────
   async notifySingle(slot) {
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    // 단가: users DB에서 조회
-    let unitPrice = 0;
-    try {
-      const uSnap = await get(ref(db, PATHS.users));
-      const users = snapToArray(uSnap);
-      const u = users.find(u => u.username === slot.userId);
-      unitPrice = u ? (u.unitPrice || 0) : 0;
-    } catch(e) {}
+    // 슬롯 저장 단가 우선, 없으면 유저 DB 조회
+    let unitPrice = (slot.unitPrice != null && slot.unitPrice > 0) ? slot.unitPrice : 0;
+    if (!unitPrice) {
+      try {
+        const uSnap = await get(ref(db, PATHS.users));
+        const users = snapToArray(uSnap);
+        const u = users.find(u => u.username === slot.userId);
+        unitPrice = u ? (u.unitPrice || 0) : 0;
+      } catch(e) {}
+    }
     const totalTarget = (slot.dailyTarget || 0) * (slot.days || 0);
     const amount      = totalTarget * unitPrice;
     const amountVat   = Math.round(amount * 1.1);
@@ -223,18 +219,14 @@ const HA = {
   async notifyExcelBatch(slots) {
     if (!slots.length) return;
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    // 단가: users DB에서 조회
-    let unitPrice = 0;
-    try {
-      const uSnap = await get(ref(db, PATHS.users));
-      const users = snapToArray(uSnap);
-      const u = users.find(u => u.username === slots[0].userId);
-      unitPrice = u ? (u.unitPrice || 0) : 0;
-    } catch(e) {}
-
+    // 슬롯별 저장 단가 우선 사용
     const agencyId    = slots[0].agencyId || '-';
     const totalTarget = slots.reduce((sum, s) => sum + (s.dailyTarget || 0) * (s.days || 0), 0);
-    const amount      = totalTarget * unitPrice;
+    const amount      = slots.reduce((sum, s) => {
+      const p = (s.unitPrice != null && s.unitPrice > 0) ? s.unitPrice : 0;
+      return sum + (s.dailyTarget || 0) * (s.days || 0) * p;
+    }, 0);
+    const unitPrice   = slots[0].unitPrice || 0; // 표시용
     const amountVat   = Math.round(amount * 1.1);
 
     await sendTelegram(
@@ -271,27 +263,6 @@ const HA = {
       }
     }
     dispatch('ha:slots:updated');
-  },
-
-  // ── 슬롯 상태 변경 이력 조회 ────────────────────────────────
-  // 특정 캠페인의 전체 이력 반환 (최신순)
-  async getStatusLog(slotKey) {
-    const snap = await get(ref(db, `${PATHS.statusLog}/${slotKey}`));
-    if (!snap.exists()) return [];
-    return Object.values(snap.val()).sort((a, b) =>
-      new Date(b.changedAt) - new Date(a.changedAt)
-    );
-  },
-
-  // 전체 이력 반환 (최신순, 어드민 로그 페이지용)
-  async getAllStatusLogs() {
-    const snap = await get(ref(db, PATHS.statusLog));
-    if (!snap.exists()) return [];
-    const all = [];
-    Object.entries(snap.val()).forEach(([slotKey, logs]) => {
-      Object.values(logs).forEach(entry => all.push({ ...entry, slotKey }));
-    });
-    return all.sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt));
   },
 
   async deleteSlot(key) {
@@ -421,13 +392,6 @@ const HA = {
   // 정산 스냅샷 (과거 날짜 데이터 고정 저장)
   // 경로: ha/settle_snapshots/{date}/{safeAgencyId}__{safeUserId}
   // ════════════════════════════════════════════════════════
-
-  // 특정 날짜의 스냅샷 전체 가져오기
-  async getSettleSnapshots(date) {
-    const snap = await get(ref(db, `${PATHS.settleSnapshots}/${date}`));
-    if (!snap.exists()) return {};
-    return snap.val(); // { "agencyId__userId": { slotCount, totalTarget, amount, paidAmount, refund, savedAt }, ... }
-  },
 
   // 단일 행 스냅샷 저장
   // snapKey: "safeTimeKey__safeAgencyId__safeUserId" 형태의 플랫 키
