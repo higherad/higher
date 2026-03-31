@@ -214,38 +214,28 @@ const HA = {
     if (!slots.length) return;
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     // 단가: users DB에서 조회
-    let unitPriceMap = {};
+    let unitPrice = 0;
     try {
       const uSnap = await get(ref(db, PATHS.users));
       const users = snapToArray(uSnap);
-      users.forEach(u => { unitPriceMap[u.username] = u.unitPrice || 0; });
+      const u = users.find(u => u.username === slots[0].userId);
+      unitPrice = u ? (u.unitPrice || 0) : 0;
     } catch(e) {}
 
-    // 대행사별 집계
-    const grouped = {};
-    for (const s of slots) {
-      const agency = s.agencyId || '-';
-      if (!grouped[agency]) {
-        grouped[agency] = { count: 0, totalTarget: 0, unitPrice: unitPriceMap[s.userId] || 0 };
-      }
-      grouped[agency].count++;
-      grouped[agency].totalTarget += (s.dailyTarget || 0) * (s.days || 0);
-    }
-    const lines = Object.entries(grouped).map(([agency, g]) => {
-      const amount    = g.totalTarget * g.unitPrice;
-      const amountVat = Math.round(amount * 1.1);
-      return `• 대행사: ${agency}
-  • 캠페인 수: ${g.count}건
-  • 전체 목표: ${g.totalTarget.toLocaleString()}개
-  • 단가: ${g.unitPrice.toLocaleString()}원
-  • 금액: ${amount.toLocaleString()}원 (VAT 미포함)
-  • 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)`;
-    }).join('\n');
+    const agencyId    = slots[0].agencyId || '-';
+    const totalTarget = slots.reduce((sum, s) => sum + (s.dailyTarget || 0) * (s.days || 0), 0);
+    const amount      = totalTarget * unitPrice;
+    const amountVat   = Math.round(amount * 1.1);
 
     await sendTelegram(
-`📊 <b>엑셀 일괄 접수 (총 ${slots.length}건)</b>
+`📊 <b>새 캠페인 접수 (엑셀)</b>
 ━━━━━━━━━━━━━━━━
-${lines}
+• 대행사: ${agencyId}
+• 캠페인 수: ${slots.length}건
+• 전체 목표: ${totalTarget.toLocaleString()}개
+• 단가: ${unitPrice.toLocaleString()}원
+• 금액: ${amount.toLocaleString()}원 (VAT 미포함)
+• 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)
 ⏰ 접수시간: ${now}
 ━━━━━━━━━━━━━━━━
 👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
