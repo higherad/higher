@@ -235,10 +235,11 @@ const HA = {
       const amount    = g.totalTarget * g.unitPrice;
       const amountVat = Math.round(amount * 1.1);
       return `• 대행사: ${agency}
-  캠페인 수: ${g.count}건 | 전체 목표: ${g.totalTarget.toLocaleString()}개
-  단가: ${g.unitPrice.toLocaleString()}원
-  금액: ${amount.toLocaleString()}원 (VAT 미포함)
-  입금액: ${amountVat.toLocaleString()}원 (VAT 포함)`;
+  • 캠페인 수: ${g.count}건
+  • 전체 목표: ${g.totalTarget.toLocaleString()}개
+  • 단가: ${g.unitPrice.toLocaleString()}원
+  • 금액: ${amount.toLocaleString()}원 (VAT 미포함)
+  • 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)`;
     }).join('\n');
 
     await sendTelegram(
