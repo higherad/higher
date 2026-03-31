@@ -108,6 +108,7 @@
 (function(){
   let sPage=1; const PER=20;
   let allSlots=[],allUsers=[],paidSet=new Set(),refundMap={};
+  let snapshotMap={};  // { "date||agencyId||userId": snapshotData }
   const todayStr=new Date().toISOString().slice(0,10);
   const monthStr=todayStr.slice(0,7);
 
@@ -160,10 +161,30 @@
 
   function renderSummary(){
     const base=allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');
+
+    // 이번달 — 과거 날짜는 스냅샷, 오늘은 실시간 계산
     const mS=base.filter(s=>(s.createdAt||'').slice(0,7)===monthStr);
+    let mA=0;
+    const mGroups={};
+    mS.forEach(s=>{
+      const d=(s.createdAt||'').slice(0,10);
+      const k=d+'||'+(s.agencyId||'-')+'||'+(s.userId||'-');
+      if(!mGroups[k])mGroups[k]={date:d,agencyId:s.agencyId||'-',userId:s.userId||'-',slots:[]};
+      mGroups[k].slots.push(s);
+    });
+    Object.values(mGroups).forEach(g=>{
+      if(g.date<todayStr && snapshotMap[g.date+'||'+g.agencyId+'||'+g.userId]){
+        mA+=snapshotMap[g.date+'||'+g.agencyId+'||'+g.userId].amount||0;
+      } else {
+        const p=getPrice(g.userId);
+        mA+=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      }
+    });
+
+    // 오늘 — 항상 실시간
     const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
-    const mA=mS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
     const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
+
     document.getElementById('settle-summary').innerHTML=`
       <div class="sum-card month">
         <div class="sc-label">이번 달 합산 (${monthStr})</div>
@@ -196,6 +217,51 @@
       const snap = await HA.getRefunds();
       refundMap = snap || {};
     } catch(e) { refundMap = {}; }
+
+    // ── 과거 날짜 스냅샷 처리 ──────────────────────────────────
+    // 1) 전체 슬롯에서 오늘 이전 날짜 목록 추출
+    const pastDates = [...new Set(
+      allSlots
+        .filter(s => s.status==='active'||s.status==='expired'||s.status==='pending')
+        .map(s => (s.createdAt||'').slice(0,10))
+        .filter(d => d && d < todayStr)
+    )];
+
+    // 2) 각 날짜의 스냅샷 로드 (없으면 저장)
+    snapshotMap = {};
+    await Promise.all(pastDates.map(async date => {
+      const existingSnaps = await HA.getSettleSnapshots(date);
+      // 해당 날짜 슬롯을 agencyId+userId로 그룹핑
+      const daySlots = allSlots.filter(s =>
+        (s.status==='active'||s.status==='expired'||s.status==='pending') &&
+        (s.createdAt||'').slice(0,10) === date
+      );
+      const groups = {};
+      daySlots.forEach(s => {
+        const k = (s.agencyId||'-') + '__' + (s.userId||'-');
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(s);
+      });
+      // 그룹별로 스냅샷이 없으면 새로 저장
+      for (const [gk, slots] of Object.entries(groups)) {
+        const safe = s => s.replace(/[.#$[\]/]/g, '_');
+        const [agencyId, userId] = gk.split('__');
+        const safeKey = safe(agencyId) + '__' + safe(userId);
+        if (!existingSnaps[safeKey]) {
+          const p = (allUsers.find(u=>u.username===userId)||{}).unitPrice||0;
+          const tot   = slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+          const amt   = slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+          const paidA = slots.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+          const refund= refundMap[refundKey(date,agencyId,userId)]||0;
+          const snap  = { slotCount:slots.length, totalTarget:tot, amount:amt, paidAmount:paidA, refund, unitPrice:p, agencyId, userId };
+          await HA.saveSettleSnapshot(date, agencyId, userId, snap);
+          existingSnaps[safeKey] = snap;
+        }
+        // snapshotMap에 캐싱
+        snapshotMap[date+'||'+agencyId+'||'+userId] = existingSnaps[safeKey];
+      }
+    }));
+
     renderSummary();
     const rows=groupByDateAgency(getFiltered());
     const start=(sPage-1)*PER;
@@ -203,19 +269,22 @@
     const body=document.getElementById('settle-body');
     if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="11">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
-      const p=getPrice(g.userId);
-      const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const amt=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
-      const refund=getRefund(g.date,g.agencyId,g.userId);
-      const netAmt=amt-refund;
-      const netVat=Math.round(netAmt*1.1);
-      const pc=g.slots.filter(s=>paidSet.has(s._key)).length;
-      const allP=pc===g.slots.length;
-      const badge=allP?'<span class="paid-badge">정산완료</span>':pc>0?'<span class="partial-badge">일부완료</span>':'<span class="unpaid-badge">미정산</span>';
-      const ea=encodeURIComponent(g.agencyId);
-      const eu=encodeURIComponent(g.userId);
+      const isPast = g.date < todayStr;
+      const snap   = isPast ? snapshotMap[g.date+'||'+g.agencyId+'||'+g.userId] : null;
+      const p      = snap ? snap.unitPrice   : getPrice(g.userId);
+      const tot    = snap ? snap.totalTarget : g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      const amt    = snap ? snap.amount      : g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const refund = getRefund(g.date,g.agencyId,g.userId);
+      const netAmt = amt-refund;
+      const netVat = Math.round(netAmt*1.1);
+      const pc     = g.slots.filter(s=>paidSet.has(s._key)).length;
+      const allP   = pc===g.slots.length;
+      const badge  = allP?'<span class="paid-badge">정산완료</span>':pc>0?'<span class="partial-badge">일부완료</span>':'<span class="unpaid-badge">미정산</span>';
+      const ea     = encodeURIComponent(g.agencyId);
+      const eu     = encodeURIComponent(g.userId);
+      const snapIcon = isPast ? '<span title="고정된 스냅샷 데이터" style="color:var(--accent);font-size:10px;margin-left:4px">🔒</span>' : '';
       return `<tr>
-        <td style="color:var(--text2)">${g.date}</td>
+        <td style="color:var(--text2)">${g.date}${snapIcon}</td>
         <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${g.agencyId}</span></td>
         <td>${g.userId}</td>
         <td>${g.slots.length}건</td>

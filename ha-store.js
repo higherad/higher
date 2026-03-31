@@ -28,12 +28,13 @@ const auth = getAuth(app);
 
 // ── DB 경로 상수 ─────────────────────────────────────────────
 const PATHS = {
-  slots:      'ha/slots',
-  users:      'ha/users',
-  notices:    'ha/notices',
-  paid:       'ha/paid_slots',
-  refunds:    'ha/refunds',
-  adClassify: 'ha/ad_classify',
+  slots:           'ha/slots',
+  users:           'ha/users',
+  notices:         'ha/notices',
+  paid:            'ha/paid_slots',
+  refunds:         'ha/refunds',
+  adClassify:      'ha/ad_classify',
+  settleSnapshots: 'ha/settle_snapshots',
 };
 
 // ── 텔레그램 알림 설정 ────────────────────────────────────────
@@ -333,6 +334,30 @@ ${lines}
     } else {
       await set(ref(db, `${PATHS.refunds}/${key}`), amount);
     }
+  },
+
+  // ════════════════════════════════════════════════════════
+  // 정산 스냅샷 (과거 날짜 데이터 고정 저장)
+  // 경로: ha/settle_snapshots/{date}/{safeAgencyId}__{safeUserId}
+  // ════════════════════════════════════════════════════════
+
+  // 특정 날짜의 스냅샷 전체 가져오기
+  async getSettleSnapshots(date) {
+    const snap = await get(ref(db, `${PATHS.settleSnapshots}/${date}`));
+    if (!snap.exists()) return {};
+    return snap.val(); // { "agencyId__userId": { slotCount, totalTarget, amount, paidAmount, refund, savedAt }, ... }
+  },
+
+  // 단일 행 스냅샷 저장 (이미 저장돼 있으면 덮어쓰지 않음 — force=true일 때만 덮어씀)
+  async saveSettleSnapshot(date, agencyId, userId, data, force = false) {
+    const safe = s => s.replace(/[.#$[\]/]/g, '_');
+    const key  = `${safe(agencyId)}__${safe(userId)}`;
+    const path = `${PATHS.settleSnapshots}/${date}/${key}`;
+    if (!force) {
+      const existing = await get(ref(db, path));
+      if (existing.exists()) return; // 이미 저장된 과거 데이터는 건드리지 않음
+    }
+    await set(ref(db, path), { ...data, savedAt: new Date().toISOString() });
   },
 
   // ════════════════════════════════════════════════════════
