@@ -298,21 +298,19 @@
     const mySlots = allSlots.filter(s => s.userId === u.username);
     const active  = mySlots.filter(s => s.status === 'active');
     const pending = mySlots.filter(s => s.status === 'pending');
-    const expired = mySlots.filter(s => s.status === 'expired' || s.status === 'terminated');
 
     const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0), 0);
     const totalAmt    = mySlots.filter(s => s.status==='active'||s.status==='expired'||s.status==='pending')
                                .reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0)*unitPrice, 0);
+    const totalVat    = Math.round(totalAmt * 1.1);
 
-    // 월별 접수 현황
+    // 월별 정산 현황
     const byMonth = {};
-    mySlots.forEach(s => {
+    mySlots.filter(s => s.status==='active'||s.status==='expired'||s.status==='pending').forEach(s => {
       const m = (s.createdAt||'').slice(0,7);
       if (!m) return;
-      if (!byMonth[m]) byMonth[m] = { active:0, pending:0, expired:0, target:0, amt:0 };
-      if (s.status==='active')  byMonth[m].active++;
-      if (s.status==='pending') byMonth[m].pending++;
-      if (s.status==='expired'||s.status==='terminated') byMonth[m].expired++;
+      if (!byMonth[m]) byMonth[m] = { count:0, target:0, amt:0 };
+      byMonth[m].count++;
       byMonth[m].target += (s.dailyTarget||0)*(s.days||0);
       byMonth[m].amt    += (s.dailyTarget||0)*(s.days||0)*unitPrice;
     });
@@ -320,11 +318,10 @@
       const mv = byMonth[m];
       return `<tr>
         <td style="font-weight:600">${m}</td>
-        <td style="color:#059669;font-weight:600">${mv.active}</td>
-        <td style="color:#b45309">${mv.pending}</td>
-        <td style="color:var(--text2)">${mv.expired}</td>
+        <td>${mv.count}</td>
         <td>${mv.target.toLocaleString()}</td>
         <td style="font-weight:700;color:var(--accent)">${mv.amt.toLocaleString()}원</td>
+        <td style="font-weight:700;color:var(--info)">${Math.round(mv.amt*1.1).toLocaleString()}원</td>
       </tr>`;
     }).join('');
 
@@ -339,23 +336,23 @@
             <div class="sp-card-label">진행중 캠페인</div>
             <div class="sp-card-value" style="color:var(--accent)">${active.length}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 건</small></div>
           </div>
-          <div class="sp-card c-warn">
-            <div class="sp-card-label">승인 대기</div>
-            <div class="sp-card-value" style="color:var(--warn)">${pending.length}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 건</small></div>
-          </div>
           <div class="sp-card c-green">
-            <div class="sp-card-label">진행중 전체 목표</div>
+            <div class="sp-card-label">전체 목표</div>
             <div class="sp-card-value" style="color:var(--accent)">${totalTarget.toLocaleString()}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 개</small></div>
           </div>
           <div class="sp-card c-blue">
-            <div class="sp-card-label">누적 정산금액</div>
+            <div class="sp-card-label">누적 정산 금액 (VAT 별도)</div>
             <div class="sp-card-value" style="color:var(--info)">${totalAmt.toLocaleString()}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 원</small></div>
           </div>
+          <div class="sp-card c-blue">
+            <div class="sp-card-label">누적 입금액 (VAT 포함)</div>
+            <div class="sp-card-value" style="color:var(--info)">${totalVat.toLocaleString()}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 원</small></div>
+          </div>
         </div>
-        <div class="sp-section">월별 캠페인 현황</div>
+        <div class="sp-section">월별 정산 현황</div>
         <table class="sp-tbl">
-          <thead><tr><th>월</th><th>진행중</th><th>대기</th><th>만료</th><th>전체목표</th><th>정산금액</th></tr></thead>
-          <tbody>${mRows || '<tr><td colspan="6" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody>
+          <thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액 (VAT 별도)</th><th>입금액 (VAT 포함)</th></tr></thead>
+          <tbody>${mRows || '<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody>
         </table>
         <div class="sp-footer">
           <button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button>
