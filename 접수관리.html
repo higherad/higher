@@ -265,7 +265,6 @@
                 <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기</button>
               ` : ''}
               ${s.status==='expired' ? `
-                <button class="action-btn btn-approve" onclick="approveOne('${s._key}')">승인</button>
                 <button class="action-btn btn-reject"  onclick="openRejectModal('${s._key}')">반려</button>
               ` : ''}
               ${s.status==='terminated' ? `
