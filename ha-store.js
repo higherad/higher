@@ -516,15 +516,26 @@ const HA = {
     let latestSlots = [];
     let latestPaid  = new Set();
 
+    function getMinuteKey(isoStr) {
+      if (!isoStr) return 'unknown';
+      const d = new Date(isoStr);
+      const yyyy = d.getFullYear();
+      const mo   = String(d.getMonth()+1).padStart(2,'0');
+      const dd   = String(d.getDate()).padStart(2,'0');
+      const hh   = String(d.getHours()).padStart(2,'0');
+      const mn   = String(d.getMinutes()).padStart(2,'0');
+      return `${yyyy}-${mo}-${dd} ${hh}:${mn}`;
+    }
+
     function notify() {
-      // 정산 대상 캠페인만 추려서 그룹핑 (정산관리.html의 getFiltered/groupByDateAgency 동일 로직)
+      // 정산관리.html의 groupByTimeAgency와 동일하게 분 단위 그룹핑
       const base = latestSlots.filter(s =>
         s.status === 'active' || s.status === 'expired' || s.status === 'pending'
       );
       const map = {};
       base.forEach(s => {
-        const d = (s.createdAt || '').slice(0, 10);
-        const k = `${d}||${s.agencyId || '-'}||${s.userId || '-'}`;
+        const t = getMinuteKey(s.createdAt);
+        const k = `${t}||${s.agencyId || '-'}||${s.userId || '-'}`;
         if (!map[k]) map[k] = { slots: [] };
         map[k].slots.push(s);
       });
