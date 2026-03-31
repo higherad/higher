@@ -50,7 +50,7 @@ const STAFF_ACCOUNTS = [
 const TELEGRAM = {
   token:   '8696324609:AAFo10CLRJiWdDahGtCqHfLKY16HsHZOnE8',
   chatIds: [
-    '-5092397591',   // 관리자1
+    '-1003641342076',   // 관리자1
     // '여기에추가',   // 관리자2
     // '여기에추가',   // 관리자3
   ],
