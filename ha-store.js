@@ -41,9 +41,9 @@ const PATHS = {
 // ── 직원(Staff) 계정 설정 ────────────────────────────────────
 // 담당자 이름, 아이디, 비밀번호를 여기서 관리합니다.
 const STAFF_ACCOUNTS = [
-  { id: 'higherad1', username: 'staff1', password: 'hi1105', name: '주병주', role: 'staff' },
-  { id: 'kimpro', username: 'staff2', password: 'hi1234!!', name: '김태홍', role: 'staff' },
-  { id: 'dlgmlwn323', username: 'staff3', password: 'bawoo920', name: '이희주', role: 'staff' },
+  { id: 'staff1', username: 'higherad1', password: 'hi1105', name: '주병주', role: 'staff' },
+  { id: 'staff2', username: 'kimpro', password: 'hi1234!!', name: '김태홍', role: 'staff' },
+  { id: 'staff3', username: 'dlgmlwn323', password: 'bawoo920', name: '이희주', role: 'staff' },
 ];
 
 // ── 텔레그램 알림 설정 ────────────────────────────────────────
