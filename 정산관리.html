@@ -199,7 +199,7 @@
     const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
     const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
     document.getElementById('settle-summary').innerHTML=`
-      <div class="sum-card month clickable" onclick="openTotalPopup()">
+      <div class="sum-card month clickable" onclick="openMonthPopup()">
         <div class="sc-label">총 매출액(VAT 별도)</div>
         <div class="sc-value">${totalA.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
         <div class="sc-sub">${base.length}건 전체</div>
@@ -220,6 +220,58 @@
         <div class="sc-sub">VAT 10% 포함</div>
       </div>`;
   }
+
+  window.openMonthPopup = function() {
+    const now = new Date();
+    const curYear  = now.getFullYear();
+    const curMonth = now.getMonth() + 1;
+    const curYM    = `${curYear}-${String(curMonth).padStart(2,'0')}`;
+    const monthLabel = `${curMonth}월`;
+
+    const base = allSlots.filter(s => s.status==='active' || s.status==='expired' || s.status==='pending');
+    const monthSlots = base.filter(s => (s.createdAt||'').slice(0,7) === curYM);
+
+    const byDay = {};
+    monthSlots.forEach(s => {
+      const d = (s.createdAt||'').slice(0,10);
+      if (!byDay[d]) byDay[d] = { slots:[] };
+      byDay[d].slots.push(s);
+    });
+
+    const monthTotal = monthSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+
+    const dRows = Object.keys(byDay).sort().reverse().map(d => {
+      const grp = byDay[d];
+      const amt = grp.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const tgt = grp.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      return `<tr>
+        <td style="font-weight:600">${d}</td>
+        <td>${grp.slots.length}건</td>
+        <td>${tgt.toLocaleString()}</td>
+        <td style="font-weight:700;color:var(--accent)">${amt.toLocaleString()}원</td>
+        <td style="font-weight:700;color:var(--info)">${Math.round(amt*1.1).toLocaleString()}원</td>
+      </tr>`;
+    }).join('');
+
+    const ov = document.createElement('div');
+    ov.className = 'sp-overlay';
+    ov.innerHTML = `<div class="total-popup-box">
+      <div class="sp-title">${curYear}년 ${monthLabel} 정산 현황</div>
+      <div class="sp-sub">${curYM} · 일자별 합산</div>
+      <div class="sp-cards">
+        <div class="sp-card c-green"><div class="sp-card-label">${monthLabel} 매출액(VAT 별도)</div><div class="sp-card-value" style="color:var(--accent)">${monthTotal.toLocaleString()}원</div></div>
+        <div class="sp-card c-blue"><div class="sp-card-label">${monthLabel} 입금액(VAT 포함)</div><div class="sp-card-value" style="color:var(--info)">${Math.round(monthTotal*1.1).toLocaleString()}원</div></div>
+      </div>
+      <div class="sp-section">일자별 합산</div>
+      <table class="sp-tbl">
+        <thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
+        <tbody>${dRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody>
+      </table>
+      <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+  };
 
   window.openTotalPopup = function() {
     const base = allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');

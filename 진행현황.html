@@ -75,7 +75,8 @@
   <input type="text" id="f-agency" placeholder="대행사 검색" style="width:130px;" oninput="renderSlots(false)">
   <input type="text" id="f-userid" placeholder="유저ID 검색" style="width:130px;" oninput="renderSlots(false)">
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="f-kw" placeholder="스토어명/키워드 검색" style="width:200px;">
+    <input type="text" id="f-kw" placeholder="플레이스명/키워드 검색" style="width:200px;">
+    <input type="text" id="f-mid" placeholder="MID 검색" style="width:130px;" oninput="renderSlots(false)">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSlots()">검색</button>
     <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetFilter()">초기화</button>
   </div>
@@ -87,7 +88,7 @@
       <tr>
         <th><input type="checkbox" id="s-check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>대행사</th><th>유저ID</th>
-        <th>스토어명</th><th>MID</th><th>순위키워드</th>
+        <th>플레이스명</th><th>MID</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
@@ -116,6 +117,7 @@
     const agency = (document.getElementById('f-agency').value||'').toLowerCase();
     const userid = (document.getElementById('f-userid').value||'').toLowerCase();
     const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
+    const mid    = (document.getElementById('f-mid').value||'').toLowerCase();
     return allSlots.filter(s => {
       // 기본: active + expired만 표시
       const st = status || '';
@@ -124,6 +126,7 @@
       if (agency && !(s.agencyId||'').toLowerCase().includes(agency)) return false;
       if (userid && !(s.userId||'').toLowerCase().includes(userid))   return false;
       if (kw && ![(s.storeName||''),(s.rankKeyword||'')].some(v=>v.toLowerCase().includes(kw))) return false;
+      if (mid && !(s.mid||'').toLowerCase().includes(mid)) return false;
       return true;
     });
   }
@@ -215,6 +218,7 @@
     document.getElementById('f-agency').value='';
     document.getElementById('f-userid').value='';
     document.getElementById('f-kw').value='';
+    document.getElementById('f-mid').value='';
     page=1; renderSlots(false);
   };
 

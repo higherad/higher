@@ -128,7 +128,7 @@
     <button id="date-clear-btn" onclick="clearDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="receipt-search" placeholder="대행사/스토어명/MID 검색" style="width:220px;">
+    <input type="text" id="receipt-search" placeholder="대행사/플레이스명/MID 검색" style="width:220px;">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderReceipts()">검색</button>
   </div>
 </div>
@@ -139,7 +139,7 @@
       <tr>
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
-        <th>캠페인타입</th><th>스토어명</th><th>MID</th><th>순위키워드</th>
+        <th>캠페인타입</th><th>플레이스명</th><th>MID</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
@@ -244,7 +244,7 @@
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
-          <td style="color:var(--text2)">${s.dailyTarget||'-'}</td>
+          <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
           <td>
             ${stMap[s.status]||s.status}
             ${s.status==='rejected' && s.rejectReason ? `<br><small style="color:var(--danger);font-size:10px;display:inline-block;margin-top:3px;max-width:120px;word-break:keep-all;line-height:1.3">${s.rejectReason}</small>` : ''}
@@ -414,11 +414,11 @@
         <dl class="slot-detail">
           <dt>캠페인타입</dt><dd>${s.slotType}</dd>
           <dt>대행사</dt><dd>${s.agencyId} / ${s.userId}</dd>
-          <dt>스토어명</dt><dd>${s.storeName}</dd>
+          <dt>플레이스명</dt><dd>${s.storeName}</dd>
           <dt>순위키워드</dt><dd>${s.rankKeyword}</dd>
           <dt>URL</dt><dd style="word-break:break-all;font-size:12px">${s.url||'-'}</dd>
           <dt>MID</dt><dd>${s.mid||'-'}</dd>
-          <dt>일 목표</dt><dd>${s.dailyTarget||'-'}</dd>
+          <dt>일 목표</dt><dd>${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</dd>
           <dt>일 수</dt><dd>${s.days||'-'}</dd>
           <dt>기간</dt><dd>${s.startDate} ~ ${s.endDate}</dd>
           <dt>상태</dt><dd>${stMap[s.status]||s.status}</dd>
@@ -561,7 +561,7 @@
       <div class="modal-box">
         <div class="modal-title">캠페인 정보 수정</div>
         <div class="modal-row">
-          <div class="modal-field"><label>스토어명</label><input id="e-storeName" value="${s.storeName||''}"></div>
+          <div class="modal-field"><label>플레이스명</label><input id="e-storeName" value="${s.storeName||''}"></div>
           <div class="modal-field"><label>캠페인타입</label>
             <select id="e-slotType">${HA.SLOT_TYPES.map(t=>`<option ${t===s.slotType?'selected':''}>${t}</option>`).join('')}</select>
           </div>
