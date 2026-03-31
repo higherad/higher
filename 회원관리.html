@@ -41,7 +41,27 @@
   .loading-wrap { display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:8px; }
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
-  .pending-count { font-size:12px; color:var(--warn); font-weight:700; margin-left:8px; }
+  .agency-link { color:var(--info); font-weight:700; cursor:pointer; text-decoration:underline; }
+  .agency-link:hover { color:var(--accent); }
+  .sp-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px; }
+  .sp-box { background:#fff;border-radius:16px;width:500px;max-height:85vh;overflow-y:auto;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  .sp-title { font-size:17px;font-weight:800;margin-bottom:2px; }
+  .sp-sub { font-size:12px;color:var(--muted);margin-bottom:16px; }
+  .sp-cards { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px; }
+  .sp-card { background:#f8fafc;border-radius:10px;padding:14px 16px;position:relative;overflow:hidden; }
+  .sp-card::after { content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--border); }
+  .sp-card.c-green::after { background:var(--accent); }
+  .sp-card.c-blue::after  { background:var(--info); }
+  .sp-card.c-warn::after  { background:var(--warn); }
+  .sp-card-label { font-size:11px;color:var(--text2);font-weight:600;margin-bottom:8px; }
+  .sp-card-value { font-size:20px;font-weight:800;line-height:1; }
+  .sp-section { font-size:13px;font-weight:700;margin-bottom:8px;margin-top:16px;color:var(--text); }
+  .sp-tbl { width:100%;border-collapse:collapse;font-size:12px; }
+  .sp-tbl th { background:#1e293b;color:#fff;padding:8px 10px;font-weight:500;text-align:center; }
+  .sp-tbl td { padding:8px 10px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2); }
+  .sp-tbl tr:last-child td { border-bottom:none; }
+  .sp-footer { display:flex;justify-content:flex-end;margin-top:20px; }
+  .btn-close-sp { padding:9px 24px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit; }
 
   /* ── 반응형 ── */
   @media (max-width: 768px) {
@@ -76,8 +96,8 @@
     <thead>
       <tr>
         <th><input type="checkbox" id="u-all" onchange="toggleAll(this)"></th>
-        <th>번호</th><th>아이디</th><th>비밀번호</th>
-        <th>대행사</th><th>단가(원)</th><th>캠페인수</th><th>메모</th><th>가입일</th><th>상태</th><th>관리</th>
+        <th>번호</th><th>가입일</th><th>대행사</th><th>단가(원)</th>
+        <th>아이디</th><th>비밀번호</th><th>캠페인수</th><th>메모</th><th>상태</th><th>관리</th>
       </tr>
     </thead>
     <tbody id="user-body">
@@ -138,6 +158,9 @@
         return `<tr class="${isPending ? 'row-pending' : ''}">
           <td><input type="checkbox" class="u-check" data-key="${u._key}"></td>
           <td style="color:var(--text2)">${all.length - start - i}</td>
+          <td style="color:var(--text2)">${(u.createdAt||'').slice(0,10)}</td>
+          <td><span class="agency-link" onclick="openUserAgencyPopup('${u._key}')">${u.agency||u.agencyId||'-'}</span></td>
+          <td style="font-weight:700;color:var(--accent)">${(u.unitPrice||0).toLocaleString()}원</td>
           <td style="font-weight:700">${u.username}</td>
           <td>
             <div class="pw-wrap">
@@ -145,11 +168,8 @@
               <span class="pw-toggle" onclick="togglePw(this)">보기</span>
             </div>
           </td>
-          <td style="color:var(--text2);font-size:11px">${u.agency||u.agencyId||'-'}</td>
-          <td style="font-weight:700;color:var(--accent)">${(u.unitPrice||0).toLocaleString()}원</td>
           <td>${getUserSlotCount(u.username)}</td>
           <td style="color:var(--text2);font-size:11px">${u.memo||'-'}</td>
-          <td style="color:var(--text2)">${(u.createdAt||'').slice(0,10)}</td>
           <td>${statusBadge}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
@@ -266,6 +286,83 @@
     }
     document.querySelector('.modal-overlay').remove();
     renderUsers(false);
+  };
+
+  // ── 대행사 클릭 팝업 ─────────────────────────────────────
+  window.openUserAgencyPopup = function(userKey) {
+    const u = allUsers.find(x => x._key === userKey);
+    if (!u) return;
+    const agencyName = u.agency || u.agencyId || '-';
+    const unitPrice  = u.unitPrice || 0;
+
+    const mySlots = allSlots.filter(s => s.userId === u.username);
+    const active  = mySlots.filter(s => s.status === 'active');
+    const pending = mySlots.filter(s => s.status === 'pending');
+    const expired = mySlots.filter(s => s.status === 'expired' || s.status === 'terminated');
+
+    const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0), 0);
+    const totalAmt    = mySlots.filter(s => s.status==='active'||s.status==='expired'||s.status==='pending')
+                               .reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0)*unitPrice, 0);
+
+    // 월별 접수 현황
+    const byMonth = {};
+    mySlots.forEach(s => {
+      const m = (s.createdAt||'').slice(0,7);
+      if (!m) return;
+      if (!byMonth[m]) byMonth[m] = { active:0, pending:0, expired:0, target:0, amt:0 };
+      if (s.status==='active')  byMonth[m].active++;
+      if (s.status==='pending') byMonth[m].pending++;
+      if (s.status==='expired'||s.status==='terminated') byMonth[m].expired++;
+      byMonth[m].target += (s.dailyTarget||0)*(s.days||0);
+      byMonth[m].amt    += (s.dailyTarget||0)*(s.days||0)*unitPrice;
+    });
+    const mRows = Object.keys(byMonth).sort().reverse().map(m => {
+      const mv = byMonth[m];
+      return `<tr>
+        <td style="font-weight:600">${m}</td>
+        <td style="color:#059669;font-weight:600">${mv.active}</td>
+        <td style="color:#b45309">${mv.pending}</td>
+        <td style="color:var(--text2)">${mv.expired}</td>
+        <td>${mv.target.toLocaleString()}</td>
+        <td style="font-weight:700;color:var(--accent)">${mv.amt.toLocaleString()}원</td>
+      </tr>`;
+    }).join('');
+
+    const ov = document.createElement('div');
+    ov.className = 'sp-overlay';
+    ov.innerHTML = `
+      <div class="sp-box">
+        <div class="sp-title">${agencyName}</div>
+        <div class="sp-sub">아이디: ${u.username} · 단가: ${unitPrice.toLocaleString()}원/개</div>
+        <div class="sp-cards">
+          <div class="sp-card c-green">
+            <div class="sp-card-label">진행중 캠페인</div>
+            <div class="sp-card-value" style="color:var(--accent)">${active.length}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 건</small></div>
+          </div>
+          <div class="sp-card c-warn">
+            <div class="sp-card-label">승인 대기</div>
+            <div class="sp-card-value" style="color:var(--warn)">${pending.length}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 건</small></div>
+          </div>
+          <div class="sp-card c-green">
+            <div class="sp-card-label">진행중 전체 목표</div>
+            <div class="sp-card-value" style="color:var(--accent)">${totalTarget.toLocaleString()}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 개</small></div>
+          </div>
+          <div class="sp-card c-blue">
+            <div class="sp-card-label">누적 정산금액</div>
+            <div class="sp-card-value" style="color:var(--info)">${totalAmt.toLocaleString()}<small style="font-size:12px;font-weight:400;color:var(--muted)"> 원</small></div>
+          </div>
+        </div>
+        <div class="sp-section">월별 캠페인 현황</div>
+        <table class="sp-tbl">
+          <thead><tr><th>월</th><th>진행중</th><th>대기</th><th>만료</th><th>전체목표</th><th>정산금액</th></tr></thead>
+          <tbody>${mRows || '<tr><td colspan="6" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody>
+        </table>
+        <div class="sp-footer">
+          <button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   };
 
   renderUsers();
