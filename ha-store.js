@@ -152,6 +152,15 @@ const HA = {
   },
 
   async addSlot(data) {
+    // 접수 시점 단가 스냅샷: userId로 현재 단가 조회 후 슬롯에 저장
+    let unitPriceSnapshot = 0;
+    try {
+      const uSnap = await get(ref(db, PATHS.users));
+      const users = snapToArray(uSnap);
+      const u = users.find(u => u.username === (data.userId || ''));
+      unitPriceSnapshot = u ? (u.unitPrice || 0) : 0;
+    } catch(e) {}
+
     const newSlot = {
       status:        'pending',
       createdAt:     new Date().toISOString(),
@@ -171,6 +180,7 @@ const HA = {
       memo:          data.memo          || '',
       days:          Number(data.days)        || 0,
       dailyTarget:   Number(data.dailyTarget) || 0,
+      unitPrice:     unitPriceSnapshot,
       rank:          null,
       inflow:        0,
     };

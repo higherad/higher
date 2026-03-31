@@ -98,7 +98,7 @@
     <thead>
       <tr>
         <th>접수일시</th><th>대행사</th><th>유저ID</th><th>캠페인 수</th>
-        <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불금액</th><th>정산상태</th><th>처리 담당자</th><th>확인</th>
+        <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불금액</th><th>정산상태</th><th>처리 담당자</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="settle-body">
@@ -118,6 +118,8 @@
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
   function getRefund(timeKey,agencyId,userId){return refundMap[refundKey(timeKey,agencyId,userId)]||0;}
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
+  // 슬롯 저장 단가 우선, 없으면 현재 유저 단가 (기존 데이터 호환)
+  function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!=='')?s.unitPrice:getPrice(s.userId);}
 
   // 분 단위 키
   function getMinuteKey(isoStr){
@@ -142,9 +144,9 @@
   }
 
   function calcGroup(g){
-    const p   = getPrice(g.userId);
+    const p   = getSlotPrice(g.slots[0]); // 표시용 단가 (첫 슬롯 기준)
     const tot = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-    const amt = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+    const amt = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
     return {p, tot, amt};
   }
 
@@ -193,9 +195,9 @@
 
   function renderSummary(){
     const base=allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');
-    const totalA=base.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
+    const totalA=base.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
     const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
-    const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
+    const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
     document.getElementById('settle-summary').innerHTML=`
       <div class="sum-card month clickable" onclick="openTotalPopup()">
         <div class="sc-label">총 매출액(VAT 별도)</div>
@@ -230,7 +232,7 @@
     let grandTotal = 0;
     const mRows = Object.keys(byMonth).sort().reverse().map(m => {
       const mv  = byMonth[m];
-      const amt = mv.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
+      const amt = mv.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const tgt = mv.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       grandTotal += amt;
       return `<tr>
@@ -374,9 +376,9 @@
     const staffId=currentUser?currentUser.username:'-';
     if(nowPaid){
       const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
-      const p=getPrice(userId);
+      const p=getPrice(userId); // 스냅샷 표시용
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const refund=getRefund(timeKey,agencyId,userId);
       const snap={slotCount:slots.length,totalTarget:tot,amount:amt,unitPrice:p,refund,agencyId,userId,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
@@ -389,23 +391,23 @@
   };
 
   window.openAgencyPopup=function(agencyId,userId){
-    const p=getPrice(userId);
     const ag=allSlots.filter(s=>(s.status==='active'||s.status==='expired'||s.status==='pending')&&s.agencyId===agencyId&&s.userId===userId);
     const bm={},bd={};
     ag.forEach(s=>{
       const m=(s.createdAt||'').slice(0,7); if(!bm[m])bm[m]=[]; bm[m].push(s);
       const d=(s.createdAt||'').slice(0,10); if(!bd[d])bd[d]=[]; bd[d].push(s);
     });
-    const totA=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+    const totA=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
     const totTgt=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-    const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+    const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+    const p=getPrice(userId); // 현재 단가 표시용
     const safe=s=>s.replace(/[.#$[\]/]/g,'_');
     const totalRefund=Object.keys(refundMap).filter(k=>k.includes(`__${safe(agencyId)}__${safe(userId)}`)).reduce((a,k)=>a+(refundMap[k]||0),0);
     const netTotA=totA-totalRefund;
     const mRows=Object.keys(bm).sort().reverse().map(m=>{
       const ms=bm[m];
       const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const mr=Object.keys(refundMap).filter(k=>k.includes(m+`__${safe(agencyId)}__${safe(userId)}`)).reduce((a,k)=>a+(refundMap[k]||0),0);
       const net=ma-mr;
       return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(net*1.1).toLocaleString()}원</td></tr>`;
@@ -413,7 +415,7 @@
     const dRows=Object.keys(bd).sort().reverse().map(d=>{
       const ds=bd[d];
       const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const dr=Object.keys(refundMap).filter(k=>k.startsWith(d+`__${safe(agencyId)}__${safe(userId)}`)).reduce((a,k)=>a+(refundMap[k]||0),0);
       const net=da-dr;
       return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(net*1.1).toLocaleString()}원</td></tr>`;
@@ -443,11 +445,11 @@
 
   window.exportSettleCSV=function(){
     const rows=groupByTimeAgency(getFiltered());
-    const lines=[['접수일시','대행사','유저ID','캠페인수','일목표합산','단가','정산 금액(VAT 별도)','정산상태']];
+    const lines=[['접수일시','대행사','유저ID','캠페인 수','일목표합산','단가','정산 금액(VAT 별도)','정산상태']];
     rows.forEach(g=>{
-      const p=getPrice(g.userId);
       const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const amt=g.slots.reduce((ac,s)=>ac+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const amt=g.slots.reduce((ac,s)=>ac+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const p=getSlotPrice(g.slots[0]); // 표시용 단가
       lines.push([g.timeKey,g.agencyId,g.userId,g.slots.length,tot,p,amt,g.slots.every(s=>paidSet.has(s._key))?'완료':'미완료']);
     });
     const csv=lines.map(r=>r.join(',')).join('\n');
