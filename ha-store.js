@@ -125,7 +125,7 @@ const HA = {
   },
 
   // ════════════════════════════════════════════════════════
-  // 슬롯 CRUD
+  // 캠페인 CRUD
   // ════════════════════════════════════════════════════════
 
   async getSlots() {
@@ -168,7 +168,7 @@ const HA = {
   async notifySingle(slot) {
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     await sendTelegram(
-`📥 <b>새 슬롯 접수 (개별)</b>
+`📥 <b>새 캠페인 접수 (개별)</b>
 ━━━━━━━━━━━━━━━━
 • ${slot.agencyId} / ${slot.slotType}
 • 업체명: ${slot.storeName}
@@ -185,7 +185,7 @@ const HA = {
     if (!slots.length) return;
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
 
-    // 대행사 + 슬롯타입 조합별 집계
+    // 대행사 + 캠페인타입 조합별 집계
     const grouped = {};
     for (const s of slots) {
       const key = `${s.agencyId}||${s.slotType}`;
@@ -242,7 +242,7 @@ ${lines}
       username:   data.username   || '',
       password:   data.password   || '',
       agency:     agencyName,       // 회원 테이블의 업체명
-      agencyId:   agencyName,       // 슬롯에서 참조하는 대행사 ID와 동일한 값
+      agencyId:   agencyName,       // 캠페인에서 참조하는 대행사 ID와 동일한 값
       role:       'member',
       unitPrice:  Number(data.unitPrice) || 0,
       memo:       data.memo       || '',
@@ -415,7 +415,7 @@ ${lines}
     let latestPaid  = new Set();
 
     function notify() {
-      // 정산 대상 슬롯만 추려서 그룹핑 (정산관리.html의 getFiltered/groupByDateAgency 동일 로직)
+      // 정산 대상 캠페인만 추려서 그룹핑 (정산관리.html의 getFiltered/groupByDateAgency 동일 로직)
       const base = latestSlots.filter(s =>
         s.status === 'active' || s.status === 'expired' || s.status === 'pending'
       );
@@ -426,7 +426,7 @@ ${lines}
         if (!map[k]) map[k] = { slots: [] };
         map[k].slots.push(s);
       });
-      // 그룹 중 슬롯이 하나라도 미정산이면 미정산 행으로 카운트
+      // 그룹 중 캠페인이 하나라도 미정산이면 미정산 행으로 카운트
       const unpaidRows = Object.values(map).filter(g =>
         !g.slots.every(s => latestPaid.has(s._key))
       );

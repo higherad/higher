@@ -77,7 +77,7 @@
       <tr>
         <th><input type="checkbox" id="u-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>아이디</th><th>비밀번호</th>
-        <th>대행사</th><th>단가(원)</th><th>슬롯수</th><th>메모</th><th>가입일</th><th>상태</th><th>관리</th>
+        <th>대행사</th><th>단가(원)</th><th>캠페인수</th><th>메모</th><th>가입일</th><th>상태</th><th>관리</th>
       </tr>
     </thead>
     <tbody id="user-body">
@@ -257,7 +257,7 @@
     if (password) data.password = password;
     if (key) {
       await HA.updateUser(key, data);
-      // 해당 유저의 모든 슬롯 agencyId 동기화
+      // 해당 유저의 모든 캠페인 agencyId 동기화
       const userSlots = allSlots.filter(s => s.userId === username);
       await Promise.all(userSlots.map(s => HA.updateSlot(s._key, { agencyId: agencyVal })));
     } else {

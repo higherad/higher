@@ -253,7 +253,7 @@
         gap:6px;
       }
 
-      /* 현황 카드 (접수관리, 전체슬롯) */
+      /* 현황 카드 (접수관리, 전체캠페인) */
       .stat-bar { grid-template-columns:1fr 1fr !important; gap:8px; }
       .sb-val { font-size:18px !important; }
 
@@ -420,7 +420,7 @@
       <div class="stat-grid" style="grid-template-columns:repeat(7,1fr)">
         <div class="stat-card c-info"><div class="stat-label">영업점</div><div class="stat-value">${agencies}<span class="stat-unit">곳</span></div></div>
         <div class="stat-card c-green"><div class="stat-label">진행중 영업점</div><div class="stat-value">${activeAgencies}<span class="stat-unit">곳</span></div></div>
-        <div class="stat-card c-green"><div class="stat-label">진행중 슬롯</div><div class="stat-value">${s.activeSlots}<span class="stat-unit">개</span></div></div>
+        <div class="stat-card c-green"><div class="stat-label">진행중 캠페인</div><div class="stat-value">${s.activeSlots}<span class="stat-unit">개</span></div></div>
         <div class="stat-card c-green"><div class="stat-label">전체 목표</div><div class="stat-value">${totalTarget.toLocaleString()}<span class="stat-unit">개</span></div></div>
         <div class="stat-card c-warn"><div class="stat-label">만료 예정(3일)</div><div class="stat-value">${s.expiringSoon}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-info"><div class="stat-label">승인 대기</div><div class="stat-value">${s.pending}<span class="stat-unit">건</span></div></div>
@@ -445,7 +445,7 @@
           <div class="quick-title">Quick Action</div>
           <button class="quick-btn ghost"   onclick="loadPage('접수관리.html',document.getElementById('nav-pending'))">📥 &nbsp;신규 접수 확인하기</button>
           <button class="quick-btn primary" onclick="loadPage('정산관리.html',document.getElementById('nav-settle'))">💰 &nbsp;미정산 내역 확인</button>
-          <button class="quick-btn ghost"   onclick="loadPage('만료예정.html',document.getElementById('nav-expire'))">⏰ &nbsp;만료 예정 슬롯 보기</button>
+          <button class="quick-btn ghost"   onclick="loadPage('만료예정.html',document.getElementById('nav-expire'))">⏰ &nbsp;만료 예정 캠페인 보기</button>
           <button class="quick-btn ghost"   onclick="loadPage('회원관리.html',document.getElementById('nav-users'))">👤 &nbsp;신규 회원 승인하기</button>
         </div>
       </div>`;
@@ -509,7 +509,7 @@
   };
 
   // ── Firebase 실시간 리스너 ────────────────────────────────
-  // ※ 전체 슬롯 _key를 seenSlotKeys로 누적 관리.
+  // ※ 전체 캠페인 _key를 seenSlotKeys로 누적 관리.
   //   한 번도 본 적 없는 key가 생겼을 때만 알림 → 상태 변경은 key가 그대로라 무시됨.
   let notifTimer    = null;
   let seenSlotKeys  = null;  // null = 첫 스냅샷 수신 전
@@ -527,7 +527,7 @@
     const pill = document.getElementById('status-pill');
     if (pill) { pill.textContent = '● 연결됨'; pill.className = 'status-pill ok'; }
 
-    // 전체 슬롯 key 집합 (status 무관)
+    // 전체 캠페인 key 집합 (status 무관)
     const allKeys = new Set(slots.map(s => s._key));
 
     if (seenSlotKeys === null) {
@@ -554,7 +554,7 @@
       if (notifTimer) clearTimeout(notifTimer);
       notifTimer = setTimeout(() => {
         notifications.unshift({
-          title: `📥 새 슬롯 접수 ${pendingDiff}건`,
+          title: `📥 새 캠페인 접수 ${pendingDiff}건`,
           desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
           page:  '접수관리.html',
           navId: 'nav-pending',

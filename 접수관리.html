@@ -139,7 +139,7 @@
       <tr>
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
-        <th>슬롯타입</th><th>스토어명</th><th>MID</th><th>순위키워드</th>
+        <th>캠페인타입</th><th>스토어명</th><th>MID</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
@@ -201,7 +201,7 @@
 
     allSlots = await HA.getSlots();
 
-    // ── 종료일 지난 active 슬롯 자동 만료 처리 ──────────────
+    // ── 종료일 지난 active 캠페인 자동 만료 처리 ──────────────
     const todayStr = new Date().toISOString().slice(0,10);
     const toExpire = allSlots.filter(s =>
       s.status === 'active' && s.endDate && s.endDate < todayStr
@@ -334,7 +334,7 @@
 
   // ── 종료 처리 (승인 → 종료) ──────────────────────────────
   window.terminateOne = async function(key) {
-    if (!confirm('해당 슬롯을 종료 처리하시겠습니까?')) return;
+    if (!confirm('해당 캠페인을 종료 처리하시겠습니까?')) return;
     await HA.updateSlot(key, { status: 'terminated' });
     const overlay = document.querySelector('.modal-overlay');
     if (overlay) overlay.remove();
@@ -346,7 +346,7 @@
     const keys = getCheckedKeys();
     if (!keys.length) return alert('선택된 항목이 없습니다.');
 
-    // 선택된 슬롯들의 상태 확인
+    // 선택된 캠페인들의 상태 확인
     const selectedSlots = allSlots.filter(s => keys.includes(s._key));
     const hasActive  = selectedSlots.some(s => s.status === 'active');
     const hasPending = selectedSlots.some(s => s.status === 'pending');
@@ -411,9 +411,9 @@
 
     overlay.innerHTML = `
       <div class="modal-box">
-        <div class="modal-title">슬롯 상세 정보</div>
+        <div class="modal-title">캠페인 상세 정보</div>
         <dl class="slot-detail">
-          <dt>슬롯타입</dt><dd>${s.slotType}</dd>
+          <dt>캠페인타입</dt><dd>${s.slotType}</dd>
           <dt>대행사</dt><dd>${s.agencyId} / ${s.userId}</dd>
           <dt>스토어명</dt><dd>${s.storeName}</dd>
           <dt>순위키워드</dt><dd>${s.rankKeyword}</dd>
@@ -560,10 +560,10 @@
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal-box">
-        <div class="modal-title">슬롯 정보 수정</div>
+        <div class="modal-title">캠페인 정보 수정</div>
         <div class="modal-row">
           <div class="modal-field"><label>스토어명</label><input id="e-storeName" value="${s.storeName||''}"></div>
-          <div class="modal-field"><label>슬롯타입</label>
+          <div class="modal-field"><label>캠페인타입</label>
             <select id="e-slotType">${HA.SLOT_TYPES.map(t=>`<option ${t===s.slotType?'selected':''}>${t}</option>`).join('')}</select>
           </div>
         </div>

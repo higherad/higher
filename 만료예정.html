@@ -56,7 +56,7 @@
   <table>
     <thead>
       <tr>
-        <th>번호</th><th>대행사</th><th>유저ID</th><th>슬롯타입</th>
+        <th>번호</th><th>대행사</th><th>유저ID</th><th>캠페인타입</th>
         <th>스토어명</th><th>MID</th><th>순위키워드</th><th>시작일</th><th>종료일</th>
         <th>일 목표</th><th>D-Day</th><th>관리</th><th>순위</th>
       </tr>
@@ -147,7 +147,7 @@
 
     const body = document.getElementById('expire-body');
     if(!slots.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="13">만료 예정 슬롯이 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="13">만료 예정 캠페인이 없습니다.</td></tr>';
       return;
     }
     body.innerHTML = slots.map((s,i) => `

@@ -147,7 +147,7 @@
 
     allSlots = await HA.getSlots();
 
-    // ── 종료일 지난 active 슬롯 자동 만료 처리 ──────────────
+    // ── 종료일 지난 active 캠페인 자동 만료 처리 ──────────────
     const todayStr = new Date().toISOString().slice(0,10);
     const toExpire = allSlots.filter(s =>
       s.status === 'active' && s.endDate && s.endDate < todayStr
@@ -242,7 +242,7 @@
       <div class="modal-box">
         <div class="modal-title">${title}</div>
 
-        <!-- 읽기전용: 대행사/유저/슬롯타입/상태 -->
+        <!-- 읽기전용: 대행사/유저/캠페인타입/상태 -->
         <div class="modal-row">
           <div class="modal-field">
             <label>대행사 ID</label>
@@ -255,7 +255,7 @@
         </div>
         <div class="modal-row">
           <div class="modal-field">
-            <label>슬롯타입</label>
+            <label>캠페인타입</label>
             <input value="${s.slotType||'-'}" readonly style="${READONLY_STYLE}">
           </div>
           <div class="modal-field">
@@ -351,7 +351,7 @@
 
   window.openEditSlot = key => {
     const s = allSlots.find(x => x._key === key) || {};
-    slotModal(s, '슬롯 정보 수정', async () => {
+    slotModal(s, '캠페인 정보 수정', async () => {
       await HA.updateSlot(key, getFormData());
       document.querySelector('.modal-overlay').remove();
       renderSlots(false);
@@ -359,7 +359,7 @@
   };
 
   window.openAddModal = () => {
-    slotModal({}, '슬롯 직접 등록', async () => {
+    slotModal({}, '캠페인 직접 등록', async () => {
       const data = getFormData();
       const slot = await HA.addSlot(data);
       await HA.updateSlot(slot._key, { status: data.status });
