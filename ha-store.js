@@ -104,7 +104,7 @@ const HA = {
   async login(username, password) {
     // 어드민 계정
     if (username === 'admin' && password === 'admin1234') {
-      const user = { id: 'admin', username: 'admin', role: 'admin', agency: '-' };
+      const user = { id: 'admin', username: 'admin', role: 'admin', name: '박성진', agency: '-' };
       sessionStorage.setItem('ha_current_user', JSON.stringify(user));
       return { ok: true, user };
     }
@@ -351,7 +351,7 @@ const HA = {
     const n = {
       title:   data.title   || '',
       content: data.content || '',
-      author:  '박성진',
+      author:  'admin',
       date:    new Date().toISOString().replace('T', ' ').slice(0, 19),
       views:   0,
       pinned:  !!data.pinned,
