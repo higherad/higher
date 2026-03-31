@@ -282,9 +282,9 @@
       const badge  = allP?'<span class="paid-badge">정산완료</span>':pc>0?'<span class="partial-badge">일부완료</span>':'<span class="unpaid-badge">미정산</span>';
       const ea     = encodeURIComponent(g.agencyId);
       const eu     = encodeURIComponent(g.userId);
-      const snapIcon = isPast ? '<span title="고정된 스냅샷 데이터" style="color:var(--accent);font-size:10px;margin-left:4px">🔒</span>' : '';
+      const snapIcon = isPast ? '' : '';
       return `<tr>
-        <td style="color:var(--text2)">${g.date}${snapIcon}</td>
+        <td style="color:var(--text2)">${g.date}</td>
         <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${g.agencyId}</span></td>
         <td>${g.userId}</td>
         <td>${g.slots.length}건</td>
