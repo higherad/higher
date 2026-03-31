@@ -309,10 +309,12 @@
         <td style="color:var(--danger);font-weight:700">${refund>0?refund.toLocaleString()+'원':'-'}</td>
         <td>${badge}</td>
         <td>${staffCell}</td>
-        <td style="display:flex;gap:4px;justify-content:center;align-items:center;">
+        <td style="white-space:nowrap;">
+          <div style="display:flex;gap:4px;justify-content:center;align-items:center;">
           <button class="btn-refund" onclick="setRefund(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">환불</button>
           <button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
             onclick="bulkRow(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${allP?'취소':'입금확인'}</button>
+          </div>
         </td>
       </tr>`;
     }).join('');
@@ -380,11 +382,13 @@
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const refund=getRefund(timeKey,agencyId,userId);
-      const snap={slotCount:slots.length,totalTarget:tot,amount:amt,unitPrice:p,refund,agencyId,userId,
+      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+      const snapKey2=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
+      const snap={slotCount:slots.length,totalTarget:tot,amount:amt,unitPrice:p,refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
-      await HA.saveSettleSnapshot(timeKey,agencyId,userId,snap,true);
+      await HA.saveSettleSnapshot(snapKey2,snap,true);
     } else {
-      try{await HA.deleteSettleSnapshot(timeKey,agencyId,userId);}catch(e){}
+      try{const safe2=s=>s.replace(/[.#$[\]/]/g,'_');const sk2=`${safe2(timeKey)}__${safe2(agencyId)}__${safe2(userId)}`;await HA.deleteSettleSnapshot(sk2);}catch(e){}
     }
     await Promise.all(keys.map(k=>HA.setPaid(k,nowPaid)));
     renderSettle(false);

@@ -429,41 +429,35 @@ const HA = {
     return snap.val(); // { "agencyId__userId": { slotCount, totalTarget, amount, paidAmount, refund, savedAt }, ... }
   },
 
-  // 단일 행 스냅샷 저장 (이미 저장돼 있으면 덮어쓰지 않음 — force=true일 때만 덮어씀)
-  async saveSettleSnapshot(date, agencyId, userId, data, force = false) {
-    const safe = s => s.replace(/[.#$[\]/]/g, '_');
-    const key  = `${safe(agencyId)}__${safe(userId)}`;
-    const path = `${PATHS.settleSnapshots}/${date}/${key}`;
+  // 단일 행 스냅샷 저장
+  // snapKey: "safeTimeKey__safeAgencyId__safeUserId" 형태의 플랫 키
+  async saveSettleSnapshot(snapKey, data, force = false) {
+    const path = `${PATHS.settleSnapshots}/${snapKey}`;
     if (!force) {
       const existing = await get(ref(db, path));
-      if (existing.exists()) return; // 이미 저장된 과거 데이터는 건드리지 않음
+      if (existing.exists()) return;
     }
     await set(ref(db, path), { ...data, savedAt: new Date().toISOString() });
   },
 
   // 정산완료 취소 시 스냅샷 삭제
-  async deleteSettleSnapshot(date, agencyId, userId) {
-    const safe = s => s.replace(/[.#$[\]/]/g, '_');
-    const key  = `${safe(agencyId)}__${safe(userId)}`;
-    const path = `${PATHS.settleSnapshots}/${date}/${key}`;
+  // snapKey: "safeTimeKey__safeAgencyId__safeUserId"
+  async deleteSettleSnapshot(snapKey) {
+    const path = `${PATHS.settleSnapshots}/${snapKey}`;
     await remove(ref(db, path));
   },
 
-  // 전체 settle_snapshots 로드 → { "agencyId__userId": latestSnap } 형태로 평탄화
-  // 같은 agencyId__userId 키가 여러 날짜에 있을 경우 가장 최근 confirmedAt 기준
+  // 전체 settle_snapshots 로드 → { "safeTimeKey__safeAgencyId__safeUserId": snap } 형태
   async getAllSettleSnapshots() {
     const snap = await get(ref(db, PATHS.settleSnapshots));
     if (!snap.exists()) return {};
     const result = {};
-    snap.forEach(dateNode => {
-      dateNode.forEach(groupNode => {
-        const key  = groupNode.key;   // "agencyId__userId"
-        const data = groupNode.val();
-        // 날짜별로 여러 개 있을 수 있으니 가장 최신 confirmedAt 우선
-        if (!result[key] || (data.confirmedAt && data.confirmedAt > (result[key].confirmedAt||''))) {
-          result[key] = data;
-        }
-      });
+    snap.forEach(node => {
+      const key  = node.key;
+      const data = node.val();
+      if (!result[key] || (data.confirmedAt && data.confirmedAt > (result[key].confirmedAt||''))) {
+        result[key] = data;
+      }
     });
     return result;
   },
