@@ -414,7 +414,7 @@
     const agencies       = allUsers.filter(u => u.approved !== false).length;
     const activeSlots    = allSlots.filter(sl => sl.status === 'active');
     const activeAgencies = new Set(activeSlots.map(sl => sl.agencyId)).size;
-    const totalTarget    = activeSlots.reduce((a, sl) => a + (sl.dailyTarget||0), 0);
+    const totalTarget    = activeSlots.reduce((a, sl) => a + (sl.dailyTarget||0) * (sl.days||0), 0);
 
     area.innerHTML = `
       <div class="stat-grid" style="grid-template-columns:repeat(7,1fr)">
