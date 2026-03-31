@@ -434,13 +434,11 @@
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const refund=getRefund(timeKey,agencyId,userId);
-      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
-      const snapKey2=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
       const snap={slotCount:slots.length,totalTarget:tot,amount:amt,unitPrice:p,refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
-      await HA.saveSettleSnapshot(snapKey2,snap,true);
+      await HA.saveSettleSnapshot(timeKey,agencyId,userId,snap,true);
     } else {
-      try{const safe2=s=>s.replace(/[.#$[\]/]/g,'_');const sk2=`${safe2(timeKey)}__${safe2(agencyId)}__${safe2(userId)}`;await HA.deleteSettleSnapshot(sk2);}catch(e){}
+      try{await HA.deleteSettleSnapshot(timeKey,agencyId,userId);}catch(e){}
     }
     await Promise.all(keys.map(k=>HA.setPaid(k,nowPaid)));
     renderSettle(false);
