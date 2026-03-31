@@ -98,7 +98,7 @@
     <thead>
       <tr>
         <th>접수일</th><th>대행사</th><th>유저ID</th><th>캠페인 수</th>
-        <th>일 목표 합산</th><th>단가(원)</th><th>정산금액</th><th>입금액</th><th>환불금액</th><th>정산상태</th><th>확인</th>
+        <th>일 목표 합산</th><th>단가(원)</th><th>정산금액</th><th>입금액</th><th>환불금액</th><th>정산상태</th><th>처리 담당자</th><th>확인</th>
       </tr>
     </thead>
     <tbody id="settle-body">
@@ -112,14 +112,21 @@
 (function(){
   let sPage=1; const PER=20;
   let allSlots=[],allUsers=[],paidSet=new Set(),refundMap={};
-  let snapshotMap={};  // { "date||agencyId||userId": snapshotData }
+  // snapshotMap: 정산완료 확정된 row만 저장 { "date||agencyId||userId": snap }
+  let snapshotMap={};
   const todayStr=new Date().toISOString().slice(0,10);
-  const monthStr=todayStr.slice(0,7);
 
   function refundKey(date,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${date}__${safe(agencyId)}__${safe(userId)}`;}
   function getRefund(date,agencyId,userId){return refundMap[refundKey(date,agencyId,userId)]||0;}
-
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
+
+  // 항상 실시간 캠페인 데이터로 금액 계산 (캠페인 변경 즉시 반영)
+  function calcGroup(g){
+    const p   = getPrice(g.userId);
+    const tot = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+    const amt = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+    return {p, tot, amt};
+  }
 
   function getFiltered(){
     const paid=document.getElementById('sf-paid').value;
@@ -165,26 +172,9 @@
 
   function renderSummary(){
     const base=allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');
-
-    // 전체 합산 — 과거는 스냅샷, 오늘은 실시간
-    let totalA=0;
-    const allGroups={};
-    base.forEach(s=>{
-      const d=(s.createdAt||'').slice(0,10);
-      const k=d+'||'+(s.agencyId||'-')+'||'+(s.userId||'-');
-      if(!allGroups[k])allGroups[k]={date:d,agencyId:s.agencyId||'-',userId:s.userId||'-',slots:[]};
-      allGroups[k].slots.push(s);
-    });
-    Object.values(allGroups).forEach(g=>{
-      if(g.date<todayStr && snapshotMap[g.date+'||'+g.agencyId+'||'+g.userId]){
-        totalA+=snapshotMap[g.date+'||'+g.agencyId+'||'+g.userId].amount||0;
-      } else {
-        const p=getPrice(g.userId);
-        totalA+=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
-      }
-    });
-
-    // 오늘 — 항상 실시간
+    // 전체 합산 — 항상 실시간
+    const totalA=base.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
+    // 오늘 — 실시간
     const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
     const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
 
@@ -211,64 +201,29 @@
       </div>`;
   }
 
-  // ── 총 합산 팝업 (월별 합산 리스트) ──────────────────────────
+  // ── 총 합산 팝업 (월별) ───────────────────────────────────────
   window.openTotalPopup = function() {
     const base = allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');
-
-    // 월별 그룹핑 (스냅샷 우선)
     const byMonth = {};
     base.forEach(s => {
-      const d = (s.createdAt||'').slice(0,10);
-      const m = d.slice(0,7);
-      const gk = d+'||'+(s.agencyId||'-')+'||'+(s.userId||'-');
-      if (!byMonth[m]) byMonth[m] = { slots:[], amount:0, counted:new Set() };
+      const m = (s.createdAt||'').slice(0,7);
+      if (!byMonth[m]) byMonth[m] = { slots:[] };
       byMonth[m].slots.push(s);
-      // 금액 계산: 과거 날짜 그룹은 스냅샷, 오늘은 실시간
-      if (!byMonth[m].counted.has(gk)) {
-        byMonth[m].counted.add(gk);
-        const agencyId = s.agencyId||'-';
-        const userId   = s.userId||'-';
-        if (d < todayStr && snapshotMap[gk]) {
-          byMonth[m].amount += snapshotMap[gk].amount||0;
-        } else {
-          const p = getPrice(userId);
-          const daySlots = base.filter(x=>(x.createdAt||'').slice(0,10)===d&&x.agencyId===agencyId&&x.userId===userId);
-          byMonth[m].amount += daySlots.reduce((a,x)=>a+(x.dailyTarget||0)*(x.days||0)*p, 0);
-        }
-      }
     });
-
-    // 총합계
     let grandTotal = 0;
-    Object.values(byMonth).forEach(v => grandTotal += v.amount);
-
     const mRows = Object.keys(byMonth).sort().reverse().map(m => {
       const mv  = byMonth[m];
-      const amt = mv.amount;
-      // 월별 목표 합산: 스냅샷 있으면 스냅샷 totalTarget, 없으면 실시간
-      let mTgt = 0;
-      const seenGroups = new Set();
-      mv.slots.forEach(s => {
-        const d  = (s.createdAt||'').slice(0,10);
-        const gk = d+'||'+(s.agencyId||'-')+'||'+(s.userId||'-');
-        if (seenGroups.has(gk)) return;
-        seenGroups.add(gk);
-        if (d < todayStr && snapshotMap[gk]) {
-          mTgt += snapshotMap[gk].totalTarget||0;
-        } else {
-          mTgt += mv.slots.filter(x=>(x.createdAt||'').slice(0,10)===d&&x.agencyId===s.agencyId&&x.userId===s.userId)
-                          .reduce((a,x)=>a+(x.dailyTarget||0)*(x.days||0),0);
-        }
-      });
+      const amt = mv.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getPrice(s.userId),0);
+      const tgt = mv.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      grandTotal += amt;
       return `<tr>
         <td style="font-weight:600">${m}</td>
         <td>${mv.slots.length}건</td>
-        <td>${mTgt.toLocaleString()}</td>
+        <td>${tgt.toLocaleString()}</td>
         <td style="font-weight:700;color:var(--accent)">${amt.toLocaleString()}원</td>
         <td style="font-weight:700;color:var(--info)">${Math.round(amt*1.1).toLocaleString()}원</td>
       </tr>`;
     }).join('');
-
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
     ov.innerHTML = `<div class="total-popup-box">
@@ -293,68 +248,25 @@
     if (resetPage) sPage = 1;
     document.getElementById('settle-body').innerHTML='<tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
     [allSlots,allUsers,paidSet]=await Promise.all([HA.getSlots(),HA.getUsers(),HA.getPaidSet()]);
-    // 환불 데이터 로드
     try {
       const snap = await HA.getRefunds();
       refundMap = snap || {};
     } catch(e) { refundMap = {}; }
 
-    // ── 과거 날짜 스냅샷 처리 ──────────────────────────────────
-    // 1) 전체 캠페인에서 오늘 이전 날짜 목록 추출
-    const pastDates = [...new Set(
-      allSlots
-        .filter(s => s.status==='active'||s.status==='expired'||s.status==='pending')
-        .map(s => (s.createdAt||'').slice(0,10))
-        .filter(d => d && d < todayStr)
-    )];
-
-    // 2) 각 날짜의 스냅샷 로드 (없으면 저장)
+    // 정산완료 확정된 스냅샷 로드 (담당자 정보 표시용)
     snapshotMap = {};
-    await Promise.all(pastDates.map(async date => {
-      const existingSnaps = await HA.getSettleSnapshots(date);
-      // 해당 날짜 캠페인을 agencyId+userId로 그룹핑
-      const daySlots = allSlots.filter(s =>
-        (s.status==='active'||s.status==='expired'||s.status==='pending') &&
-        (s.createdAt||'').slice(0,10) === date
-      );
-      const groups = {};
-      daySlots.forEach(s => {
-        const k = (s.agencyId||'-') + '__' + (s.userId||'-');
-        if (!groups[k]) groups[k] = [];
-        groups[k].push(s);
-      });
-      // 그룹별로 스냅샷이 없으면 새로 저장
-      for (const [gk, slots] of Object.entries(groups)) {
-        const safe = s => s.replace(/[.#$[\]/]/g, '_');
-        const [agencyId, userId] = gk.split('__');
-        const safeKey = safe(agencyId) + '__' + safe(userId);
-        if (!existingSnaps[safeKey]) {
-          const p = (allUsers.find(u=>u.username===userId)||{}).unitPrice||0;
-          const tot   = slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-          const amt   = slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
-          const paidA = slots.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
-          const refund= refundMap[refundKey(date,agencyId,userId)]||0;
-          const snap  = { slotCount:slots.length, totalTarget:tot, amount:amt, paidAmount:paidA, refund, unitPrice:p, agencyId, userId };
-          await HA.saveSettleSnapshot(date, agencyId, userId, snap);
-          existingSnaps[safeKey] = snap;
-        }
-        // snapshotMap에 캐싱
-        snapshotMap[date+'||'+agencyId+'||'+userId] = existingSnaps[safeKey];
-      }
-    }));
+    try {
+      snapshotMap = await HA.getAllSettleSnapshots();
+    } catch(e) { snapshotMap = {}; }
 
     renderSummary();
     const rows=groupByDateAgency(getFiltered());
     const start=(sPage-1)*PER;
     const list=rows.slice(start,start+PER);
     const body=document.getElementById('settle-body');
-    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="11">데이터가 없습니다.</td></tr>';return;}
+    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="12">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
-      const isPast = g.date < todayStr;
-      const snap   = isPast ? snapshotMap[g.date+'||'+g.agencyId+'||'+g.userId] : null;
-      const p      = snap ? snap.unitPrice   : getPrice(g.userId);
-      const tot    = snap ? snap.totalTarget : g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const amt    = snap ? snap.amount      : g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const {p, tot, amt} = calcGroup(g);
       const refund = getRefund(g.date,g.agencyId,g.userId);
       const netAmt = amt-refund;
       const netVat = Math.round(netAmt*1.1);
@@ -363,7 +275,15 @@
       const badge  = allP?'<span class="paid-badge">정산완료</span>':pc>0?'<span class="partial-badge">일부완료</span>':'<span class="unpaid-badge">미정산</span>';
       const ea     = encodeURIComponent(g.agencyId);
       const eu     = encodeURIComponent(g.userId);
-      const snapIcon = isPast ? '' : '';
+      // 스냅샷에서 담당자 정보 가져오기
+      const safe = s => s.replace(/[.#$[\]/]/g, '_');
+      const snapKey = `${safe(g.agencyId)}__${safe(g.userId)}`;
+      const snap = snapshotMap[snapKey];
+      const confirmedByName = snap?.confirmedByName || snap?.confirmedBy || '';
+      const confirmedAt = snap?.confirmedAt ? new Date(snap.confirmedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      const staffCell = allP && confirmedByName
+        ? `<span style="font-size:11px;font-weight:700;color:var(--info)">${confirmedByName}</span>${confirmedAt?`<br><span style="font-size:10px;color:var(--muted)">${confirmedAt}</span>`:''}`
+        : `<span style="color:var(--muted);font-size:11px">-</span>`;
       return `<tr>
         <td style="color:var(--text2)">${g.date}</td>
         <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${g.agencyId}</span></td>
@@ -375,6 +295,7 @@
         <td style="font-weight:700;color:var(--info)">${netVat.toLocaleString()}원</td>
         <td style="color:var(--danger);font-weight:700">${refund>0?refund.toLocaleString()+'원':'-'}</td>
         <td>${badge}</td>
+        <td>${staffCell}</td>
         <td style="display:flex;gap:4px;justify-content:center;align-items:center;">
           <button class="btn-refund" onclick="setRefund('${g.date}',decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">환불</button>
           <button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
@@ -439,7 +360,34 @@
   window.bulkRow=async function(date,agencyId,userId){
     const keys=allSlots.filter(s=>(s.createdAt||'').slice(0,10)===date&&s.agencyId===agencyId&&s.userId===userId).map(s=>s._key);
     const allP=keys.every(k=>paidSet.has(k));
-    await Promise.all(keys.map(k=>HA.setPaid(k,!allP)));
+    const nowPaid = !allP;
+
+    // 현재 로그인한 담당자 정보
+    const currentUser = HA.getCurrentUser ? HA.getCurrentUser() : null;
+    const staffName = currentUser ? (currentUser.name || currentUser.username) : '알 수 없음';
+    const staffId   = currentUser ? currentUser.username : '-';
+
+    // 정산완료 처리 → 스냅샷 저장 (현재 실시간 데이터 + 담당자 정보 기록)
+    if (nowPaid) {
+      const slots = allSlots.filter(s=>(s.createdAt||'').slice(0,10)===date&&s.agencyId===agencyId&&s.userId===userId);
+      const p     = getPrice(userId);
+      const tot   = slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      const amt   = slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const refund= getRefund(date,agencyId,userId);
+      const snap  = {
+        slotCount: slots.length, totalTarget: tot, amount: amt,
+        unitPrice: p, refund, agencyId, userId,
+        confirmedAt: new Date().toISOString(),
+        confirmedBy: staffId,
+        confirmedByName: staffName,
+      };
+      await HA.saveSettleSnapshot(date, agencyId, userId, snap, true);
+    } else {
+      // 취소 → 스냅샷 삭제 + 취소 이력 기록
+      try { await HA.deleteSettleSnapshot(date, agencyId, userId); } catch(e) {}
+    }
+
+    await Promise.all(keys.map(k=>HA.setPaid(k,nowPaid)));
     renderSettle(false);
   };
 
@@ -451,13 +399,27 @@
       const m=(s.createdAt||'').slice(0,7); if(!bm[m])bm[m]=[]; bm[m].push(s);
       const d=(s.createdAt||'').slice(0,10); if(!bd[d])bd[d]=[]; bd[d].push(s);
     });
+    // 항상 실시간 계산
     const totA=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
     const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
-    // 이 대행사/유저의 총 환불금액 합산
     const totalRefund=Object.keys(refundMap).filter(k=>k.includes(`__${agencyId}__${userId}`)).reduce((a,k)=>a+(refundMap[k]||0),0);
     const netTotA=totA-totalRefund;
-    const mRows=Object.keys(bm).sort().reverse().map(m=>{const ms=bm[m];const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);const mr=Object.keys(refundMap).filter(k=>k.startsWith(`${m.slice(0,7)}`+`__${agencyId}__${userId}`)).reduce((a,k)=>a+(refundMap[k]||0),0);const net=ma-mr;return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(net*1.1).toLocaleString()}원</td></tr>`;}).join('');
-    const dRows=Object.keys(bd).sort().reverse().map(d=>{const ds=bd[d];const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);const dr=getRefund(d,agencyId,userId);const net=da-dr;return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(net*1.1).toLocaleString()}원</td></tr>`;}).join('');
+    const mRows=Object.keys(bm).sort().reverse().map(m=>{
+      const ms=bm[m];
+      const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const mr=Object.keys(refundMap).filter(k=>k.startsWith(`${m.slice(0,7)}`+`__${agencyId}__${userId}`)).reduce((a,k)=>a+(refundMap[k]||0),0);
+      const net=ma-mr;
+      return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(net*1.1).toLocaleString()}원</td></tr>`;
+    }).join('');
+    const dRows=Object.keys(bd).sort().reverse().map(d=>{
+      const ds=bd[d];
+      const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
+      const dr=getRefund(d,agencyId,userId);
+      const net=da-dr;
+      return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(net*1.1).toLocaleString()}원</td></tr>`;
+    }).join('');
     const ov=document.createElement('div');
     ov.className='sp-overlay';
     ov.innerHTML=`<div class="sp-box">

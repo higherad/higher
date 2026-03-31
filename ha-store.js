@@ -35,7 +35,16 @@ const PATHS = {
   refunds:         'ha/refunds',
   adClassify:      'ha/ad_classify',
   settleSnapshots: 'ha/settle_snapshots',
+  statusLog:       'ha/status_log',   // 담당자 상태 변경 이력
 };
+
+// ── 직원(Staff) 계정 설정 ────────────────────────────────────
+// 담당자 이름, 아이디, 비밀번호를 여기서 관리합니다.
+const STAFF_ACCOUNTS = [
+  { id: 'staff1', username: 'staff1', password: 'staff1234', name: '담당자1', role: 'staff' },
+  { id: 'staff2', username: 'staff2', password: 'staff1234', name: '담당자2', role: 'staff' },
+  { id: 'staff3', username: 'staff3', password: 'staff1234', name: '담당자3', role: 'staff' },
+];
 
 // ── 텔레그램 알림 설정 ────────────────────────────────────────
 const TELEGRAM = {
@@ -96,6 +105,13 @@ const HA = {
     // 어드민 계정
     if (username === 'admin' && password === 'admin1234') {
       const user = { id: 'admin', username: 'admin', role: 'admin', agency: '-' };
+      sessionStorage.setItem('ha_current_user', JSON.stringify(user));
+      return { ok: true, user };
+    }
+    // 직원(staff) 계정
+    const staffMatch = STAFF_ACCOUNTS.find(s => s.username === username && s.password === password);
+    if (staffMatch) {
+      const user = { ...staffMatch };
       sessionStorage.setItem('ha_current_user', JSON.stringify(user));
       return { ok: true, user };
     }
@@ -210,7 +226,44 @@ ${lines}
 
   async updateSlot(key, patch) {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
+    // 상태(status) 변경이 포함된 경우 담당자 이력 누적 저장
+    if (patch.status !== undefined) {
+      const currentUser = this.getCurrentUser();
+      if (currentUser) {
+        const logEntry = {
+          slotKey:   key,
+          status:    patch.status,
+          staffId:   currentUser.username,
+          staffName: currentUser.name || currentUser.username,
+          role:      currentUser.role || 'unknown',
+          changedAt: new Date().toISOString(),
+          ...(patch.rejectReason ? { rejectReason: patch.rejectReason } : {}),
+        };
+        await push(ref(db, `${PATHS.statusLog}/${key}`), logEntry);
+      }
+    }
     dispatch('ha:slots:updated');
+  },
+
+  // ── 슬롯 상태 변경 이력 조회 ────────────────────────────────
+  // 특정 캠페인의 전체 이력 반환 (최신순)
+  async getStatusLog(slotKey) {
+    const snap = await get(ref(db, `${PATHS.statusLog}/${slotKey}`));
+    if (!snap.exists()) return [];
+    return Object.values(snap.val()).sort((a, b) =>
+      new Date(b.changedAt) - new Date(a.changedAt)
+    );
+  },
+
+  // 전체 이력 반환 (최신순, 어드민 로그 페이지용)
+  async getAllStatusLogs() {
+    const snap = await get(ref(db, PATHS.statusLog));
+    if (!snap.exists()) return [];
+    const all = [];
+    Object.entries(snap.val()).forEach(([slotKey, logs]) => {
+      Object.values(logs).forEach(entry => all.push({ ...entry, slotKey }));
+    });
+    return all.sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt));
   },
 
   async deleteSlot(key) {
@@ -358,6 +411,33 @@ ${lines}
       if (existing.exists()) return; // 이미 저장된 과거 데이터는 건드리지 않음
     }
     await set(ref(db, path), { ...data, savedAt: new Date().toISOString() });
+  },
+
+  // 정산완료 취소 시 스냅샷 삭제
+  async deleteSettleSnapshot(date, agencyId, userId) {
+    const safe = s => s.replace(/[.#$[\]/]/g, '_');
+    const key  = `${safe(agencyId)}__${safe(userId)}`;
+    const path = `${PATHS.settleSnapshots}/${date}/${key}`;
+    await remove(ref(db, path));
+  },
+
+  // 전체 settle_snapshots 로드 → { "agencyId__userId": latestSnap } 형태로 평탄화
+  // 같은 agencyId__userId 키가 여러 날짜에 있을 경우 가장 최근 confirmedAt 기준
+  async getAllSettleSnapshots() {
+    const snap = await get(ref(db, PATHS.settleSnapshots));
+    if (!snap.exists()) return {};
+    const result = {};
+    snap.forEach(dateNode => {
+      dateNode.forEach(groupNode => {
+        const key  = groupNode.key;   // "agencyId__userId"
+        const data = groupNode.val();
+        // 날짜별로 여러 개 있을 수 있으니 가장 최신 confirmedAt 우선
+        if (!result[key] || (data.confirmedAt && data.confirmedAt > (result[key].confirmedAt||''))) {
+          result[key] = data;
+        }
+      });
+    });
+    return result;
   },
 
   // ════════════════════════════════════════════════════════
