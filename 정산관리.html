@@ -335,13 +335,14 @@
       const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
       const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
       const existing=snapshotMap[sk];
-      if(existing && existing.totalTarget) continue; // 이미 저장됨
+      if(existing && existing.amount>0) continue; // 정상 저장됨
       const {tot:t,amt:a}=calcGroup(g);
+      if(!a) continue; // 금액 없으면 스킵
       const r=getRefund(g.timeKey,g.agencyId,g.userId);
       const snap={timeKey:g.timeKey,agencyId:g.agencyId,userId:g.userId,
         slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,
         unitPrice:getSlotPrice(g.slots[0])};
-      await HA.saveSettleSnapshot(sk,snap,false);
+      await HA.saveSettleSnapshot(sk,snap,true); // force=true로 0원 스냅샷 덮어씀
       snapshotMap[sk]=snap;
     }
 
@@ -355,16 +356,15 @@
       const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
       const savedSnap=snapshotMap[snapKey];
       const groupDate=g.timeKey.slice(0,10);
-      const isToday=groupDate>=todayStr;
-
-      // 과거는 스냅샷, 오늘은 실시간
-      const {p, pDisplay, tot, amt} = isToday ? calcGroup(g) : {
-        p: savedSnap?.unitPrice||getSlotPrice(g.slots[0]),
-        pDisplay: (savedSnap?.unitPrice||getSlotPrice(g.slots[0])).toLocaleString(),
-        tot: savedSnap?.totalTarget||0,
-        amt: savedSnap ? (savedSnap.amount+(savedSnap.refund||0)) : 0,
-      };
-      const refund = isToday ? getRefund(g.timeKey,g.agencyId,g.userId) : (savedSnap?.refund||0);
+      // 스냅샷 amount>0이면 스냅샷 사용, 아니면 실시간 계산
+      const useSnap = groupDate < todayStr && savedSnap && savedSnap.amount > 0;
+      const {p, pDisplay, tot, amt} = useSnap ? {
+        p: savedSnap.unitPrice||getSlotPrice(g.slots[0]),
+        pDisplay: (savedSnap.unitPrice||getSlotPrice(g.slots[0])).toLocaleString(),
+        tot: savedSnap.totalTarget||0,
+        amt: savedSnap.amount+(savedSnap.refund||0),
+      } : calcGroup(g);
+      const refund = useSnap ? (savedSnap.refund||0) : getRefund(g.timeKey,g.agencyId,g.userId);
       const netAmt = amt-refund;
       const netVat = Math.round(netAmt*1.1);
       const pc     = g.slots.filter(s=>paidSet.has(s._key)).length;
