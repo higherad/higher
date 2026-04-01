@@ -276,10 +276,59 @@
     };
     if (password) data.password = password;
     if (key) {
+      const oldUser    = allUsers.find(u => u._key === key);
+      const oldAgency  = oldUser ? (oldUser.agencyId || oldUser.agency || '') : '';
+      const agencyChanged = oldAgency && oldAgency !== agencyVal;
+
       await HA.updateUser(key, data);
-      // 해당 유저의 모든 캠페인 agencyId 동기화
+
+      // 슬롯 agencyId 동기화
       const userSlots = allSlots.filter(s => s.userId === username);
       await Promise.all(userSlots.map(s => HA.updateSlot(s._key, { agencyId: agencyVal })));
+
+      // 대행사명 변경 시 스냅샷 키도 이전
+      if (agencyChanged) {
+        try {
+          const { getDatabase, ref, get, set, remove } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+          const db = getDatabase();
+          const safe = s => (s||'').replace(/[.#$[\]]/g, '_');
+          const snapSnap = await get(ref(db, 'ha/settle_snapshots'));
+          if (snapSnap.exists()) {
+            const updates = [];
+            snapSnap.forEach(node => {
+              const k = node.key;
+              const v = node.val();
+              // 구 agencyId + userId 패턴 매칭
+              if (k.includes(`__${safe(oldAgency)}__${safe(username)}`)) {
+                const newKey = k.replace(`__${safe(oldAgency)}__${safe(username)}`, `__${safe(agencyVal)}__${safe(username)}`);
+                updates.push({ oldPath: `ha/settle_snapshots/${k}`, newPath: `ha/settle_snapshots/${newKey}`, val: { ...v, agencyId: agencyVal } });
+              }
+            });
+            for (const u of updates) {
+              await set(ref(db, u.newPath), u.val);
+              await remove(ref(db, u.oldPath));
+              console.log(`스냅샷 키 이전: ${u.oldPath} → ${u.newPath}`);
+            }
+          }
+          // 환불 키도 이전
+          const refundSnap = await get(ref(db, 'ha/refunds'));
+          if (refundSnap.exists()) {
+            const rUpdates = [];
+            refundSnap.forEach(node => {
+              const k = node.key;
+              if (k.includes(`__${safe(oldAgency)}__${safe(username)}`)) {
+                const newKey = k.replace(`__${safe(oldAgency)}__${safe(username)}`, `__${safe(agencyVal)}__${safe(username)}`);
+                rUpdates.push({ oldPath: `ha/refunds/${k}`, newPath: `ha/refunds/${newKey}`, val: node.val() });
+              }
+            });
+            for (const u of rUpdates) {
+              await set(ref(db, u.newPath), u.val);
+              await remove(ref(db, u.oldPath));
+              console.log(`환불 키 이전: ${u.oldPath} → ${u.newPath}`);
+            }
+          }
+        } catch(e) { console.error('키 이전 오류:', e); }
+      }
     } else {
       if (!password) return alert('비밀번호를 입력하세요.');
       await HA.addUser({ ...data, password });
