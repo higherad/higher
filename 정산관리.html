@@ -342,7 +342,7 @@
       const snap={timeKey:g.timeKey,agencyId:g.agencyId,userId:g.userId,
         slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,
         unitPrice:getSlotPrice(g.slots[0])};
-      await HA.saveSettleSnapshot(sk,snap,true); // force=true로 0원 스냅샷 덮어씀
+      await HA.saveSettleSnapshot(sk,snap,false); // 최초 1회만 저장
       snapshotMap[sk]=snap;
     }
 
@@ -488,42 +488,56 @@
   };
 
   window.openAgencyPopup=function(agencyId,userId){
-    const ag=allSlots.filter(s=>(s.status==='active'||s.status==='expired'||s.status==='pending')&&s.agencyId===agencyId&&s.userId===userId);
-    const bm={},bd={};
-    ag.forEach(s=>{
-      const m=(s.createdAt||'').slice(0,7); if(!bm[m])bm[m]=[]; bm[m].push(s);
-      const d=(s.createdAt||'').slice(0,10); if(!bd[d])bd[d]=[]; bd[d].push(s);
-    });
-    const totA=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-    const totTgt=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-    const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-    const p=getPrice(userId); // 현재 단가 표시용
     const safe=s=>s.replace(/[.#$[\]/]/g,'_');
-    const totalRefund=Object.keys(refundMap).filter(k=>k.includes(`__${safe(agencyId)}__${safe(userId)}`)).reduce((a,k)=>a+(refundMap[k]||0),0);
-    const netTotA=totA-totalRefund;
-    const mRows=Object.keys(bm).sort().reverse().map(m=>{
-      const ms=bm[m];
-      const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-      // 환불 키: "timeKey__agencyId__userId" — timeKey의 날짜 부분(YYYY-MM)이 m과 일치하는 것
-      const mr=Object.keys(refundMap).filter(k=>{
-        const keyDate=k.split('__')[0].slice(0,7); // "2026-03"
-        return keyDate===m && k.includes(`__${safe(agencyId)}__${safe(userId)}`);
-      }).reduce((a,k)=>a+(refundMap[k]||0),0);
-      const net=ma-mr;
-      return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(net*1.1).toLocaleString()}원</td></tr>`;
+
+    // 스냅샷 기반으로 월별/일별 집계 (슬롯 삭제 영향 없음)
+    // 오늘 날짜는 실시간 계산
+    const relevantSnaps = Object.entries(snapshotMap).filter(([k,v])=>
+      v.agencyId===agencyId && v.userId===userId
+    );
+
+    // 월별/일별 그룹핑 (스냅샷 기준)
+    const byMonth={}, byDay={};
+    let totA=0, totTgt=0, totalRefund=0;
+
+    relevantSnaps.forEach(([k,v])=>{
+      const date=(v.timeKey||k).slice(0,10);
+      const month=date.slice(0,7);
+      const isToday=date>=todayStr;
+
+      // 오늘은 실시간 계산
+      let amt,tgt,ref;
+      if(isToday){
+        const grpSlots=allSlots.filter(s=>getMinuteKey(s.createdAt)===(v.timeKey||'')&&s.agencyId===agencyId&&s.userId===userId);
+        amt=grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        tgt=grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+        ref=getRefund(v.timeKey,agencyId,userId);
+      } else {
+        amt=(v.amount||0)+(v.refund||0); // gross amount
+        tgt=v.totalTarget||0;
+        ref=v.refund||0;
+      }
+
+      const net=amt-ref;
+      totA+=net; totTgt+=tgt; totalRefund+=ref;
+
+      if(!byMonth[month]) byMonth[month]={count:0,tgt:0,net:0};
+      byMonth[month].count++; byMonth[month].tgt+=tgt; byMonth[month].net+=net;
+
+      if(!byDay[date]) byDay[date]={count:0,tgt:0,net:0};
+      byDay[date].count++; byDay[date].tgt+=tgt; byDay[date].net+=net;
+    });
+
+    const p=getPrice(userId);
+    const netTotA=totA;
+
+    const mRows=Object.keys(byMonth).sort().reverse().map(m=>{
+      const mv=byMonth[m];
+      return `<tr><td style="font-weight:600">${m}</td><td>${mv.count}건</td><td>${mv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${mv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(mv.net*1.1).toLocaleString()}원</td></tr>`;
     }).join('');
-    const dRows=Object.keys(bd).sort().reverse().map(d=>{
-      const ds=bd[d];
-      const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-      // 환불 키: "timeKey__agencyId__userId" — timeKey의 날짜 부분(YYYY-MM-DD)이 d와 일치하는 것
-      const dr=Object.keys(refundMap).filter(k=>{
-        const keyDate=k.split('__')[0].slice(0,10); // "2026-03-20"
-        return keyDate===d && k.includes(`__${safe(agencyId)}__${safe(userId)}`);
-      }).reduce((a,k)=>a+(refundMap[k]||0),0);
-      const net=da-dr;
-      return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(net*1.1).toLocaleString()}원</td></tr>`;
+    const dRows=Object.keys(byDay).sort().reverse().map(d=>{
+      const dv=byDay[d];
+      return `<tr><td>${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.net*1.1).toLocaleString()}원</td></tr>`;
     }).join('');
     const ov=document.createElement('div');
     ov.className='sp-overlay';
