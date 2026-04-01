@@ -98,7 +98,7 @@
     <thead>
       <tr>
         <th>접수일시</th><th>대행사</th><th>유저ID</th><th>캠페인 수</th>
-        <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불금액</th><th>정산상태</th><th>처리 담당자</th><th>액션</th>
+        <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>처리 담당자</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="settle-body">
@@ -468,11 +468,11 @@
         <div style="font-size:15px;font-weight:700;margin-bottom:6px;">환불 금액 입력</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">${agencyId} · ${timeKey}</div>
         <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:12px;color:var(--text2);">현재 환불금액</span>
+          <span style="font-size:12px;color:var(--text2);">현재 환불 금액</span>
           <span style="font-weight:700;color:var(--danger);">${current.toLocaleString()}원</span>
         </div>
         <div style="margin-bottom:20px;">
-          <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">환불금액 (0 입력 시 삭제)</label>
+          <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">환불 금액 (0 입력 시 삭제)</label>
           <input id="refund-input" type="number" value="${current||''}" placeholder=""
             style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;"
             onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
@@ -604,7 +604,7 @@
         <div class="sp-card c-green"><div class="sp-card-label">총 정산 금액(VAT 별도)</div><div class="sp-card-value" style="color:var(--accent)">${netTotA.toLocaleString()}원</div></div>
         <div class="sp-card c-blue"><div class="sp-card-label">총 입금액(VAT 포함)</div><div class="sp-card-value" style="color:var(--info)">${Math.round(netTotA*1.1).toLocaleString()}원</div></div>
         <div class="sp-card c-green"><div class="sp-card-label">총 목표 합산</div><div class="sp-card-value" style="color:var(--accent)">${totTgt.toLocaleString()}<small style="font-size:13px;font-weight:400;color:var(--muted)"> 개</small></div></div>
-        <div class="sp-card c-red"><div class="sp-card-label">환불금액</div><div class="sp-card-value" style="color:var(--danger)">${totalRefund.toLocaleString()}원</div></div>
+        <div class="sp-card c-red"><div class="sp-card-label">환불 금액</div><div class="sp-card-value" style="color:var(--danger)">${totalRefund.toLocaleString()}원</div></div>
       </div>
       <div class="sp-section">월별 합산</div>
       <table class="sp-tbl"><thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
@@ -620,7 +620,7 @@
 
   window.exportSettleCSV=function(){
     const rows=groupByTimeAgency(getFiltered());
-    const lines=[['접수일시','대행사','유저ID','캠페인 수','일목표합산','단가','정산 금액(VAT 별도)','환불금액','정산 순액(VAT 별도)','입금액(VAT 포함)','정산상태']];
+    const lines=[['접수일시','대행사','유저ID','캠페인 수','일 목표 합산','단가','정산 금액(VAT 별도)','환불 금액','정산 금액(VAT 별도)','입금액(VAT 포함)','정산상태']];
     rows.forEach(g=>{
       const safe=s=>s.replace(/[.#$[\]]/g,'_');
       const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
