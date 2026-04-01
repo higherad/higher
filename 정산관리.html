@@ -145,7 +145,7 @@
 
   function calcGroup(g){
     const prices = [...new Set(g.slots.map(s=>getSlotPrice(s)))];
-    const p   = prices.length === 1 ? prices[0] : prices[0]; // 표시용 (복수 단가면 첫번째)
+    const p   = prices.length === 1 ? prices[0] : prices[0];
     const pDisplay = prices.length > 1 ? `${Math.min(...prices).toLocaleString()}~${Math.max(...prices).toLocaleString()}` : prices[0].toLocaleString();
     const tot = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
     const amt = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
@@ -534,45 +534,55 @@
   };
 
   window.openAgencyPopup=function(agencyId,userId){
-    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
 
-    // 스냅샷 기반으로 월별/일별 집계 (슬롯 삭제 영향 없음)
-    // 오늘 날짜는 실시간 계산
-    const relevantSnaps = Object.entries(snapshotMap).filter(([k,v])=>
-      v.agencyId===agencyId && v.userId===userId
-    );
-
-    // 월별/일별 그룹핑 (스냅샷 기준)
     const byMonth={}, byDay={};
     let totA=0, totTgt=0, totalRefund=0;
 
-    relevantSnaps.forEach(([k,v])=>{
-      const date=(v.timeKey||k).slice(0,10);
-      const month=date.slice(0,7);
-      const isToday=date>=todayStr;
+    // ── 과거 날짜: 스냅샷 기준 집계 ──
+    Object.entries(snapshotMap)
+      .filter(([k,v]) => v.agencyId===agencyId && v.userId===userId && (v.timeKey||'').slice(0,10) < todayStr)
+      .forEach(([k,v]) => {
+        const date = v.timeKey.slice(0,10);
+        const month = date.slice(0,7);
+        const grossAmt = (v.amount||0) + (v.refund||0);
+        const ref = v.refund||0;
+        const net = grossAmt - ref;
+        const tgt = v.totalTarget||0;
+        totA += net; totTgt += tgt; totalRefund += ref;
+        if(!byMonth[month]) byMonth[month]={count:0,tgt:0,net:0};
+        byMonth[month].count += v.slotCount||1; byMonth[month].tgt += tgt; byMonth[month].net += net;
+        if(!byDay[date]) byDay[date]={count:0,tgt:0,net:0};
+        byDay[date].count += v.slotCount||1; byDay[date].tgt += tgt; byDay[date].net += net;
+      });
 
-      // 오늘은 실시간 계산
-      let amt,tgt,ref;
-      if(isToday){
-        const grpSlots=allSlots.filter(s=>getMinuteKey(s.createdAt)===(v.timeKey||'')&&s.agencyId===agencyId&&s.userId===userId);
-        amt=grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-        tgt=grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-        ref=getRefund(v.timeKey,agencyId,userId);
-      } else {
-        amt=(v.amount||0)+(v.refund||0); // gross amount
-        tgt=v.totalTarget||0;
-        ref=v.refund||0;
-      }
-
-      const net=amt-ref;
-      totA+=net; totTgt+=tgt; totalRefund+=ref;
-
-      if(!byMonth[month]) byMonth[month]={count:0,tgt:0,net:0};
-      byMonth[month].count+=(v.slotCount||1); byMonth[month].tgt+=tgt; byMonth[month].net+=net;
-
-      if(!byDay[date]) byDay[date]={count:0,tgt:0,net:0};
-      byDay[date].count+=(v.slotCount||1); byDay[date].tgt+=tgt; byDay[date].net+=net;
-    });
+    // ── 오늘 날짜: 스냅샷 무시, allSlots 실시간 전체 집계 ──
+    const todaySlots = allSlots.filter(s =>
+      s.agencyId === agencyId &&
+      s.userId === userId &&
+      (s.createdAt||'').slice(0,10) === todayStr &&
+      (s.status==='active'||s.status==='expired'||s.status==='pending')
+    );
+    if (todaySlots.length > 0) {
+      // 분 단위 그룹핑
+      const todayGroups = {};
+      todaySlots.forEach(s => {
+        const t = getMinuteKey(s.createdAt);
+        if (!todayGroups[t]) todayGroups[t] = [];
+        todayGroups[t].push(s);
+      });
+      const month = todayStr.slice(0,7);
+      if (!byMonth[month]) byMonth[month] = {count:0,tgt:0,net:0};
+      if (!byDay[todayStr]) byDay[todayStr] = {count:0,tgt:0,net:0};
+      Object.entries(todayGroups).forEach(([t, grpSlots]) => {
+        const amt = grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const tgt = grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+        const ref = getRefund(t, agencyId, userId);
+        const net = amt - ref;
+        totA += net; totTgt += tgt; totalRefund += ref;
+        byMonth[month].count += grpSlots.length; byMonth[month].tgt += tgt; byMonth[month].net += net;
+        byDay[todayStr].count += grpSlots.length; byDay[todayStr].tgt += tgt; byDay[todayStr].net += net;
+      });
+    }
 
     const p=getPrice(userId);
     const netTotA=totA;
