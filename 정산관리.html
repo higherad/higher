@@ -25,7 +25,6 @@
   .agency-link:hover { color:var(--accent); }
   .paid-badge   { background:rgba(16,185,129,.1); color:#059669; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
   .unpaid-badge { background:rgba(239,68,68,.1); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
-  .partial-badge{ background:rgba(245,158,11,.1); color:#b45309; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
   .btn-refund   { background:rgba(239,68,68,.1); color:var(--danger); padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; margin-right:4px; }
   .action-btn  { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
   .btn-confirm { background:var(--accent); color:#fff; }
@@ -415,7 +414,7 @@
       const netVat = Math.round(netAmt*1.1);
       const pc     = g.slots.filter(s=>paidSet.has(s._key)).length;
       const allP   = pc===g.slots.length;
-      const badge  = allP?'<span class="paid-badge">정산완료</span>':pc>0?'<span class="partial-badge">일부완료</span>':'<span class="unpaid-badge">미정산</span>';
+      const badge  = allP?'<span class="paid-badge">정산완료</span>':'<span class="unpaid-badge">미정산</span>';
       const ea     = encodeURIComponent(g.agencyId);
       const eu     = encodeURIComponent(g.userId);
       const et     = encodeURIComponent(g.timeKey);
@@ -620,7 +619,7 @@
 
   window.exportSettleCSV=function(){
     const rows=groupByTimeAgency(getFiltered());
-    const lines=[['접수일시','대행사','유저ID','캠페인 수','일 목표 합산','단가','정산 금액(VAT 별도)','환불 금액','정산 금액(VAT 별도)','입금액(VAT 포함)','정산상태']];
+    const lines=[['접수일시','대행사','유저ID','캠페인 수','일 목표 합산','단가(원)','정산 금액(VAT 별도)','입금액(VAT 포함)','환불 금액','정산상태']];
     rows.forEach(g=>{
       const safe=s=>s.replace(/[.#$[\]]/g,'_');
       const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
@@ -632,7 +631,9 @@
       const refund=useSnap?(savedSnap.refund||0):getRefund(g.timeKey,g.agencyId,g.userId);
       const netAmt=grossAmt-refund;
       const p=useSnap?(savedSnap.unitPrice||getSlotPrice(g.slots[0])):getSlotPrice(g.slots[0]);
-      lines.push([g.timeKey,g.agencyId,g.userId,g.slots.length,tot,p,grossAmt,refund,netAmt,Math.round(netAmt*1.1),g.slots.every(s=>paidSet.has(s._key))?'완료':'미완료']);
+      const pc=g.slots.filter(s=>paidSet.has(s._key)).length;
+      const status=pc===g.slots.length?'정산완료':'미정산';
+      lines.push([g.timeKey,g.agencyId,g.userId,g.slots.length,tot,p,netAmt,Math.round(netAmt*1.1),refund,status]);
     });
     const csv=lines.map(r=>r.join(',')).join('\n');
     const a=document.createElement('a');
