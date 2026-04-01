@@ -546,32 +546,39 @@
     const byMonth={}, byDay={};
     let totA=0, totTgt=0, totalRefund=0;
 
+    // 과거 날짜 — 스냅샷 기반
     relevantSnaps.forEach(([k,v])=>{
       const date=(v.timeKey||k).slice(0,10);
+      if(date>=todayStr) return; // 오늘은 아래에서 별도 처리
       const month=date.slice(0,7);
-      const isToday=date>=todayStr;
-
-      // 오늘은 실시간 계산
-      let amt,tgt,ref;
-      if(isToday){
-        const grpSlots=allSlots.filter(s=>getMinuteKey(s.createdAt)===(v.timeKey||'')&&s.agencyId===agencyId&&s.userId===userId);
-        amt=grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-        tgt=grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-        ref=getRefund(v.timeKey,agencyId,userId);
-      } else {
-        amt=(v.amount||0)+(v.refund||0); // gross amount
-        tgt=v.totalTarget||0;
-        ref=v.refund||0;
-      }
-
+      const amt=(v.amount||0)+(v.refund||0);
+      const tgt=v.totalTarget||0;
+      const ref=v.refund||0;
       const net=amt-ref;
       totA+=net; totTgt+=tgt; totalRefund+=ref;
-
       if(!byMonth[month]) byMonth[month]={count:0,tgt:0,net:0};
       byMonth[month].count++; byMonth[month].tgt+=tgt; byMonth[month].net+=net;
-
       if(!byDay[date]) byDay[date]={count:0,tgt:0,net:0};
       byDay[date].count++; byDay[date].tgt+=tgt; byDay[date].net+=net;
+    });
+
+    // 오늘 날짜 — 실시간 계산 (스냅샷 없으므로 allSlots에서 직접)
+    const todayGrps = groupByTimeAgency(
+      allSlots.filter(s=>(s.status==='active'||s.status==='expired'||s.status==='pending')
+        &&s.agencyId===agencyId&&s.userId===userId
+        &&(s.createdAt||'').slice(0,10)===todayStr)
+    );
+    todayGrps.forEach(g=>{
+      const amt=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const tgt=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      const ref=getRefund(g.timeKey,agencyId,userId);
+      const net=amt-ref;
+      const month=todayStr.slice(0,7);
+      totA+=net; totTgt+=tgt; totalRefund+=ref;
+      if(!byMonth[month]) byMonth[month]={count:0,tgt:0,net:0};
+      byMonth[month].count+=g.slots.length; byMonth[month].tgt+=tgt; byMonth[month].net+=net;
+      if(!byDay[todayStr]) byDay[todayStr]={count:0,tgt:0,net:0};
+      byDay[todayStr].count+=g.slots.length; byDay[todayStr].tgt+=tgt; byDay[todayStr].net+=net;
     });
 
     const p=getPrice(userId);
