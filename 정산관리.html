@@ -326,14 +326,45 @@
     try { snapshotMap = await HA.getAllSettleSnapshots(); } catch(e) { snapshotMap={}; }
 
     renderSummary();
+
+    // 과거 날짜 그룹 스냅샷 저장 (오늘 이전만, 담당자 정보 없는 그룹만)
+    const allRows=groupByTimeAgency(allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending'));
+    for(const g of allRows){
+      const groupDate=g.timeKey.slice(0,10);
+      if(groupDate>=todayStr) continue; // 오늘은 실시간
+      const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
+      const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
+      const existing=snapshotMap[sk];
+      if(existing && existing.totalTarget) continue; // 이미 저장됨
+      const {tot:t,amt:a}=calcGroup(g);
+      const r=getRefund(g.timeKey,g.agencyId,g.userId);
+      const snap={timeKey:g.timeKey,agencyId:g.agencyId,userId:g.userId,
+        slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,
+        unitPrice:getSlotPrice(g.slots[0])};
+      await HA.saveSettleSnapshot(sk,snap,false);
+      snapshotMap[sk]=snap;
+    }
+
     const rows=groupByTimeAgency(getFiltered());
     const start=(sPage-1)*PER;
     const list=rows.slice(start,start+PER);
     const body=document.getElementById('settle-body');
     if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="12">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
-      const {p, pDisplay, tot, amt} = calcGroup(g);
-      const refund = getRefund(g.timeKey,g.agencyId,g.userId);
+      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+      const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
+      const savedSnap=snapshotMap[snapKey];
+      const groupDate=g.timeKey.slice(0,10);
+      const isToday=groupDate>=todayStr;
+
+      // 과거는 스냅샷, 오늘은 실시간
+      const {p, pDisplay, tot, amt} = isToday ? calcGroup(g) : {
+        p: savedSnap?.unitPrice||getSlotPrice(g.slots[0]),
+        pDisplay: (savedSnap?.unitPrice||getSlotPrice(g.slots[0])).toLocaleString(),
+        tot: savedSnap?.totalTarget||0,
+        amt: savedSnap ? (savedSnap.amount+(savedSnap.refund||0)) : 0,
+      };
+      const refund = isToday ? getRefund(g.timeKey,g.agencyId,g.userId) : (savedSnap?.refund||0);
       const netAmt = amt-refund;
       const netVat = Math.round(netAmt*1.1);
       const pc     = g.slots.filter(s=>paidSet.has(s._key)).length;
@@ -342,11 +373,8 @@
       const ea     = encodeURIComponent(g.agencyId);
       const eu     = encodeURIComponent(g.userId);
       const et     = encodeURIComponent(g.timeKey);
-      const safe   = s=>s.replace(/[.#$[\]/]/g,'_');
-      const snapKey= `${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
-      const snap   = snapshotMap[snapKey];
-      const confirmedByName = snap?.confirmedByName || snap?.confirmedBy || '';
-      const confirmedAt = snap?.confirmedAt ? new Date(snap.confirmedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      const confirmedByName = savedSnap?.confirmedByName || savedSnap?.confirmedBy || '';
+      const confirmedAt = savedSnap?.confirmedAt ? new Date(savedSnap.confirmedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
       const staffCell = allP && confirmedByName
         ? `<span style="font-size:11px;font-weight:700;color:var(--info)">${confirmedByName}</span>${confirmedAt?`<br><span style="font-size:10px;color:var(--muted)">${confirmedAt}</span>`:''}`
         : `<span style="color:var(--muted);font-size:11px">-</span>`;
