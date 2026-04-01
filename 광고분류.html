@@ -512,9 +512,12 @@
 
   /* ── 이미지 캡처 ── */
   window.acCapture = async function(){
-    const target = document.getElementById('ac-tbl-target');
+    const scroll = document.getElementById('ac-tbl-target');
     const btn    = document.getElementById('ac-cap-btn');
-    if(!target) return;
+    if(!scroll) return;
+
+    // 실제 테이블 콘텐츠 영역 (스크롤 컨테이너 안의 wrap) 사용
+    const target = scroll.querySelector('.ac-tbl-wrap') || scroll;
 
     // html2canvas 보장 로드
     async function ensureH2C(){
@@ -535,10 +538,9 @@
       const ths=target.querySelectorAll('thead th');
       ths.forEach(th=>{th.style.position='';th.style.top='';});
 
-      // 실제 테이블 콘텐츠 너비 계산 (빈 여백 제외)
       const tbl = target.querySelector('table');
-      const contentW = tbl ? tbl.offsetWidth : target.scrollWidth;
-      const contentH = target.scrollHeight;
+      const captureW = tbl ? tbl.offsetWidth  : target.scrollWidth;
+      const captureH = tbl ? tbl.offsetHeight : target.scrollHeight;
 
       const canvas = await html2canvas(target, {
         scale: 2,                    // 레티나 대응 — 2배 해상도
@@ -546,9 +548,9 @@
         backgroundColor: '#ffffff',
         scrollY: 0,
         scrollX: 0,
-        windowWidth: contentW,
-        width: contentW,
-        height: contentH,
+        windowWidth: captureW,
+        width: captureW,
+        height: captureH,
       });
 
       // sticky 복원
