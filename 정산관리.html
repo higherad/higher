@@ -196,10 +196,23 @@
   };
 
   function renderSummary(){
-    const base=allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');
-    const totalA=base.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-    const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
-    const dA=dS.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+    // 과거: 스냅샷 합산 / 오늘: 실시간 계산
+    const snapVals = Object.values(snapshotMap);
+    const pastTotal = snapVals
+      .filter(v => v.timeKey && v.timeKey.slice(0,10) < todayStr)
+      .reduce((a,v) => a + (v.amount||0), 0);
+    const todayBase = allSlots.filter(s =>
+      (s.status==='active'||s.status==='expired'||s.status==='pending') &&
+      (s.createdAt||'').slice(0,10) === todayStr
+    );
+    const dA = todayBase.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+    // 오늘 환불 차감
+    const todayRefund = Object.entries(refundMap||{}).reduce((a,[k,v])=>{
+      return k.split('__')[0].slice(0,10) === todayStr ? a+(v||0) : a;
+    }, 0);
+    const todayNet = dA - todayRefund;
+    const totalA = pastTotal + todayNet;
+    const dS = todayBase;
     document.getElementById('settle-summary').innerHTML=`
       <div class="sum-card month clickable" onclick="openMonthPopup()">
         <div class="sc-label">총 매출액(VAT 별도)</div>
@@ -230,28 +243,41 @@
     const curYM    = `${curYear}-${String(curMonth).padStart(2,'0')}`;
     const monthLabel = `${curMonth}월`;
 
-    const base = allSlots.filter(s => s.status==='active' || s.status==='expired' || s.status==='pending');
-    const monthSlots = base.filter(s => (s.createdAt||'').slice(0,7) === curYM);
-
+    // 당월 스냅샷 집계 (과거 날짜) + 오늘 실시간
     const byDay = {};
-    monthSlots.forEach(s => {
-      const d = (s.createdAt||'').slice(0,10);
-      if (!byDay[d]) byDay[d] = { slots:[] };
-      byDay[d].slots.push(s);
+
+    // 스냅샷에서 당월 데이터
+    Object.values(snapshotMap).forEach(v => {
+      if (!v.timeKey) return;
+      const d = v.timeKey.slice(0,10);
+      if (d.slice(0,7) !== curYM || d >= todayStr) return;
+      if (!byDay[d]) byDay[d] = { count:0, tgt:0, amt:0 };
+      byDay[d].count++;
+      byDay[d].tgt += v.totalTarget||0;
+      byDay[d].amt += v.amount||0;
     });
 
-    const monthTotal = monthSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+    // 오늘 실시간
+    const todaySlots = allSlots.filter(s =>
+      (s.status==='active'||s.status==='expired'||s.status==='pending') &&
+      (s.createdAt||'').slice(0,10) === todayStr
+    );
+    if (todaySlots.length && todayStr.slice(0,7) === curYM) {
+      const todayAmt = todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const todayRef = Object.entries(refundMap||{}).reduce((a,[k,v])=>k.split('__')[0].slice(0,10)===todayStr?a+(v||0):a,0);
+      byDay[todayStr] = { count: todaySlots.length, tgt: todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0), amt: todayAmt-todayRef };
+    }
+
+    const monthTotal = Object.values(byDay).reduce((a,v)=>a+(v.amt||0),0);
 
     const dRows = Object.keys(byDay).sort().reverse().map(d => {
-      const grp = byDay[d];
-      const amt = grp.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-      const tgt = grp.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      const dv = byDay[d];
       return `<tr>
         <td style="font-weight:600">${d}</td>
-        <td>${grp.slots.length}건</td>
-        <td>${tgt.toLocaleString()}</td>
-        <td style="font-weight:700;color:var(--accent)">${amt.toLocaleString()}원</td>
-        <td style="font-weight:700;color:var(--info)">${Math.round(amt*1.1).toLocaleString()}원</td>
+        <td>${dv.count}건</td>
+        <td>${dv.tgt.toLocaleString()}</td>
+        <td style="font-weight:700;color:var(--accent)">${dv.amt.toLocaleString()}원</td>
+        <td style="font-weight:700;color:var(--info)">${Math.round(dv.amt*1.1).toLocaleString()}원</td>
       </tr>`;
     }).join('');
 
@@ -276,25 +302,45 @@
   };
 
   window.openTotalPopup = function() {
-    const base = allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');
+    // 과거: 스냅샷 월별 집계 / 오늘: 실시간
     const byMonth = {};
-    base.forEach(s => {
-      const m = (s.createdAt||'').slice(0,7);
-      if (!byMonth[m]) byMonth[m] = { slots:[] };
-      byMonth[m].slots.push(s);
+
+    Object.values(snapshotMap).forEach(v => {
+      if (!v.timeKey) return;
+      const d = v.timeKey.slice(0,10);
+      if (d >= todayStr) return;
+      const m = d.slice(0,7);
+      if (!byMonth[m]) byMonth[m] = { count:0, tgt:0, amt:0 };
+      byMonth[m].count++;
+      byMonth[m].tgt += v.totalTarget||0;
+      byMonth[m].amt += v.amount||0;
     });
+
+    // 오늘 실시간
+    const todaySlots = allSlots.filter(s =>
+      (s.status==='active'||s.status==='expired'||s.status==='pending') &&
+      (s.createdAt||'').slice(0,10) === todayStr
+    );
+    if (todaySlots.length) {
+      const m = todayStr.slice(0,7);
+      const todayAmt = todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const todayRef = Object.entries(refundMap||{}).reduce((a,[k,v])=>k.split('__')[0].slice(0,10)===todayStr?a+(v||0):a,0);
+      if (!byMonth[m]) byMonth[m] = { count:0, tgt:0, amt:0 };
+      byMonth[m].count += todaySlots.length;
+      byMonth[m].tgt += todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      byMonth[m].amt += todayAmt - todayRef;
+    }
+
     let grandTotal = 0;
     const mRows = Object.keys(byMonth).sort().reverse().map(m => {
-      const mv  = byMonth[m];
-      const amt = mv.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-      const tgt = mv.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      grandTotal += amt;
+      const mv = byMonth[m];
+      grandTotal += mv.amt;
       return `<tr>
         <td style="font-weight:600">${m}</td>
-        <td>${mv.slots.length}건</td>
-        <td>${tgt.toLocaleString()}</td>
-        <td style="font-weight:700;color:var(--accent)">${amt.toLocaleString()}원</td>
-        <td style="font-weight:700;color:var(--info)">${Math.round(amt*1.1).toLocaleString()}원</td>
+        <td>${mv.count}건</td>
+        <td>${mv.tgt.toLocaleString()}</td>
+        <td style="font-weight:700;color:var(--accent)">${mv.amt.toLocaleString()}원</td>
+        <td style="font-weight:700;color:var(--info)">${Math.round(mv.amt*1.1).toLocaleString()}원</td>
       </tr>`;
     }).join('');
     const ov = document.createElement('div');
