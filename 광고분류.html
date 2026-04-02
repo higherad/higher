@@ -538,9 +538,18 @@
       const ths=target.querySelectorAll('thead th');
       ths.forEach(th=>{th.style.position='';th.style.top='';});
 
+      // 테이블 실제 크기 측정
       const tbl = target.querySelector('table');
       const captureW = tbl ? tbl.offsetWidth  : target.scrollWidth;
       const captureH = tbl ? tbl.offsetHeight : target.scrollHeight;
+
+      // 캡처 전: wrap 너비를 테이블에 딱 맞게 임시 고정
+      const prevWidth   = target.style.width;
+      const prevMinW    = target.style.minWidth;
+      const prevDisplay = target.style.display;
+      target.style.width    = captureW + 'px';
+      target.style.minWidth = captureW + 'px';
+      target.style.display  = 'inline-block';
 
       const canvas = await html2canvas(target, {
         scale: 2,                    // 레티나 대응 — 2배 해상도
@@ -552,6 +561,11 @@
         width: captureW,
         height: captureH,
       });
+
+      // 스타일 복원
+      target.style.width    = prevWidth;
+      target.style.minWidth = prevMinW;
+      target.style.display  = prevDisplay;
 
       // sticky 복원
       ths.forEach(th=>{th.style.position='sticky';th.style.top='0';});
