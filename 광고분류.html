@@ -196,7 +196,7 @@
     })).map(g=>({...g,stores:g.stores.filter(r=>r.sum>0),gSum:g.stores.filter(r=>r.sum>0).reduce((a,r)=>a+r.sum,0)}));
     const total={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
     groupSums.forEach(g=>g.stores.forEach(r=>{total.ns+=r.ns;total.np+=r.np;total.nps+=r.nps;total.na+=r.na;total.vm+=r.vm;total.sum+=r.sum;}));
-    const result={groupSums,total,ts:new Date().toLocaleString('ko-KR')};
+    const result={groupSums,total,ts:new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})};
     window._acDailyResult=result;
     await fbSaveResult(result);
     // 저장 후 월별 데이터 갱신
