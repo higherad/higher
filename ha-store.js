@@ -7,18 +7,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
 import { getDatabase, ref, set, get, push, update, remove, onValue }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
-
-// ── Firebase 초기화 ──────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: "AIzaSyAF-Rn7tzIjQeyUDJKnvKTRNccsXUVsIjo",
-  authDomain: "higherad-b9d62.firebaseapp.com",
-  databaseURL: "https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "higherad-b9d62",
-  storageBucket: "higherad-b9d62.firebasestorage.app",
-  messagingSenderId: "938928195180",
-  appId: "1:938928195180:web:8209b1e02a8caabe643a49",
-  measurementId: "G-01T4L4ZGVV"
-};
+import { firebaseConfig, TELEGRAM, ADMIN_PASSWORD, STAFF_ACCOUNTS } from './config.js';
 
 const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
@@ -35,23 +24,7 @@ const PATHS = {
   statusLog:       'ha/status_log',   // 담당자 상태 변경 이력
 };
 
-// ── 직원(Staff) 계정 설정 ────────────────────────────────────
-// 담당자 이름, 아이디, 비밀번호를 여기서 관리합니다.
-const STAFF_ACCOUNTS = [
-  { id: 'staff1', username: 'higherad1', password: 'hi1105', name: '주병주', role: 'staff' },
-  { id: 'staff2', username: 'kimpro', password: 'hi1234!!', name: '김태홍', role: 'staff' },
-  { id: 'staff3', username: 'dlgmlwn323', password: 'bawoo920', name: '이희주', role: 'staff' },
-];
-
-// ── 텔레그램 알림 설정 ────────────────────────────────────────
-const TELEGRAM = {
-  token:   '8696324609:AAFo10CLRJiWdDahGtCqHfLKY16HsHZOnE8',
-  chatIds: [
-    '-1003641342076',   // 관리자1
-    // '여기에추가',   // 관리자2
-    // '여기에추가',   // 관리자3
-  ],
-};
+// STAFF_ACCOUNTS, TELEGRAM, ADMIN_PASSWORD, firebaseConfig → config.js 참조
 
 async function sendTelegram(message) {
   try {
@@ -100,7 +73,7 @@ const HA = {
   // ── 로그인 ────────────────────────────────────────────────
   async login(username, password) {
     // 어드민 계정
-    if (username === 'admin' && password === 'admin1234') {
+    if (username === 'admin' && password === ADMIN_PASSWORD) {
       const user = { id: 'admin', username: 'admin', role: 'admin', name: '박성진', agency: '-' };
       sessionStorage.setItem('ha_current_user', JSON.stringify(user));
       return { ok: true, user };
