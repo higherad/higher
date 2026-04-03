@@ -266,7 +266,7 @@ const HA = {
   },
 
   async deleteSlot(key) {
-    await remove(ref(db, `${PATHS.slots}/${key}`));
+    await update(ref(db, `${PATHS.slots}/${key}`), { status: 'deleted' });
     dispatch('ha:slots:updated');
   },
 

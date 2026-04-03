@@ -169,6 +169,7 @@
     const kw       = (document.getElementById('receipt-search').value||'').trim().toLowerCase();
     const dateFrom = document.getElementById('filter-date-from').value;
     return allSlots.filter(s => {
+      if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
       if (kw && ![s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       const slotDate = (s.createdAt||'').slice(0,10);

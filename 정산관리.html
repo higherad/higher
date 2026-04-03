@@ -167,7 +167,7 @@
     const paid=document.getElementById('sf-paid').value;
     const from=document.getElementById('sf-from').value;
     const kw=(document.getElementById('sf-kw').value||'').toLowerCase();
-    return allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending').filter(s=>{
+    return allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending'||s.status==='deleted').filter(s=>{
       if(paid==='paid'&&!paidSet.has(s._key))return false;
       if(paid==='unpaid'&&paidSet.has(s._key))return false;
       if(from&&(s.createdAt||'').slice(0,10)!==from)return false;
