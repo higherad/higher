@@ -100,7 +100,7 @@ const HA = {
   // ── 로그인 ────────────────────────────────────────────────
   async login(username, password) {
     // 어드민 계정
-    if (username === 'admin' && password === 'admin1234') {
+    if (username === 'admin' && password === 'admin0619') {
       const user = { id: 'admin', username: 'admin', role: 'admin', name: '박성진', agency: '-' };
       sessionStorage.setItem('ha_current_user', JSON.stringify(user));
       return { ok: true, user };
