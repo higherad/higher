@@ -289,9 +289,12 @@
     const pg    = document.getElementById('receipt-pagination');
     let html = `<button class="pg-btn" onclick="goPage(1)">&laquo;</button>
                 <button class="pg-btn" onclick="goPage(${Math.max(1,currentPage-1)})">&lsaquo;</button>`;
-    for (let i=1; i<=pages; i++) {
+    const s=Math.max(1,currentPage-2),e=Math.min(pages,currentPage+2);
+    if(s>1){html+=`<button class="pg-btn" onclick="goPage(1)">1</button>`;if(s>2)html+=`<span class="pg-btn" style="pointer-events:none">…</span>`;}
+    for (let i=s; i<=e; i++) {
       html += `<button class="pg-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
     }
+    if(e<pages){if(e<pages-1)html+=`<span class="pg-btn" style="pointer-events:none">…</span>`;html+=`<button class="pg-btn" onclick="goPage(${pages})">${pages}</button>`;}
     html += `<button class="pg-btn" onclick="goPage(${Math.min(pages,currentPage+1)})">&rsaquo;</button>
              <button class="pg-btn" onclick="goPage(${pages})">&raquo;</button>`;
     pg.innerHTML = html;

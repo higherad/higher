@@ -448,7 +448,10 @@
     const pages=Math.ceil(rows.length/PER)||1;
     const pg=document.getElementById('settle-pagination');
     let ph=`<button class="pg-btn" onclick="goSP(1)">&laquo;</button><button class="pg-btn" onclick="goSP(${Math.max(1,sPage-1)})">&lsaquo;</button>`;
-    for(let i=1;i<=pages;i++)ph+=`<button class="pg-btn ${i===sPage?'active':''}" onclick="goSP(${i})">${i}</button>`;
+    const s=Math.max(1,sPage-2),e=Math.min(pages,sPage+2);
+    if(s>1){ph+=`<button class="pg-btn" onclick="goSP(1)">1</button>`;if(s>2)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;}
+    for(let i=s;i<=e;i++)ph+=`<button class="pg-btn ${i===sPage?'active':''}" onclick="goSP(${i})">${i}</button>`;
+    if(e<pages){if(e<pages-1)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;ph+=`<button class="pg-btn" onclick="goSP(${pages})">${pages}</button>`;}
     ph+=`<button class="pg-btn" onclick="goSP(${Math.min(pages,sPage+1)})">&rsaquo;</button><button class="pg-btn" onclick="goSP(${pages})">&raquo;</button>`;
     pg.innerHTML=ph;
   };
