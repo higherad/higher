@@ -86,6 +86,10 @@
     document.querySelectorAll('.ac-sec')[0].style.display=d; // 구분 설정 타이틀
     document.querySelectorAll('.ac-sec')[1].style.display=d; // 업로드 타이틀
     document.querySelector('.ac-divider').style.display=d;
+    // 검색창 placeholder 전환
+    const si=document.getElementById('ac-search');
+    si.value='';
+    si.placeholder=tab==='dates'?'🔍  날짜 검색 (예: 04.07)...':'🔍  업체명 검색...';
     if(tab==='daily'){
       const r=window._acDailyResult;
       r?renderResult(r,''):showEmpty('📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');
@@ -231,8 +235,8 @@
       const defaultMonth=months.includes(curYYMM)?curYYMM:months[0];
 
       const btnHtml=months.map(ym=>{
-        const y='20'+ym.slice(0,2), m=Number(ym.slice(2));
-        return `<button class="ac-month-btn${ym===defaultMonth?' active':''}" data-ym="${ym}" onclick="acSelectDateMonth('${ym}')">${y}년 ${m}월</button>`;
+        const m=Number(ym.slice(2));
+        return `<button class="ac-month-btn${ym===defaultMonth?' active':''}" data-ym="${ym}" onclick="acSelectDateMonth('${ym}')">${ym.slice(0,2)}년 ${m}월</button>`;
       }).join('');
 
       document.getElementById('ac-result-area').innerHTML=`
@@ -311,8 +315,8 @@
   function renderMonthSelector(months, selectedYYMM, daily){
     // 월 선택 버튼 + 합산 결과
     const btnHtml=months.map(ym=>{
-      const y='20'+ym.slice(0,2), m=Number(ym.slice(2));
-      const label=`${y}년 ${m}월`;
+      const m=Number(ym.slice(2));
+      const label=`${ym.slice(0,2)}년 ${m}월`;
       const cnt=Object.keys(daily).filter(k=>k.startsWith(ym)).length;
       return `<button class="ac-month-btn${ym===selectedYYMM?' active':''}" onclick="acSelectMonth('${ym}')">${label} <span class="ac-month-cnt">${cnt}일</span></button>`;
     }).join('');
@@ -563,7 +567,14 @@
   window.acSearch=function(val){
     if(_activeTab==='daily'){ if(window._acDailyResult)renderResult(window._acDailyResult,val); }
     else if(_activeTab==='monthly'){ if(window._acMonthResult)renderMonthlyTable(window._acMonthResult,val); }
-    else { /* 날짜별 탭은 검색 미적용 */ }
+    else {
+      // 날짜별: 날짜 레이블로 행 필터링
+      document.querySelectorAll('#ac-date-table .ac-date-row').forEach(tr=>{
+        const label=tr.querySelector('.ac-date-label');
+        const match=!val||( label&&label.textContent.replace('.','').includes(val.replace('.','')) );
+        tr.style.display=match?'':'none';
+      });
+    }
   };
   window.acClearSearch=function(){
     document.getElementById('ac-search').value='';
