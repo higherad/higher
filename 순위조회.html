@@ -23,30 +23,9 @@
 <script>
 (function(){
 
-  function showResult(html){ document.getElementById('rk-result').innerHTML = html; }
+  const CLOUD_RUN = 'https://higherad-auto-938928195180.asia-northeast3.run.app';
 
-  async function naverRank(keyword, mid){
-    for(let page = 1; page <= 5; page++){
-      const params = new URLSearchParams({
-        query: keyword, type: 'all', page, displayCount: 20,
-        searchCoord: '127.0016985;37.5642135',
-      });
-      const resp = await fetch(
-        `https://map.naver.com/p/api/search/allSearch?${params}`,
-        { credentials: 'include' }
-      );
-      if(!resp.ok) throw new Error(`Naver API ${resp.status}`);
-      const data = await resp.json();
-      const meta = data?.result?.metaInfo?.pageId || '';
-      if(meta.startsWith('ncaptcha')) throw new Error('CAPTCHA — 네이버 지도에 먼저 로그인해주세요.');
-      const list = data?.result?.place?.list;
-      if(!list || !list.length) return 0;
-      for(let i = 0; i < list.length; i++){
-        if(String(list[i].id) === String(mid)) return (page-1)*20 + i + 1;
-      }
-    }
-    return 0;
-  }
+  function showResult(html){ document.getElementById('rk-result').innerHTML = html; }
 
   window.rkCheck = async function(){
     const keyword = document.getElementById('rk-keyword').value.trim();
@@ -60,10 +39,17 @@
     const btn = document.getElementById('rk-btn');
     btn.disabled = true;
     btn.textContent = '조회 중...';
-    showResult('<div class="rk-msg">🔄 순위 조회 중...</div>');
+    showResult('<div class="rk-msg">🔄 순위 조회 중... (최대 30초)</div>');
 
     try {
-      const rank = await naverRank(keyword, mid);
+      const resp = await fetch(`${CLOUD_RUN}/rank-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword, mid }),
+      });
+      const data = await resp.json();
+      if(!resp.ok){ showResult(`<div class="rk-msg err">❌ ${data.error||'오류 발생'}</div>`); return; }
+      const rank = data.rank;
       if(rank > 0){
         const badge = rank <= 3  ? 'top3'
                     : rank <= 10 ? 'top10'
