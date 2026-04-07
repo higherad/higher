@@ -54,20 +54,30 @@
         const badge = rank <= 3  ? 'top3'
                     : rank <= 10 ? 'top10'
                     : rank <= 20 ? 'top20' : 'low';
+        const thumbHtml = data.thumb ? `<img src="${data.thumb}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">` : '';
+        const row = (label, val) => val ? `<div class="rk-card-row"><span class="rk-card-label">${label}</span><span class="rk-card-val">${val}</span></div>` : '';
         showResult(`
           <div class="rk-card">
-            <div class="rk-card-row">
-              <span class="rk-card-label">키워드</span>
-              <span class="rk-card-val">${keyword}</span>
+            <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:8px">
+              ${thumbHtml}
+              <div style="flex:1;min-width:0">
+                <div style="font-size:17px;font-weight:700;margin-bottom:2px">${data.name || keyword}</div>
+                <div style="font-size:12px;color:var(--muted,#94a3b8)">${data.category || ''}</div>
+              </div>
+              <div style="text-align:right">
+                <span class="rk-rank-num rank-${badge}" style="font-size:36px">${rank}</span>
+                <span class="rk-rank-unit">위</span>
+              </div>
             </div>
-            <div class="rk-card-row">
-              <span class="rk-card-label">MID</span>
-              <span class="rk-card-val muted">${mid}</span>
-            </div>
-            <div class="rk-rank-display">
-              <span class="rk-rank-num rank-${badge}">${rank}</span>
-              <span class="rk-rank-unit">위</span>
-            </div>
+            ${row('키워드', keyword)}
+            ${row('MID', mid)}
+            ${row('주소', data.address)}
+            ${row('거리', data.distance)}
+            ${row('평점', data.rating)}
+            ${row('리뷰', data.reviews)}
+            ${row('전화', data.tel)}
+            ${row('영업시간', data.hours)}
+            ${data.url ? `<div class="rk-card-row"><span class="rk-card-label">링크</span><span class="rk-card-val"><a href="${data.url}" target="_blank" style="color:var(--primary,#6366f1)">네이버 플레이스</a></span></div>` : ''}
           </div>`);
       } else {
         showResult(`
