@@ -8,8 +8,8 @@
   /* 전체탭 테이블 */
   #rank-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
   #rank-page table { width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
-  #rank-page thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; border-right:1px solid #2d3f55; text-align:center; }
-  #rank-page tbody td { padding:10px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+  #rank-page thead th { background:#1e293b; color:#fff; padding:9px 10px; font-weight:500; border-right:1px solid #2d3f55; text-align:center; }
+  #rank-page tbody td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #rank-page tbody tr:last-child td { border-bottom:none; }
   #rank-page tbody tr:hover { background:#f8fafc; }
 
@@ -18,11 +18,16 @@
   #rank-page tbody td.st { position:sticky; z-index:2; background:#fff; }
   #rank-page tbody tr:hover td.st { background:#f8fafc; }
   #rank-page .st-0 { left:0; min-width:80px; }
-  #rank-page .st-1 { left:80px; min-width:130px; text-align:left !important; }
-  #rank-page tbody td.st-1 { text-align:left !important; }
+  #rank-page .st-1 { left:80px; min-width:130px; }
   #rank-page .st-2 { left:210px; min-width:110px; }
-  #rank-page .st-3 { left:320px; min-width:160px; text-align:left !important; border-right:2px solid #2d3f55; }
-  #rank-page tbody td.st-3 { text-align:left !important; border-right:2px solid #e2e8f0; }
+  #rank-page .st-3 { left:320px; min-width:160px; border-right:2px solid #2d3f55; }
+  #rank-page tbody td.st-3 { border-right:2px solid #e2e8f0; }
+
+  /* 대행사 필터 */
+  #rank-page .agency-filter { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  #rank-page .af-btn { padding:5px 14px; border-radius:20px; border:1px solid var(--border); background:#fff; font-size:12px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.2s; }
+  #rank-page .af-btn:hover { background:var(--bg); }
+  #rank-page .af-btn.active { background:#1e293b; color:#fff; border-color:#1e293b; }
 
   /* 날짜 헤더 */
   #rank-page th.dc { min-width:54px; }
@@ -71,6 +76,7 @@
 
 <!-- 전체 탭 -->
 <div id="rk-all">
+  <div class="agency-filter" id="rk-agency-filter"></div>
   <div class="tbl-wrap">
     <table id="rk-tbl">
       <thead>
@@ -164,11 +170,34 @@
         thead.appendChild(th);
       });
 
+      /* 대행사 필터 버튼 생성 */
+      const agencies = [...new Set(active.map(s => s.agencyId || '-'))].sort();
+      let currentAgency = '';
+      const filterWrap = document.getElementById('rk-agency-filter');
+
+      function renderFilter() {
+        filterWrap.innerHTML = ['전체', ...agencies].map(a =>
+          `<button class="af-btn ${currentAgency === a || (a === '전체' && !currentAgency) ? 'active' : ''}"
+            onclick="rkAgencyFilter('${a}')">${a}</button>`
+        ).join('');
+      }
+
+      window.rkAgencyFilter = function(agency) {
+        currentAgency = agency === '전체' ? '' : agency;
+        renderFilter();
+        document.querySelectorAll('#rk-tbody tr[data-agency]').forEach(tr => {
+          tr.style.display = (!currentAgency || tr.dataset.agency === currentAgency) ? '' : 'none';
+        });
+      };
+
+      renderFilter();
+
       /* 행 렌더 */
       tbody.innerHTML = '';
       active.forEach((s, i) => {
         const rd = rankDataArr[i];
         const tr = document.createElement('tr');
+        tr.dataset.agency = s.agencyId || '-';
         tr.innerHTML = `
           <td class="st st-0">${s.agencyId || '-'}</td>
           <td class="st st-1" style="font-weight:600">${s.storeName || '-'}</td>
