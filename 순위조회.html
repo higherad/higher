@@ -69,9 +69,7 @@
             </div>
             ${row('키워드', keyword)}
             ${row('MID', mid)}
-            ${row('평점', data.rating)}
             ${row('리뷰', data.reviews)}
-            ${row('전화', data.tel)}
             ${data.url ? `<div class="rk-card-row"><span class="rk-card-label">링크</span><span class="rk-card-val"><a href="${data.url}" target="_blank" style="color:var(--primary,#6366f1)">네이버 플레이스</a></span></div>` : ''}
           </div>`);
       } else {
