@@ -269,16 +269,8 @@
 
     const monthTotal = Object.values(byDay).reduce((a,v)=>a+(v.amt||0),0);
 
-    const dRows = Object.keys(byDay).sort().reverse().map(d => {
-      const dv = byDay[d];
-      return `<tr>
-        <td style="font-weight:600">${d}</td>
-        <td>${dv.count}건</td>
-        <td>${dv.tgt.toLocaleString()}</td>
-        <td style="font-weight:700;color:var(--accent)">${dv.amt.toLocaleString()}원</td>
-        <td style="font-weight:700;color:var(--info)">${Math.round(dv.amt*1.1).toLocaleString()}원</td>
-      </tr>`;
-    }).join('');
+    const sortedDays = Object.keys(byDay).sort().reverse();
+    const DAY_PER = 12;
 
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
@@ -292,12 +284,38 @@
       <div class="sp-section">일자별 합산</div>
       <table class="sp-tbl">
         <thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
-        <tbody>${dRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody>
+        <tbody id="mp-day-tbody"></tbody>
       </table>
+      <div id="mp-day-pg" class="pagination" style="margin-top:12px;"></div>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
     </div>`;
     document.body.appendChild(ov);
     ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+
+    let mpCurPg = 1;
+    function renderMpDay() {
+      const total = Math.ceil(sortedDays.length / DAY_PER) || 1;
+      const slice = sortedDays.slice((mpCurPg-1)*DAY_PER, mpCurPg*DAY_PER);
+      ov.querySelector('#mp-day-tbody').innerHTML = slice.length
+        ? slice.map(d => { const dv=byDay[d]; return `<tr><td style="font-weight:600">${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.amt.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.amt*1.1).toLocaleString()}원</td></tr>`; }).join('')
+        : '<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>';
+      const pgDiv = ov.querySelector('#mp-day-pg');
+      if (total <= 1) { pgDiv.innerHTML=''; return; }
+      let ph=`<button class="pg-btn" data-pg="1">&laquo;</button><button class="pg-btn" data-pg="${Math.max(1,mpCurPg-1)}">&lsaquo;</button>`;
+      const s=Math.max(1,mpCurPg-2),e=Math.min(total,mpCurPg+2);
+      if(s>1){ph+=`<button class="pg-btn" data-pg="1">1</button>`;if(s>2)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;}
+      for(let i=s;i<=e;i++) ph+=`<button class="pg-btn${i===mpCurPg?' active':''}" data-pg="${i}">${i}</button>`;
+      if(e<total){if(e<total-1)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;ph+=`<button class="pg-btn" data-pg="${total}">${total}</button>`;}
+      ph+=`<button class="pg-btn" data-pg="${Math.min(total,mpCurPg+1)}">&rsaquo;</button><button class="pg-btn" data-pg="${total}">&raquo;</button>`;
+      pgDiv.innerHTML = ph;
+    }
+    renderMpDay();
+    ov.querySelector('#mp-day-pg').addEventListener('click', e => {
+      const btn = e.target.closest('[data-pg]');
+      if (!btn) return;
+      mpCurPg = parseInt(btn.dataset.pg);
+      renderMpDay();
+    });
   };
 
   window.openTotalPopup = function() {
@@ -593,10 +611,9 @@
       const mv=byMonth[m];
       return `<tr><td style="font-weight:600">${m}</td><td>${mv.count}건</td><td>${mv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${mv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(mv.net*1.1).toLocaleString()}원</td></tr>`;
     }).join('');
-    const dRows=Object.keys(byDay).sort().reverse().map(d=>{
-      const dv=byDay[d];
-      return `<tr><td>${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.net*1.1).toLocaleString()}원</td></tr>`;
-    }).join('');
+    const sortedAgDays = Object.keys(byDay).sort().reverse();
+    const AG_DAY_PER = 12;
+
     const ov=document.createElement('div');
     ov.className='sp-overlay';
     ov.innerHTML=`<div class="sp-box">
@@ -613,11 +630,37 @@
         <tbody>${mRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
       <div class="sp-section">일별 합산</div>
       <table class="sp-tbl"><thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
-        <tbody>${dRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
+        <tbody id="ag-day-tbody"></tbody></table>
+      <div id="ag-day-pg" class="pagination" style="margin-top:12px;"></div>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
     </div>`;
     document.body.appendChild(ov);
     ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+
+    let agCurPg = 1;
+    function renderAgDay() {
+      const total = Math.ceil(sortedAgDays.length / AG_DAY_PER) || 1;
+      const slice = sortedAgDays.slice((agCurPg-1)*AG_DAY_PER, agCurPg*AG_DAY_PER);
+      ov.querySelector('#ag-day-tbody').innerHTML = slice.length
+        ? slice.map(d => { const dv=byDay[d]; return `<tr><td>${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.net*1.1).toLocaleString()}원</td></tr>`; }).join('')
+        : '<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>';
+      const pgDiv = ov.querySelector('#ag-day-pg');
+      if (total <= 1) { pgDiv.innerHTML=''; return; }
+      let ph=`<button class="pg-btn" data-pg="1">&laquo;</button><button class="pg-btn" data-pg="${Math.max(1,agCurPg-1)}">&lsaquo;</button>`;
+      const s=Math.max(1,agCurPg-2),e=Math.min(total,agCurPg+2);
+      if(s>1){ph+=`<button class="pg-btn" data-pg="1">1</button>`;if(s>2)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;}
+      for(let i=s;i<=e;i++) ph+=`<button class="pg-btn${i===agCurPg?' active':''}" data-pg="${i}">${i}</button>`;
+      if(e<total){if(e<total-1)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;ph+=`<button class="pg-btn" data-pg="${total}">${total}</button>`;}
+      ph+=`<button class="pg-btn" data-pg="${Math.min(total,agCurPg+1)}">&rsaquo;</button><button class="pg-btn" data-pg="${total}">&raquo;</button>`;
+      pgDiv.innerHTML = ph;
+    }
+    renderAgDay();
+    ov.querySelector('#ag-day-pg').addEventListener('click', e => {
+      const btn = e.target.closest('[data-pg]');
+      if (!btn) return;
+      agCurPg = parseInt(btn.dataset.pg);
+      renderAgDay();
+    });
   };
 
   window.exportSettleCSV=function(){
