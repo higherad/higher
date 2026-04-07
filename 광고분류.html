@@ -222,38 +222,67 @@
       const daily=await fbLoadDaily();
       const keys=Object.keys(daily).sort().reverse(); // 최신순
       if(!keys.length){showEmpty('📋 저장된 날짜별 데이터가 없습니다.');return;}
+      window._acDailyAll=daily;
 
-      const rows=keys.map(k=>{
-        const day=daily[k];
-        const t=(day&&day.total)||{};
-        const mm=k.slice(2,4), dd=k.slice(4,6);
-        return `<tr class="ac-date-row">
-          <td class="ac-date-label">${mm}.${dd}</td>
-          <td>${fmt(t.ns)}</td>
-          <td>${fmt(t.np)}</td>
-          <td>${fmt(t.nps)}</td>
-          <td>${fmt(t.na)}</td>
-          <td>${fmt(t.vm)}</td>
-          <td class="ac-date-total">${fmt(t.sum)}</td>
-        </tr>`;
+      // 월 목록 추출 (최신순)
+      const months=[...new Set(keys.map(k=>k.slice(0,4)))].sort().reverse();
+      const now=new Date();
+      const curYYMM=String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,'0');
+      const defaultMonth=months.includes(curYYMM)?curYYMM:months[0];
+
+      const btnHtml=months.map(ym=>{
+        const y='20'+ym.slice(0,2), m=Number(ym.slice(2));
+        return `<button class="ac-month-btn${ym===defaultMonth?' active':''}" data-ym="${ym}" onclick="acSelectDateMonth('${ym}')">${y}년 ${m}월</button>`;
       }).join('');
 
       document.getElementById('ac-result-area').innerHTML=`
-        <div class="ac-tbl-scroll">
-        <div class="ac-tbl-wrap">
-        <table class="ac-tbl">
-          <thead><tr>
-            <th>날짜</th>
-            <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
-            <th>N자동완성</th><th>방문미션</th><th>총합계</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-        </div></div>`;
+        <div class="ac-month-bar">${btnHtml}</div>
+        <div id="ac-date-table"></div>`;
+
+      acSelectDateMonth(defaultMonth);
     }catch(e){
       showEmpty('❌ 날짜별 데이터 로드 실패: '+e.message);
     }
   }
+
+  window.acSelectDateMonth=function(yyMM){
+    document.querySelectorAll('#ac-result-area .ac-month-btn').forEach(b=>{
+      b.classList.toggle('active', b.dataset.ym===yyMM);
+    });
+    const daily=window._acDailyAll||{};
+    const keys=Object.keys(daily).filter(k=>k.startsWith(yyMM)).sort().reverse();
+
+    if(!keys.length){
+      document.getElementById('ac-date-table').innerHTML='<div class="ac-no-result">해당 월의 데이터가 없습니다.</div>';
+      return;
+    }
+
+    const rows=keys.map(k=>{
+      const t=(daily[k]&&daily[k].total)||{};
+      const dd=k.slice(4,6);
+      return `<tr class="ac-date-row">
+        <td class="ac-date-label">${yyMM.slice(2)}.${dd}</td>
+        <td>${fmt(t.ns)}</td>
+        <td>${fmt(t.np)}</td>
+        <td>${fmt(t.nps)}</td>
+        <td>${fmt(t.na)}</td>
+        <td>${fmt(t.vm)}</td>
+        <td class="ac-date-total">${fmt(t.sum)}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('ac-date-table').innerHTML=`
+      <div class="ac-tbl-scroll"><div class="ac-tbl-wrap">
+      <table class="ac-tbl">
+        <thead><tr>
+          <th>날짜</th>
+          <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
+          <th>N자동완성</th><th>방문미션</th><th>총합계</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      </div></div>`;
+  };
 
   /* ── 월별 합산 ── */
   async function loadMonthly(){
