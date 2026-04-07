@@ -171,7 +171,9 @@
       });
 
       /* 대행사 필터 버튼 생성 */
-      const agencies = [...new Set(active.map(s => s.agencyId || '-'))].sort();
+      const strip = s => s.replace(/^\[.*?\]/, '').trim() || s;
+      const agencies = [...new Set(active.map(s => s.agencyId || '-'))]
+        .sort((a, b) => strip(a).localeCompare(strip(b), 'ko'));
       let currentAgency = '';
       const filterWrap = document.getElementById('rk-agency-filter');
 
