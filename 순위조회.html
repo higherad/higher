@@ -34,15 +34,11 @@
   #rank-page td.dc { min-width:54px; }
 
   /* 순위 배지 */
-  #rank-page .rb { display:inline-block; font-size:12px; font-weight:700; text-align:center; }
-  #rank-page .rb.t3  { color:#16a34a; }
-  #rank-page .rb.t10 { color:#2563eb; }
-  #rank-page .rb.t20 { color:#ea580c; }
-  #rank-page .rb.low { color:#64748b; }
+  #rank-page .rb { display:inline-block; font-size:12px; font-weight:700; text-align:center; color:#64748b; }
   #rank-page .rb.nd  { color:#cbd5e1; font-size:11px; font-weight:400; }
-  /* 전날 대비 색상 */
-  #rank-page .rb.up   { color:#ef4444 !important; }
-  #rank-page .rb.down { color:#3b82f6 !important; }
+  /* 전날 대비 색상 (보합=회색, 상승=빨강, 하락=파랑) */
+  #rank-page .rb.up   { color:#ef4444; }
+  #rank-page .rb.down { color:#3b82f6; }
 
   /* 로딩 */
   #rank-page .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:13px; gap:8px; }
@@ -131,12 +127,11 @@
   function rb(rank, prevRank) {
     const r = Number(rank);
     if (!r) return '<span class="rb nd">-</span>';
-    const baseCls = r <= 3 ? 't3' : r <= 10 ? 't10' : r <= 20 ? 't20' : 'low';
     const p = Number(prevRank);
     let trendCls = '';
     if (p && r < p) trendCls = ' up';        // 숫자 감소 = 순위 상승 → 빨간색
     else if (p && r > p) trendCls = ' down';  // 숫자 증가 = 순위 하락 → 파란색
-    return `<span class="rb ${baseCls}${trendCls}">${r}위</span>`;
+    return `<span class="rb${trendCls}">${r}위</span>`;
   }
 
   /* 전체 탭 로드 */
