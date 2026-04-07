@@ -6,7 +6,7 @@
   <div class="ac-tabs" id="ac-tabs">
     <button class="ac-tab active" onclick="acSwitchTab('daily',this)">📅 일별</button>
     <button class="ac-tab" onclick="acSwitchTab('monthly',this)">📆 월별</button>
-    <button class="ac-tab" onclick="acSwitchTab('dates',this)">🗓 날짜별</button>
+    <button class="ac-tab" onclick="acSwitchTab('dates',this)">📋 날짜별</button>
   </div>
 
   <!-- 검색 -->
@@ -212,50 +212,29 @@
 
   /* ── 날짜별 ── */
   async function loadDates(){
-    showEmpty('🗓 날짜별 데이터를 불러오는 중...');
+    showEmpty('📋 날짜별 데이터를 불러오는 중...');
     setStatus('');
     try{
       const daily=await fbLoadDaily();
       const keys=Object.keys(daily).sort().reverse(); // 최신순
-      if(!keys.length){showEmpty('🗓 저장된 날짜별 데이터가 없습니다.');return;}
-      window._acDailyAll=daily;
+      if(!keys.length){showEmpty('📋 저장된 날짜별 데이터가 없습니다.');return;}
 
-      // 날짜 버튼 렌더 (MMDD 형식)
-      const btnHtml=keys.map(k=>{
-        const mmdd=k.slice(2); // yyMMdd → MMdd
-        return `<button class="ac-date-btn" data-key="${k}" onclick="acSelectDate('${k}')">${mmdd}</button>`;
+      const rows=keys.map(k=>{
+        const day=daily[k];
+        const total=(day&&day.total&&day.total.sum)||0;
+        const mm=k.slice(2,4), dd=k.slice(4,6);
+        return `<div class="ac-date-row">
+          <span class="ac-date-label">${mm}.${dd}</span>
+          <span class="ac-date-total">${fmt(total)}</span>
+        </div>`;
       }).join('');
 
       document.getElementById('ac-result-area').innerHTML=`
-        <div class="ac-date-bar">${btnHtml}</div>
-        <div id="ac-date-result"></div>`;
-
-      // 가장 최근 날짜 자동 선택
-      acSelectDate(keys[0]);
+        <div class="ac-date-list">${rows}</div>`;
     }catch(e){
       showEmpty('❌ 날짜별 데이터 로드 실패: '+e.message);
     }
   }
-
-  window.acSelectDate=function(yymmdd){
-    document.querySelectorAll('.ac-date-btn').forEach(b=>{
-      b.classList.toggle('active', b.dataset.key===yymmdd);
-    });
-    const daily=window._acDailyAll||{};
-    const day=daily[yymmdd];
-    if(!day||!day.groupSums){
-      document.getElementById('ac-date-result').innerHTML='<div class="ac-no-result">해당 날짜의 데이터가 없습니다.</div>';
-      return;
-    }
-    const yy='20'+yymmdd.slice(0,2);
-    const mm=Number(yymmdd.slice(2,4));
-    const dd=Number(yymmdd.slice(4,6));
-    day.ts=day.ts||`${yy}년 ${mm}월 ${dd}일`;
-    window._acDateResult=day;
-    window._acLastResult=day;
-    const kw=(document.getElementById('ac-search').value||'').trim().toLowerCase();
-    document.getElementById('ac-date-result').innerHTML=buildTable(day, kw, false, null);
-  };
 
   /* ── 월별 합산 ── */
   async function loadMonthly(){
@@ -536,7 +515,7 @@
   window.acSearch=function(val){
     if(_activeTab==='daily'){ if(window._acDailyResult)renderResult(window._acDailyResult,val); }
     else if(_activeTab==='monthly'){ if(window._acMonthResult)renderMonthlyTable(window._acMonthResult,val); }
-    else { if(window._acDateResult){ window._acLastResult=window._acDateResult; document.getElementById('ac-date-result').innerHTML=buildTable(window._acDateResult,val,false,null); } }
+    else { /* 날짜별 탭은 검색 미적용 */ }
   };
   window.acClearSearch=function(){
     document.getElementById('ac-search').value='';
