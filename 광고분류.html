@@ -77,11 +77,15 @@
     _activeTab=tab;
     document.querySelectorAll('.ac-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    // 업로드/실행 버튼 토글
+    // 일별 전용 UI 토글 (구분설정 + 업로드/실행)
     const isDaily=tab==='daily';
-    document.getElementById('ac-zone').style.display=isDaily?'':'none';
-    document.getElementById('ac-run-btn').style.display=isDaily?'':'none';
-    document.querySelectorAll('.ac-sec')[1].style.display=isDaily?'':'none'; // 업로드 타이틀
+    const d=isDaily?'':'none';
+    document.getElementById('ac-zone').style.display=d;
+    document.getElementById('ac-run-btn').style.display=d;
+    document.getElementById('ac-editor').style.display=d;
+    document.querySelectorAll('.ac-sec')[0].style.display=d; // 구분 설정 타이틀
+    document.querySelectorAll('.ac-sec')[1].style.display=d; // 업로드 타이틀
+    document.querySelector('.ac-divider').style.display=d;
     if(tab==='daily'){
       const r=window._acDailyResult;
       r?renderResult(r,''):showEmpty('📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');
