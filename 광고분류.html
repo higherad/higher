@@ -221,16 +221,31 @@
 
       const rows=keys.map(k=>{
         const day=daily[k];
-        const total=(day&&day.total&&day.total.sum)||0;
+        const t=(day&&day.total)||{};
         const mm=k.slice(2,4), dd=k.slice(4,6);
-        return `<div class="ac-date-row">
-          <span class="ac-date-label">${mm}.${dd}</span>
-          <span class="ac-date-total">${fmt(total)}</span>
-        </div>`;
+        return `<tr class="ac-date-row">
+          <td class="ac-date-label">${mm}.${dd}</td>
+          <td>${fmt(t.ns)}</td>
+          <td>${fmt(t.np)}</td>
+          <td>${fmt(t.nps)}</td>
+          <td>${fmt(t.na)}</td>
+          <td>${fmt(t.vm)}</td>
+          <td class="ac-date-total">${fmt(t.sum)}</td>
+        </tr>`;
       }).join('');
 
       document.getElementById('ac-result-area').innerHTML=`
-        <div class="ac-date-list">${rows}</div>`;
+        <div class="ac-tbl-scroll">
+        <div class="ac-tbl-wrap">
+        <table class="ac-tbl">
+          <thead><tr>
+            <th>날짜</th>
+            <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
+            <th>N자동완성</th><th>방문미션</th><th>총합계</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        </div></div>`;
     }catch(e){
       showEmpty('❌ 날짜별 데이터 로드 실패: '+e.message);
     }

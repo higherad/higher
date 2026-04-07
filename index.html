@@ -80,12 +80,10 @@
     .ac-month-cnt{font-size:11px;font-weight:700;padding:1px 7px;border-radius:8px;background:rgba(255,255,255,.25)}
     .ac-month-btn:not(.active) .ac-month-cnt{background:var(--bg);color:var(--text2)}
     /* 날짜별 리스트 */
-    .ac-date-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .ac-date-row{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;border-bottom:1px solid var(--border);background:#fff}
-    .ac-date-row:last-child{border-bottom:none}
-    .ac-date-row:nth-child(even){background:var(--bg)}
-    .ac-date-label{font-size:14px;font-weight:700;color:var(--text2);letter-spacing:.5px}
-    .ac-date-total{font-size:15px;font-weight:800;color:var(--text)}
+    .ac-date-row td{padding:10px 13px}
+    .ac-date-row:nth-child(even) td{background:var(--bg)}
+    .ac-date-label{font-weight:700;color:var(--text2);letter-spacing:.5px;white-space:nowrap}
+    .ac-date-total{font-weight:800;color:var(--text)}
   </style>
   <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"/>
   <style>
