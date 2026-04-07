@@ -1,22 +1,114 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"></head>
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<style>
+  /* 탭 */
+  .rk-tab-nav{display:flex;gap:8px;margin-bottom:20px}
+  .rk-tab{padding:8px 20px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;transition:.2s}
+  .rk-tab:hover{background:var(--bg)}
+  .rk-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 12px rgba(16,185,129,.25)}
+
+  /* 전체 탭 - 테이블 */
+  .rk-tbl-wrap{overflow-x:auto;border-radius:14px;border:1px solid var(--border)}
+  .rk-tbl{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+  .rk-tbl thead th{background:#f8fafc;padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;border-bottom:1px solid var(--border)}
+  .rk-tbl tbody td{padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:var(--text);background:#fff}
+  .rk-tbl tbody tr:last-child td{border-bottom:none}
+  .rk-tbl tbody tr:hover td{background:#f8fafc}
+
+  /* 고정 컬럼 */
+  .rk-tbl th.sticky, .rk-tbl td.sticky{position:sticky;background:inherit;z-index:2}
+  .rk-tbl th.sticky{background:#f8fafc;z-index:3}
+  .rk-tbl .col-agency{left:0;min-width:80px}
+  .rk-tbl .col-name  {left:80px;min-width:120px;text-align:left}
+  .rk-tbl .col-mid   {left:200px;min-width:110px}
+  .rk-tbl .col-kw    {left:310px;min-width:140px;text-align:left}
+  .rk-tbl td.col-name, .rk-tbl td.col-kw{text-align:left}
+  /* sticky 경계선 */
+  .rk-tbl .col-kw{border-right:2px solid var(--border)}
+
+  /* 순위 배지 */
+  .rk-badge{display:inline-block;min-width:28px;padding:2px 6px;border-radius:6px;font-size:12px;font-weight:700;line-height:1.6;text-align:center}
+  .rk-badge.t3 {background:#dcfce7;color:#16a34a}
+  .rk-badge.t10{background:#dbeafe;color:#2563eb}
+  .rk-badge.t20{background:#ffedd5;color:#ea580c}
+  .rk-badge.low{background:#f1f5f9;color:#64748b}
+  .rk-badge.none{color:var(--muted);font-weight:400;font-size:11px}
+
+  /* 상태 배지 */
+  .rk-status{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+  .rk-status.active{background:#dcfce7;color:#16a34a}
+
+  /* 날짜 컬럼 */
+  .rk-tbl th.date-col{min-width:56px;font-size:11px}
+  .rk-tbl td.date-col{min-width:56px}
+
+  /* 개별 탭 */
+  .rk-sec{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:0 0 16px}
+  .rk-form{display:flex;flex-direction:column;gap:12px;max-width:420px}
+  .rk-field{display:flex;flex-direction:column;gap:6px}
+  .rk-label{font-size:12px;font-weight:600;color:var(--text2)}
+  .rk-input{padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;background:#fff;color:var(--text);outline:none;transition:.2s}
+  .rk-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(16,185,129,.1)}
+  .rk-btn{margin-top:4px;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s}
+  .rk-btn:hover{background:var(--accent2)}
+  .rk-btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed}
+  .rk-msg{margin-top:20px;padding:14px 16px;border-radius:10px;font-size:13px;background:var(--bg);color:var(--text2)}
+  .rk-msg.err{background:#fef2f2;color:#dc2626}
+  .rk-card{margin-top:20px;max-width:480px;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:20px 24px}
+  .rk-card-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
+  .rk-card-row:last-child{border-bottom:none}
+  .rk-card-label{font-size:12px;font-weight:600;color:var(--text2)}
+  .rk-card-val{font-size:14px;font-weight:600;color:var(--text)}
+  .rk-rank-num{font-weight:900;line-height:1}
+  .rank-top3 {color:#10b981}
+  .rank-top10{color:#3b82f6}
+  .rank-top20{color:#f59e0b}
+  .rank-low  {color:#94a3b8}
+</style>
+</head>
 <body>
 <div id="rk-wrap">
 
-  <p class="rk-sec">🔍 플레이스 순위 조회</p>
+  <p class="rk-sec">플레이스 순위 조회</p>
 
-  <div class="rk-form">
-    <div class="rk-field">
-      <label class="rk-label">키워드</label>
-      <input class="rk-input" id="rk-keyword" placeholder="예) 강남역 꽃게" autocomplete="off">
-    </div>
-    <div class="rk-field">
-      <label class="rk-label">MID</label>
-      <input class="rk-input" id="rk-mid" placeholder="예) 2055089692" autocomplete="off">
-    </div>
-    <button class="rk-btn" id="rk-btn" onclick="rkCheck()">순위 조회</button>
+  <div class="rk-tab-nav">
+    <button class="rk-tab active" onclick="switchTab('all',this)">전체</button>
+    <button class="rk-tab" onclick="switchTab('single',this)">개별</button>
   </div>
 
-  <div id="rk-result"></div>
+  <!-- ── 전체 탭 ── -->
+  <div id="tab-all">
+    <div class="rk-tbl-wrap">
+      <table class="rk-tbl" id="rk-all-tbl">
+        <thead>
+          <tr>
+            <th class="sticky col-agency">대행사</th>
+            <th class="sticky col-name">플레이스명</th>
+            <th class="sticky col-mid">MID</th>
+            <th class="sticky col-kw">순위키워드</th>
+            <!-- 날짜 컬럼은 JS로 동적 생성 -->
+          </tr>
+        </thead>
+        <tbody id="rk-all-body">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 개별 탭 ── -->
+  <div id="tab-single" style="display:none">
+    <div class="rk-form">
+      <div class="rk-field">
+        <label class="rk-label">키워드</label>
+        <input class="rk-input" id="rk-keyword" placeholder="예) 강남역 꽃게" autocomplete="off">
+      </div>
+      <div class="rk-field">
+        <label class="rk-label">MID</label>
+        <input class="rk-input" id="rk-mid" placeholder="예) 2055089692" autocomplete="off">
+      </div>
+      <button class="rk-btn" id="rk-btn" onclick="rkCheck()">순위 조회</button>
+    </div>
+    <div id="rk-result"></div>
+  </div>
 
 </div>
 
@@ -25,17 +117,63 @@
 
   const CLOUD_RUN = 'https://higher-auto-g4lrwwqw4q-du.a.run.app';
 
+  /* ── 탭 전환 ── */
+  window.switchTab = function(tab, el) {
+    document.querySelectorAll('.rk-tab').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-all').style.display    = tab === 'all'    ? '' : 'none';
+    document.getElementById('tab-single').style.display = tab === 'single' ? '' : 'none';
+  };
+
+  /* ── 전체 탭: 샘플 데이터 (연동 전 UI 확인용) ── */
+  const SAMPLE_DATES = ['04-07','04-06','04-05','04-04','04-03'];
+  const SAMPLE_ROWS = [
+    { agency:'하이어', name:'춘남식당 강남역점', mid:'2055089692', kw:'강남역 꽃게',    ranks:[3,  3,  4,  null, 5   ] },
+    { agency:'하이어', name:'독타운피자펍',       mid:'1188843453', kw:'홍대맛집',       ranks:[12, 10, 11, 9,   null] },
+    { agency:'A사',    name:'봉우화로',            mid:'11609540',   kw:'강남역 고기집',  ranks:[1,  1,  2,  1,   1   ] },
+  ];
+
+  function rankBadge(r) {
+    if (r === null || r === undefined) return `<span class="rk-badge none">-</span>`;
+    const cls = r <= 3 ? 't3' : r <= 10 ? 't10' : r <= 20 ? 't20' : 'low';
+    return `<span class="rk-badge ${cls}">${r}위</span>`;
+  }
+
+  function buildAllTable() {
+    const thead = document.querySelector('#rk-all-tbl thead tr');
+    SAMPLE_DATES.forEach(d => {
+      const th = document.createElement('th');
+      th.className = 'date-col';
+      th.textContent = d;
+      thead.appendChild(th);
+    });
+
+    const tbody = document.getElementById('rk-all-body');
+    SAMPLE_ROWS.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="sticky col-agency">${row.agency}</td>
+        <td class="sticky col-name">${row.name}</td>
+        <td class="sticky col-mid" style="font-size:11px;color:var(--muted)">${row.mid}</td>
+        <td class="sticky col-kw">${row.kw}</td>
+        ${row.ranks.map(r => `<td class="date-col">${rankBadge(r)}</td>`).join('')}
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  buildAllTable();
+
+  /* ── 개별 탭 ── */
   function showResult(html){ document.getElementById('rk-result').innerHTML = html; }
 
   window.rkCheck = async function(){
     const keyword = document.getElementById('rk-keyword').value.trim();
     const mid     = document.getElementById('rk-mid').value.trim();
-
     if(!keyword || !mid){
-      showResult('<div class="rk-msg warn">키워드와 MID를 모두 입력해주세요.</div>');
+      showResult('<div class="rk-msg">키워드와 MID를 모두 입력해주세요.</div>');
       return;
     }
-
     const btn = document.getElementById('rk-btn');
     btn.disabled = true;
     btn.textContent = '조회 중...';
@@ -49,44 +187,37 @@
       });
       const data = await resp.json();
       if(!resp.ok){ showResult(`<div class="rk-msg err">❌ ${data.error||'오류 발생'}</div>`); return; }
+
       const rank = data.rank;
+      const row = (label, val) => val ? `<div class="rk-card-row"><span class="rk-card-label">${label}</span><span class="rk-card-val">${val}</span></div>` : '';
+
       if(rank > 0){
-        const badge = rank <= 3  ? 'top3'
-                    : rank <= 10 ? 'top10'
-                    : rank <= 20 ? 'top20' : 'low';
-        const row = (label, val) => val ? `<div class="rk-card-row"><span class="rk-card-label">${label}</span><span class="rk-card-val">${val}</span></div>` : '';
+        const badge = rank <= 3 ? 'top3' : rank <= 10 ? 'top10' : rank <= 20 ? 'top20' : 'low';
         showResult(`
           <div class="rk-card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
               <div>
                 <div style="font-size:17px;font-weight:700;margin-bottom:2px">${data.name || keyword}</div>
                 <div style="font-size:12px;color:var(--muted,#94a3b8)">${data.category || ''}</div>
               </div>
               <div style="text-align:right">
-                <span class="rk-rank-num rank-${badge}" style="font-size:36px">${rank}</span>
-                <span class="rk-rank-unit">위</span>
+                <span class="rk-rank-num rank-${badge}" style="font-size:40px">${rank}</span>
+                <span style="font-size:18px;font-weight:700;color:var(--text2)">위</span>
               </div>
             </div>
             ${row('키워드', keyword)}
             ${row('MID', mid)}
-            ${row('리뷰', data.reviews)}
-            ${data.url ? `<div class="rk-card-row"><span class="rk-card-label">링크</span><span class="rk-card-val"><a href="${data.url}" target="_blank" style="color:var(--primary,#6366f1)">네이버 플레이스</a></span></div>` : ''}
+            ${data.url ? `<div class="rk-card-row"><span class="rk-card-label">링크</span><span class="rk-card-val"><a href="${data.url}" target="_blank" style="color:var(--accent,#10b981)">네이버 플레이스</a></span></div>` : ''}
           </div>`);
       } else {
         showResult(`
           <div class="rk-card">
-            <div class="rk-card-row">
-              <span class="rk-card-label">키워드</span>
-              <span class="rk-card-val">${keyword}</span>
+            ${row('키워드', keyword)}
+            ${row('MID', mid)}
+            <div style="text-align:center;padding:20px 0">
+              <div class="rk-rank-num rank-low" style="font-size:32px">100위+</div>
+              <div style="font-size:12px;color:var(--muted,#94a3b8);margin-top:6px">순위권 밖 (100위 이하)</div>
             </div>
-            <div class="rk-card-row">
-              <span class="rk-card-label">MID</span>
-              <span class="rk-card-val muted">${mid}</span>
-            </div>
-            <div class="rk-rank-display">
-              <span class="rk-rank-num rank-low" style="font-size:32px">100위+</span>
-            </div>
-            <div style="text-align:center;font-size:12px;color:var(--muted,#94a3b8);margin-top:4px">순위권 밖 (100위 이하)</div>
           </div>`);
       }
     } catch(e) {
@@ -97,11 +228,9 @@
     }
   };
 
-  // Enter 키 지원
-  ['rk-keyword','rk-mid'].forEach(id=>{
-    document.getElementById(id).addEventListener('keydown', e=>{
-      if(e.key==='Enter') rkCheck();
-    });
+  ['rk-keyword','rk-mid'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('keydown', e => { if(e.key==='Enter') rkCheck(); });
   });
 
 })();
