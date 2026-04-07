@@ -34,12 +34,15 @@
   #rank-page td.dc { min-width:54px; }
 
   /* 순위 배지 */
-  #rank-page .rb { display:inline-block; min-width:32px; padding:2px 7px; border-radius:5px; font-size:11px; font-weight:700; line-height:1.8; text-align:center; }
-  #rank-page .rb.t3  { background:#dcfce7; color:#16a34a; }
-  #rank-page .rb.t10 { background:#dbeafe; color:#2563eb; }
-  #rank-page .rb.t20 { background:#ffedd5; color:#ea580c; }
-  #rank-page .rb.low { background:#f1f5f9; color:#64748b; }
+  #rank-page .rb { display:inline-block; font-size:12px; font-weight:700; text-align:center; }
+  #rank-page .rb.t3  { color:#16a34a; }
+  #rank-page .rb.t10 { color:#2563eb; }
+  #rank-page .rb.t20 { color:#ea580c; }
+  #rank-page .rb.low { color:#64748b; }
   #rank-page .rb.nd  { color:#cbd5e1; font-size:11px; font-weight:400; }
+  /* 전날 대비 색상 */
+  #rank-page .rb.up   { color:#ef4444 !important; }
+  #rank-page .rb.down { color:#3b82f6 !important; }
 
   /* 로딩 */
   #rank-page .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:13px; gap:8px; }
@@ -125,11 +128,15 @@
   };
 
   /* 순위 배지 */
-  function rb(rank) {
+  function rb(rank, prevRank) {
     const r = Number(rank);
     if (!r) return '<span class="rb nd">-</span>';
-    const cls = r <= 3 ? 't3' : r <= 10 ? 't10' : r <= 20 ? 't20' : 'low';
-    return `<span class="rb ${cls}">${r}위</span>`;
+    const baseCls = r <= 3 ? 't3' : r <= 10 ? 't10' : r <= 20 ? 't20' : 'low';
+    const p = Number(prevRank);
+    let trendCls = '';
+    if (p && r < p) trendCls = ' up';        // 숫자 감소 = 순위 상승 → 빨간색
+    else if (p && r > p) trendCls = ' down';  // 숫자 증가 = 순위 하락 → 파란색
+    return `<span class="rb ${baseCls}${trendCls}">${r}위</span>`;
   }
 
   /* 전체 탭 로드 */
@@ -205,7 +212,11 @@
           <td class="st st-1" style="font-weight:600">${s.storeName || '-'}</td>
           <td class="st st-2" style="font-size:11px;color:var(--muted)">${s.mid}</td>
           <td class="st st-3">${s.rankKeyword}</td>
-          ${dates.map(d => `<td class="dc">${rb(rd[d]?.rank)}</td>`).join('')}
+          ${dates.map((d, di) => {
+            const prevDate = dates[di + 1];
+            const prevRank = prevDate ? rd[prevDate]?.rank : null;
+            return `<td class="dc">${rb(rd[d]?.rank, prevRank)}</td>`;
+          }).join('')}
         `;
         tbody.appendChild(tr);
       });
