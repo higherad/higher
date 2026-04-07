@@ -290,8 +290,23 @@
       <td style="${td0}">${fmt(tot.sum)}</td>
     </tr>`;
 
+    const m=Number(yyMM.slice(2));
+    const monthLabel=`${yyMM.slice(0,2)}년 ${m}월 날짜별`;
+    window._acSelectedMonth=yyMM;
+    window._acLastResult={ts:monthLabel};
+
     document.getElementById('ac-date-table').innerHTML=`
-      <div class="ac-tbl-scroll"><div class="ac-tbl-wrap">
+      <div class="ac-result-hdr">
+        <div>
+          <div class="ac-result-title">${monthLabel}</div>
+          <div class="ac-result-meta">${keys.length}일 데이터</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="ac-export-btn" onclick="acExportDates()">⬇ CSV</button>
+          <button class="ac-capture-btn" id="ac-cap-btn" onclick="acCapture()">📷 이미지 저장</button>
+        </div>
+      </div>
+      <div class="ac-tbl-scroll" id="ac-tbl-target"><div class="ac-tbl-wrap">
       <table class="ac-tbl">
         <thead><tr>
           <th>날짜</th>
@@ -610,6 +625,22 @@
   }
   window.acExport=function(){ dlCSV(makeCSV(window._acDailyResult),'광고분류_일별_'); };
   window.acExportMonthly=function(){ dlCSV(makeCSV(window._acMonthResult),'광고분류_월별_'); };
+  window.acExportDates=function(){
+    const daily=window._acDailyAll||{};
+    const yyMM=window._acSelectedMonth||'';
+    const keys=Object.keys(daily).filter(k=>k.startsWith(yyMM)).sort().reverse();
+    let csv='\uFEFF날짜,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,총합계\n';
+    let tot={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+    keys.forEach(k=>{
+      const t=(daily[k]&&daily[k].total)||{};
+      const mm=k.slice(2,4), dd=k.slice(4,6);
+      csv+=`${mm}.${dd},${t.ns||''},${t.np||''},${t.nps||''},${t.na||''},${t.vm||''},${t.sum||''}\n`;
+      tot.ns+=t.ns||0; tot.np+=t.np||0; tot.nps+=t.nps||0;
+      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.sum+=t.sum||0;
+    });
+    csv+=`총합,${tot.ns||''},${tot.np||''},${tot.nps||''},${tot.na||''},${tot.vm||''},${tot.sum||''}\n`;
+    dlCSV(csv,'광고분류_날짜별_');
+  };
   function dlCSV(csv,prefix){
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
