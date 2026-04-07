@@ -1,0 +1,111 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"></head>
+<body>
+<div id="rk-wrap">
+
+  <p class="rk-sec">🔍 플레이스 순위 조회</p>
+
+  <div class="rk-form">
+    <div class="rk-field">
+      <label class="rk-label">키워드</label>
+      <input class="rk-input" id="rk-keyword" placeholder="예) 강남역 꽃게" autocomplete="off">
+    </div>
+    <div class="rk-field">
+      <label class="rk-label">MID</label>
+      <input class="rk-input" id="rk-mid" placeholder="예) 2055089692" autocomplete="off">
+    </div>
+    <button class="rk-btn" id="rk-btn" onclick="rkCheck()">순위 조회</button>
+  </div>
+
+  <div id="rk-result"></div>
+
+</div>
+
+<script>
+(function(){
+
+  const CLOUD_RUN = 'https://higherad-auto-938928195180.asia-northeast3.run.app';
+
+  function showResult(html){ document.getElementById('rk-result').innerHTML = html; }
+
+  window.rkCheck = async function(){
+    const keyword = document.getElementById('rk-keyword').value.trim();
+    const mid     = document.getElementById('rk-mid').value.trim();
+
+    if(!keyword || !mid){
+      showResult('<div class="rk-msg warn">키워드와 MID를 모두 입력해주세요.</div>');
+      return;
+    }
+
+    const btn = document.getElementById('rk-btn');
+    btn.disabled = true;
+    btn.textContent = '조회 중...';
+    showResult('<div class="rk-msg">🔄 순위 조회 중... (최대 10초)</div>');
+
+    try {
+      const resp = await fetch(`${CLOUD_RUN}/rank-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword, mid }),
+      });
+      const data = await resp.json();
+
+      if(!resp.ok){
+        showResult(`<div class="rk-msg err">❌ ${data.error || '오류 발생'}</div>`);
+        return;
+      }
+
+      const rank = data.rank;
+      if(rank > 0){
+        const badge = rank <= 3  ? 'top3'
+                    : rank <= 10 ? 'top10'
+                    : rank <= 20 ? 'top20' : 'low';
+        showResult(`
+          <div class="rk-card">
+            <div class="rk-card-row">
+              <span class="rk-card-label">키워드</span>
+              <span class="rk-card-val">${keyword}</span>
+            </div>
+            <div class="rk-card-row">
+              <span class="rk-card-label">MID</span>
+              <span class="rk-card-val muted">${mid}</span>
+            </div>
+            <div class="rk-rank-display">
+              <span class="rk-rank-num rank-${badge}">${rank}</span>
+              <span class="rk-rank-unit">위</span>
+            </div>
+          </div>`);
+      } else {
+        showResult(`
+          <div class="rk-card">
+            <div class="rk-card-row">
+              <span class="rk-card-label">키워드</span>
+              <span class="rk-card-val">${keyword}</span>
+            </div>
+            <div class="rk-card-row">
+              <span class="rk-card-label">MID</span>
+              <span class="rk-card-val muted">${mid}</span>
+            </div>
+            <div class="rk-rank-display">
+              <span class="rk-rank-num rank-low" style="font-size:32px">100위+</span>
+            </div>
+            <div style="text-align:center;font-size:12px;color:var(--muted,#94a3b8);margin-top:4px">순위권 밖 (100위 이하)</div>
+          </div>`);
+      }
+    } catch(e) {
+      showResult(`<div class="rk-msg err">❌ 네트워크 오류: ${e.message}</div>`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '순위 조회';
+    }
+  };
+
+  // Enter 키 지원
+  ['rk-keyword','rk-mid'].forEach(id=>{
+    document.getElementById(id).addEventListener('keydown', e=>{
+      if(e.key==='Enter') rkCheck();
+    });
+  });
+
+})();
+</script>
+</body></html>

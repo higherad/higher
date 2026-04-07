@@ -79,6 +79,33 @@
     .ac-month-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 12px rgba(16,185,129,.2)}
     .ac-month-cnt{font-size:11px;font-weight:700;padding:1px 7px;border-radius:8px;background:rgba(255,255,255,.25)}
     .ac-month-btn:not(.active) .ac-month-cnt{background:var(--bg);color:var(--text2)}
+    /* 순위 조회 */
+    #rk-wrap{padding:8px 0}
+    .rk-sec{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:0 0 16px}
+    .rk-form{display:flex;flex-direction:column;gap:12px;max-width:480px}
+    .rk-field{display:flex;flex-direction:column;gap:6px}
+    .rk-label{font-size:12px;font-weight:600;color:var(--text2)}
+    .rk-input{padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;background:#fff;color:var(--text);outline:none;transition:.2s}
+    .rk-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(16,185,129,.1)}
+    .rk-btn{margin-top:4px;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s}
+    .rk-btn:hover{background:var(--accent2)}
+    .rk-btn:disabled{opacity:.6;cursor:not-allowed}
+    .rk-msg{margin-top:20px;padding:14px 16px;border-radius:10px;font-size:13px;background:var(--bg);color:var(--text2)}
+    .rk-msg.warn{background:#fef9c3;color:#854d0e}
+    .rk-msg.err{background:#fee2e2;color:#991b1b}
+    .rk-card{margin-top:20px;max-width:480px;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:20px 24px}
+    .rk-card-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+    .rk-card-row:last-of-type{border-bottom:none}
+    .rk-card-label{font-size:12px;font-weight:600;color:var(--text2)}
+    .rk-card-val{font-size:14px;font-weight:600;color:var(--text)}
+    .rk-card-val.muted{color:var(--text2);font-weight:400}
+    .rk-rank-display{display:flex;align-items:baseline;justify-content:center;gap:6px;padding:24px 0 8px}
+    .rk-rank-num{font-size:64px;font-weight:900;line-height:1}
+    .rk-rank-unit{font-size:24px;font-weight:700;color:var(--text2)}
+    .rank-top3{color:#10b981}
+    .rank-top10{color:#3b82f6}
+    .rank-top20{color:#f59e0b}
+    .rank-low{color:var(--text2)}
     /* 날짜별 리스트 */
     .ac-date-row td{padding:10px 13px}
     .ac-date-row:nth-child(even) td{background:var(--bg)}
@@ -285,6 +312,7 @@
     <div class="nav-item" id="nav-notice"  onclick="loadPage('공지사항.html',this)"><i data-lucide="megaphone" size="16"></i> 공지사항</div>
     <div class="nav-label">Tools</div>
     <div class="nav-item" id="nav-adclassify" onclick="loadPage('광고분류.html',this)"><i data-lucide="table-2" size="16"></i> 광고 분류</div>
+    <div class="nav-item" id="nav-rank" onclick="loadPage('순위조회.html',this)"><i data-lucide="chart-no-axes-column" size="16"></i> 순위 조회</div>
   </div>
   <div class="sidebar-bottom">
     <div class="admin-info">
