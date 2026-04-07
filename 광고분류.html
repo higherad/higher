@@ -261,8 +261,11 @@
       return;
     }
 
+    const tot={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
     const rows=keys.map(k=>{
       const t=(daily[k]&&daily[k].total)||{};
+      tot.ns+=t.ns||0; tot.np+=t.np||0; tot.nps+=t.nps||0;
+      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.sum+=t.sum||0;
       const dd=k.slice(4,6);
       return `<tr class="ac-date-row">
         <td class="ac-date-label">${yyMM.slice(2)}.${dd}</td>
@@ -275,6 +278,18 @@
       </tr>`;
     }).join('');
 
+    const td0=`background:#1e293b;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a`;
+    const td1=`background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a`;
+    const totalRow=`<tr id="ac-date-total-row">
+      <td style="${td0}">총합</td>
+      <td style="${td1}">${fmt(tot.ns)}</td>
+      <td style="${td1}">${fmt(tot.np)}</td>
+      <td style="${td1}">${fmt(tot.nps)}</td>
+      <td style="${td1}">${fmt(tot.na)}</td>
+      <td style="${td1}">${fmt(tot.vm)}</td>
+      <td style="${td0}">${fmt(tot.sum)}</td>
+    </tr>`;
+
     document.getElementById('ac-date-table').innerHTML=`
       <div class="ac-tbl-scroll"><div class="ac-tbl-wrap">
       <table class="ac-tbl">
@@ -283,7 +298,7 @@
           <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
           <th>N자동완성</th><th>방문미션</th><th>총합계</th>
         </tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows}${totalRow}</tbody>
       </table>
       </div></div>`;
   };
@@ -574,6 +589,8 @@
         const match=!val||( label&&label.textContent.replace('.','').includes(val.replace('.','')) );
         tr.style.display=match?'':'none';
       });
+      const totalRow=document.getElementById('ac-date-total-row');
+      if(totalRow) totalRow.style.display=val?'none':'';
     }
   };
   window.acClearSearch=function(){
