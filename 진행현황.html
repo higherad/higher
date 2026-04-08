@@ -129,7 +129,11 @@
   }
 
   function renderSummary() {
-    const todayStr = new Date().toISOString().slice(0,10);
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mo = String(now.getMonth()+1).padStart(2,'0');
+    const dd = String(now.getDate()).padStart(2,'0');
+    const todayStr = `${yyyy}-${mo}-${dd}`;
     const active      = allSlots.filter(s => s.status === 'active');
     const totalTarget = active.reduce((a,s) => a+((s.dailyTarget||0)*(s.days||0)), 0);
     const todayActive = active.filter(s => s.startDate <= todayStr && s.endDate >= todayStr);
@@ -148,7 +152,11 @@
     allSlots = await HA.getSlots();
 
     // ── 종료일 지난 active 캠페인 자동 만료 처리 ──────────────
-    const todayStr = new Date().toISOString().slice(0,10);
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mo = String(now.getMonth()+1).padStart(2,'0');
+    const dd = String(now.getDate()).padStart(2,'0');
+    const todayStr = `${yyyy}-${mo}-${dd}`;
     const toExpire = allSlots.filter(s =>
       s.status === 'active' && s.endDate && s.endDate < todayStr
     );
@@ -332,7 +340,10 @@
     if (start && days > 0) {
       const d = new Date(start);
       d.setDate(d.getDate() + days - 1);
-      document.getElementById('m-endDate').value = d.toISOString().slice(0,10);
+      const yyyy = d.getFullYear();
+      const mo = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      document.getElementById('m-endDate').value = `${yyyy}-${mo}-${dd}`;
     }
   };
 
