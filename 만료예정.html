@@ -176,7 +176,11 @@
     if(!days || isNaN(days)) return;
     const newEnd = new Date(s.endDate);
     newEnd.setDate(newEnd.getDate()+Number(days));
-    await HA.updateSlot(key, { endDate: newEnd.toISOString().slice(0,10) });
+    const yyyy = newEnd.getFullYear();
+    const mo = String(newEnd.getMonth()+1).padStart(2,'0');
+    const dd = String(newEnd.getDate()).padStart(2,'0');
+    const newEndDateStr = `${yyyy}-${mo}-${dd}`;
+    await HA.updateSlot(key, { endDate: newEndDateStr });
     renderExpire();
     alert(`${days}일 연장되었습니다.`);
   };
