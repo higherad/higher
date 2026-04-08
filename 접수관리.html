@@ -235,7 +235,16 @@
         <tr>
           <td><input type="checkbox" class="row-check" data-key="${s._key}"></td>
           <td style="color:var(--text2)">${all.length - start - i}</td>
-          <td style="color:var(--text2)">${(s.createdAt||'').slice(0,10)}</td>
+          <td style="color:var(--text2)">${
+            (() => {
+              if (!s.createdAt) return '-';
+              const d = new Date(s.createdAt);
+              const yyyy = d.getFullYear();
+              const mo = String(d.getMonth()+1).padStart(2,'0');
+              const dd = String(d.getDate()).padStart(2,'0');
+              return `${yyyy}-${mo}-${dd}`;
+            })()
+          }</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
           <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
