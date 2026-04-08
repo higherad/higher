@@ -135,7 +135,10 @@
   function fmtDatetime(isoStr){
     if(!isoStr) return '-';
     const d=new Date(isoStr);
-    const date=isoStr.slice(0,10);
+    const yyyy=d.getFullYear();
+    const mo=String(d.getMonth()+1).padStart(2,'0');
+    const dd=String(d.getDate()).padStart(2,'0');
+    const date=`${yyyy}-${mo}-${dd}`;
     const hh=String(d.getHours()).padStart(2,'0');
     const mm=String(d.getMinutes()).padStart(2,'0');
     const ss=String(d.getSeconds()).padStart(2,'0');
@@ -170,7 +173,14 @@
     return allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending'||s.status==='deleted').filter(s=>{
       if(paid==='paid'&&!paidSet.has(s._key))return false;
       if(paid==='unpaid'&&paidSet.has(s._key))return false;
-      if(from&&(s.createdAt||'').slice(0,10)!==from)return false;
+      if(from){
+        const d=new Date(s.createdAt||'');
+        const yyyy=d.getFullYear();
+        const mo=String(d.getMonth()+1).padStart(2,'0');
+        const dd=String(d.getDate()).padStart(2,'0');
+        const sDate=`${yyyy}-${mo}-${dd}`;
+        if(sDate!==from)return false;
+      }
       if(kw&&![(s.agencyId||''),(s.userId||'')].some(v=>v.toLowerCase().includes(kw)))return false;
       return true;
     });
@@ -200,10 +210,15 @@
     const pastTotal = snapVals
       .filter(v => v.timeKey && v.timeKey.slice(0,10) < todayStr)
       .reduce((a,v) => a + (v.amount||0), 0);
-    const todayBase = allSlots.filter(s =>
-      (s.status==='active'||s.status==='expired'||s.status==='pending') &&
-      (s.createdAt||'').slice(0,10) === todayStr
-    );
+    const todayBase = allSlots.filter(s => {
+      if(!(s.status==='active'||s.status==='expired'||s.status==='pending')) return false;
+      const d=new Date(s.createdAt||'');
+      const yyyy=d.getFullYear();
+      const mo=String(d.getMonth()+1).padStart(2,'0');
+      const dd=String(d.getDate()).padStart(2,'0');
+      const sDate=`${yyyy}-${mo}-${dd}`;
+      return sDate === todayStr;
+    });
     const dA = todayBase.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
     // 오늘 환불 차감
     const todayRefund = Object.entries(refundMap||{}).reduce((a,[k,v])=>{
@@ -257,10 +272,15 @@
     });
 
     // 오늘 실시간
-    const todaySlots = allSlots.filter(s =>
-      (s.status==='active'||s.status==='expired'||s.status==='pending') &&
-      (s.createdAt||'').slice(0,10) === todayStr
-    );
+    const todaySlots = allSlots.filter(s => {
+      if(!(s.status==='active'||s.status==='expired'||s.status==='pending')) return false;
+      const d=new Date(s.createdAt||'');
+      const yyyy=d.getFullYear();
+      const mo=String(d.getMonth()+1).padStart(2,'0');
+      const dd=String(d.getDate()).padStart(2,'0');
+      const sDate=`${yyyy}-${mo}-${dd}`;
+      return sDate === todayStr;
+    });
     if (todaySlots.length && todayStr.slice(0,7) === curYM) {
       const todayAmt = todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const todayRef = Object.entries(refundMap||{}).reduce((a,[k,v])=>k.split('__')[0].slice(0,10)===todayStr?a+(v||0):a,0);
@@ -334,10 +354,15 @@
     });
 
     // 오늘 실시간
-    const todaySlots = allSlots.filter(s =>
-      (s.status==='active'||s.status==='expired'||s.status==='pending') &&
-      (s.createdAt||'').slice(0,10) === todayStr
-    );
+    const todaySlots = allSlots.filter(s => {
+      if(!(s.status==='active'||s.status==='expired'||s.status==='pending')) return false;
+      const d=new Date(s.createdAt||'');
+      const yyyy=d.getFullYear();
+      const mo=String(d.getMonth()+1).padStart(2,'0');
+      const dd=String(d.getDate()).padStart(2,'0');
+      const sDate=`${yyyy}-${mo}-${dd}`;
+      return sDate === todayStr;
+    });
     if (todaySlots.length) {
       const m = todayStr.slice(0,7);
       const todayAmt = todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
@@ -576,12 +601,16 @@
       });
 
     // ── 오늘 날짜: 스냅샷 무시, allSlots 실시간 전체 집계 ──
-    const todaySlots = allSlots.filter(s =>
-      s.agencyId === agencyId &&
-      s.userId === userId &&
-      (s.createdAt||'').slice(0,10) === todayStr &&
-      (s.status==='active'||s.status==='expired'||s.status==='pending')
-    );
+    const todaySlots = allSlots.filter(s => {
+      if(s.agencyId !== agencyId || s.userId !== userId) return false;
+      if(!(s.status==='active'||s.status==='expired'||s.status==='pending')) return false;
+      const d=new Date(s.createdAt||'');
+      const yyyy=d.getFullYear();
+      const mo=String(d.getMonth()+1).padStart(2,'0');
+      const dd=String(d.getDate()).padStart(2,'0');
+      const sDate=`${yyyy}-${mo}-${dd}`;
+      return sDate === todayStr;
+    });
     if (todaySlots.length > 0) {
       // 분 단위 그룹핑
       const todayGroups = {};
@@ -670,7 +699,12 @@
       const safe=s=>s.replace(/[.#$[\]]/g,'_');
       const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
       const savedSnap=snapshotMap[snapKey];
-      const gDate=g.timeKey.slice(0,10);
+      // KST 기준 날짜 추출
+      const d = new Date(g.timeKey);
+      const yyyy=d.getFullYear();
+      const mo=String(d.getMonth()+1).padStart(2,'0');
+      const dd=String(d.getDate()).padStart(2,'0');
+      const gDate = `${yyyy}-${mo}-${dd}`;
       const useSnap=gDate<todayStr&&savedSnap;
       const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const grossAmt=useSnap?(savedSnap.amount+(savedSnap.refund||0)):g.slots.reduce((ac,s)=>ac+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
