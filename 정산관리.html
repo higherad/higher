@@ -112,7 +112,7 @@
   let sPage=1; const PER=20;
   let allSlots=[],allUsers=[],paidSet=new Set(),refundMap={};
   let snapshotMap={};
-  const todayStr=new Date().toISOString().slice(0,10);
+  const todayStr=(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
   function getRefund(timeKey,agencyId,userId){return refundMap[refundKey(timeKey,agencyId,userId)]||0;}

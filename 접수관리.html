@@ -172,7 +172,7 @@
       if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
       if (kw && ![s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
-      const slotDate = (s.createdAt||'').slice(0,10);
+      const slotDate = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
       if (dateFrom && slotDate !== dateFrom) return false;
       return true;
     });
@@ -203,7 +203,7 @@
     allSlots = await HA.getSlots();
 
     // ── 종료일 지난 active 캠페인 자동 만료 처리 ──────────────
-    const todayStr = new Date().toISOString().slice(0,10);
+    const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
     const toExpire = allSlots.filter(s =>
       s.status === 'active' && s.endDate && s.endDate < todayStr
     );
@@ -538,7 +538,7 @@
       html += `<div style="background:#f8fafc;border-radius:7px;padding:10px 12px;border:1px solid var(--border);">
         ${history.map(s => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:8px;">
-            <span style="font-size:11px;color:var(--text2);white-space:nowrap;">${(s.createdAt||'').slice(0,10)}</span>
+            <span style="font-size:11px;color:var(--text2);white-space:nowrap;">${s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : ''}</span>
             <span style="font-size:12px;font-weight:500;color:var(--text);flex:1;text-align:left;padding-left:8px;">${s.searchKeyword}</span>
             <button onclick="document.getElementById('detail-keyword-input').value='${s.searchKeyword.replace(/'/g,"\\'")}'"
               style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
@@ -627,7 +627,7 @@
       // ── 접수 시트: 업체명/URL/MID번호/순위키워드/일 수/시작일/일 목표/검색키워드
       const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드'];
       const rows = filtered.map(s => [
-        (s.createdAt||'').slice(0,10),
+        s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
         s.agencyId||'',
         s.storeName||'',
         s.url||'',
