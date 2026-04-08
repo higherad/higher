@@ -46,37 +46,37 @@
   @keyframes rk-spin { to { transform:rotate(360deg); } }
 
   /* 개별탭 */
-  #rank-page .rk-btn { margin-top:4px; padding:12px 28px; background:var(--accent); color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; transition:.2s; }
+  #rank-page .rk-btn { margin-top:12px; padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:.2s; width:100%; box-sizing:border-box; }
   #rank-page .rk-btn:hover:not(:disabled) { background:var(--accent2); }
   #rank-page .rk-btn:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; }
-  #rank-page .rk-msg { margin-top:12px; padding:12px 16px; border-radius:10px; font-size:13px; background:var(--bg); color:var(--text2); }
+  #rank-page .rk-msg { padding:12px 14px; border-radius:10px; font-size:12px; background:var(--bg); color:var(--text2); text-align:center; }
   #rank-page .rk-msg.err { background:#fef2f2; color:#dc2626; }
 
   /* 개별탭 입력 테이블 */
-  #rank-page .rk-input-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:14px; }
-  #rank-page .rk-input-tbl { width:100%; border-collapse:collapse; font-size:13px; }
-  #rank-page .rk-input-tbl thead th { background:#1e293b; color:#fff; padding:9px 12px; font-weight:500; text-align:center; font-size:12px; }
-  #rank-page .rk-input-tbl tbody td { padding:6px 8px; border-bottom:1px solid var(--border); }
+  #rank-page .rk-input-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; flex-shrink:0; width:360px; }
+  #rank-page .rk-input-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+  #rank-page .rk-input-tbl thead th { background:#1e293b; color:#fff; padding:8px 6px; font-weight:500; text-align:center; font-size:11px; }
+  #rank-page .rk-input-tbl tbody td { padding:6px 6px; border-bottom:1px solid var(--border); }
   #rank-page .rk-input-tbl tbody tr:last-child td { border-bottom:none; }
-  #rank-page .rk-input-tbl .rk-num { text-align:center; font-size:12px; color:var(--muted); font-weight:600; width:32px; }
-  #rank-page .rk-inp { width:100%; padding:7px 10px; border:1.5px solid var(--border); border-radius:8px; font-size:13px; font-family:inherit; background:#fafafa; color:var(--text); outline:none; transition:.2s; box-sizing:border-box; }
+  #rank-page .rk-input-tbl .rk-num { text-align:center; font-size:11px; color:var(--muted); font-weight:600; width:28px; }
+  #rank-page .rk-inp { width:100%; padding:5px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; background:#fafafa; color:var(--text); outline:none; transition:.2s; box-sizing:border-box; }
   #rank-page .rk-inp:focus { border-color:var(--accent); background:#fff; box-shadow:0 0 0 3px rgba(16,185,129,.1); }
-  #rank-page .rk-inp-kw { min-width:160px; }
-  #rank-page .rk-inp-mid { min-width:120px; }
+  #rank-page .rk-inp-kw { min-width:110px; }
+  #rank-page .rk-inp-mid { min-width:90px; }
 
   /* 개별탭 결과 테이블 */
-  #rank-page .rk-result-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; margin-top:16px; }
-  #rank-page .rk-res-tbl { width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
-  #rank-page .rk-res-tbl thead th { background:#1e293b; color:#fff; padding:9px 14px; font-weight:500; text-align:center; font-size:12px; }
-  #rank-page .rk-res-tbl tbody td { padding:10px 14px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+  #rank-page .rk-result-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; flex:1; min-width:0; }
+  #rank-page .rk-res-tbl { width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
+  #rank-page .rk-res-tbl thead th { background:#1e293b; color:#fff; padding:8px 10px; font-weight:500; text-align:center; font-size:11px; }
+  #rank-page .rk-res-tbl tbody td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #rank-page .rk-res-tbl tbody tr:last-child td { border-bottom:none; }
   #rank-page .rk-res-tbl tbody tr:hover { background:#f8fafc; }
   #rank-page .rk-res-name { font-weight:700; color:var(--text); text-align:left !important; }
-  #rank-page .rk-res-cat  { font-size:12px; color:var(--muted); }
-  #rank-page .rk-res-mid  { font-size:11px; color:var(--muted); }
-  #rank-page .rk-res-kw   { font-weight:600; }
-  #rank-page .rk-cell-loading { color:var(--muted); font-size:12px; }
-  #rank-page .rk-cell-err    { color:#dc2626; font-size:12px; }
+  #rank-page .rk-res-cat  { font-size:11px; color:var(--muted); }
+  #rank-page .rk-res-mid  { font-size:10px; color:var(--muted); }
+  #rank-page .rk-res-kw   { font-weight:600; font-size:12px; }
+  #rank-page .rk-cell-loading { color:var(--muted); font-size:11px; }
+  #rank-page .rk-cell-err    { color:#dc2626; font-size:11px; }
 
   /* 순위 배지 (개별결과) */
   #rank-page .rank-num { font-weight:900; line-height:1; }
@@ -113,20 +113,24 @@
 
 <!-- 개별 탭 -->
 <div id="rk-single" style="display:none">
-  <div class="rk-input-wrap">
-    <table class="rk-input-tbl">
-      <thead>
-        <tr>
-          <th style="width:32px">#</th>
-          <th>순위키워드</th>
-          <th>MID</th>
-        </tr>
-      </thead>
-      <tbody id="rk-input-tbody"></tbody>
-    </table>
+  <div style="display:flex; gap:16px; align-items:flex-start">
+    <div>
+      <div class="rk-input-wrap">
+        <table class="rk-input-tbl">
+          <thead>
+            <tr>
+              <th style="width:28px">#</th>
+              <th>순위키워드</th>
+              <th>MID</th>
+            </tr>
+          </thead>
+          <tbody id="rk-input-tbody"></tbody>
+        </table>
+      </div>
+      <button class="rk-btn" id="rk-btn" onclick="rkCheckAll()">순위 조회</button>
+    </div>
+    <div id="rk-result" style="flex:1; min-width:0"></div>
   </div>
-  <button class="rk-btn" id="rk-btn" onclick="rkCheckAll()">순위 조회</button>
-  <div id="rk-result"></div>
 </div>
 
 </div><!-- #rank-page -->
