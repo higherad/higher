@@ -170,7 +170,16 @@
     const paid=document.getElementById('sf-paid').value;
     const from=document.getElementById('sf-from').value;
     const kw=(document.getElementById('sf-kw').value||'').toLowerCase();
-    return allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending'||s.status==='deleted').filter(s=>{
+    return allSlots.filter(s=>{
+      if(s.status==='active'||s.status==='expired'||s.status==='pending') return true;
+      if(s.status==='deleted'){
+        // 과거 날짜 삭제 캠페인만 정산 유지, 오늘 이후 삭제는 제외
+        const d=new Date(s.createdAt||'');
+        const sDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        return sDate < todayStr;
+      }
+      return false;
+    }).filter(s=>{
       if(paid==='paid'&&!paidSet.has(s._key))return false;
       if(paid==='unpaid'&&paidSet.has(s._key))return false;
       if(from){
