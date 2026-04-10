@@ -289,30 +289,6 @@ const HA = {
     dispatch('ha:slots:updated');
   },
 
-  // 오늘 날짜 삭제 캠페인의 잔존 정산 데이터 일괄 정리 (일회성)
-  async cleanupTodayDeletedSlots() {
-    const todayStr = (() => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    })();
-    const snapshot = await get(ref(db, PATHS.slots));
-    if (!snapshot.exists()) return { cleaned: 0 };
-    const slots = snapToArray(snapshot);
-    const targets = slots.filter(s => {
-      if (s.status !== 'deleted') return false;
-      if (!s.createdAt) return false;
-      const d = new Date(s.createdAt);
-      const slotDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      return slotDate >= todayStr;
-    });
-    if (!targets.length) return { cleaned: 0 };
-    await Promise.all(targets.flatMap(s => [
-      remove(ref(db, `${PATHS.paid}/${s._key}`)),
-      remove(ref(db, `${PATHS.refunds}/${s._key}`)),
-    ]));
-    return { cleaned: targets.length };
-  },
-
   async approveSlot(key) {
     await this.updateSlot(key, { status: 'active' });
   },

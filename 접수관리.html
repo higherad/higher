@@ -109,7 +109,6 @@
     <button class="action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcel()">📥 엑셀 다운로드</button>
     <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button>
     <button class="action-btn btn-reject"  style="padding:7px 16px;font-size:12px;" onclick="bulkReject()">선택 반려/종료</button>
-    <button class="action-btn" style="background:#64748b;color:#fff;padding:7px 16px;font-size:12px;" onclick="cleanupDeletedSettlement()">정산 잔존데이터 정리</button>
   </div>
 </div>
 
@@ -415,12 +414,6 @@
     renderReceipts(false);
   };
 
-  // ── 정산 잔존데이터 일회성 정리 ───────────────────────────
-  window.cleanupDeletedSettlement = async function() {
-    if (!confirm('오늘 날짜 삭제된 캠페인의 잔존 정산 데이터를 정리합니다.\n계속하시겠습니까?')) return;
-    const { cleaned } = await HA.cleanupTodayDeletedSlots();
-    alert(cleaned > 0 ? `${cleaned}건의 잔존 정산 데이터를 정리했습니다.` : '정리할 데이터가 없습니다.');
-  };
 
   // ── 상세 보기 ─────────────────────────────────────────────
   window.viewDetail = function(key) {
