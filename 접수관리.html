@@ -218,11 +218,11 @@
     const rejected   = allSlots.filter(s => s.status === 'rejected').length;
     const terminated = allSlots.filter(s => s.status === 'terminated').length;
     const expired    = allSlots.filter(s => s.status === 'expired').length;
-    document.getElementById('stat-pending').textContent    = pending;
-    document.getElementById('stat-active').textContent     = active;
-    document.getElementById('stat-rejected').textContent   = rejected;
-    document.getElementById('stat-terminated').textContent = terminated;
-    document.getElementById('stat-expired').textContent    = expired;
+    document.getElementById('stat-pending').textContent    = pending.toLocaleString();
+    document.getElementById('stat-active').textContent     = active.toLocaleString();
+    document.getElementById('stat-rejected').textContent   = rejected.toLocaleString();
+    document.getElementById('stat-terminated').textContent = terminated.toLocaleString();
+    document.getElementById('stat-expired').textContent    = expired.toLocaleString();
 
     const start = (currentPage-1)*PER_PAGE;
     const page  = all.slice(start, start+PER_PAGE);
