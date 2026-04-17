@@ -128,7 +128,7 @@
     <button id="date-clear-btn" onclick="clearDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="receipt-search" placeholder="대행사/플레이스명/MID 검색" style="width:220px;" onkeydown="if(event.key==='Enter') renderReceipts()">
+    <input type="text" id="receipt-search" placeholder="대행사/ID/플레이스명/MID 검색" style="width:240px;" onkeydown="if(event.key==='Enter') renderReceipts()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderReceipts()">검색</button>
     <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetReceipts()">초기화</button>
   </div>
@@ -172,7 +172,7 @@
     return allSlots.filter(s => {
       if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
-      if (kw && ![s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
+      if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       const slotDate = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
       if (dateFrom && slotDate !== dateFrom) return false;
       return true;

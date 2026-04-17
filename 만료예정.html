@@ -47,7 +47,7 @@
     <option value="14">14일 이내</option>
   </select>
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="ef-kw" placeholder="대행사/플레이스명/MID 검색" style="width:220px;" onkeydown="if(event.key==='Enter') renderExpire()">
+    <input type="text" id="ef-kw" placeholder="대행사/ID/플레이스명/MID 검색" style="width:240px;" onkeydown="if(event.key==='Enter') renderExpire()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderExpire()">검색</button>
   </div>
 </div>
@@ -140,7 +140,7 @@
         return d <= limit;
       });
     }
-    if(kw)   slots = slots.filter(s => [s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw)));
+    if(kw)   slots = slots.filter(s => [s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw)));
     slots.sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
 
     renderSummary(slots, range);

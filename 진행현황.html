@@ -72,10 +72,8 @@
     <option value="active">진행중</option>
     <option value="expired">만료</option>
   </select>
-  <input type="text" id="f-agency" placeholder="대행사 검색" style="width:130px;" oninput="renderSlots(false)">
-  <input type="text" id="f-userid" placeholder="유저ID 검색" style="width:130px;" oninput="renderSlots(false)">
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="f-kw" placeholder="플레이스명/키워드/MID 검색" style="width:230px;" onkeydown="if(event.key==='Enter') renderSlots()">
+    <input type="text" id="f-kw" placeholder="대행사/ID/플레이스명/MID 검색" style="width:260px;" onkeydown="if(event.key==='Enter') renderSlots()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSlots()">검색</button>
     <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetFilter()">초기화</button>
   </div>
@@ -113,17 +111,12 @@
 
   function getFiltered() {
     const status = document.getElementById('f-status').value;
-    const agency = (document.getElementById('f-agency').value||'').toLowerCase();
-    const userid = (document.getElementById('f-userid').value||'').toLowerCase();
     const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
     return allSlots.filter(s => {
-      // 기본: active + expired만 표시
       const st = status || '';
       if (st) { if (s.status !== st) return false; }
       else { if (s.status !== 'active' && s.status !== 'expired') return false; }
-      if (agency && !(s.agencyId||'').toLowerCase().includes(agency)) return false;
-      if (userid && !(s.userId||'').toLowerCase().includes(userid))   return false;
-      if (kw && ![(s.storeName||''),(s.rankKeyword||''),(s.mid||'')].some(v=>v.toLowerCase().includes(kw))) return false;
+      if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       return true;
     });
   }
@@ -223,8 +216,6 @@
   };
   window.resetFilter = () => {
     document.getElementById('f-status').value='';
-    document.getElementById('f-agency').value='';
-    document.getElementById('f-userid').value='';
     document.getElementById('f-kw').value='';
     page=1; renderSlots(false);
   };
