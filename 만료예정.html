@@ -49,6 +49,7 @@
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="ef-kw" placeholder="대행사/ID/플레이스명/MID 검색" style="width:240px;" onkeydown="if(event.key==='Enter') renderExpire()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderExpire()">검색</button>
+    <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetExpire()">초기화</button>
   </div>
 </div>
 
@@ -115,6 +116,11 @@
       ${countItems}`;
   }
 
+  window.resetExpire = function() {
+    document.getElementById('ef-range').value = 'all';
+    document.getElementById('ef-kw').value = '';
+    renderExpire();
+  };
   window.renderExpire = async function() {
     document.getElementById('expire-body').innerHTML =
       '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
