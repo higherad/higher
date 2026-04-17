@@ -48,7 +48,7 @@
 </style>
 
 <div class="action-bar">
-  <input type="text" id="n-kw" placeholder="제목 검색" style="width:250px;">
+  <input type="text" id="n-kw" placeholder="제목 검색" style="width:250px;" onkeydown="if(event.key==='Enter') renderNotices()">
   <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderNotices()">검색</button>
   <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="document.getElementById('n-kw').value='';renderNotices()">초기화</button>
   <div style="margin-left:auto;">

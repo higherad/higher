@@ -128,8 +128,9 @@
     <button id="date-clear-btn" onclick="clearDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="receipt-search" placeholder="대행사/플레이스명/MID 검색" style="width:220px;">
+    <input type="text" id="receipt-search" placeholder="대행사/플레이스명/MID 검색" style="width:220px;" onkeydown="if(event.key==='Enter') renderReceipts()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderReceipts()">검색</button>
+    <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetReceipts()">초기화</button>
   </div>
 </div>
 
@@ -178,6 +179,15 @@
     });
   }
 
+  window.resetReceipts = function() {
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-date-from').value = '';
+    document.getElementById('date-label').textContent = '접수일 선택';
+    document.getElementById('date-pick-btn').style.color = 'var(--text2)';
+    document.getElementById('date-clear-btn').style.display = 'none';
+    document.getElementById('receipt-search').value = '';
+    renderReceipts();
+  };
   window.clearDateFilter = function() {
     document.getElementById('filter-date-from').value = '';
     document.getElementById('date-label').textContent = '접수일 선택';

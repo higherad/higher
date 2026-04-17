@@ -76,7 +76,7 @@
 </style>
 
 <div class="action-bar">
-  <input type="text" id="u-kw" placeholder="아이디/대행사 검색" style="width:200px;">
+  <input type="text" id="u-kw" placeholder="아이디/대행사 검색" style="width:200px;" onkeydown="if(event.key==='Enter') renderUsers()">
   <select id="u-status" onchange="renderUsers()">
     <option value="">전체</option>
     <option value="active">승인됨</option>

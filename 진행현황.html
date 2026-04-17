@@ -75,7 +75,7 @@
   <input type="text" id="f-agency" placeholder="대행사 검색" style="width:130px;" oninput="renderSlots(false)">
   <input type="text" id="f-userid" placeholder="유저ID 검색" style="width:130px;" oninput="renderSlots(false)">
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="f-kw" placeholder="플레이스명/키워드/MID 검색" style="width:230px;">
+    <input type="text" id="f-kw" placeholder="플레이스명/키워드/MID 검색" style="width:230px;" onkeydown="if(event.key==='Enter') renderSlots()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSlots()">검색</button>
     <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetFilter()">초기화</button>
   </div>

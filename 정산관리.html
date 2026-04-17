@@ -86,7 +86,7 @@
     <button id="sf-date-clear" onclick="clearSettleDate()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="sf-kw" placeholder="대행사/아이디 검색" style="width:180px;">
+    <input type="text" id="sf-kw" placeholder="대행사/아이디 검색" style="width:180px;" onkeydown="if(event.key==='Enter') renderSettle()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSettle()">검색</button>
     <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="exportSettleCSV()">엑셀 다운로드</button>
   </div>
