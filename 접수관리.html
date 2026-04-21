@@ -165,6 +165,34 @@
     terminated: '<span class="status-badge s-terminated">종료</span>',
   };
 
+  // ── 등급 배지 ────────────────────────────────────────────────
+  const GRADE_CACHE = new Map();
+  const GRADE_FB    = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/grades';
+
+  async function fetchGrade(mid) {
+    if (GRADE_CACHE.has(mid)) return GRADE_CACHE.get(mid);
+    try {
+      const res  = await fetch(`${GRADE_FB}/${mid}.json`);
+      const data = res.ok ? await res.json() : null;
+      GRADE_CACHE.set(mid, data);
+      return data;
+    } catch {
+      GRADE_CACHE.set(mid, null);
+      return null;
+    }
+  }
+
+  async function injectGradeBadges(slots) {
+    await Promise.all(slots.map(async s => {
+      if (s.status !== 'active' || !s.mid) return;
+      const el = document.getElementById(`grade-${s._key}`);
+      if (!el) return;
+      const data = await fetchGrade(s.mid);
+      if (!data?.gradeLabel) { el.textContent = '-'; return; }
+      el.outerHTML = `<span id="grade-${s._key}" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${data.gradeLabel}</span>`;
+    }));
+  }
+
   function getFiltered() {
     const status   = document.getElementById('filter-status').value;
     const kw       = (document.getElementById('receipt-search').value||'').trim().toLowerCase();
@@ -257,7 +285,10 @@
           }</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
-          <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
+          <td>${s.status === 'active'
+            ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>`
+            : `<span style="color:#cbd5e1">-</span>`
+          }</td>
           <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : (s.storeName||'-')}</td>
           <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${s.rankKeyword}</a>` : '-'}</td>
@@ -301,6 +332,7 @@
     }
     renderPagination(all.length);
     if (window.lucide) lucide.createIcons();
+    injectGradeBadges(page);
   };
 
   function renderPagination(total) {
