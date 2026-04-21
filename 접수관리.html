@@ -188,8 +188,12 @@
       const el = document.getElementById(`grade-${s._key}`);
       if (!el) return;
       const data = await fetchGrade(s.mid);
-      if (!data?.gradeLabel) { el.textContent = '-'; return; }
-      el.outerHTML = `<span id="grade-${s._key}" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${data.gradeLabel}</span>`;
+      if (!data) { el.textContent = '-'; return; }
+      const grades = Array.isArray(data) ? data : Object.values(data);
+      if (!grades.length) { el.textContent = '-'; return; }
+      el.outerHTML = `<div id="grade-${s._key}" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${
+        grades.map(g => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${g.gradeLabel}</span>`).join('')
+      }</div>`;
     }));
   }
 
