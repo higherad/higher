@@ -120,6 +120,9 @@
     <option value="rejected">반려</option>
     <option value="terminated">종료</option>
   </select>
+  <select id="filter-slot-type" onchange="renderReceipts()">
+    <option value="">전체 캠페인타입</option>
+  </select>
   <div style="position:relative;display:flex;align-items:center;">
     <button id="date-pick-btn" onclick="document.getElementById('filter-date-from').showPicker?document.getElementById('filter-date-from').showPicker():document.getElementById('filter-date-from').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
       📅 <span id="date-label">접수일 선택</span>
@@ -199,11 +202,13 @@
 
   function getFiltered() {
     const status   = document.getElementById('filter-status').value;
+    const slotType = document.getElementById('filter-slot-type').value;
     const kw       = (document.getElementById('receipt-search').value||'').trim().toLowerCase();
     const dateFrom = document.getElementById('filter-date-from').value;
     return allSlots.filter(s => {
       if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
+      if (slotType && s.slotType !== slotType) return false;
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       const slotDate = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
       if (dateFrom && slotDate !== dateFrom) return false;
@@ -213,6 +218,7 @@
 
   window.resetReceipts = function() {
     document.getElementById('filter-status').value = '';
+    document.getElementById('filter-slot-type').value = '';
     document.getElementById('filter-date-from').value = '';
     document.getElementById('date-label').textContent = '접수일 선택';
     document.getElementById('date-pick-btn').style.color = 'var(--text2)';
@@ -708,6 +714,18 @@
       document.head.appendChild(script);
     }
   };
+
+  // filter-slot-type 옵션 동적 생성
+  (function populateSlotTypes() {
+    const sel = document.getElementById('filter-slot-type');
+    if (!sel || !HA.SLOT_TYPES) return;
+    HA.SLOT_TYPES.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      sel.appendChild(opt);
+    });
+  })();
 
   // 최초 로드
   renderReceipts(false);
