@@ -371,13 +371,17 @@
     if (window.lucide) lucide.createIcons();
     injectGradeBadges(page);
 
-    // 등급 백그라운드 로드 — 테이블 렌더를 막지 않음
-    const uniqueMids = [...new Set(allSlots.filter(s => s.status === 'active' && s.mid).map(s => s.mid))];
-    Promise.all(uniqueMids.map(mid => fetchGrade(mid))).then(() => {
+    // 등급 백그라운드 로드 — 미캐시 MID만 로드, 완료 시 필터 갱신
+    const uniqueMids    = [...new Set(allSlots.filter(s => s.status === 'active' && s.mid).map(s => s.mid))];
+    const uncachedMids  = uniqueMids.filter(mid => !GRADE_CACHE.has(mid));
+    if (uncachedMids.length) {
+      Promise.all(uncachedMids.map(mid => fetchGrade(mid))).then(() => {
+        buildGradeFilter(allSlots);
+        if (document.getElementById('filter-slot-type').value) renderReceipts(false);
+      });
+    } else {
       buildGradeFilter(allSlots);
-      // 등급 필터가 선택된 상태라면 올바른 결과로 재렌더
-      if (document.getElementById('filter-slot-type').value) renderReceipts(false);
-    });
+    }
   };
 
   function renderPagination(total) {
