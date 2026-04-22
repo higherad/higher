@@ -269,7 +269,7 @@
 
   /* 순위 셀 렌더 */
   function rankCell(rank) {
-    if (!rank || rank <= 0) return '<span style="color:var(--muted);font-size:12px">100위+</span>';
+    if (!rank || rank <= 0) return '<span style="color:var(--muted);font-size:12px">300위+</span>';
     const cls = rank <= 3 ? 'top3' : rank <= 10 ? 'top10' : rank <= 20 ? 'top20' : 'low';
     return `<span class="rank-num rank-${cls}" style="font-size:18px">${rank}</span><span style="font-size:12px;color:var(--text2);font-weight:600">위</span>`;
   }
@@ -300,6 +300,7 @@
               <th>#</th>
               <th style="text-align:left">업체명</th>
               <th>카테고리</th>
+              <th>주소</th>
               <th>MID</th>
               <th>순위키워드</th>
               <th>순위</th>
@@ -309,7 +310,7 @@
             ${items.map(it => `
               <tr id="rk-res-row-${it.idx}">
                 <td style="color:var(--muted);font-size:12px">${it.idx}</td>
-                <td colspan="4" class="rk-cell-loading" style="text-align:left">
+                <td colspan="5" class="rk-cell-loading" style="text-align:left">
                   <div style="display:flex;align-items:center;gap:6px"><div class="spinner"></div> 조회 중...</div>
                 </td>
                 <td></td>
@@ -332,13 +333,14 @@
           <td style="color:var(--muted);font-size:12px">${it.idx}</td>
           <td class="rk-res-name">${data.name || '-'}</td>
           <td class="rk-res-cat">${data.category || '-'}</td>
+          <td class="rk-res-cat">${data.address || '-'}</td>
           <td class="rk-res-mid">${it.mid}</td>
           <td class="rk-res-kw">${it.keyword}</td>
           <td>${rankCell(data.rank)}</td>`;
       } catch(e) {
         row.innerHTML = `
           <td style="color:var(--muted);font-size:12px">${it.idx}</td>
-          <td class="rk-cell-err" colspan="4" style="text-align:left">❌ ${e.message}</td>
+          <td class="rk-cell-err" colspan="5" style="text-align:left">❌ ${e.message}</td>
           <td></td>`;
       }
     }));
