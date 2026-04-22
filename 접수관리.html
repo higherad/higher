@@ -121,7 +121,7 @@
     <option value="terminated">종료</option>
   </select>
   <select id="filter-slot-type" onchange="renderReceipts()">
-    <option value="">전체 캠페인타입</option>
+    <option value="">전체 등급</option>
   </select>
   <div style="position:relative;display:flex;align-items:center;">
     <button id="date-pick-btn" onclick="document.getElementById('filter-date-from').showPicker?document.getElementById('filter-date-from').showPicker():document.getElementById('filter-date-from').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
@@ -200,15 +200,42 @@
     }));
   }
 
+  function buildGradeFilter(slots) {
+    const sel = document.getElementById('filter-slot-type');
+    if (!sel) return;
+    const currentVal = sel.value;
+    const labels = new Set();
+    slots.forEach(s => {
+      if (!s.mid) return;
+      const cached = GRADE_CACHE.get(s.mid);
+      if (!cached) return;
+      const grades = Array.isArray(cached) ? cached : Object.values(cached);
+      grades.forEach(g => { if (g.gradeLabel) labels.add(g.gradeLabel); });
+    });
+    sel.innerHTML = '<option value="">전체 등급</option>';
+    [...labels].sort().forEach(label => {
+      const opt = document.createElement('option');
+      opt.value = label;
+      opt.textContent = label;
+      sel.appendChild(opt);
+    });
+    if (labels.has(currentVal)) sel.value = currentVal;
+  }
+
   function getFiltered() {
     const status   = document.getElementById('filter-status').value;
-    const slotType = document.getElementById('filter-slot-type').value;
-    const kw       = (document.getElementById('receipt-search').value||'').trim().toLowerCase();
-    const dateFrom = document.getElementById('filter-date-from').value;
+    const gradeFilter = document.getElementById('filter-slot-type').value;
+    const kw          = (document.getElementById('receipt-search').value||'').trim().toLowerCase();
+    const dateFrom    = document.getElementById('filter-date-from').value;
     return allSlots.filter(s => {
       if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
-      if (slotType && s.slotType !== slotType) return false;
+      if (gradeFilter) {
+        const cached = GRADE_CACHE.get(s.mid);
+        if (!cached) return false;
+        const grades = Array.isArray(cached) ? cached : Object.values(cached);
+        if (!grades.some(g => g.gradeLabel === gradeFilter)) return false;
+      }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       const slotDate = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
       if (dateFrom && slotDate !== dateFrom) return false;
@@ -259,6 +286,12 @@
       await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
       toExpire.forEach(s => { s.status = 'expired'; });
     }
+
+    await Promise.all(
+      [...new Set(allSlots.filter(s => s.status === 'active' && s.mid).map(s => s.mid))]
+        .map(mid => fetchGrade(mid))
+    );
+    buildGradeFilter(allSlots);
 
     const all      = getFiltered();
     const pending    = allSlots.filter(s => s.status === 'pending').length;
@@ -478,7 +511,12 @@
       <div class="modal-box">
         <div class="modal-title">캠페인 상세 정보</div>
         <dl class="slot-detail">
-          <dt>캠페인타입</dt><dd>${s.slotType}</dd>
+          <dt>상품등급</dt><dd>${(() => {
+            const d = GRADE_CACHE.get(s.mid);
+            if (!d) return '-';
+            const labels = [...new Map((Array.isArray(d)?d:Object.values(d)).map(g=>[g.gradeLabel,g])).values()].map(g=>g.gradeLabel);
+            return labels.length ? labels.map(g=>`<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${g}</span>`).join(' ') : '-';
+          })()}</dd>
           <dt>대행사</dt><dd>${s.agencyId} / ${s.userId}</dd>
           <dt>플레이스명</dt><dd>${s.storeName}</dd>
           <dt>순위키워드</dt><dd>${s.rankKeyword}</dd>
@@ -626,12 +664,7 @@
     overlay.innerHTML = `
       <div class="modal-box">
         <div class="modal-title">캠페인 정보 수정</div>
-        <div class="modal-row">
-          <div class="modal-field"><label>플레이스명</label><input id="e-storeName" value="${s.storeName||''}"></div>
-          <div class="modal-field"><label>캠페인타입</label>
-            <select id="e-slotType">${HA.SLOT_TYPES.map(t=>`<option ${t===s.slotType?'selected':''}>${t}</option>`).join('')}</select>
-          </div>
-        </div>
+        <div class="modal-field"><label>플레이스명</label><input id="e-storeName" value="${s.storeName||''}"></div>
         <div class="modal-row">
           <div class="modal-field"><label>시작일</label><input type="date" id="e-startDate" value="${s.startDate||''}"></div>
           <div class="modal-field"><label>종료일</label><input type="date" id="e-endDate" value="${s.endDate||''}"></div>
@@ -652,7 +685,6 @@
   window.saveEdit = async function(key) {
     await HA.updateSlot(key, {
       storeName:     document.getElementById('e-storeName').value,
-      slotType:      document.getElementById('e-slotType').value,
       startDate:     document.getElementById('e-startDate').value,
       endDate:       document.getElementById('e-endDate').value,
       rankKeyword:   document.getElementById('e-rankKeyword').value,
@@ -714,18 +746,6 @@
       document.head.appendChild(script);
     }
   };
-
-  // filter-slot-type 옵션 동적 생성
-  (function populateSlotTypes() {
-    const sel = document.getElementById('filter-slot-type');
-    if (!sel || !HA.SLOT_TYPES) return;
-    HA.SLOT_TYPES.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t;
-      sel.appendChild(opt);
-    });
-  })();
 
   // 최초 로드
   renderReceipts(false);

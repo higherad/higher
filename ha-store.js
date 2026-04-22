@@ -90,8 +90,6 @@ function dispatch(event) {
 // ════════════════════════════════════════════════════════════
 const HA = {
 
-  SLOT_TYPES: ['리워드'],
-
   // ── 현재 로그인 유저 ───────────────────────────────────────
   getCurrentUser() {
     return JSON.parse(sessionStorage.getItem('ha_current_user') || 'null');

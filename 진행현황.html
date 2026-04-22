@@ -257,8 +257,8 @@
         </div>
         <div class="modal-row">
           <div class="modal-field">
-            <label>캠페인타입</label>
-            <input value="${s.slotType||'-'}" readonly style="${READONLY_STYLE}">
+            <label>상품등급</label>
+            <input id="m-grade-display" value="불러오는 중..." readonly style="${READONLY_STYLE}">
           </div>
           <div class="modal-field">
             <label>상태</label>
@@ -322,6 +322,19 @@
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('modal-save-btn').onclick = onSave;
+    (async () => {
+      const el = document.getElementById('m-grade-display');
+      if (!el) return;
+      if (!s.mid) { el.value = '-'; return; }
+      try {
+        const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+        const snap = await get(ref(getDatabase(), `ha/grades/${s.mid.replace(/[.#$[\]/]/g,'_')}`));
+        if (!snap.exists()) { el.value = '-'; return; }
+        const data = snap.val();
+        const labels = [...new Map((Array.isArray(data)?data:Object.values(data)).map(g=>[g.gradeLabel,g])).values()].map(g=>g.gradeLabel);
+        el.value = labels.length ? labels.join(', ') : '-';
+      } catch { el.value = '-'; }
+    })();
   }
 
   // 일 수 변경 시 종료일 자동 계산
