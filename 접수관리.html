@@ -287,12 +287,6 @@
       toExpire.forEach(s => { s.status = 'expired'; });
     }
 
-    await Promise.all(
-      [...new Set(allSlots.filter(s => s.status === 'active' && s.mid).map(s => s.mid))]
-        .map(mid => fetchGrade(mid))
-    );
-    buildGradeFilter(allSlots);
-
     const all      = getFiltered();
     const pending    = allSlots.filter(s => s.status === 'pending').length;
     const active     = allSlots.filter(s => s.status === 'active').length;
@@ -376,6 +370,14 @@
     renderPagination(all.length);
     if (window.lucide) lucide.createIcons();
     injectGradeBadges(page);
+
+    // 등급 백그라운드 로드 — 테이블 렌더를 막지 않음
+    const uniqueMids = [...new Set(allSlots.filter(s => s.status === 'active' && s.mid).map(s => s.mid))];
+    Promise.all(uniqueMids.map(mid => fetchGrade(mid))).then(() => {
+      buildGradeFilter(allSlots);
+      // 등급 필터가 선택된 상태라면 올바른 결과로 재렌더
+      if (document.getElementById('filter-slot-type').value) renderReceipts(false);
+    });
   };
 
   function renderPagination(total) {
