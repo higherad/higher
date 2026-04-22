@@ -57,13 +57,13 @@
   <table>
     <thead>
       <tr>
-        <th>번호</th><th>대행사</th><th>유저ID</th>
+        <th>번호</th><th>대행사</th><th>유저ID</th><th>캠페인타입</th>
         <th>플레이스명</th><th>MID</th><th>순위키워드</th><th>시작일</th><th>종료일</th>
         <th>일 목표</th><th>D-Day</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="expire-body">
-      <tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -123,7 +123,7 @@
   };
   window.renderExpire = async function() {
     document.getElementById('expire-body').innerHTML =
-      '<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
 
@@ -153,7 +153,7 @@
 
     const body = document.getElementById('expire-body');
     if(!slots.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="12">만료 예정 캠페인이 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="13">만료 예정 캠페인이 없습니다.</td></tr>';
       return;
     }
     body.innerHTML = slots.map((s,i) => `
@@ -161,6 +161,7 @@
         <td style="color:var(--text2)">${i+1}</td>
         <td style="font-weight:600">${s.agencyId||'-'}</td>
         <td>${s.userId||'-'}</td>
+        <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
         <td style="font-weight:500">${s.storeName||'-'}</td>
         <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
         <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
