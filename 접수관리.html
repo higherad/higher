@@ -187,7 +187,7 @@
 
   async function injectGradeBadges(slots) {
     await Promise.all(slots.map(async s => {
-      if (s.status !== 'active' || !s.mid) return;
+      if ((s.status !== 'active' && s.status !== 'pending') || !s.mid) return;
       const el = document.getElementById(`grade-${s._key}`);
       if (!el) return;
       const data = await fetchGrade(s.mid);
@@ -323,7 +323,7 @@
           }</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
-          <td>${s.status === 'active'
+          <td>${(s.status === 'active' || s.status === 'pending')
             ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>`
             : `<span style="color:#cbd5e1">-</span>`
           }</td>
@@ -373,7 +373,7 @@
     injectGradeBadges(page);
 
     // 등급 백그라운드 로드 — 미캐시 MID만 로드, 완료 시 필터 갱신
-    const uniqueMids    = [...new Set(allSlots.filter(s => s.status === 'active' && s.mid).map(s => s.mid))];
+    const uniqueMids    = [...new Set(allSlots.filter(s => (s.status === 'active' || s.status === 'pending') && s.mid).map(s => s.mid))];
     const uncachedMids  = uniqueMids.filter(mid => !GRADE_CACHE.has(mid));
     if (uncachedMids.length) {
       Promise.all(uncachedMids.map(mid => fetchGrade(mid))).then(() => {
