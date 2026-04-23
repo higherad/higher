@@ -231,7 +231,7 @@
       if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
       if (gradeFilter) {
-        if (s.status !== 'active') return false;
+        if (s.status !== 'active' && s.status !== 'pending') return false;
         const cached = GRADE_CACHE.get(s.mid);
         if (!cached) return false;
         const grades = Array.isArray(cached) ? cached : Object.values(cached);
