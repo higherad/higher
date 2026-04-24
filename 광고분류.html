@@ -290,6 +290,27 @@
       <td style="${td0}">${fmt(tot.sum)}</td>
     </tr>`;
 
+    const n=keys.length;
+    const avg={
+      ns:n?Math.round(tot.ns/n):0,
+      np:n?Math.round(tot.np/n):0,
+      nps:n?Math.round(tot.nps/n):0,
+      na:n?Math.round(tot.na/n):0,
+      vm:n?Math.round(tot.vm/n):0,
+      sum:n?Math.round(tot.sum/n):0
+    };
+    const tdA0=`background:#334155;color:#e2e8f0;font-weight:800;text-align:center;padding:11px 13px;border-top:1px solid #475569`;
+    const tdA1=`background:#334155;color:#e2e8f0;font-weight:600;text-align:center;padding:11px 13px;border-top:1px solid #475569`;
+    const avgRow=`<tr id="ac-date-avg-row">
+      <td style="${tdA0}">평균</td>
+      <td style="${tdA1}">${fmt(avg.ns)}</td>
+      <td style="${tdA1}">${fmt(avg.np)}</td>
+      <td style="${tdA1}">${fmt(avg.nps)}</td>
+      <td style="${tdA1}">${fmt(avg.na)}</td>
+      <td style="${tdA1}">${fmt(avg.vm)}</td>
+      <td style="${tdA0}">${fmt(avg.sum)}</td>
+    </tr>`;
+
     const m=Number(yyMM.slice(2));
     const monthLabel=`${yyMM.slice(0,2)}년 ${m}월 날짜별`;
     window._acSelectedMonth=yyMM;
@@ -313,7 +334,7 @@
           <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
           <th>N자동완성</th><th>방문미션</th><th>총합계</th>
         </tr></thead>
-        <tbody>${rows}${totalRow}</tbody>
+        <tbody>${rows}${totalRow}${avgRow}</tbody>
       </table>
       </div></div>`;
   };
@@ -606,6 +627,8 @@
       });
       const totalRow=document.getElementById('ac-date-total-row');
       if(totalRow) totalRow.style.display=val?'none':'';
+      const avgRow=document.getElementById('ac-date-avg-row');
+      if(avgRow) avgRow.style.display=val?'none':'';
     }
   };
   window.acClearSearch=function(){
