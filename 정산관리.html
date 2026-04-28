@@ -470,6 +470,7 @@
       const ea     = encodeURIComponent(g.agencyId);
       const eu     = encodeURIComponent(g.userId);
       const et     = encodeURIComponent(g.timeKey);
+      const memo = savedSnap?.memo || '';
       const chargeConfirmedByName = savedSnap?.chargeConfirmedByName || '';
       const chargeConfirmedAt = savedSnap?.chargeConfirmedAt ? new Date(savedSnap.chargeConfirmedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
       const isCharged = !!chargeConfirmedByName;
@@ -495,13 +496,19 @@
         <td>${badge}</td>
         <td>${chargeStaffCell}</td>
         <td>${confirmStaffCell}</td>
-        <td style="white-space:nowrap;">
-          <div style="display:flex;gap:4px;justify-content:center;align-items:center;">
-          <button class="btn-refund" onclick="setRefund(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">환불</button>
-          <button class="action-btn" style="${isCharged?'background:#f1f5f9;color:var(--text2)':'background:var(--info);color:#fff'}"
-            onclick="chargeConfirm(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${isCharged?'충전취소':'충전확인'}</button>
-          <button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
-            onclick="bulkRow(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${allP?'입금취소':'입금확인'}</button>
+        <td>
+          <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+            <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+              <button class="btn-refund" onclick="setRefund(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">환불</button>
+              <button class="action-btn" style="${isCharged?'background:#f1f5f9;color:var(--text2)':'background:var(--info);color:#fff'}"
+                onclick="chargeConfirm(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${isCharged?'충전취소':'충전확인'}</button>
+              <button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
+                onclick="bulkRow(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${allP?'입금취소':'입금확인'}</button>
+            </div>
+            <input type="text" value="${memo.replace(/"/g,'&quot;')}" placeholder="메모"
+              style="width:130px;padding:4px 8px;border:1.5px solid ${memo?'var(--danger)':'var(--border)'};border-radius:6px;font-size:11px;font-family:inherit;outline:none;color:var(--text);"
+              oninput="this.style.borderColor=this.value?'var(--danger)':'var(--border)'"
+              onblur="saveMemo('${snapKey}',this.value,decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">
           </div>
         </td>
       </tr>`;
@@ -567,6 +574,23 @@
       renderSettle(false);
     };
     modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  };
+
+  window.saveMemo=async function(snapKey,value,timeKey,agencyId,userId){
+    const val=value.trim();
+    const existing=snapshotMap[snapKey];
+    if(existing){
+      existing.memo=val;
+      await HA.saveSettleSnapshot(snapKey,existing,true);
+    } else {
+      const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
+      const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const refund=getRefund(timeKey,agencyId,userId);
+      const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,unitPrice:getSlotPrice(slots[0]),memo:val};
+      await HA.saveSettleSnapshot(snapKey,newSnap,true);
+      snapshotMap[snapKey]=newSnap;
+    }
   };
 
   window.chargeConfirm=async function(timeKey,agencyId,userId){
