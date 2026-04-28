@@ -496,19 +496,15 @@
         <td>${badge}</td>
         <td>${chargeStaffCell}</td>
         <td>${confirmStaffCell}</td>
-        <td>
-          <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
-            <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
-              <button class="btn-refund" onclick="setRefund(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">환불</button>
-              <button class="action-btn" style="${isCharged?'background:#f1f5f9;color:var(--text2)':'background:var(--info);color:#fff'}"
-                onclick="chargeConfirm(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${isCharged?'충전취소':'충전확인'}</button>
-              <button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
-                onclick="bulkRow(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${allP?'입금취소':'입금확인'}</button>
-            </div>
-            <input type="text" value="${memo.replace(/"/g,'&quot;')}" placeholder="메모"
-              style="width:130px;padding:4px 8px;border:1.5px solid ${memo?'var(--danger)':'var(--border)'};border-radius:6px;font-size:11px;font-family:inherit;outline:none;color:var(--text);"
-              oninput="this.style.borderColor=this.value?'var(--danger)':'var(--border)'"
-              onblur="saveMemo('${snapKey}',this.value,decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">
+        <td style="white-space:nowrap;">
+          <div style="display:flex;gap:4px;justify-content:center;align-items:center;">
+            <button class="btn-refund" onclick="setRefund(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">환불</button>
+            <button class="action-btn" style="${isCharged?'background:#f1f5f9;color:var(--text2)':'background:var(--info);color:#fff'}"
+              onclick="chargeConfirm(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${isCharged?'충전취소':'충전확인'}</button>
+            <button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
+              onclick="bulkRow(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${allP?'입금취소':'입금확인'}</button>
+            <button class="action-btn" style="background:${memo?'rgba(239,68,68,.12)':'#f1f5f9'};color:${memo?'var(--danger)':'var(--text2)'};border:1.5px solid ${memo?'var(--danger)':'var(--border)'};"
+              onclick="openMemoPopup('${snapKey}',decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">메모</button>
           </div>
         </td>
       </tr>`;
@@ -576,21 +572,47 @@
     modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
   };
 
-  window.saveMemo=async function(snapKey,value,timeKey,agencyId,userId){
-    const val=value.trim();
+  window.openMemoPopup=function(snapKey,timeKey,agencyId,userId){
     const existing=snapshotMap[snapKey];
-    if(existing){
-      existing.memo=val;
-      await HA.saveSettleSnapshot(snapKey,existing,true);
-    } else {
-      const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
-      const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-      const refund=getRefund(timeKey,agencyId,userId);
-      const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,unitPrice:getSlotPrice(slots[0]),memo:val};
-      await HA.saveSettleSnapshot(snapKey,newSnap,true);
-      snapshotMap[snapKey]=newSnap;
-    }
+    const currentMemo=existing?.memo||'';
+    const modal=document.createElement('div');
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML=`
+      <div style="background:#fff;border-radius:16px;padding:28px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;">메모</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">${agencyId} · ${userId}</div>
+        <textarea id="memo-input" rows="4" placeholder="메모를 입력해주세요."
+          style="width:100%;padding:10px 14px;border:1.5px solid ${currentMemo?'var(--danger)':'var(--border)'};border-radius:9px;font-size:13px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box;"
+          oninput="this.style.borderColor=this.value?'var(--danger)':'var(--border)'"
+        >${currentMemo}</textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+          <button onclick="this.closest('[style*=fixed]').remove()"
+            style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;">취소</button>
+          <button id="memo-save-btn"
+            style="padding:9px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">저장</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#memo-input').focus();
+    modal.querySelector('#memo-save-btn').onclick=async()=>{
+      const val=modal.querySelector('#memo-input').value.trim();
+      const snap=snapshotMap[snapKey];
+      if(snap){
+        snap.memo=val;
+        await HA.saveSettleSnapshot(snapKey,snap,true);
+      } else {
+        const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
+        const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+        const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const refund=getRefund(timeKey,agencyId,userId);
+        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,unitPrice:getSlotPrice(slots[0]),memo:val};
+        await HA.saveSettleSnapshot(snapKey,newSnap,true);
+        snapshotMap[snapKey]=newSnap;
+      }
+      modal.remove();
+      renderSettle(false);
+    };
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
   };
 
   window.chargeConfirm=async function(timeKey,agencyId,userId){
