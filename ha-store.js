@@ -527,9 +527,7 @@ const HA = {
 
     function notify() {
       // 정산관리.html의 groupByTimeAgency와 동일하게 분 단위 그룹핑
-      const base = latestSlots.filter(s =>
-        s.status === 'active' || s.status === 'accepted' || s.status === 'expired' || s.status === 'pending'
-      );
+      const base = latestSlots.filter(s => s.status !== 'deleted');
       const map = {};
       base.forEach(s => {
         const t = getMinuteKey(s.createdAt);
