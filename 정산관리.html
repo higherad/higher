@@ -171,7 +171,7 @@
     const from=document.getElementById('sf-from').value;
     const kw=(document.getElementById('sf-kw').value||'').toLowerCase();
     return allSlots.filter(s=>{
-      if(s.status==='active'||s.status==='expired'||s.status==='pending') return true;
+      if(s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending') return true;
       if(s.status==='deleted'){
         // 과거 날짜 삭제 캠페인만 정산 유지, 오늘 이후 삭제는 제외
         const d=new Date(s.createdAt||'');
@@ -220,7 +220,7 @@
       .filter(v => v.timeKey && v.timeKey.slice(0,10) < todayStr)
       .reduce((a,v) => a + (v.amount||0), 0);
     const todayBase = allSlots.filter(s => {
-      if(!(s.status==='active'||s.status==='expired'||s.status==='pending')) return false;
+      if(!(s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending')) return false;
       const d=new Date(s.createdAt||'');
       const yyyy=d.getFullYear();
       const mo=String(d.getMonth()+1).padStart(2,'0');
@@ -282,7 +282,7 @@
 
     // 오늘 실시간
     const todaySlots = allSlots.filter(s => {
-      if(!(s.status==='active'||s.status==='expired'||s.status==='pending')) return false;
+      if(!(s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending')) return false;
       const d=new Date(s.createdAt||'');
       const yyyy=d.getFullYear();
       const mo=String(d.getMonth()+1).padStart(2,'0');
@@ -364,7 +364,7 @@
 
     // 오늘 실시간
     const todaySlots = allSlots.filter(s => {
-      if(!(s.status==='active'||s.status==='expired'||s.status==='pending')) return false;
+      if(!(s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending')) return false;
       const d=new Date(s.createdAt||'');
       const yyyy=d.getFullYear();
       const mo=String(d.getMonth()+1).padStart(2,'0');
@@ -425,7 +425,7 @@
     renderSummary();
 
     // 과거 날짜 그룹 스냅샷 저장 (오늘 이전만, 담당자 정보 없는 그룹만)
-    const allRows=groupByTimeAgency(allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending'));
+    const allRows=groupByTimeAgency(allSlots.filter(s=>s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending'));
     for(const g of allRows){
       const groupDate=g.timeKey.slice(0,10);
       if(groupDate>=todayStr) continue; // 오늘은 실시간
@@ -709,7 +709,7 @@
     // ── 오늘 날짜: 스냅샷 무시, allSlots 실시간 전체 집계 ──
     const todaySlots = allSlots.filter(s => {
       if(s.agencyId !== agencyId || s.userId !== userId) return false;
-      if(!(s.status==='active'||s.status==='expired'||s.status==='pending')) return false;
+      if(!(s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending')) return false;
       const d=new Date(s.createdAt||'');
       const yyyy=d.getFullYear();
       const mo=String(d.getMonth()+1).padStart(2,'0');
