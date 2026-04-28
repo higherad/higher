@@ -304,9 +304,10 @@ const HA = {
       console.warn('Firebase Auth 계정 생성 실패:', e);
     }
 
-    // RTDB 프로필 저장 (password 제외)
+    // RTDB 프로필 저장 (관리자 확인용 password 포함)
     const newUser = {
       username,
+      password,
       agency:     agencyName,
       agencyId:   agencyName,
       role:       'member',
@@ -337,8 +338,7 @@ const HA = {
       } catch (e) {
         console.warn('Firebase Auth 비밀번호 업데이트 실패:', e);
       }
-      const { password: _, ...rtdbPatch } = patch;
-      await update(ref(db, `${PATHS.users}/${key}`), rtdbPatch);
+      await update(ref(db, `${PATHS.users}/${key}`), patch);
     } else {
       await update(ref(db, `${PATHS.users}/${key}`), patch);
     }
