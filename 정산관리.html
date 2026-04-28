@@ -97,11 +97,11 @@
     <thead>
       <tr>
         <th>접수일시</th><th>대행사</th><th>유저ID</th><th>캠페인 수</th>
-        <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>처리 담당자</th><th>액션</th>
+        <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="settle-body">
-      <tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -416,7 +416,7 @@
 
   window.renderSettle=async function(resetPage = true){
     if (resetPage) sPage = 1;
-    document.getElementById('settle-body').innerHTML='<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+    document.getElementById('settle-body').innerHTML='<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
     [allSlots,allUsers,paidSet]=await Promise.all([HA.getSlots(),HA.getUsers(),HA.getPaidSet()]);
     try { refundMap = (await HA.getRefunds()) || {}; } catch(e) { refundMap={}; }
     snapshotMap={};
@@ -447,7 +447,7 @@
     const start=(sPage-1)*PER;
     const list=rows.slice(start,start+PER);
     const body=document.getElementById('settle-body');
-    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="12">데이터가 없습니다.</td></tr>';return;}
+    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="13">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
       const safe=s=>s.replace(/[.#$[\]/]/g,'_');
       const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
@@ -470,9 +470,15 @@
       const ea     = encodeURIComponent(g.agencyId);
       const eu     = encodeURIComponent(g.userId);
       const et     = encodeURIComponent(g.timeKey);
+      const chargeConfirmedByName = savedSnap?.chargeConfirmedByName || '';
+      const chargeConfirmedAt = savedSnap?.chargeConfirmedAt ? new Date(savedSnap.chargeConfirmedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      const isCharged = !!chargeConfirmedByName;
+      const chargeStaffCell = isCharged
+        ? `<span style="font-size:11px;font-weight:700;color:var(--info)">${chargeConfirmedByName}</span>${chargeConfirmedAt?`<br><span style="font-size:10px;color:var(--muted)">${chargeConfirmedAt}</span>`:''}`
+        : `<span style="color:var(--muted);font-size:11px">-</span>`;
       const confirmedByName = savedSnap?.confirmedByName || savedSnap?.confirmedBy || '';
       const confirmedAt = savedSnap?.confirmedAt ? new Date(savedSnap.confirmedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
-      const staffCell = allP && confirmedByName
+      const confirmStaffCell = allP && confirmedByName
         ? `<span style="font-size:11px;font-weight:700;color:var(--info)">${confirmedByName}</span>${confirmedAt?`<br><span style="font-size:10px;color:var(--muted)">${confirmedAt}</span>`:''}`
         : `<span style="color:var(--muted);font-size:11px">-</span>`;
       const repTime = g.slots.map(s=>s.createdAt||'').sort()[0];
@@ -487,10 +493,13 @@
         <td style="font-weight:700;color:var(--info)">${netVat.toLocaleString()}원</td>
         <td style="color:var(--danger);font-weight:700">${refund>0?refund.toLocaleString()+'원':'-'}</td>
         <td>${badge}</td>
-        <td>${staffCell}</td>
+        <td>${chargeStaffCell}</td>
+        <td>${confirmStaffCell}</td>
         <td style="white-space:nowrap;">
           <div style="display:flex;gap:4px;justify-content:center;align-items:center;">
           <button class="btn-refund" onclick="setRefund(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">환불</button>
+          <button class="action-btn" style="${isCharged?'background:#f1f5f9;color:var(--text2)':'background:var(--info);color:#fff'}"
+            onclick="chargeConfirm(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${isCharged?'충전취소':'충전확인'}</button>
           <button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
             onclick="bulkRow(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${allP?'취소':'입금확인'}</button>
           </div>
@@ -558,6 +567,39 @@
       renderSettle(false);
     };
     modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  };
+
+  window.chargeConfirm=async function(timeKey,agencyId,userId){
+    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+    const snapKey=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
+    const snap=snapshotMap[snapKey];
+    const isCharged=!!snap?.chargeConfirmedByName;
+    const currentUser=HA.getCurrentUser?HA.getCurrentUser():null;
+    const staffName=currentUser?(currentUser.name||currentUser.username):'알 수 없음';
+    const staffId=currentUser?currentUser.username:'-';
+    if(!isCharged){
+      const updates={chargeConfirmedAt:new Date().toISOString(),chargeConfirmedBy:staffId,chargeConfirmedByName:staffName};
+      if(snap){
+        Object.assign(snap,updates);
+        await HA.saveSettleSnapshot(snapKey,snap,true);
+      } else {
+        const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
+        const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+        const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const refund=getRefund(timeKey,agencyId,userId);
+        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,unitPrice:getSlotPrice(slots[0]),...updates};
+        await HA.saveSettleSnapshot(snapKey,newSnap,true);
+        snapshotMap[snapKey]=newSnap;
+      }
+    } else {
+      if(snap){
+        delete snap.chargeConfirmedAt;
+        delete snap.chargeConfirmedBy;
+        delete snap.chargeConfirmedByName;
+        await HA.saveSettleSnapshot(snapKey,snap,true);
+      }
+    }
+    renderSettle(false);
   };
 
   window.bulkRow=async function(timeKey,agencyId,userId){
