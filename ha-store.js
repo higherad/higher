@@ -7,6 +7,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
 import { getDatabase, ref, set, get, push, update, remove, onValue }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, signOut }
+  from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+
 // ── Firebase 초기화 ──────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyAF-Rn7tzIjQeyUDJKnvKTRNccsXUVsIjo",
@@ -21,23 +24,10 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
+const auth = getAuth(app);
 
-// ── 직원(Staff) 계정 설정 ────────────────────────────────────
-const STAFF_ACCOUNTS = [
-  { id: 'staff1', username: 'higherad1', password: 'hi1105', name: '주병주', role: 'staff' },
-  { id: 'staff2', username: 'kimpro', password: 'hi1234!!', name: '김태홍', role: 'staff' },
-  { id: 'staff3', username: 'dlgmlwn323', password: 'bawoo920', name: '이희주', role: 'staff' },
-];
-
-// ── 텔레그램 알림 설정 ────────────────────────────────────────
-const TELEGRAM = {
-  token:   '8696324609:AAFo10CLRJiWdDahGtCqHfLKY16HsHZOnE8',
-  chatIds: [
-    '-1003641342076',   // 관리자1
-    // '여기에추가',   // 관리자2
-    // '여기에추가',   // 관리자3
-  ],
-};
+// ── Cloud Run 엔드포인트 ─────────────────────────────────────
+const CLOUD_RUN = 'https://higher-auto-g4lrwwqw4q-du.a.run.app';
 
 // ── DB 경로 상수 ─────────────────────────────────────────────
 const PATHS = {
@@ -51,23 +41,16 @@ const PATHS = {
   statusLog:       'ha/status_log',   // 담당자 상태 변경 이력
 };
 
-// STAFF_ACCOUNTS, TELEGRAM, ADMIN_PASSWORD, firebaseConfig → config.js 참조
-
 async function sendTelegram(message) {
   try {
-    await Promise.all(
-      TELEGRAM.chatIds.map(chatId =>
-        fetch(`https://api.telegram.org/bot${TELEGRAM.token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'HTML',
-          }),
-        })
-      )
-    );
+    const user = auth.currentUser;
+    if (!user) return;
+    const idToken = await user.getIdToken();
+    await fetch(`${CLOUD_RUN}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({ message }),
+    });
   } catch (e) {
     console.warn('텔레그램 알림 실패:', e);
   }
@@ -97,42 +80,41 @@ const HA = {
 
   // ── 로그인 ────────────────────────────────────────────────
   async login(username, password) {
-    // 어드민 계정
-    if (username === 'admin' && password === 'admin0619') {
-      const user = { id: 'admin', username: 'admin', role: 'admin', name: '박성진', agency: '-' };
-      sessionStorage.setItem('ha_current_user', JSON.stringify(user));
-      return { ok: true, user };
-    }
-    // 직원(staff) 계정
-    const staffMatch = STAFF_ACCOUNTS.find(s => s.username === username && s.password === password);
-    if (staffMatch) {
-      const user = { ...staffMatch };
-      sessionStorage.setItem('ha_current_user', JSON.stringify(user));
-      return { ok: true, user };
-    }
-    // 일반 회원 — Firebase에서 조회
+    const email = `${username}@higherad.app`;
     try {
-      const snapshot = await get(ref(db, PATHS.users));
-      const users = snapToArray(snapshot);
-      const found = users.find(u => u.username === username && u.password === password);
-      if (found) {
-        // 승인 대기 중인 계정 로그인 차단
-        if (found.approved === false) {
-          return { ok: false, reason: 'pending' };
-        }
-        const user = { ...found };
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const uid  = cred.user.uid;
+
+      // staff/admin 여부 확인 (ha/staff/{username})
+      const staffSnap = await get(ref(db, `ha/staff/${username}`));
+      if (staffSnap.exists()) {
+        const s    = staffSnap.val();
+        const user = { id: uid, username, role: s.role, name: s.name, agency: '-' };
         sessionStorage.setItem('ha_current_user', JSON.stringify(user));
         return { ok: true, user };
       }
+
+      // 일반 회원 — Firebase RTDB 프로필 조회
+      const snapshot = await get(ref(db, PATHS.users));
+      const users    = snapToArray(snapshot);
+      const found    = users.find(u => u.username === username);
+      if (found) {
+        if (found.approved === false) return { ok: false, reason: 'pending' };
+        const user = { ...found, id: uid };
+        sessionStorage.setItem('ha_current_user', JSON.stringify(user));
+        return { ok: true, user };
+      }
+
+      await signOut(auth);
       return { ok: false };
     } catch (e) {
-      console.error('login error', e);
       return { ok: false };
     }
   },
 
-  logout() {
+  async logout() {
     sessionStorage.removeItem('ha_current_user');
+    try { await signOut(auth); } catch (_) {}
   },
 
   // ════════════════════════════════════════════════════════
@@ -307,11 +289,26 @@ const HA = {
 
   async addUser(data) {
     const agencyName = data.agency || '';
+    const username   = data.username || '';
+    const password   = data.password || '';
+
+    // Firebase Auth 계정 생성 (서버 경유)
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      await fetch(`${CLOUD_RUN}/create-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ username, password }),
+      });
+    } catch (e) {
+      console.warn('Firebase Auth 계정 생성 실패:', e);
+    }
+
+    // RTDB 프로필 저장 (password 제외)
     const newUser = {
-      username:   data.username   || '',
-      password:   data.password   || '',
-      agency:     agencyName,       // 회원 테이블의 업체명
-      agencyId:   agencyName,       // 캠페인에서 참조하는 대행사 ID와 동일한 값
+      username,
+      agency:     agencyName,
+      agencyId:   agencyName,
       role:       'member',
       unitPrice:  Number(data.unitPrice) || 0,
       memo:       data.memo       || '',
@@ -603,9 +600,7 @@ function getDefaultNotices() {
 }
 
 function getDefaultUsers() {
-  return [
-    { username:'higher', password:'test1234', agency:'had1104', role:'member', unitPrice:50000, memo:'테스트 계정', createdAt:'2026-01-08' },
-  ];
+  return [];
 }
 
 // 전역 노출
