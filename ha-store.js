@@ -321,7 +321,27 @@ const HA = {
   },
 
   async updateUser(key, patch) {
-    await update(ref(db, `${PATHS.users}/${key}`), patch);
+    // 비밀번호 변경 시 Firebase Auth도 업데이트
+    if (patch.password) {
+      try {
+        const snap     = await get(ref(db, `${PATHS.users}/${key}`));
+        const username = snap.exists() ? snap.val().username : null;
+        if (username) {
+          const idToken = await auth.currentUser.getIdToken();
+          await fetch(`${CLOUD_RUN}/create-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+            body: JSON.stringify({ username, password: patch.password }),
+          });
+        }
+      } catch (e) {
+        console.warn('Firebase Auth 비밀번호 업데이트 실패:', e);
+      }
+      const { password: _, ...rtdbPatch } = patch;
+      await update(ref(db, `${PATHS.users}/${key}`), rtdbPatch);
+    } else {
+      await update(ref(db, `${PATHS.users}/${key}`), patch);
+    }
     dispatch('ha:users:updated');
   },
 
