@@ -552,7 +552,7 @@
   let pendingDiff   = 0;
 
   HA.onSlotsChange(slots => {
-    const pendingSlots = slots.filter(s => s.status === 'pending' || s.status === 'accepted');
+    const pendingSlots = slots.filter(s => s.status === 'pending');
     const n = pendingSlots.length;
 
     // 배지 업데이트
