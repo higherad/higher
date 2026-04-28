@@ -301,7 +301,7 @@
           }</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
-          <td>${(s.status === 'active' || s.status === 'pending')
+          <td>${['pending','accepted','active'].includes(s.status)
             ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>`
             : `<span style="color:#cbd5e1">-</span>`
           }</td>
