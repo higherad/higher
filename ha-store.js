@@ -112,9 +112,9 @@ const HA = {
     }
   },
 
-  async logout() {
+  logout() {
     sessionStorage.removeItem('ha_current_user');
-    try { await signOut(auth); } catch (_) {}
+    signOut(auth).catch(() => {});
   },
 
   // ════════════════════════════════════════════════════════
