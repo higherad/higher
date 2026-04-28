@@ -582,8 +582,7 @@
         <div style="font-size:15px;font-weight:700;margin-bottom:4px;">메모</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">${agencyId} · ${userId}</div>
         <textarea id="memo-input" rows="4" placeholder="메모를 입력해주세요."
-          style="width:100%;padding:10px 14px;border:1.5px solid ${currentMemo?'var(--danger)':'var(--border)'};border-radius:9px;font-size:13px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box;"
-          oninput="this.style.borderColor=this.value?'var(--danger)':'var(--border)'"
+          style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box;"
         >${currentMemo}</textarea>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
           <button onclick="this.closest('[style*=fixed]').remove()"
@@ -612,7 +611,6 @@
       modal.remove();
       renderSettle(false);
     };
-    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
   };
 
   window.chargeConfirm=async function(timeKey,agencyId,userId){
