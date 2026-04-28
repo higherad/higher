@@ -448,6 +448,8 @@
     const activeSlots    = allSlots.filter(sl => sl.status === 'active');
     const activeAgencies = new Set(activeSlots.map(sl => sl.agencyId)).size;
     const totalTarget    = activeSlots.reduce((a, sl) => a + (sl.dailyTarget||0) * (sl.days||0), 0);
+    const pendingCount   = allSlots.filter(sl => sl.status === 'pending').length;
+    const acceptedCount  = allSlots.filter(sl => sl.status === 'accepted').length;
 
     area.innerHTML = `
       <div class="stat-grid" style="grid-template-columns:repeat(7,1fr)">
@@ -456,8 +458,8 @@
         <div class="stat-card c-green"><div class="stat-label">진행중 캠페인</div><div class="stat-value">${s.activeSlots}<span class="stat-unit">개</span></div></div>
         <div class="stat-card c-green"><div class="stat-label">전체 목표</div><div class="stat-value">${totalTarget.toLocaleString()}<span class="stat-unit">개</span></div></div>
         <div class="stat-card c-warn"><div class="stat-label">만료 예정(3일)</div><div class="stat-value">${s.expiringSoon}<span class="stat-unit">건</span></div></div>
-        <div class="stat-card c-info"><div class="stat-label">승인 대기</div><div class="stat-value">${s.pending}<span class="stat-unit">건</span></div></div>
-        <div class="stat-card c-danger"><div class="stat-label">반려</div><div class="stat-value">${s.rejected}<span class="stat-unit">건</span></div></div>
+        <div class="stat-card c-info"><div class="stat-label">대기</div><div class="stat-value">${pendingCount}<span class="stat-unit">건</span></div></div>
+        <div class="stat-card c-info"><div class="stat-label">접수</div><div class="stat-value">${acceptedCount}<span class="stat-unit">건</span></div></div>
       </div>
       <div class="bottom-grid">
         <div class="ha-box">
@@ -550,7 +552,7 @@
   let pendingDiff   = 0;
 
   HA.onSlotsChange(slots => {
-    const pendingSlots = slots.filter(s => s.status === 'pending');
+    const pendingSlots = slots.filter(s => s.status === 'pending' || s.status === 'accepted');
     const n = pendingSlots.length;
 
     // 배지 업데이트
