@@ -609,21 +609,32 @@
     const currentUser=HA.getCurrentUser?HA.getCurrentUser():null;
     const staffName=currentUser?(currentUser.name||currentUser.username):'알 수 없음';
     const staffId=currentUser?currentUser.username:'-';
+    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+    const snapKey=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
     if(nowPaid){
       const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
       const p=getPrice(userId);
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
       const refund=getRefund(timeKey,agencyId,userId);
-      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
-      const snapKey=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
-      const snap={slotCount:slots.length,totalTarget:tot,amount:amt,unitPrice:p,refund,agencyId,userId,timeKey,
+      // 기존 스냅샷 보존(충전 담당자 등) 후 입금 필드만 덮어쓰기
+      const existing=snapshotMap[snapKey]||{};
+      const snap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt,unitPrice:p,refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
       await HA.saveSettleSnapshot(snapKey,snap,true);
+      snapshotMap[snapKey]=snap;
     } else {
-      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
-      const snapKey=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
-      try{await HA.deleteSettleSnapshot(snapKey);}catch(e){}
+      const existing=snapshotMap[snapKey];
+      if(existing?.chargeConfirmedByName){
+        // 충전 확인 로그가 있으면 입금 필드만 제거, 스냅샷 유지
+        delete existing.confirmedAt;
+        delete existing.confirmedBy;
+        delete existing.confirmedByName;
+        await HA.saveSettleSnapshot(snapKey,existing,true);
+      } else {
+        try{await HA.deleteSettleSnapshot(snapKey);}catch(e){}
+        delete snapshotMap[snapKey];
+      }
     }
     await Promise.all(keys.map(k=>HA.setPaid(k,nowPaid)));
     renderSettle(false);
