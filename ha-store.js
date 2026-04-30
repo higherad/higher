@@ -43,6 +43,7 @@ const PATHS = {
 
 async function sendTelegram(message) {
   try {
+    await auth.authStateReady();
     const user = auth.currentUser;
     if (!user) return;
     const idToken = await user.getIdToken();
