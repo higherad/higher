@@ -27,7 +27,7 @@ const db   = getDatabase(app);
 const auth = getAuth(app);
 
 // ── Cloud Run 엔드포인트 ─────────────────────────────────────
-const CLOUD_RUN = 'https://higher-auto-g4lrwwqw4q-du.a.run.app';
+const CLOUD_RUN = 'https://higherad-auto-938928195180.asia-northeast3.run.app';
 
 // ── DB 경로 상수 ─────────────────────────────────────────────
 const PATHS = {
