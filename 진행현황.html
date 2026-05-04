@@ -42,6 +42,9 @@
   .loading-wrap { display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:8px; }
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
+  .trash-days-ok   { color:#059669; font-weight:700; }
+  .trash-days-warn { color:#d97706; font-weight:700; }
+  .trash-days-bad  { color:#dc2626; font-weight:700; }
 </style>
 
 <div class="stat-bar" style="grid-template-columns:repeat(3,1fr)">
@@ -63,6 +66,7 @@
   <span id="slots-count" style="font-size:13px;color:var(--text2)">로드 중...</span>
   <div style="display:flex;gap:8px;">
     <button class="action-btn btn-del" style="padding:7px 16px;font-size:12px;" onclick="bulkDelete()">선택 삭제</button>
+    <button class="action-btn" style="background:#475569;color:#fff;padding:7px 16px;font-size:12px;" onclick="openTrashView()">🗑️ 휴지통</button>
   </div>
 </div>
 
@@ -498,6 +502,127 @@
 
 
   renderSlots(false);
+
+  // ── 휴지통 ─────────────────────────────────────────────────
+  const TRASH_DAYS = 30;
+
+  function _trashRemaining(deletedAt) {
+    if (!deletedAt) return TRASH_DAYS;
+    const expire = new Date(deletedAt).getTime() + TRASH_DAYS * 86400000;
+    return Math.max(0, Math.ceil((expire - Date.now()) / 86400000));
+  }
+
+  function _fmtDateOnly(iso) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  window.openTrashView = async function() {
+    if (document.getElementById('trash-modal')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'trash-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:16px;width:100%;max-width:1100px;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden;">
+        <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:17px;font-weight:700;">🗑️ 휴지통</span>
+            <span style="font-size:12px;color:var(--muted);">삭제 후 ${TRASH_DAYS}일간 보관 · 기간 만료 시 자동 영구삭제</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="emptyTrash()" style="padding:7px 14px;border:none;border-radius:6px;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">전체 영구삭제</button>
+            <button onclick="document.getElementById('trash-modal').remove()" style="padding:7px 14px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;font-family:inherit;">닫기</button>
+          </div>
+        </div>
+        <div id="trash-table-area" style="min-height:200px;">
+          <div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    await _renderTrashContent();
+  };
+
+  async function _renderTrashContent() {
+    const area = document.getElementById('trash-table-area');
+    if (!area) return;
+
+    const slots = await HA.getSlots();
+    const trashed = slots.filter(s => s.status === 'deleted');
+
+    // 30일 초과 항목 자동 영구삭제
+    const now = Date.now();
+    const expired = trashed.filter(s => s.deletedAt && now > new Date(s.deletedAt).getTime() + TRASH_DAYS * 86400000);
+    if (expired.length) {
+      await Promise.all(expired.map(s => HA.permanentDeleteSlot(s._key)));
+    }
+    const active = trashed.filter(s => !expired.some(e => e._key === s._key));
+
+    if (!active.length) {
+      area.innerHTML = '<div style="padding:60px 0;text-align:center;color:var(--muted);font-size:13px;">휴지통이 비어 있습니다.</div>';
+      return;
+    }
+
+    area.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr>
+            <th style="background:#1e293b;color:#fff;padding:10px;font-weight:500;text-align:center;white-space:nowrap;border-right:1px solid #2d3f55;">접수일시</th>
+            <th style="background:#1e293b;color:#fff;padding:10px;font-weight:500;text-align:center;white-space:nowrap;border-right:1px solid #2d3f55;">대행사</th>
+            <th style="background:#1e293b;color:#fff;padding:10px;font-weight:500;text-align:center;white-space:nowrap;border-right:1px solid #2d3f55;">유저 ID</th>
+            <th style="background:#1e293b;color:#fff;padding:10px;font-weight:500;text-align:center;white-space:nowrap;border-right:1px solid #2d3f55;">플레이스명</th>
+            <th style="background:#1e293b;color:#fff;padding:10px;font-weight:500;text-align:center;white-space:nowrap;border-right:1px solid #2d3f55;">MID</th>
+            <th style="background:#1e293b;color:#fff;padding:10px;font-weight:500;text-align:center;white-space:nowrap;border-right:1px solid #2d3f55;">삭제일시</th>
+            <th style="background:#1e293b;color:#fff;padding:10px;font-weight:500;text-align:center;white-space:nowrap;border-right:1px solid #2d3f55;">남은 기간</th>
+            <th style="background:#1e293b;color:#fff;padding:10px;font-weight:500;text-align:center;white-space:nowrap;">액션</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${active.map(s => {
+            const rem = _trashRemaining(s.deletedAt);
+            const remCls = rem > 14 ? 'trash-days-ok' : rem > 7 ? 'trash-days-warn' : 'trash-days-bad';
+            return `<tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:10px;text-align:center;color:var(--text2);">${_fmtDateOnly(s.createdAt)}</td>
+              <td style="padding:10px;text-align:center;font-weight:600;">${s.agencyId||'-'}</td>
+              <td style="padding:10px;text-align:center;">${s.userId||'-'}</td>
+              <td style="padding:10px;text-align:center;">${s.storeName||'-'}</td>
+              <td style="padding:10px;text-align:center;font-size:11px;color:var(--text2);">${s.mid||'-'}</td>
+              <td style="padding:10px;text-align:center;color:var(--text2);">${_fmtDateOnly(s.deletedAt)}</td>
+              <td style="padding:10px;text-align:center;"><span class="${remCls}">${rem}일</span></td>
+              <td style="padding:10px;text-align:center;">
+                <div style="display:flex;gap:5px;justify-content:center;">
+                  <button onclick="restoreFromTrash('${s._key}')" style="padding:4px 10px;border-radius:5px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:rgba(16,185,129,.15);color:#059669;font-family:inherit;">복구</button>
+                  <button onclick="permanentDeleteFromTrash('${s._key}')" style="padding:4px 10px;border-radius:5px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:rgba(239,68,68,.1);color:#dc2626;font-family:inherit;">영구삭제</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  window.restoreFromTrash = async function(key) {
+    if (!confirm('이 캠페인을 복구하시겠습니까?')) return;
+    await HA.restoreSlot(key);
+    await _renderTrashContent();
+    renderSlots(false);
+  };
+
+  window.permanentDeleteFromTrash = async function(key) {
+    if (!confirm('영구 삭제하면 복구가 불가능합니다.\n정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?')) return;
+    await HA.permanentDeleteSlot(key);
+    await _renderTrashContent();
+  };
+
+  window.emptyTrash = async function() {
+    const slots = await HA.getSlots();
+    const trashed = slots.filter(s => s.status === 'deleted');
+    if (!trashed.length) { alert('휴지통이 이미 비어 있습니다.'); return; }
+    if (!confirm(`휴지통의 모든 항목 ${trashed.length}건을 영구 삭제합니다.\n복구할 수 없으며, 정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?`)) return;
+    await Promise.all(trashed.map(s => HA.permanentDeleteSlot(s._key)));
+    await _renderTrashContent();
+  };
+
 })();
 </script>
 </div>

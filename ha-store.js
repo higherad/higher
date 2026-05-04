@@ -247,26 +247,35 @@ const HA = {
   },
 
   async deleteSlot(key) {
-    const todayStr = (() => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    })();
     const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
-    if (slotSnap.exists()) {
-      const slot = slotSnap.val();
-      if (slot.createdAt) {
-        const d = new Date(slot.createdAt);
-        const slotDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        if (slotDate >= todayStr) {
-          // 오늘 이후 접수 캠페인 삭제 시 정산 데이터 함께 정리
-          await Promise.all([
-            remove(ref(db, `${PATHS.paid}/${key}`)),
-            remove(ref(db, `${PATHS.refunds}/${key}`)),
-          ]);
-        }
-      }
-    }
-    await update(ref(db, `${PATHS.slots}/${key}`), { status: 'deleted' });
+    if (!slotSnap.exists()) return;
+    const slot = slotSnap.val();
+    await update(ref(db, `${PATHS.slots}/${key}`), {
+      status:         'deleted',
+      deletedAt:      new Date().toISOString(),
+      originalStatus: slot.status || 'pending',
+    });
+    dispatch('ha:slots:updated');
+  },
+
+  async restoreSlot(key) {
+    const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
+    if (!slotSnap.exists()) return;
+    const slot = slotSnap.val();
+    await update(ref(db, `${PATHS.slots}/${key}`), {
+      status:         slot.originalStatus || 'pending',
+      deletedAt:      null,
+      originalStatus: null,
+    });
+    dispatch('ha:slots:updated');
+  },
+
+  async permanentDeleteSlot(key) {
+    await Promise.all([
+      remove(ref(db, `${PATHS.paid}/${key}`)),
+      remove(ref(db, `${PATHS.refunds}/${key}`)),
+      remove(ref(db, `${PATHS.slots}/${key}`)),
+    ]);
     dispatch('ha:slots:updated');
   },
 
