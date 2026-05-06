@@ -610,7 +610,7 @@
       storeName:     document.getElementById('e-storeName').value,
       startDate:     document.getElementById('e-startDate').value,
       endDate:       document.getElementById('e-endDate').value,
-      rankKeyword:   document.getElementById('e-rankKeyword').value,
+      rankKeyword:   document.getElementById('e-rankKeyword').value.replace(/\s+/g, ''),
       searchKeyword: document.getElementById('e-searchKeyword').value,
       url:           document.getElementById('e-url').value,
       mid:           document.getElementById('e-mid').value,
