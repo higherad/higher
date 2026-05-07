@@ -154,6 +154,72 @@
   const GRADE_CACHE = new Map();
   const GRADE_FB    = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/grades';
 
+  // ── 상세 팝업 잠금 (동시 편집 방지) ─────────────────────────
+  const LOCK_FB     = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/detail_locks';
+  const LOCK_TTL_MS = 10 * 60 * 1000; // 10분 초과 잠금은 자동 무효
+
+  async function acquireDetailLock(key) {
+    const cu       = window.HA?.getCurrentUser?.() || {};
+    const staffId  = cu.username || cu.id || 'unknown';
+    const staffName= cu.name || staffId;
+
+    // 기존 잠금 확인
+    try {
+      const res  = await fetch(`${LOCK_FB}/${key}.json`);
+      const data = res.ok ? await res.json() : null;
+      if (data && data.staffId !== staffId) {
+        const age = Date.now() - new Date(data.lockedAt).getTime();
+        if (age < LOCK_TTL_MS) {
+          return { acquired: false, by: data.staffName || data.staffId };
+        }
+      }
+    } catch (_) {}
+
+    // 잠금 쓰기
+    const lockData = { staffId, staffName, lockedAt: new Date().toISOString() };
+    await fetch(`${LOCK_FB}/${key}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lockData),
+    });
+
+    // 브라우저 종료 시 자동 해제 (onDisconnect)
+    try {
+      const { getDatabase, ref, onDisconnect } = await import(
+        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
+      );
+      onDisconnect(ref(getDatabase(), `ha/detail_locks/${key}`)).remove();
+    } catch (_) {}
+
+    return { acquired: true };
+  }
+
+  async function releaseDetailLock(key) {
+    try {
+      await fetch(`${LOCK_FB}/${key}.json`, { method: 'DELETE' });
+      const { getDatabase, ref, onDisconnect } = await import(
+        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
+      );
+      onDisconnect(ref(getDatabase(), `ha/detail_locks/${key}`)).cancel();
+    } catch (_) {}
+  }
+
+  function showLockNotice(byName) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box" style="width:340px;text-align:center;padding:36px 28px;">
+        <div style="font-size:32px;margin-bottom:14px;">🔒</div>
+        <div class="modal-title" style="margin-bottom:8px;">편집 중</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">
+          <strong style="color:var(--text)">${byName}</strong> 님이 현재 이 항목을<br>편집하고 있습니다.<br>
+          <span style="font-size:12px;color:var(--muted)">창을 닫으면 다시 열 수 있습니다.</span>
+        </div>
+        <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">확인</button>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
   async function fetchGrade(mid) {
     if (GRADE_CACHE.has(mid)) return GRADE_CACHE.get(mid);
     try {
@@ -410,6 +476,7 @@
       if (idx !== -1) allSlots[idx].searchKeyword = kw;
     }
     await HA.updateSlot(key, { status: 'accepted' });
+    await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
     renderReceipts(false);
   };
@@ -425,9 +492,16 @@
   };
 
   // ── 상세 보기 ─────────────────────────────────────────────
-  window.viewDetail = function(key) {
+  window.viewDetail = async function(key) {
     const s = allSlots.find(x => x._key === key);
     if (!s) return;
+
+    const lockResult = await acquireDetailLock(key);
+    if (!lockResult.acquired) {
+      showLockNotice(lockResult.by);
+      return;
+    }
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
@@ -575,6 +649,7 @@
       const idx = allSlots.findIndex(x => x._key === key);
       if (idx !== -1) allSlots[idx].searchKeyword = kw;
     }
+    await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
   };
 
