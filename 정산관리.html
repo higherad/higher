@@ -172,11 +172,6 @@
     const kw=(document.getElementById('sf-kw').value||'').toLowerCase();
     return allSlots.filter(s=>{
       if(s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending') return true;
-      if(s.status==='deleted'){
-        // originalStatus 있으면 실제 가동 여부로 판단, 없는 구형 데이터는 startDate fallback
-        if(s.originalStatus) return ['active','accepted','expired'].includes(s.originalStatus);
-        return (s.startDate||'') < todayStr;
-      }
       return false;
     }).filter(s=>{
       if(paid==='paid'&&!paidSet.has(s._key))return false;
@@ -662,7 +657,7 @@
       const refund=getRefund(timeKey,agencyId,userId);
       // 기존 스냅샷 보존(충전 담당자 등) 후 입금 필드만 덮어쓰기
       const existing=snapshotMap[snapKey]||{};
-      const snap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt,unitPrice:p,refund,agencyId,userId,timeKey,
+      const snap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,unitPrice:p,refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
       await HA.saveSettleSnapshot(snapKey,snap,true);
       snapshotMap[snapKey]=snap;
