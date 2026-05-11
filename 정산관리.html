@@ -77,6 +77,7 @@
     <option value="">정산상태 전체</option>
     <option value="paid">정산완료</option>
     <option value="unpaid">미정산</option>
+    <option value="uncharged">미충전</option>
   </select>
   <div style="position:relative;display:flex;align-items:center;">
     <button id="sf-date-btn" onclick="document.getElementById('sf-from').showPicker?document.getElementById('sf-from').showPicker():document.getElementById('sf-from').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
@@ -437,7 +438,14 @@
       snapshotMap[sk]=snap;
     }
 
-    const rows=groupByTimeAgency(getFiltered());
+    let rows=groupByTimeAgency(getFiltered());
+    if(document.getElementById('sf-paid').value==='uncharged'){
+      rows=rows.filter(g=>{
+        const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+        const sk=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
+        return !snapshotMap[sk]?.chargeConfirmedByName;
+      });
+    }
     const start=(sPage-1)*PER;
     const list=rows.slice(start,start+PER);
     const body=document.getElementById('settle-body');
