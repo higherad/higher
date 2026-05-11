@@ -89,7 +89,7 @@
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="sf-kw" placeholder="대행사/아이디 검색" style="width:180px;" onkeydown="if(event.key==='Enter') renderSettle()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSettle()">검색</button>
-    <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="exportSettleCSV()">엑셀 다운로드</button>
+    <button id="settle-export-btn" class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="exportSettleCSV()">엑셀 다운로드</button>
   </div>
 </div>
 
@@ -97,12 +97,13 @@
   <table>
     <thead>
       <tr>
+        <th style="width:36px;"><input type="checkbox" id="settle-chk-all" title="전체선택" onchange="toggleAllSettle(this)" style="cursor:pointer;width:14px;height:14px;accent-color:var(--info);"></th>
         <th>접수일시</th><th>대행사</th><th>유저ID</th><th>캠페인 수</th>
         <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="settle-body">
-      <tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -113,6 +114,8 @@
   let sPage=1; const PER=20;
   let allSlots=[],allUsers=[],paidSet=new Set(),refundMap={};
   let snapshotMap={};
+  let filteredRows=[];
+  const selectedSnapKeys=new Set();
   const todayStr=(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
@@ -410,8 +413,8 @@
   };
 
   window.renderSettle=async function(resetPage = true){
-    if (resetPage) sPage = 1;
-    document.getElementById('settle-body').innerHTML='<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+    if (resetPage) { sPage = 1; selectedSnapKeys.clear(); updateExportBtn(); }
+    document.getElementById('settle-body').innerHTML='<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
     [allSlots,allUsers,paidSet]=await Promise.all([HA.getSlots(),HA.getUsers(),HA.getPaidSet()]);
     try { refundMap = (await HA.getRefunds()) || {}; } catch(e) { refundMap={}; }
     snapshotMap={};
@@ -446,10 +449,11 @@
         return !snapshotMap[sk]?.chargeConfirmedByName;
       });
     }
+    filteredRows=rows;
     const start=(sPage-1)*PER;
     const list=rows.slice(start,start+PER);
     const body=document.getElementById('settle-body');
-    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="13">데이터가 없습니다.</td></tr>';return;}
+    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
       const safe=s=>s.replace(/[.#$[\]/]/g,'_');
       const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
@@ -486,6 +490,7 @@
         : `<span style="color:var(--muted);font-size:11px">-</span>`;
       const repTime = g.slots.map(s=>s.createdAt||'').sort()[0];
       return `<tr>
+        <td style="text-align:center;padding:10px 4px;"><input type="checkbox" class="settle-chk" data-snapkey="${snapKey}" ${selectedSnapKeys.has(snapKey)?'checked':''} onchange="onSettleChkChange(this)" style="cursor:pointer;width:14px;height:14px;accent-color:var(--info);"></td>
         <td style="color:var(--text2);font-size:11px">${fmtDatetime(repTime)}</td>
         <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${g.agencyId}</span></td>
         <td>${g.userId}</td>
@@ -511,6 +516,9 @@
         </td>
       </tr>`;
     }).join('');
+    const allChkAll=document.getElementById('settle-chk-all');
+    if(allChkAll){const allChks=[...document.querySelectorAll('.settle-chk')];allChkAll.checked=allChks.length>0&&allChks.every(c=>c.checked);allChkAll.indeterminate=allChks.some(c=>c.checked)&&!allChks.every(c=>c.checked);}
+    updateExportBtn();
     const pages=Math.ceil(rows.length/PER)||1;
     const pg=document.getElementById('settle-pagination');
     let ph=`<button class="pg-btn" onclick="goSP(1)">&laquo;</button><button class="pg-btn" onclick="goSP(${Math.max(1,sPage-1)})">&lsaquo;</button>`;
@@ -523,6 +531,34 @@
   };
 
   window.goSP=n=>{sPage=n;renderSettle(false);};
+
+  function updateExportBtn(){
+    const btn=document.getElementById('settle-export-btn');
+    if(!btn)return;
+    const count=selectedSnapKeys.size;
+    btn.textContent=count>0?`엑셀 다운로드 (${count}건 선택)`:'엑셀 다운로드';
+    btn.style.background=count>0?'var(--accent)':'#fff';
+    btn.style.color=count>0?'#fff':'inherit';
+    btn.style.border=count>0?'1px solid var(--accent)':'1px solid var(--border)';
+  }
+
+  window.onSettleChkChange=function(cb){
+    if(cb.checked)selectedSnapKeys.add(cb.dataset.snapkey);
+    else selectedSnapKeys.delete(cb.dataset.snapkey);
+    const allChks=[...document.querySelectorAll('.settle-chk')];
+    const chkAll=document.getElementById('settle-chk-all');
+    if(chkAll){chkAll.checked=allChks.every(c=>c.checked);chkAll.indeterminate=allChks.some(c=>c.checked)&&!allChks.every(c=>c.checked);}
+    updateExportBtn();
+  };
+
+  window.toggleAllSettle=function(cb){
+    document.querySelectorAll('.settle-chk').forEach(c=>{
+      c.checked=cb.checked;
+      if(cb.checked)selectedSnapKeys.add(c.dataset.snapkey);
+      else selectedSnapKeys.delete(c.dataset.snapkey);
+    });
+    updateExportBtn();
+  };
 
   window.setRefund=async function(timeKey,agencyId,userId){
     const current=getRefund(timeKey,agencyId,userId);
@@ -801,7 +837,16 @@
   };
 
   window.exportSettleCSV=function(){
-    const rows=groupByTimeAgency(getFiltered());
+    let rows;
+    if(selectedSnapKeys.size>0){
+      rows=filteredRows.filter(g=>{
+        const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+        const sk=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
+        return selectedSnapKeys.has(sk);
+      });
+    } else {
+      rows=groupByTimeAgency(getFiltered());
+    }
     const lines=[['접수일시','대행사','유저ID','캠페인 수','일 목표 합산','단가(원)','정산 금액(VAT 별도)','입금액(VAT 포함)','환불 금액','정산상태']];
     rows.forEach(g=>{
       const safe=s=>s.replace(/[.#$[\]/]/g,'_');
