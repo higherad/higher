@@ -97,6 +97,7 @@
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="sf-kw" placeholder="대행사/아이디 검색" style="width:180px;" onkeydown="if(event.key==='Enter') renderSettle()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSettle()">검색</button>
+    <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetSettle()">초기화</button>
   </div>
 </div>
 
@@ -211,6 +212,16 @@
   };
 
   window.clearSettleDate = function() {
+    document.getElementById('sf-from').value = '';
+    document.getElementById('sf-date-label').textContent = '접수일 선택';
+    document.getElementById('sf-date-btn').style.color = 'var(--text2)';
+    document.getElementById('sf-date-clear').style.display = 'none';
+    renderSettle();
+  };
+
+  window.resetSettle = function() {
+    document.getElementById('sf-paid').value = '';
+    document.getElementById('sf-kw').value = '';
     document.getElementById('sf-from').value = '';
     document.getElementById('sf-date-label').textContent = '접수일 선택';
     document.getElementById('sf-date-btn').style.color = 'var(--text2)';
