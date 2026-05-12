@@ -97,7 +97,7 @@
   <table>
     <thead>
       <tr>
-        <th style="width:36px;"><input type="checkbox" id="settle-chk-all" title="전체선택" onchange="toggleAllSettle(this)" style="cursor:pointer;width:14px;height:14px;accent-color:var(--info);"></th>
+        <th><input type="checkbox" id="settle-chk-all" title="전체선택" onchange="toggleAllSettle(this)"></th>
         <th>접수일시</th><th>대행사</th><th>유저ID</th><th>캠페인 수</th>
         <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
       </tr>
@@ -490,7 +490,7 @@
         : `<span style="color:var(--muted);font-size:11px">-</span>`;
       const repTime = g.slots.map(s=>s.createdAt||'').sort()[0];
       return `<tr>
-        <td style="text-align:center;padding:10px 4px;"><input type="checkbox" class="settle-chk" data-snapkey="${snapKey}" ${selectedSnapKeys.has(snapKey)?'checked':''} onchange="onSettleChkChange(this)" style="cursor:pointer;width:14px;height:14px;accent-color:var(--info);"></td>
+        <td><input type="checkbox" class="settle-chk" data-snapkey="${snapKey}" ${selectedSnapKeys.has(snapKey)?'checked':''} onchange="onSettleChkChange(this)"></td>
         <td style="color:var(--text2);font-size:11px">${fmtDatetime(repTime)}</td>
         <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${g.agencyId}</span></td>
         <td>${g.userId}</td>
