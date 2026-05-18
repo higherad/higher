@@ -609,7 +609,7 @@
         ${sheetKeywords.map(kw => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #dbeafe;gap:8px;">
             <span style="font-size:13px;font-weight:600;color:#1d4ed8;flex:1;">${kw}</span>
-            <button onclick="document.getElementById('detail-keyword-input').value='${kw.replace(/'/g,"\\'")}'"
+            <button onclick="(function(){var el=document.getElementById('detail-keyword-input');el.value='${kw.replace(/'/g,"\\'")}';updateKwCount(el.value);})()"
               style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
               적용
             </button>
@@ -631,7 +631,7 @@
           <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:8px;">
             <span style="font-size:11px;color:var(--text2);white-space:nowrap;">${s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : ''}</span>
             <span style="font-size:12px;font-weight:500;color:var(--text);flex:1;text-align:left;padding-left:8px;">${s.searchKeyword}</span>
-            <button onclick="document.getElementById('detail-keyword-input').value='${s.searchKeyword.replace(/'/g,"\\'")}'"
+            <button onclick="(function(){var el=document.getElementById('detail-keyword-input');el.value='${s.searchKeyword.replace(/'/g,"\\'")}';updateKwCount(el.value);})()"
               style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
               적용
             </button>
