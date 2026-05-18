@@ -526,13 +526,16 @@
           <dt>상태</dt><dd>${stMap[s.status]||s.status}</dd>
           <dt>메모</dt><dd>${s.memo||'-'}</dd>
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
-            검색키워드
+            <span style="display:flex;align-items:center;gap:6px;">
+              검색키워드
+              <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
+            </span>
             ${s.mid ? `<button onclick="toggleMidHistory('${s.mid}','${key}')" id="mid-hist-btn"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
           </dt>
-          <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="키워드를 입력해주세요"></dd>
+          <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)"></dd>
           <dd id="mid-history-area" style="display:none;margin-top:8px;"></dd>
         </dl>
         <div class="modal-footer">
@@ -637,6 +640,12 @@
     }
 
     area.innerHTML = html;
+  };
+
+  window.updateKwCount = function(val) {
+    const count = val.split(',').map(k => k.trim()).filter(k => k.length > 0).length;
+    const badge = document.getElementById('kw-count-badge');
+    if (badge) badge.textContent = count + '개';
   };
 
   // 닫기 시 키워드 자동저장
