@@ -103,8 +103,8 @@
     <option value="accepted">접수</option>
     <option value="active">승인</option>
   </select>
-  <select id="filter-slot-type" onchange="renderReceipts()">
-    <option value="">전체 등급</option>
+  <select id="filter-slot-type" onchange="renderReceipts()" disabled>
+    <option value="">⏳ 등급 로딩 중...</option>
   </select>
   <div style="position:relative;display:flex;align-items:center;">
     <button id="date-pick-btn" onclick="document.getElementById('filter-date-from').showPicker?document.getElementById('filter-date-from').showPicker():document.getElementById('filter-date-from').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
@@ -276,6 +276,7 @@
       opt.textContent = label;
       sel.appendChild(opt);
     });
+    sel.disabled = false;
     if (labels.has(currentVal)) sel.value = currentVal;
   }
 
