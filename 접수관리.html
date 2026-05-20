@@ -618,13 +618,12 @@
     } else {
       html += `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:10px 12px;margin-bottom:10px;">
         ${sheetKeywords.map(kw => {
-          const kwList = kw.split(',').map(k => k.trim()).filter(k => k);
           const safeKw = kw.replace(/'/g, "\\'");
-          return `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
-            ${kwList.map(k => `<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:12px;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;">${k}</span>`).join('')}
+          return `<div style="display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px;color:#1d4ed8;font-weight:500;background:#dbeafe;padding:4px 8px;border-radius:5px;">${kw}</div>
             <button onclick="(function(){var el=document.getElementById('detail-keyword-input');el.value='${safeKw}';updateKwCount(el.value);})()"
-              style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;margin-left:auto;">
-              전체 적용
+              style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
+              적용
             </button>
           </div>`;
         }).join('')}
@@ -642,23 +641,22 @@
     } else {
       html += `<div style="background:#f8fafc;border-radius:7px;padding:8px 12px;border:1px solid var(--border);max-height:220px;overflow-y:auto;">
         ${history.map(s => {
-          const kwList = (s.searchKeyword||'').split(',').map(k => k.trim()).filter(k => k);
-          const safeKw = (s.searchKeyword||'').replace(/'/g, "\\'");
+          const kwStr  = s.searchKeyword || '';
+          const kwCount = kwStr.split(',').map(k => k.trim()).filter(k => k).length;
+          const safeKw = kwStr.replace(/'/g, "\\'");
           const dateStr = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
           return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
               <div style="display:flex;align-items:center;gap:6px;">
                 <span style="font-size:11px;color:var(--text2);">${dateStr}</span>
-                <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwList.length}개</span>
+                <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCount}개</span>
               </div>
               <button onclick="(function(){var el=document.getElementById('detail-keyword-input');el.value='${safeKw}';updateKwCount(el.value);})()"
                 style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
                 적용
               </button>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:3px;">
-              ${kwList.map(k => `<span style="display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;">${k}</span>`).join('')}
-            </div>
+            <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;color:#475569;background:#f1f5f9;padding:4px 8px;border-radius:5px;">${kwStr}</div>
           </div>`;
         }).join('')}
       </div>`;
