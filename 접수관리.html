@@ -16,6 +16,8 @@
     background:#1e293b; color:#fff; padding:11px 10px; font-weight:500;
     border-right:1px solid #2d3f55; white-space:nowrap; text-align:center;
   }
+  #receipt-page thead th:nth-child(6),
+  #receipt-page tbody td:nth-child(6) { width:130px; max-width:130px; min-width:80px; }
   #receipt-page tbody td {
     padding:11px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle;
   }
@@ -343,6 +345,19 @@
     if (toExpire.length) {
       await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
       toExpire.forEach(s => { s.status = 'expired'; });
+    }
+
+    // 등급 필터 활성화 시 미캐시 MID 먼저 로드 후 렌더
+    const gradeFilterVal = document.getElementById('filter-slot-type').value;
+    if (gradeFilterVal) {
+      const uncachedForFilter = [...new Set(
+        allSlots.filter(s => ['pending','accepted','active'].includes(s.status) && s.mid && !GRADE_CACHE.has(s.mid)).map(s => s.mid)
+      )];
+      if (uncachedForFilter.length) {
+        document.getElementById('receipt-body').innerHTML =
+          '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 등급 데이터 로딩 중...</div></td></tr>';
+        await Promise.all(uncachedForFilter.map(mid => fetchGrade(mid)));
+      }
     }
 
     const all      = getFiltered();
