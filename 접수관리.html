@@ -553,9 +553,12 @@
       const { getDatabase, ref, get } = await import(
         'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
       );
-      const snap = await get(ref(getDatabase(), `ha/keywords/${safeMid}`));
+      const snap = await get(ref(getDatabase(), `ha/grades/${safeMid}`));
       if (!snap.exists()) return [];
-      return [snap.val()]; // 문자열 하나를 배열로 감싸서 반환
+      const data   = snap.val();
+      const grades = Array.isArray(data) ? data : Object.values(data);
+      const findKw = grades.map(g => g.findKw).find(kw => kw && kw.trim());
+      return findKw ? [findKw] : [];
     } catch (e) {
       console.error('Firebase 키워드 조회 오류:', e);
       return null; // null = 오류, [] = 결과없음
