@@ -345,19 +345,6 @@
       toExpire.forEach(s => { s.status = 'expired'; });
     }
 
-    // 등급 필터 활성화 시 미캐시 MID 먼저 로드 후 렌더
-    const gradeFilterVal = document.getElementById('filter-slot-type').value;
-    if (gradeFilterVal) {
-      const uncachedForFilter = [...new Set(
-        allSlots.filter(s => ['pending','accepted','active'].includes(s.status) && s.mid && !GRADE_CACHE.has(s.mid)).map(s => s.mid)
-      )];
-      if (uncachedForFilter.length) {
-        document.getElementById('receipt-body').innerHTML =
-          '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 등급 데이터 로딩 중...</div></td></tr>';
-        await Promise.all(uncachedForFilter.map(mid => fetchGrade(mid)));
-      }
-    }
-
     const all      = getFiltered();
     const pending  = allSlots.filter(s => s.status === 'pending').length;
     const accepted = allSlots.filter(s => s.status === 'accepted').length;
