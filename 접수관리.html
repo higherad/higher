@@ -503,12 +503,7 @@
     const s = allSlots.find(x => x._key === key);
     if (!s) return;
 
-    const lockResult = await acquireDetailLock(key);
-    if (!lockResult.acquired) {
-      showLockNotice(lockResult.by);
-      return;
-    }
-
+    // modal 즉시 표시 후 잠금은 백그라운드에서 처리
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
@@ -551,6 +546,14 @@
         </div>
       </div>`;
     document.body.appendChild(overlay);
+
+    // 잠금 백그라운드 획득 — 이미 점유된 경우 modal 닫고 알림
+    acquireDetailLock(key).then(lockResult => {
+      if (!lockResult.acquired) {
+        overlay.remove();
+        showLockNotice(lockResult.by);
+      }
+    });
   };
 
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──
@@ -779,6 +782,9 @@
 
   // 최초 로드
   renderReceipts(false);
+
+  // Firebase SDK 미리 로드 — 첫 상세 클릭 딜레이 제거
+  import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').catch(() => {});
 
   // ── 순위 팝업 (접수관리) ─────────────────────────────────
   window.openRankPopup = async function(slotKey) {
