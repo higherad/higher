@@ -249,8 +249,9 @@
       if (!data) { el.textContent = '-'; return; }
       const grades = [...new Map(parseGradeEntries(data).map(g => [g.gradeLabel, g])).values()];
       if (!grades.length) { el.textContent = '-'; return; }
+      const gradeLabels = grades.flatMap(g => g.gradeLabel.split(',').map(l => l.trim()).filter(l => l));
       el.outerHTML = `<div id="grade-${s._key}" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${
-        grades.map(g => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${g.gradeLabel}</span>`).join('')
+        gradeLabels.map(label => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${label}</span>`).join('')
       }</div>`;
     }));
   }
@@ -514,8 +515,9 @@
           <dt>상품등급</dt><dd>${(() => {
             const d = GRADE_CACHE.get(s.mid);
             if (!d) return '-';
-            const labels = [...new Map(parseGradeEntries(d).map(g=>[g.gradeLabel,g])).values()].map(g=>g.gradeLabel);
-            return labels.length ? labels.map(g=>`<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${g}</span>`).join(' ') : '-';
+            const labels = [...new Map(parseGradeEntries(d).map(g=>[g.gradeLabel,g])).values()]
+              .flatMap(g => g.gradeLabel.split(',').map(l => l.trim()).filter(l => l));
+            return labels.length ? labels.map(l=>`<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${l}</span>`).join(' ') : '-';
           })()}</dd>
           <dt>대행사</dt><dd>${s.agencyId} / ${s.userId}</dd>
           <dt>플레이스명</dt><dd>${s.storeName}</dd>
