@@ -158,6 +158,13 @@
   const LOCK_FB     = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/detail_locks';
   const LOCK_TTL_MS = 10 * 60 * 1000; // 10분 초과 잠금은 자동 무효
 
+  // grades Firebase 데이터 파싱 (구: 배열/객체of객체, 신: 단일 객체)
+  function parseGradeEntries(data) {
+    if (!data) return [];
+    if (typeof data.gradeLabel === 'string') return [data];
+    return Array.isArray(data) ? data : Object.values(data);
+  }
+
   async function acquireDetailLock(key) {
     const cu       = window.HA?.getCurrentUser?.() || {};
     const staffId  = cu.username || cu.id || 'unknown';
@@ -240,7 +247,7 @@
       if (!el) return;
       const data = await fetchGrade(s.mid);
       if (!data) { el.textContent = '-'; return; }
-      const grades = [...new Map((Array.isArray(data) ? data : Object.values(data)).map(g => [g.gradeLabel, g])).values()];
+      const grades = [...new Map(parseGradeEntries(data).map(g => [g.gradeLabel, g])).values()];
       if (!grades.length) { el.textContent = '-'; return; }
       el.outerHTML = `<div id="grade-${s._key}" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${
         grades.map(g => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${g.gradeLabel}</span>`).join('')
@@ -512,7 +519,7 @@
           <dt>상품등급</dt><dd>${(() => {
             const d = GRADE_CACHE.get(s.mid);
             if (!d) return '-';
-            const labels = [...new Map((Array.isArray(d)?d:Object.values(d)).map(g=>[g.gradeLabel,g])).values()].map(g=>g.gradeLabel);
+            const labels = [...new Map(parseGradeEntries(d).map(g=>[g.gradeLabel,g])).values()].map(g=>g.gradeLabel);
             return labels.length ? labels.map(g=>`<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${g}</span>`).join(' ') : '-';
           })()}</dd>
           <dt>대행사</dt><dd>${s.agencyId} / ${s.userId}</dd>
@@ -556,8 +563,7 @@
       const snap = await get(ref(getDatabase(), `ha/grades/${safeMid}`));
       if (!snap.exists()) return [];
       const data   = snap.val();
-      const grades = Array.isArray(data) ? data : Object.values(data);
-      const findKw = grades.map(g => g.findKw).find(kw => kw && kw.trim());
+      const findKw = parseGradeEntries(data).map(g => g.findKw).find(kw => kw && kw.trim());
       return findKw ? [findKw] : [];
     } catch (e) {
       console.error('Firebase 키워드 조회 오류:', e);
@@ -608,7 +614,7 @@
         해당 MID(${mid})로 등록된 키워드가 없습니다.
       </div>`;
     } else {
-      html += `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:10px 12px;margin-bottom:10px;">
+      html += `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:10px 12px;margin-bottom:10px;max-height:150px;overflow-y:auto;">
         ${sheetKeywords.map(kw => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #dbeafe;gap:8px;">
             <span style="font-size:13px;font-weight:600;color:#1d4ed8;flex:1;">${kw}</span>
@@ -629,7 +635,7 @@
     if (!history.length) {
       html += `<div style="font-size:11px;color:var(--muted);padding:6px 0;">이전 접수 키워드 내역이 없습니다.</div>`;
     } else {
-      html += `<div style="background:#f8fafc;border-radius:7px;padding:10px 12px;border:1px solid var(--border);">
+      html += `<div style="background:#f8fafc;border-radius:7px;padding:10px 12px;border:1px solid var(--border);max-height:200px;overflow-y:auto;">
         ${history.map(s => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:8px;">
             <span style="font-size:11px;color:var(--text2);white-space:nowrap;">${s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : ''}</span>
