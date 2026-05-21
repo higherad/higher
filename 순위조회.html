@@ -128,6 +128,9 @@
         </table>
       </div>
       <button class="rk-btn" id="rk-btn" onclick="rkCheckAll()">순위 조회</button>
+      <div style="margin-top:8px; padding:8px 12px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; font-size:11px; color:#92400e; line-height:1.5; text-align:center;">
+        ⚠️ 개별 조회는 <strong>1~100위</strong> 이내 결과만 확인 가능합니다.
+      </div>
     </div>
     <div id="rk-result" style="flex:1; min-width:0"></div>
   </div>
@@ -137,7 +140,7 @@
 
 <script>
 (function(){
-  const CLOUD_RUN = 'https://tools-auto-938928195180.asia-northeast3.run.app';
+  const CLOUD_RUN = 'https://higherad-auto-938928195180.asia-northeast3.run.app';
 
   /* 탭 전환 */
   window.rkTab = function(tab, el) {
