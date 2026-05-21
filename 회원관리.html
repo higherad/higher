@@ -87,7 +87,6 @@
   <span class="pending-count" id="pending-user-count"></span>
   <div style="margin-left:auto;display:flex;gap:8px;">
     <button class="action-btn btn-add" onclick="openUserModal(null)">회원 추가</button>
-    <button class="action-btn btn-del2" onclick="bulkDeleteUsers()">선택 삭제</button>
   </div>
 </div>
 
@@ -95,7 +94,6 @@
   <table>
     <thead>
       <tr>
-        <th><input type="checkbox" id="u-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>가입일</th><th>대행사</th><th>단가(원)</th>
         <th>아이디</th><th>비밀번호</th><th>캠페인 수</th><th>메모</th><th>상태</th><th>액션</th>
       </tr>
@@ -131,7 +129,7 @@
   window.renderUsers = async function(resetPage = true) {
     if (resetPage) page = 1;
     document.getElementById('user-body').innerHTML =
-      '<tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     page = 1;
     [allUsers, allSlots] = await Promise.all([HA.getUsers(), HA.getSlots()]);
@@ -148,7 +146,7 @@
     const body  = document.getElementById('user-body');
 
     if (!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="11">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="10">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((u, i) => {
         const isPending = u.approved === false;
@@ -156,7 +154,6 @@
           ? '<span class="user-status-badge us-pending">승인대기</span>'
           : '<span class="user-status-badge us-active">승인됨</span>';
         return `<tr class="${isPending ? 'row-pending' : ''}">
-          <td><input type="checkbox" class="u-check" data-key="${u._key}"></td>
           <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="color:var(--text2)">${
             (() => {
@@ -203,7 +200,6 @@
   };
 
   window.goUP = n => { page=n; renderUsers(false); };
-  window.toggleAll = cb => document.querySelectorAll('.u-check').forEach(c=>c.checked=cb.checked);
 
   window.togglePw = function(el) {
     const span = el.previousElementSibling;
@@ -227,14 +223,6 @@
   window.deleteUser = async function(key) {
     if (!confirm('회원을 삭제하시겠습니까?')) return;
     await HA.deleteUser(key);
-    renderUsers(false);
-  };
-
-  window.bulkDeleteUsers = async function() {
-    const keys = [...document.querySelectorAll('.u-check:checked')].map(c => c.dataset.key);
-    if (!keys.length) return alert('선택된 항목이 없습니다.');
-    if (!confirm(`${keys.length}명을 삭제하시겠습니까?`)) return;
-    await Promise.all(keys.map(k => HA.deleteUser(k)));
     renderUsers(false);
   };
 

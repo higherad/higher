@@ -411,6 +411,8 @@
         </tr>`).join('');
     }
     renderPagination(all.length);
+    const chkAll = document.getElementById('check-all');
+    if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
     if (window.lucide) lucide.createIcons();
     injectGradeBadges(page);
 

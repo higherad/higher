@@ -208,6 +208,8 @@
     if(e<pages){if(e<pages-1)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;ph+=`<button class="pg-btn" onclick="goP(${pages})">${pages}</button>`;}
     ph+=`<button class="pg-btn" onclick="goP(${Math.min(pages,page+1)})">&rsaquo;</button><button class="pg-btn" onclick="goP(${pages})">&raquo;</button>`;
     pg.innerHTML = ph;
+    const chkAll = document.getElementById('s-check-all');
+    if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
     if(window.lucide) lucide.createIcons();
   };
 
