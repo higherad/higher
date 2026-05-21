@@ -60,7 +60,6 @@
   <table>
     <thead>
       <tr>
-        <th style="width:40px"><input type="checkbox" id="n-all" onchange="toggleAll(this)"></th>
         <th style="width:70px">번호</th>
         <th>제목</th>
         <th style="width:100px">작성자</th>
@@ -70,7 +69,7 @@
       </tr>
     </thead>
     <tbody id="notice-body">
-      <tr><td colspan="7"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>
+      <tr><td colspan="6"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -90,7 +89,7 @@
   window.renderNotices = async function(resetPage = true) {
     if (resetPage) page = 1;
     document.getElementById('notice-body').innerHTML =
-      '<tr><td colspan="7"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="6"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allNotices = await HA.getNotices();
 
@@ -100,11 +99,10 @@
     const body  = document.getElementById('notice-body');
 
     if (!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="7">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="6">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((n,i) => `
         <tr>
-          <td><input type="checkbox" class="n-check" data-key="${n._key}"></td>
           <td style="color:var(--text2)">${start+i+1}</td>
           <td class="notice-title-cell" onclick="openNoticeDetail('${n._key}')">
             ${n.pinned?'<span class="pin-badge">필독</span>':''}${n.title}
@@ -130,7 +128,6 @@
   };
 
   window.goNP = n => { page=n; renderNotices(false); };
-  window.toggleAll = cb => document.querySelectorAll('.n-check').forEach(c=>c.checked=cb.checked);
 
   window.deleteNotice = async function(key) {
     if(!confirm('삭제하시겠습니까?')) return;
