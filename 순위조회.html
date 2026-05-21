@@ -272,7 +272,7 @@
 
   /* 순위 셀 렌더 */
   function rankCell(rank) {
-    if (!rank || rank <= 0) return '<span style="color:var(--muted);font-size:12px">300위+</span>';
+    if (!rank || rank <= 0) return '<span style="color:var(--muted);font-size:12px">100위+</span>';
     const cls = rank <= 3 ? 'top3' : rank <= 10 ? 'top10' : rank <= 20 ? 'top20' : 'low';
     return `<span class="rank-num rank-${cls}" style="font-size:18px">${rank}</span><span style="font-size:12px;color:var(--text2);font-weight:600">위</span>`;
   }
