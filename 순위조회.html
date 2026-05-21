@@ -301,8 +301,8 @@
           <thead>
             <tr>
               <th>#</th>
-              <th>순위키워드</th>
               <th>순위</th>
+              <th>순위키워드</th>
               <th>MID</th>
               <th style="text-align:left">업체명</th>
               <th>카테고리</th>
@@ -336,8 +336,8 @@
         if (!resp.ok) throw new Error(data.error || '오류');
         row.innerHTML = `
           <td style="color:var(--muted);font-size:12px">${it.idx}</td>
-          <td class="rk-res-kw">${it.keyword}</td>
           <td>${rankCell(data.rank)}</td>
+          <td class="rk-res-kw">${it.keyword}</td>
           <td class="rk-res-mid">${it.mid}</td>
           <td class="rk-res-name">${data.name || '-'}</td>
           <td class="rk-res-cat">${data.category || '-'}</td>
