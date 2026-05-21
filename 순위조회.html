@@ -304,7 +304,7 @@
               <th>순위</th>
               <th>순위키워드</th>
               <th>MID</th>
-              <th style="text-align:left">업체명</th>
+              <th>업체명</th>
               <th>카테고리</th>
               <th>주소</th>
               <th>리뷰</th>
@@ -339,7 +339,7 @@
           <td>${rankCell(data.rank)}</td>
           <td class="rk-res-kw">${it.keyword}</td>
           <td class="rk-res-mid">${it.mid}</td>
-          <td class="rk-res-name">${data.name || '-'}</td>
+          <td class="rk-res-name" style="text-align:center">${data.name || '-'}</td>
           <td class="rk-res-cat">${data.category || '-'}</td>
           <td class="rk-res-cat">${data.address || '-'}</td>
           <td style="font-size:11px;color:var(--text2);white-space:nowrap">${data.reviews || '-'}</td>
