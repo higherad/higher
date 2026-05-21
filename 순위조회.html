@@ -306,6 +306,7 @@
               <th>주소</th>
               <th>MID</th>
               <th>순위키워드</th>
+              <th>총 업체</th>
               <th>순위</th>
             </tr>
           </thead>
@@ -313,7 +314,7 @@
             ${items.map(it => `
               <tr id="rk-res-row-${it.idx}">
                 <td style="color:var(--muted);font-size:12px">${it.idx}</td>
-                <td colspan="5" class="rk-cell-loading" style="text-align:left">
+                <td colspan="6" class="rk-cell-loading" style="text-align:left">
                   <div style="display:flex;align-items:center;gap:6px"><div class="spinner"></div> 조회 중...</div>
                 </td>
                 <td></td>
@@ -339,11 +340,12 @@
           <td class="rk-res-cat">${data.address || '-'}</td>
           <td class="rk-res-mid">${it.mid}</td>
           <td class="rk-res-kw">${it.keyword}</td>
+          <td style="font-size:12px;color:var(--text2)">${data.total != null ? data.total.toLocaleString() + '개' : '-'}</td>
           <td>${rankCell(data.rank)}</td>`;
       } catch(e) {
         row.innerHTML = `
           <td style="color:var(--muted);font-size:12px">${it.idx}</td>
-          <td class="rk-cell-err" colspan="5" style="text-align:left">❌ ${e.message}</td>
+          <td class="rk-cell-err" colspan="6" style="text-align:left">❌ ${e.message}</td>
           <td></td>`;
       }
     }));
