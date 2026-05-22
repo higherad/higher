@@ -165,39 +165,46 @@
     return Array.isArray(data) ? data : Object.values(data);
   }
 
-  async function acquireDetailLock(key) {
-    const cu       = window.HA?.getCurrentUser?.() || {};
-    const staffId  = cu.username || cu.id || 'unknown';
-    const staffName= cu.name || staffId;
-
-    // 기존 잠금 확인
+  // 잠금 충돌 여부만 확인 (읽기 전용, 빠름)
+  async function checkDetailLock(key) {
+    const cu      = window.HA?.getCurrentUser?.() || {};
+    const staffId = cu.username || cu.id || 'unknown';
     try {
       const res  = await fetch(`${LOCK_FB}/${key}.json`);
       const data = res.ok ? await res.json() : null;
       if (data && data.staffId !== staffId) {
         const age = Date.now() - new Date(data.lockedAt).getTime();
         if (age < LOCK_TTL_MS) {
-          return { acquired: false, by: data.staffName || data.staffId };
+          return { conflict: true, by: data.staffName || data.staffId };
         }
       }
     } catch (_) {}
+    return { conflict: false };
+  }
 
-    // 잠금 쓰기
-    const lockData = { staffId, staffName, lockedAt: new Date().toISOString() };
+  // 잠금 쓰기 (백그라운드 전용)
+  async function writeDetailLock(key) {
+    const cu        = window.HA?.getCurrentUser?.() || {};
+    const staffId   = cu.username || cu.id || 'unknown';
+    const staffName = cu.name || staffId;
+    const lockData  = { staffId, staffName, lockedAt: new Date().toISOString() };
     await fetch(`${LOCK_FB}/${key}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(lockData),
     });
-
-    // 브라우저 종료 시 자동 해제 (onDisconnect)
     try {
       const { getDatabase, ref, onDisconnect } = await import(
         'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
       );
       onDisconnect(ref(getDatabase(), `ha/detail_locks/${key}`)).remove();
     } catch (_) {}
+  }
 
+  async function acquireDetailLock(key) {
+    const check = await checkDetailLock(key);
+    if (check.conflict) return { acquired: false, by: check.by };
+    await writeDetailLock(key);
     return { acquired: true };
   }
 
@@ -508,7 +515,14 @@
     const s = allSlots.find(x => x._key === key);
     if (!s) return;
 
-    // modal 즉시 표시 후 잠금은 백그라운드에서 처리
+    // 잠금 충돌 확인 먼저 (GET만, 빠름) — 충돌 시 modal 열지 않고 알림
+    const check = await checkDetailLock(key);
+    if (check.conflict) {
+      showLockNotice(check.by);
+      return;
+    }
+
+    // 잠금 없음 — modal 즉시 표시 후 잠금 쓰기는 백그라운드
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
@@ -553,13 +567,8 @@
       </div>`;
     document.body.appendChild(overlay);
 
-    // 잠금 백그라운드 획득 — 이미 점유된 경우 modal 닫고 알림
-    acquireDetailLock(key).then(lockResult => {
-      if (!lockResult.acquired) {
-        overlay.remove();
-        showLockNotice(lockResult.by);
-      }
-    });
+    // 잠금 쓰기는 백그라운드 처리 (modal 표시 속도에 영향 없음)
+    writeDetailLock(key);
   };
 
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──
