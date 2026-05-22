@@ -71,7 +71,7 @@
   #rank-page .rk-res-tbl tbody td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #rank-page .rk-res-tbl tbody tr:last-child td { border-bottom:none; }
   #rank-page .rk-res-tbl tbody tr:hover { background:#f8fafc; }
-  #rank-page .rk-res-name { font-weight:700; color:var(--text); text-align:left !important; }
+  #rank-page .rk-res-name { font-weight:700; color:var(--text); }
   #rank-page .rk-res-cat  { font-size:11px; color:var(--muted); }
   #rank-page .rk-res-mid  { font-size:10px; color:var(--muted); }
   #rank-page .rk-res-kw   { font-weight:600; font-size:12px; }
@@ -315,8 +315,8 @@
             ${items.map(it => `
               <tr id="rk-res-row-${it.idx}">
                 <td style="color:var(--muted);font-size:12px">${it.idx}</td>
-                <td colspan="7" class="rk-cell-loading" style="text-align:left">
-                  <div style="display:flex;align-items:center;gap:6px"><div class="spinner"></div> 조회 중...</div>
+                <td colspan="7" class="rk-cell-loading">
+                  <div style="display:flex;align-items:center;justify-content:center;gap:6px"><div class="spinner"></div> 조회 중...</div>
                 </td>
                 <td></td>
               </tr>`).join('')}
@@ -339,7 +339,7 @@
           <td>${rankCell(data.rank)}</td>
           <td class="rk-res-kw">${it.keyword}</td>
           <td class="rk-res-mid">${it.mid}</td>
-          <td class="rk-res-name" style="text-align:center">${data.name || '-'}</td>
+          <td class="rk-res-name">${data.name || '-'}</td>
           <td class="rk-res-cat">${data.category || '-'}</td>
           <td class="rk-res-cat">${data.address || '-'}</td>
           <td style="font-size:11px;color:var(--text2);white-space:nowrap">${data.reviews || '-'}</td>
@@ -347,7 +347,7 @@
       } catch(e) {
         row.innerHTML = `
           <td style="color:var(--muted);font-size:12px">${it.idx}</td>
-          <td class="rk-cell-err" colspan="7" style="text-align:left">❌ ${e.message}</td>
+          <td class="rk-cell-err" colspan="7">❌ ${e.message}</td>
           <td></td>`;
       }
     }));
