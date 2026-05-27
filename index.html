@@ -481,10 +481,10 @@
         </div>
         <div class="quick-box">
           <div class="quick-title">Quick Action</div>
-          <button class="quick-btn ghost"   onclick="loadPage('접수관리.html',document.getElementById('nav-pending'))">📥 &nbsp;신규 접수 확인하기</button>
-          <button class="quick-btn primary" onclick="loadPage('정산관리.html',document.getElementById('nav-settle'))">💰 &nbsp;미정산 내역 확인</button>
-          <button class="quick-btn ghost"   onclick="loadPage('만료예정.html',document.getElementById('nav-expire'))">⏰ &nbsp;만료 예정 캠페인 보기</button>
-          <button class="quick-btn ghost"   onclick="loadPage('회원관리.html',document.getElementById('nav-users'))">👤 &nbsp;신규 회원 승인하기</button>
+          <button class="quick-btn ghost"   onclick="loadQuickNewReceipts()">📥 &nbsp;신규 접수 확인하기</button>
+          <button class="quick-btn primary" onclick="loadQuickUnpaid()">💰 &nbsp;미정산 내역 확인</button>
+          <button class="quick-btn ghost"   onclick="loadQuickExpireSoon()">⏰ &nbsp;만료 예정 캠페인 보기</button>
+          <button class="quick-btn ghost"   onclick="loadQuickPendingUsers()">👤 &nbsp;신규 회원 승인하기</button>
         </div>
       </div>`;
 
@@ -498,7 +498,33 @@
     window.scrollTo(0, 0);
   };
 
-  window.loadPage = async function(page, navEl) {
+  window.loadQuickNewReceipts = function() {
+    const today = new Date().toISOString().slice(0, 10);
+    loadPage('접수관리.html', document.getElementById('nav-pending'), () => {
+      const el = document.getElementById('filter-date-from');
+      if (el) { el.value = today; if (window.onDateChange) window.onDateChange(); }
+    });
+  };
+  window.loadQuickUnpaid = function() {
+    loadPage('정산관리.html', document.getElementById('nav-settle'), () => {
+      const el = document.getElementById('sf-paid');
+      if (el) { el.value = 'unpaid'; if (window.renderSettle) window.renderSettle(false); }
+    });
+  };
+  window.loadQuickExpireSoon = function() {
+    loadPage('만료예정.html', document.getElementById('nav-expire'), () => {
+      const el = document.getElementById('ef-range');
+      if (el) { el.value = '3'; if (window.renderExpire) window.renderExpire(); }
+    });
+  };
+  window.loadQuickPendingUsers = function() {
+    loadPage('회원관리.html', document.getElementById('nav-users'), () => {
+      const el = document.getElementById('u-status');
+      if (el) { el.value = 'pending'; if (window.renderUsers) window.renderUsers(); }
+    });
+  };
+
+  window.loadPage = async function(page, navEl, afterLoad) {
     if (navEl) {
       document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
       navEl.classList.add('active');
@@ -529,13 +555,16 @@
         }
       });
 
-      doc.body.querySelectorAll('script').forEach(old => {
+      const scripts = doc.body.querySelectorAll('script');
+      let remaining = scripts.length;
+      if (remaining === 0 && afterLoad) afterLoad();
+      scripts.forEach(old => {
         const blob = new Blob([old.textContent], { type: 'application/javascript' });
         const url  = URL.createObjectURL(blob);
         const s    = document.createElement('script');
         s.src      = url;
         document.body.appendChild(s);
-        s.onload = () => URL.revokeObjectURL(url);
+        s.onload = () => { URL.revokeObjectURL(url); if (--remaining === 0 && afterLoad) afterLoad(); };
       });
 
       lucide.createIcons();
