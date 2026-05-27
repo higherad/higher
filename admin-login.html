@@ -210,15 +210,12 @@
   }
 
   // Enter 키 처리
-  document.getElementById('inp-pw').addEventListener('keydown', e => {
-    if (e.key === 'Enter') doLogin();
-  });
   document.getElementById('inp-id').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('inp-pw').focus();
   });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
-    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+    if (e.target.id === 'inp-id') return;
     doLogin();
   });
 
