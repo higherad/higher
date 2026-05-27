@@ -500,27 +500,35 @@
 
   window.loadQuickNewReceipts = function() {
     const today = new Date().toISOString().slice(0, 10);
-    loadPage('접수관리.html', document.getElementById('nav-pending'), () => {
+    window.loadPage('접수관리.html', document.getElementById('nav-pending'), () => {
       const el = document.getElementById('filter-date-from');
-      if (el) { el.value = today; if (window.onDateChange) window.onDateChange(); }
+      if (el) {
+        el.value = today;
+        const lbl = document.getElementById('date-label');
+        const clr = document.getElementById('date-clear-btn');
+        const btn = document.getElementById('date-pick-btn');
+        if (lbl) lbl.textContent = today;
+        if (clr) clr.style.display = 'inline';
+        if (btn) btn.style.color = 'var(--text)';
+      }
     });
   };
   window.loadQuickUnpaid = function() {
-    loadPage('정산관리.html', document.getElementById('nav-settle'), () => {
+    window.loadPage('정산관리.html', document.getElementById('nav-settle'), () => {
       const el = document.getElementById('sf-paid');
-      if (el) { el.value = 'unpaid'; if (window.renderSettle) window.renderSettle(false); }
+      if (el) el.value = 'unpaid';
     });
   };
   window.loadQuickExpireSoon = function() {
-    loadPage('만료예정.html', document.getElementById('nav-expire'), () => {
+    window.loadPage('만료예정.html', document.getElementById('nav-expire'), () => {
       const el = document.getElementById('ef-range');
-      if (el) { el.value = '3'; if (window.renderExpire) window.renderExpire(); }
+      if (el) el.value = '3';
     });
   };
   window.loadQuickPendingUsers = function() {
-    loadPage('회원관리.html', document.getElementById('nav-users'), () => {
+    window.loadPage('회원관리.html', document.getElementById('nav-users'), () => {
       const el = document.getElementById('u-status');
-      if (el) { el.value = 'pending'; if (window.renderUsers) window.renderUsers(); }
+      if (el) el.value = 'pending';
     });
   };
 
@@ -555,16 +563,17 @@
         }
       });
 
-      const scripts = doc.body.querySelectorAll('script');
-      let remaining = scripts.length;
-      if (remaining === 0 && afterLoad) afterLoad();
-      scripts.forEach(old => {
+      // HTML 주입 직후, 스크립트 실행 전에 필터 설정
+      // 이렇게 하면 스크립트의 renderX() 초기 호출 시 필터가 이미 적용됨
+      if (afterLoad) afterLoad();
+
+      doc.body.querySelectorAll('script').forEach(old => {
         const blob = new Blob([old.textContent], { type: 'application/javascript' });
         const url  = URL.createObjectURL(blob);
         const s    = document.createElement('script');
         s.src      = url;
         document.body.appendChild(s);
-        s.onload = () => { URL.revokeObjectURL(url); if (--remaining === 0 && afterLoad) afterLoad(); };
+        s.onload = () => URL.revokeObjectURL(url);
       });
 
       lucide.createIcons();
@@ -719,9 +728,9 @@
 
   // 메뉴 클릭 시 모바일에서 자동으로 사이드바 닫기
   const origLoadPage = window.loadPage;
-  window.loadPage = function(page, el) {
+  window.loadPage = function(page, el, afterLoad) {
     closeSidebar();
-    origLoadPage(page, el);
+    origLoadPage(page, el, afterLoad);
   };
 
   init();
