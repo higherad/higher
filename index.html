@@ -563,8 +563,6 @@
         }
       });
 
-      // HTML 주입 직후, 스크립트 실행 전에 필터 설정
-      // 이렇게 하면 스크립트의 renderX() 초기 호출 시 필터가 이미 적용됨
       if (afterLoad) afterLoad();
 
       doc.body.querySelectorAll('script').forEach(old => {
