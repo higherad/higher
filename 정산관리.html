@@ -858,7 +858,7 @@
         return selectedSnapKeys.has(sk);
       });
     } else {
-      rows=groupByTimeAgency(getFiltered());
+      rows=filteredRows;
     }
 
     if(!rows.length) return alert('다운로드할 데이터가 없습니다.');

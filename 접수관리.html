@@ -142,6 +142,7 @@
   let currentPage = 1;
   const PER_PAGE  = 20;
   let allSlots    = [];
+  let filteredAll = [];
 
   const stMap = {
     pending:  '<span class="status-badge s-pending">대기</span>',
@@ -365,6 +366,7 @@
     }
 
     const all      = getFiltered();
+    filteredAll    = all;
     const pending  = allSlots.filter(s => s.status === 'pending').length;
     const accepted = allSlots.filter(s => s.status === 'accepted').length;
     const active   = allSlots.filter(s => s.status === 'active').length;
@@ -769,7 +771,7 @@
     const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
     const filtered = checkedKeys.length
       ? allSlots.filter(s => checkedKeys.includes(s._key))
-      : getFiltered();
+      : filteredAll;
     if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
 
     function buildAndDownload() {
