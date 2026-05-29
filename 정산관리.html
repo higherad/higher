@@ -590,7 +590,7 @@
         </div>
         <div style="margin-bottom:20px;">
           <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">환불 금액 (0 입력 시 삭제)</label>
-          <input id="refund-input" type="number" value="${current||''}" placeholder=""
+          <input id="refund-input" type="text" inputmode="numeric" value="${current||''}" placeholder=""
             style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;"
             onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         </div>
@@ -602,9 +602,12 @@
         </div>
       </div>`;
     document.body.appendChild(modal);
-    document.getElementById('refund-input').focus();
-    document.getElementById('refund-confirm-btn').onclick=async()=>{
-      const val=Number(document.getElementById('refund-input').value)||0;
+    const refundInput=document.getElementById('refund-input');
+    const confirmBtn=document.getElementById('refund-confirm-btn');
+    refundInput.focus();
+    refundInput.addEventListener('keydown',e=>{if(e.key==='Enter')confirmBtn.click();});
+    confirmBtn.onclick=async()=>{
+      const val=Number(refundInput.value)||0;
       const key=refundKey(timeKey,agencyId,userId);
       await HA.setRefundAmount(key,val);
       refundMap[key]=val;
