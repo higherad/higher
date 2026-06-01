@@ -418,8 +418,8 @@
       const day=daily[k];
       if(!day||!day.groupSums) return;
       day.groupSums.forEach(dg=>{
-        const bg=base.groupSums.find(g=>g.name===dg.name);
-        if(!bg) return;
+        let bg=base.groupSums.find(g=>g.name===dg.name);
+        if(!bg){ bg={name:dg.name,stores:[],gSum:0}; base.groupSums.push(bg); }
         dg.stores.forEach(dr=>{
           let bs=bg.stores.find(s=>s.raw===dr.raw||s.name===dr.name);
           if(!bs){
