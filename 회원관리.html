@@ -130,8 +130,6 @@
     if (resetPage) page = 1;
     document.getElementById('user-body').innerHTML =
       '<tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-
-    page = 1;
     [allUsers, allSlots] = await Promise.all([HA.getUsers(), HA.getSlots()]);
     allUsers.reverse();
 
@@ -349,13 +347,13 @@
     const pending = mySlots.filter(s => s.status === 'pending');
 
     const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0), 0);
-    const totalAmt    = mySlots.filter(s => s.status==='active'||s.status==='expired'||s.status==='pending')
-                               .reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0)*unitPrice, 0);
-    const totalVat    = Math.round(totalAmt * 1.1);
+    const billable = mySlots.filter(s => s.status==='active'||s.status==='expired'||s.status==='pending');
+    const totalAmt = billable.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0)*unitPrice, 0);
+    const totalVat = Math.round(totalAmt * 1.1);
 
     // 월별 정산 현황
     const byMonth = {};
-    mySlots.filter(s => s.status==='active'||s.status==='expired'||s.status==='pending').forEach(s => {
+    billable.forEach(s => {
       const m = (s.createdAt||'').slice(0,7);
       if (!m) return;
       if (!byMonth[m]) byMonth[m] = { count:0, target:0, amt:0 };

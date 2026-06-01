@@ -24,9 +24,8 @@
     .ac-result-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
     .ac-result-title{font-size:16px;font-weight:800}
     .ac-result-meta{font-size:11px;color:var(--muted);margin-top:2px}
-    .ac-export-btn{padding:7px 13px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2);transition:.2s;font-family:inherit}
+    .ac-export-btn,.ac-capture-btn{padding:7px 13px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2);transition:.2s;font-family:inherit}
     .ac-export-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-    .ac-capture-btn{padding:7px 13px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2);transition:.2s;font-family:inherit}
     .ac-capture-btn:hover{background:var(--sidebar);color:#fff;border-color:var(--sidebar)}
     .ac-capture-btn:disabled{opacity:.5;cursor:not-allowed}
     .ac-tbl-scroll{overflow-x:auto;border-radius:14px;border:1px solid var(--border);margin-bottom:6px}
@@ -392,6 +391,7 @@
   function saveNotifs() {
     sessionStorage.setItem('ha_notifs', JSON.stringify(notifications.slice(0, 20)));
   }
+  function commitNotifs() { saveNotifs(); renderNotifPanel(); }
 
   function renderNotifPanel() {
     const dot  = document.getElementById('notif-dot');
@@ -418,8 +418,7 @@
 
   window.clearNotifs = function() {
     notifications = [];
-    saveNotifs();
-    renderNotifPanel();
+    commitNotifs();
   };
 
   window.handleNotif = function(i) {
@@ -452,12 +451,14 @@
     ]);
     const notices = allNotices.slice(0, 4);
 
-    const agencies       = allUsers.filter(u => u.approved !== false).length;
-    const activeSlots    = allSlots.filter(sl => sl.status === 'active');
-    const activeAgencies = new Set(activeSlots.map(sl => sl.agencyId)).size;
-    const totalTarget    = activeSlots.reduce((a, sl) => a + (sl.dailyTarget||0) * (sl.days||0), 0);
-    const pendingCount   = allSlots.filter(sl => sl.status === 'pending').length;
-    const acceptedCount  = allSlots.filter(sl => sl.status === 'accepted').length;
+    const agencies = allUsers.filter(u => u.approved !== false).length;
+    const { activeAgencyIds, totalTarget, pendingCount, acceptedCount } = allSlots.reduce((acc, sl) => {
+      if (sl.status === 'active') { acc.activeAgencyIds.add(sl.agencyId); acc.totalTarget += (sl.dailyTarget||0)*(sl.days||0); }
+      else if (sl.status === 'pending')  acc.pendingCount++;
+      else if (sl.status === 'accepted') acc.acceptedCount++;
+      return acc;
+    }, { activeAgencyIds:new Set(), totalTarget:0, pendingCount:0, acceptedCount:0 });
+    const activeAgencies = activeAgencyIds.size;
 
     area.innerHTML = `
       <div class="stat-grid" style="grid-template-columns:repeat(7,1fr)">
@@ -478,7 +479,7 @@
           <ul class="notice-list">
             ${notices.length ? notices.map(n => `
               <li class="notice-item">
-                ${n.pinned ? '<span class="notice-tag tag-urgent">필독</span>' : '<span class="notice-tag tag-general">일반</span>'}
+                <span class="notice-tag ${n.pinned?'tag-urgent':'tag-general'}">${n.pinned?'필독':'일반'}</span>
                 <span class="notice-title" onclick="loadPage('공지사항.html',document.getElementById('nav-notice'))">${n.title}</span>
                 <span class="notice-date">${(n.date||'').slice(5,10)}</span>
               </li>`).join('') : '<li style="color:var(--muted);font-size:13px;padding:12px 0">공지사항이 없습니다.</li>'}
@@ -493,7 +494,6 @@
         </div>
       </div>`;
 
-    lucide.createIcons();
   };
 
   window.loadDashboard = function() {
@@ -537,19 +537,20 @@
     });
   };
 
+  const PAGE_TITLES = {
+    '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
+    '만료예정.html':'만료 예정 현황', '정산관리.html':'정산 관리',
+    '회원관리.html':'회원 관리', '공지사항.html':'공지사항',
+    '광고분류.html':'광고 분류', '순위조회.html':'순위 조회',
+  };
+
   window.loadPage = async function(page, navEl, afterLoad) {
+    window.closeSidebar?.();
     if (navEl) {
       document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
       navEl.classList.add('active');
     }
-    const titles = {
-      '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
-      '만료예정.html':'만료 예정 현황', '정산관리.html':'정산 관리',
-      '회원관리.html':'회원 관리',      '공지사항.html':'공지사항',
-      '광고분류.html':'광고 분류',
-      '순위조회.html':'순위 조회',
-    };
-    document.getElementById('page-heading').textContent = titles[page] || page;
+    document.getElementById('page-heading').textContent = PAGE_TITLES[page] || page;
 
     const area = document.getElementById('content-area');
     area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>';
@@ -576,7 +577,8 @@
         const s    = document.createElement('script');
         s.src      = url;
         document.body.appendChild(s);
-        s.onload = () => URL.revokeObjectURL(url);
+        s.onload  = () => URL.revokeObjectURL(url);
+        s.onerror = () => URL.revokeObjectURL(url);
       });
 
       lucide.createIcons();
@@ -641,8 +643,7 @@
         });
         pendingDiff = 0;
         notifTimer  = null;
-        saveNotifs();
-        renderNotifPanel();
+        commitNotifs();
       }, 1500);
     }
 
@@ -685,8 +686,7 @@
         });
         pendingUserDiff = 0;
         newUserTimer    = null;
-        saveNotifs();
-        renderNotifPanel();
+        commitNotifs();
       }, 1500);
     }
   });
@@ -727,13 +727,6 @@
   window.closeSidebar = function() {
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('show');
-  };
-
-  // 메뉴 클릭 시 모바일에서 자동으로 사이드바 닫기
-  const origLoadPage = window.loadPage;
-  window.loadPage = function(page, el, afterLoad) {
-    closeSidebar();
-    origLoadPage(page, el, afterLoad);
   };
 
   init();

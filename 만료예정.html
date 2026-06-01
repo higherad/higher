@@ -93,23 +93,20 @@
     const t7  = slots.filter(s => { const d=getDday(s.endDate); return d >= 4  && d <= 7; }).length;
     const t14 = slots.filter(s => { const d=getDday(s.endDate); return d >= 8  && d <= 14; }).length;
     const t30 = slots.filter(s => { const d=getDday(s.endDate); return d >= 15 && d <= 30; }).length;
-    const totalTarget = slots.reduce((a,s) => a+(s.dailyTarget||0), 0);
     const el = document.getElementById('expire-summary');
     if(!el) return;
 
-    let countItems = '';
-    if(range === '3' || range === '7' || range === '14' || range === 'all') {
-      countItems += `<div class="sum-item"><div class="sum-label">3일 이내 만료</div><div class="sum-val" style="color:var(--danger)">${t3} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>`;
-    }
-    if(range === '7' || range === '14' || range === 'all') {
-      countItems += `<div class="sum-item"><div class="sum-label">7일 이내 만료</div><div class="sum-val" style="color:var(--warn)">${t7} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>`;
-    }
-    if(range === '14' || range === 'all') {
-      countItems += `<div class="sum-item"><div class="sum-label">14일 이내 만료</div><div class="sum-val" style="color:var(--info)">${t14} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>`;
-    }
-    if(range === 'all') {
-      countItems += `<div class="sum-item"><div class="sum-label">30일 이내 만료</div><div class="sum-val" style="color:var(--text2)">${t30} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>`;
-    }
+    const BANDS = [
+      {label:'3일 이내 만료',  cnt:t3,  color:'var(--danger)', minRange:3},
+      {label:'7일 이내 만료',  cnt:t7,  color:'var(--warn)',   minRange:7},
+      {label:'14일 이내 만료', cnt:t14, color:'var(--info)',   minRange:14},
+      {label:'30일 이내 만료', cnt:t30, color:'var(--text2)',  minRange:Infinity},
+    ];
+    const rangeNum = range === 'all' ? Infinity : Number(range);
+    const countItems = BANDS
+      .filter(b => rangeNum >= b.minRange)
+      .map(b => `<div class="sum-item"><div class="sum-label">${b.label}</div><div class="sum-val" style="color:${b.color}">${b.cnt} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>`)
+      .join('');
 
     el.innerHTML = `
       <div class="sum-item"><div class="sum-label">만료 예정</div><div class="sum-val" style="color:var(--info)">${allSlotsCnt} <small style="font-size:12px;color:var(--muted);font-weight:400">개</small></div></div>

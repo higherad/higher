@@ -221,9 +221,10 @@
   });
 
   // 입력 시 에러 초기화
+  const errEl = document.getElementById('login-error');
   ['inp-id','inp-pw'].forEach(id => {
     document.getElementById(id).addEventListener('input', () => {
-      document.getElementById('login-error').classList.remove('show');
+      errEl.classList.remove('show');
       document.getElementById(id).classList.remove('error');
     });
   });
