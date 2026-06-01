@@ -57,7 +57,7 @@
   }
 
   /* ── 유틸 ── */
-  const DEFAULTS=[{name:'대행사',stores:[]},{name:'직광고주',stores:[]},{name:'단독',stores:[]}];
+  const DEFAULTS=[{name:'대행사',stores:[]},{name:'직광고주',stores:[]},{name:'단독',stores:[]},{name:'유입플',stores:[]}];
   const norm =s=>String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^\w가-힣]/g,'').trim();
   const normT=s=>String(s||'').toLowerCase().replace(/\s+/g,'').trim();
   const fmt  =n=>n?Number(n).toLocaleString():'';
@@ -806,6 +806,27 @@
       setStatus('⚠️ 불러오기 실패: '+e.message);
     }
   }
+  /* ── 유입플 데이터 주입 (Python Playwright에서 호출) ── */
+  window.injectYoupflData = async function(total) {
+    if (!window._acDailyResult) {
+      window._acDailyResult = {
+        groupSums: _groups.map(g => ({name: g.name, stores: [], gSum: 0})),
+        total: {ns:0, np:0, nps:0, na:0, vm:0, sum:0},
+        ts: new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'})
+      };
+    }
+    let yg = window._acDailyResult.groupSums.find(g => g.name === '유입플');
+    if (!yg) { yg = {name: '유입플', stores: [], gSum: 0}; window._acDailyResult.groupSums.push(yg); }
+    yg.stores = [{name: '유입플 플레이스', raw: '유입플', ns:0, np: total, nps:0, na:0, vm:0, sum: total}];
+    yg.gSum = total;
+    const t = {ns:0, np:0, nps:0, na:0, vm:0, sum:0};
+    window._acDailyResult.groupSums.forEach(g => (g.stores||[]).forEach(s => {
+      t.ns+=s.ns||0; t.np+=s.np||0; t.nps+=s.nps||0; t.na+=s.na||0; t.vm+=s.vm||0; t.sum+=s.sum||0;
+    }));
+    window._acDailyResult.total = t;
+    await fbSaveResult(window._acDailyResult);
+    renderResult(window._acDailyResult, '');
+  };
   init();
 })();
 </script>
