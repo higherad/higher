@@ -61,7 +61,7 @@
   const norm =s=>String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^\w가-힣]/g,'').trim();
   const normT=s=>String(s||'').toLowerCase().replace(/\s+/g,'').trim();
   const fmt  =n=>n?Number(n).toLocaleString():'';
-  const gcls =n=>n==='대행사'?'agency':n==='직광고주'?'direct':'solo';
+  const gcls =n=>n==='대행사'?'agency':n==='직광고주'?'direct':n==='유입플'?'youpfl':'solo';
   const esc  =s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
   function toast(msg,type='ok'){
@@ -413,6 +413,7 @@
     };
 
     // 저장된 일별 데이터를 순회하며 raw 또는 name으로 매칭해 누적
+    // (유입플처럼 _groups.stores가 비어있고 injectYoupflData로 주입된 경우 동적 추가)
     monthKeys.forEach(k=>{
       const day=daily[k];
       if(!day||!day.groupSums) return;
@@ -420,8 +421,11 @@
         const bg=base.groupSums.find(g=>g.name===dg.name);
         if(!bg) return;
         dg.stores.forEach(dr=>{
-          const bs=bg.stores.find(s=>s.raw===dr.raw||s.name===dr.name);
-          if(!bs) return;
+          let bs=bg.stores.find(s=>s.raw===dr.raw||s.name===dr.name);
+          if(!bs){
+            bs={name:dr.name,raw:dr.raw||dr.name,ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+            bg.stores.push(bs);
+          }
           bs.ns+=dr.ns||0; bs.np+=dr.np||0; bs.nps+=dr.nps||0;
           bs.na+=dr.na||0; bs.vm+=dr.vm||0; bs.sum+=dr.sum||0;
         });
@@ -510,11 +514,11 @@
       if(!stores.length)return;
       visible+=stores.length;
 
-      const bgDeep = cls==='agency'?'rgba(34,197,94,.13)':cls==='direct'?'rgba(245,158,11,.13)':'rgba(59,130,246,.13)';
-      const bgLight= cls==='agency'?'rgba(34,197,94,.05)':cls==='direct'?'rgba(245,158,11,.05)':'rgba(59,130,246,.05)';
-      const border = cls==='agency'?'rgba(34,197,94,.3)' :cls==='direct'?'rgba(245,158,11,.3)' :'rgba(59,130,246,.3)';
-      const mBgD  = cls==='agency'?'rgba(34,197,94,.18)':cls==='direct'?'rgba(245,158,11,.18)':'rgba(59,130,246,.18)';
-      const mBgL  = cls==='agency'?'rgba(34,197,94,.08)':cls==='direct'?'rgba(245,158,11,.08)':'rgba(59,130,246,.08)';
+      const bgDeep = cls==='agency'?'rgba(34,197,94,.13)':cls==='direct'?'rgba(245,158,11,.13)':cls==='youpfl'?'rgba(168,85,247,.13)':'rgba(59,130,246,.13)';
+      const bgLight= cls==='agency'?'rgba(34,197,94,.05)':cls==='direct'?'rgba(245,158,11,.05)':cls==='youpfl'?'rgba(168,85,247,.05)':'rgba(59,130,246,.05)';
+      const border = cls==='agency'?'rgba(34,197,94,.3)' :cls==='direct'?'rgba(245,158,11,.3)' :cls==='youpfl'?'rgba(168,85,247,.3)' :'rgba(59,130,246,.3)';
+      const mBgD  = cls==='agency'?'rgba(34,197,94,.18)':cls==='direct'?'rgba(245,158,11,.18)':cls==='youpfl'?'rgba(168,85,247,.18)':'rgba(59,130,246,.18)';
+      const mBgL  = cls==='agency'?'rgba(34,197,94,.08)':cls==='direct'?'rgba(245,158,11,.08)':cls==='youpfl'?'rgba(168,85,247,.08)':'rgba(59,130,246,.08)';
 
       stores.forEach((r,i)=>{
         const hl=txt=>kw&&txt.toLowerCase().includes(kw)
