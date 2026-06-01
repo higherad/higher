@@ -806,6 +806,13 @@
       setStatus('⚠️ 불러오기 실패: '+e.message);
     }
   }
+  function computeTotal(groupSums){
+    const t={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+    groupSums.forEach(g=>(g.stores||[]).forEach(s=>{
+      t.ns+=s.ns||0;t.np+=s.np||0;t.nps+=s.nps||0;t.na+=s.na||0;t.vm+=s.vm||0;t.sum+=s.sum||0;
+    }));
+    return t;
+  }
   /* ── 유입플 데이터 주입 (Python Playwright에서 호출) ── */
   window.injectYoupflData = async function(total) {
     if (!window._acDailyResult) {
@@ -819,11 +826,7 @@
     if (!yg) { yg = {name: '유입플', stores: [], gSum: 0}; window._acDailyResult.groupSums.push(yg); }
     yg.stores = [{name: '유입플 플레이스', raw: '유입플', ns:0, np: total, nps:0, na:0, vm:0, sum: total}];
     yg.gSum = total;
-    const t = {ns:0, np:0, nps:0, na:0, vm:0, sum:0};
-    window._acDailyResult.groupSums.forEach(g => (g.stores||[]).forEach(s => {
-      t.ns+=s.ns||0; t.np+=s.np||0; t.nps+=s.nps||0; t.na+=s.na||0; t.vm+=s.vm||0; t.sum+=s.sum||0;
-    }));
-    window._acDailyResult.total = t;
+    window._acDailyResult.total = computeTotal(window._acDailyResult.groupSums);
     await fbSaveResult(window._acDailyResult);
     renderResult(window._acDailyResult, '');
   };
