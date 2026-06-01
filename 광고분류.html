@@ -61,7 +61,8 @@
   const norm =s=>String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^\w가-힣]/g,'').trim();
   const normT=s=>String(s||'').toLowerCase().replace(/\s+/g,'').trim();
   const fmt  =n=>n?Number(n).toLocaleString():'';
-  const gcls =n=>n==='대행사'?'agency':n==='직광고주'?'direct':n==='유입플'?'youpfl':'solo';
+  const gcls =n=>({대행사:'agency',직광고주:'direct',유입플:'youpfl'})[n]||'solo';
+  const COLORS={agency:'34,197,94',direct:'245,158,11',youpfl:'168,85,247',solo:'59,130,246'};
   const esc  =s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
   function toast(msg,type='ok'){
@@ -351,8 +352,6 @@
       // 현재 달 (yyMM) 기준으로 필터
       const now=new Date();
       const curYYMM=(String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,'0'));
-      const thisMonthKeys=keys.filter(k=>k.startsWith(curYYMM));
-      const allKeys=keys; // 드롭다운용
 
       // 월 목록 추출
       const months=[...new Set(keys.map(k=>k.slice(0,4)))].sort().reverse();
@@ -381,10 +380,6 @@
   }
 
   window.acSelectMonth=function(yyMM){
-    document.querySelectorAll('.ac-month-btn').forEach(b=>{
-      b.classList.toggle('active', b.textContent.includes('년')&&b.onclick.toString().includes(yyMM));
-    });
-    // 더 정확하게: data attribute로
     document.querySelectorAll('.ac-month-btn').forEach(b=>{
       const match=b.getAttribute('onclick')||'';
       b.classList.toggle('active', match.includes(`'${yyMM}'`));
@@ -435,10 +430,7 @@
     base.groupSums.forEach(g=>{
       g.gSum=g.stores.reduce((a,r)=>a+r.sum,0);
     });
-    base.groupSums.forEach(g=>g.stores.forEach(r=>{
-      base.total.ns+=r.ns;base.total.np+=r.np;base.total.nps+=r.nps;
-      base.total.na+=r.na;base.total.vm+=r.vm;base.total.sum+=r.sum;
-    }));
+    base.total=computeTotal(base.groupSums);
 
     const y='20'+yyMM.slice(0,2), m=Number(yyMM.slice(2));
     base.ts=`${y}년 ${m}월 합산 (${monthKeys.length}일 / ${monthKeys[0]}~${monthKeys[monthKeys.length-1]})`;
@@ -514,11 +506,9 @@
       if(!stores.length)return;
       visible+=stores.length;
 
-      const bgDeep = cls==='agency'?'rgba(34,197,94,.13)':cls==='direct'?'rgba(245,158,11,.13)':cls==='youpfl'?'rgba(168,85,247,.13)':'rgba(59,130,246,.13)';
-      const bgLight= cls==='agency'?'rgba(34,197,94,.05)':cls==='direct'?'rgba(245,158,11,.05)':cls==='youpfl'?'rgba(168,85,247,.05)':'rgba(59,130,246,.05)';
-      const border = cls==='agency'?'rgba(34,197,94,.3)' :cls==='direct'?'rgba(245,158,11,.3)' :cls==='youpfl'?'rgba(168,85,247,.3)' :'rgba(59,130,246,.3)';
-      const mBgD  = cls==='agency'?'rgba(34,197,94,.18)':cls==='direct'?'rgba(245,158,11,.18)':cls==='youpfl'?'rgba(168,85,247,.18)':'rgba(59,130,246,.18)';
-      const mBgL  = cls==='agency'?'rgba(34,197,94,.08)':cls==='direct'?'rgba(245,158,11,.08)':cls==='youpfl'?'rgba(168,85,247,.08)':'rgba(59,130,246,.08)';
+      const c=COLORS[cls];
+      const bgDeep=`rgba(${c},.13)`,bgLight=`rgba(${c},.05)`,border=`rgba(${c},.3)`;
+      const mBgD=`rgba(${c},.18)`,mBgL=`rgba(${c},.08)`;
 
       stores.forEach((r,i)=>{
         const hl=txt=>kw&&txt.toLowerCase().includes(kw)
