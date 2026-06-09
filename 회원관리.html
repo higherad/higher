@@ -330,6 +330,7 @@
       approved:  true,
     };
     if (password) data.password = password;
+    const safe = s => (s||'').replace(/[.#$[\]]/g, '_');
     if (key) {
       const oldUser    = allUsers.find(u => u._key === key);
       const oldAgency  = oldUser ? (oldUser.agencyId || oldUser.agency || '') : '';
@@ -346,7 +347,6 @@
         try {
           const { getDatabase, ref, get, set, remove } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
           const db = getDatabase();
-          const safe = s => (s||'').replace(/[.#$[\]]/g, '_');
           const snapSnap = await get(ref(db, 'ha/settle_snapshots'));
           if (snapSnap.exists()) {
             const updates = [];
@@ -396,7 +396,7 @@
       if(bfId && bfPw && agencyVal){
         try{
           const {getDatabase,ref,set:dbSet}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-          await dbSet(ref(getDatabase(),`ha/bizfit_charge/${agencyVal.replace(/[.#$[\]/]/g,'_')}`),{id:bfId,pw:bfPw});
+          await dbSet(ref(getDatabase(),`ha/bizfit_charge/${safe(agencyVal)}`),{id:bfId,pw:bfPw});
         }catch(e){console.error('충전 계정 저장 오류:',e);}
       }
     }
