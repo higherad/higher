@@ -188,6 +188,12 @@
   </div>
 </div>
 
+<!-- 다운로드 진행 표시 -->
+<div class="dl-prog-wrap" id="dl-prog-wrap" style="display:none;">
+  <div class="dl-prog-bar"><div class="dl-prog-fill" id="dl-prog-fill"></div></div>
+  <div class="dl-prog-lbl" id="dl-prog-lbl"></div>
+</div>
+
 <div class="stat-bar" id="receipt-stat-bar" style="grid-template-columns:repeat(3,1fr)">
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(245,158,11,.1)">⏳</div>
@@ -232,12 +238,6 @@
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderReceipts()">검색</button>
     <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetReceipts()">초기화</button>
   </div>
-</div>
-
-<!-- 다운로드 진행 표시 -->
-<div class="dl-prog-wrap" id="dl-prog-wrap" style="display:none;">
-  <div class="dl-prog-bar"><div class="dl-prog-fill" id="dl-prog-fill"></div></div>
-  <div class="dl-prog-lbl" id="dl-prog-lbl"></div>
 </div>
 
 <div class="tbl-wrap">
