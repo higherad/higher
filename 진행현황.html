@@ -45,6 +45,10 @@
   .trash-days-ok   { color:#059669; font-weight:700; }
   .trash-days-warn { color:#d97706; font-weight:700; }
   .trash-days-bad  { color:#dc2626; font-weight:700; }
+  .kw-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:#eff6ff; color:#1d4ed8; display:inline-block; }
+  .status-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
+  .s-active   { background:rgba(16,185,129,.1); color:#059669; }
+  .s-expired  { background:#f1f5f9; color:#64748b; }
 </style>
 
 <div class="stat-bar" style="grid-template-columns:repeat(3,1fr)">
@@ -107,10 +111,8 @@
   let allSlots = [];
 
   const stLabel = {
-    active:   '<span class="status-badge s-active">진행</span>',
-    pending:  '<span class="status-badge s-pending">대기</span>',
-    rejected: '<span class="status-badge s-rejected">반려</span>',
-    expired:  '<span class="status-badge s-expired">만료</span>',
+    active:  '<span class="status-badge s-active">진행</span>',
+    expired: '<span class="status-badge s-expired">만료</span>',
   };
 
   function getFiltered() {
@@ -173,7 +175,9 @@
     if (!list.length) {
       body.innerHTML = '<tr class="empty-row"><td colspan="13">데이터가 없습니다.</td></tr>';
     } else {
-      body.innerHTML = list.map((s,i) => `
+      body.innerHTML = list.map((s,i) => {
+        const kwCount = (s.searchKeyword||s.workKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+        return `
         <tr>
           <td><input type="checkbox" class="s-check" data-key="${s._key}"></td>
           <td style="color:var(--text2)">${all.length - start - i}</td>
@@ -185,7 +189,7 @@
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
-          <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
+          <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong>${kwCount > 0 ? `<br><span class="kw-badge">${kwCount}개</span>` : ''}</td>
           <td>${stLabel[s.status]||s.status}</td>
           <td>
             <div style="display:flex;gap:4px;justify-content:center;">
@@ -196,7 +200,8 @@
           <td>
             <button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup('${s._key}')">순위</button>
           </td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
     }
 
     const pages = Math.ceil(all.length/PER)||1;
@@ -240,7 +245,7 @@
     renderSlots(false);
   };
 
-  const STATUS_KO = { pending:'승인대기', active:'진행중', rejected:'반려', expired:'만료' };
+  const STATUS_KO = { active:'진행중', expired:'만료' };
   const READONLY_STYLE = 'background:#f8fafc;color:var(--text2);cursor:default;';
 
   function slotModal(s, title, onSave) {
