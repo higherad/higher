@@ -995,7 +995,6 @@
   const FIXED_PROD_IDS = new Set(['charlie', 'yupfl']);
   const ap = () => prods.filter(p => p.active);
 
-  const PROD_GROUPS_KEY = '접수_prod_groups';
   let prodGroups = [];
   let activeProdGroupId = null;
   let defaultProdsState = null;
@@ -1006,11 +1005,29 @@
     '#facc15','#ef4444','#14b8a6','#d946ef','#78716c'];
   let _apColor = '#06b6d4';
 
-  function loadProductGroups() {
-    try { const s = localStorage.getItem(PROD_GROUPS_KEY); if(s) prodGroups = JSON.parse(s); } catch(e){}
+  function getProdSettingsPath() {
+    const cu = window.HA?.getCurrentUser?.();
+    return cu?.id ? `ha/prodSettings/${cu.id}` : null;
   }
-  function saveProdGroupsLocal() {
-    try { localStorage.setItem(PROD_GROUPS_KEY, JSON.stringify(prodGroups)); } catch(e){}
+  async function loadProdSettings() {
+    const path = getProdSettingsPath();
+    if (!path) return;
+    try {
+      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const snap = await get(ref(getDatabase(), path));
+      const data = snap.val();
+      if (data) {
+        if (Array.isArray(data.prods))  prods = data.prods;
+        if (Array.isArray(data.groups)) prodGroups = data.groups;
+      }
+    } catch(e) {}
+  }
+  function saveProdSettings() {
+    const path = getProdSettingsPath();
+    if (!path) return;
+    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set }) => {
+      set(ref(getDatabase(), path), { prods, groups: prodGroups });
+    }).catch(() => {});
   }
   function saveProdDefault() {
     defaultProdsState = prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
@@ -1067,12 +1084,12 @@
     if (!name) { document.getElementById('prodGroupNameInput').focus(); return; }
     const state = prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
     prodGroups.push({ id:'g'+Date.now(), name, state });
-    saveProdGroupsLocal(); window.hideAddProdGroup(); renderProdGroups();
+    saveProdSettings(); window.hideAddProdGroup(); renderProdGroups();
   };
   window.deleteProdGroup = function(id) {
     if (activeProdGroupId === id) activeProdGroupId = null;
     prodGroups = prodGroups.filter(g => g.id !== id);
-    saveProdGroupsLocal(); renderProdGroups();
+    saveProdSettings(); renderProdGroups();
   };
   window.applyProdGroup = function(id) {
     const g = prodGroups.find(x => x.id === id); if(!g) return;
@@ -1095,7 +1112,7 @@
     inp.type = 'text'; inp.value = g.name; inp.maxLength = 24;
     inp.style.cssText = 'background:transparent;border:none;border-bottom:1px solid var(--info);color:var(--text);font-size:12px;font-weight:700;font-family:inherit;outline:none;width:80px;padding:0;';
     let committed = false;
-    const commit = () => { if(committed) return; committed = true; const v = inp.value.trim(); if(v) g.name = v; saveProdGroupsLocal(); renderProdGroups(); };
+    const commit = () => { if(committed) return; committed = true; const v = inp.value.trim(); if(v) g.name = v; saveProdSettings(); renderProdGroups(); };
     inp.onblur = commit;
     inp.onkeydown = e => { if(e.key==='Enter'){inp.blur();} if(e.key==='Escape'){committed=true;renderProdGroups();} e.stopPropagation(); };
     el.replaceWith(inp); inp.focus(); inp.select();
@@ -1104,7 +1121,7 @@
     if (!activeProdGroupId) return;
     const g = prodGroups.find(x => x.id === activeProdGroupId); if(!g) return;
     g.state = prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
-    saveProdGroupsLocal(); renderProdGroups();
+    saveProdSettings(); renderProdGroups();
   }
   function nextProdColor() {
     const used = new Set(prods.map(p => p.color));
@@ -1128,7 +1145,7 @@
     const ver = document.getElementById('ap-ver').value.trim();
     prods.push({id:'u'+Date.now(),name,color:_apColor,active:false,ver:ver||'ver.5.0/3.2',ratio:0,kwPct:0});
     window.closeAddProdModal();
-    if(activeProdGroupId) updateActiveProdGroup(); else saveProdDefault();
+    if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
     renderPS();
   };
 
@@ -1158,7 +1175,7 @@
     const p = prods.find(x => x.id === id); if (!p) return;
     p.active = !p.active;
     rebalanceProdActive('ratio'); rebalanceProdActive('kwPct');
-    if(activeProdGroupId) updateActiveProdGroup(); else saveProdDefault();
+    if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
     renderPS();
   };
   function rebalanceProdActive(field) {
@@ -1238,9 +1255,8 @@
       }
     }
     prodGroups.forEach(g => { const gs=g.state.find(s=>s.id===p.id); if(gs){gs.name=p.name;gs.ver=p.ver;} });
-    saveProdGroupsLocal();
     window.closeProdModal();
-    if(activeProdGroupId) updateActiveProdGroup(); else saveProdDefault();
+    if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
     renderPS();
   };
   window.deleteProdModal = function() {
@@ -1251,8 +1267,7 @@
     window.closeProdModal();
     prods = prods.filter(x => x.id !== id);
     prodGroups.forEach(g => { g.state = g.state.filter(s => s.id !== id); });
-    saveProdGroupsLocal();
-    if(activeProdGroupId) updateActiveProdGroup(); else saveProdDefault();
+    if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
     renderPS();
   };
 
@@ -1479,9 +1494,11 @@
 
   // 최초 로드
   renderReceipts(false);
-  loadProductGroups();
-  saveProdDefault();
-  renderPS();
+  (async () => {
+    await loadProdSettings();
+    saveProdDefault();
+    renderPS();
+  })();
 
   // Firebase SDK 미리 로드 — 첫 상세 클릭 딜레이 제거
   import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').catch(() => {});
