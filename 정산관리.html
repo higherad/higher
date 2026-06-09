@@ -1089,7 +1089,7 @@
 
     const cBtn=document.getElementById('settle-charge-btn');
     if(!window.settleCharging){
-      const allCharged=rows.every(r=>snapshotMap[refundKey(r.date,r.agency,r.userId)]?.chargeConfirmedByName);
+      const allCharged=rows.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName);
       if(allCharged){cBtn.disabled=true;cBtn.textContent='✅ 충전 완료';cBtn.style.background='#166534';cBtn.style.cursor='default';}
       else{cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#0d9488';cBtn.style.cursor='pointer';}
     }
