@@ -1018,8 +1018,8 @@ window.toggleProdPanel = function(e) {
   let defaultProdsState = null;
   let _prodModalId = null;
 
-  const PROD_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f97316','#64748b','#84cc16','#ec4899',
-    '#eab308','#f43f5e','#06b6d4','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6',
+  // 기본 상품(p1~yupfl)이 사용하는 색상은 제외하고, 신규 추가 상품 전용 풀만 사용
+  const PROD_COLORS = ['#06b6d4','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6',
     '#facc15','#ef4444','#14b8a6','#d946ef','#78716c'];
   let _apColor = '#06b6d4';
 
@@ -1158,8 +1158,8 @@ window.toggleProdPanel = function(e) {
     saveProdSettings(); renderProdGroups();
   }
   function nextProdColor() {
-    const used = new Set(prods.map(p => p.color));
-    return PROD_COLORS.find(c => !used.has(c)) || PROD_COLORS[prods.length % PROD_COLORS.length];
+    const usedCustom = new Set(prods.filter(p => p.id.startsWith('u')).map(p => p.color));
+    return PROD_COLORS.find(c => !usedCustom.has(c)) || PROD_COLORS[prods.filter(p => p.id.startsWith('u')).length % PROD_COLORS.length];
   }
 
   window.showAddProdModal = function() {
