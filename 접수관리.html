@@ -1031,33 +1031,40 @@ window.toggleProdPanel = function(e) {
     const path = getProdSettingsPath();
     if (!path) return;
     const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,kwLimit:p.kwLimit,autoBalance:p.autoBalance}]));
+    const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const snap = await get(ref(getDatabase(), path));
-      const data = snap.val();
-      if (data) {
-        if (Array.isArray(data.prods)) {
-          const colorMap = new Map(prods.map(p => [p.id, p.color]));
-          prods = data.prods;
-          prods.forEach(p => {
-            const f = staticFlags.get(p.id); if(f) Object.assign(p, f);
-            if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
-          });
-        }
-        if (Array.isArray(data.groups)) prodGroups = data.groups;
+      const db = getDatabase();
+      const [prodsSnap, groupsSnap] = await Promise.all([
+        get(ref(db, path + '/prods')),
+        get(ref(db, path + '/groups'))
+      ]);
+      if (prodsSnap.exists()) {
+        const loaded = prodsSnap.val();
+        const arr = Array.isArray(loaded) ? loaded : Object.values(loaded);
+        prods = arr;
+        prods.forEach(p => {
+          const f = staticFlags.get(p.id); if(f) Object.assign(p, f);
+          if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
+        });
       }
-    } catch(e) {}
+      if (groupsSnap.exists()) {
+        const loaded = groupsSnap.val();
+        prodGroups = Array.isArray(loaded) ? loaded : Object.values(loaded);
+      }
+    } catch(e) { console.error('loadProdSettings 오류:', e); }
   }
   function saveProdSettings() {
     const path = getProdSettingsPath();
     if (!path) return;
+    const snapGroups = JSON.parse(JSON.stringify(prodGroups));
+    const snapProds  = JSON.parse(JSON.stringify(prods));
     import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set, remove }) => {
-      const payload = { prods };
-      if (prodGroups.length > 0) payload.groups = prodGroups;
-      set(ref(getDatabase(), path), payload)
-        .then(() => { if (!prodGroups.length) remove(ref(getDatabase(), path + '/groups')).catch(()=>{}); })
-        .catch(() => {});
-    }).catch(() => {});
+      const db = getDatabase();
+      set(ref(db, path + '/prods'), snapProds).catch(()=>{});
+      if (snapGroups.length > 0) set(ref(db, path + '/groups'), snapGroups).catch(()=>{});
+      else remove(ref(db, path + '/groups')).catch(()=>{});
+    }).catch(()=>{});
   }
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
