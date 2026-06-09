@@ -156,6 +156,7 @@
     <div style="display:flex;gap:6px;margin-left:auto;">
       <button class="action-btn" style="background:var(--info);color:#fff;font-size:11px;padding:4px 10px;" onclick="showAddProdModal()">＋ 상품 추가</button>
       <button class="action-btn" style="background:#475569;color:#fff;font-size:11px;padding:4px 10px;" onclick="showAddProdGroup()">＋ 그룹 추가</button>
+      <button class="action-btn" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-size:11px;padding:4px 10px;" onclick="resetProdSettings()">↺ 초기화</button>
     </div>
   </div>
   <div class="prod-pb">
@@ -985,7 +986,7 @@
 
   const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  let prods = [
+  const DEFAULT_PRODS = [
     {id:'p1',     name:'블랙',  color:'#3b82f6', active:true,  ver:'ver.5.0/3.2', ratio:5, kwPct:5},
     {id:'p2',     name:'올리브', color:'#8b5cf6', active:true,  ver:'ver.5.0/3.2', ratio:5, kwPct:5},
     {id:'p3',     name:'X3',    color:'#10b981', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
@@ -997,6 +998,7 @@
     {id:'charlie',name:'찰리',  color:'#f43f5e', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, autoBalance:false},
     {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0, fixedAlloc:true, kwLimit:5, autoBalance:false},
   ];
+  let prods = DEFAULT_PRODS.map(p => ({...p}));
   const FIXED_PROD_IDS = new Set(['charlie', 'yupfl']);
   const ap = () => prods.filter(p => p.active);
 
@@ -1038,6 +1040,18 @@
       set(ref(getDatabase(), path), { prods, groups: prodGroups });
     }).catch(() => {});
   }
+  window.resetProdSettings = function() {
+    if (!confirm('상품 설정을 기본값으로 초기화할까요?\n저장된 그룹 프리셋도 모두 삭제됩니다.')) return;
+    prods = DEFAULT_PRODS.map(p => ({...p}));
+    prodGroups = [];
+    activeProdGroupId = null;
+    const path = getProdSettingsPath();
+    if (path) import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, remove }) => {
+      remove(ref(getDatabase(), path));
+    }).catch(() => {});
+    saveProdDefault();
+    renderPS();
+  };
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
   function deactivateProdGroup() {
