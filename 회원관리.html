@@ -253,11 +253,13 @@
           </div>
         </div>
         <div class="modal-field"><label>메모</label><input id="um-memo" value="${u.memo||''}"></div>
-        ${isEdit?`
         <div class="charge-sect">
           <div class="charge-sect-title">⚡ 충전 계정 정보</div>
-          <div class="agency-charge-body"><span style="color:var(--muted);font-size:12px">불러오는 중...</span></div>
-        </div>`:''}
+          <div class="agency-charge-body">${isEdit
+            ? '<span style="color:var(--muted);font-size:12px">불러오는 중...</span>'
+            : `<div class="modal-row" style="margin-bottom:0"><div class="modal-field"><label>BizFit ID</label><input id="cs-id" type="text" placeholder="로그인 아이디" autocomplete="off"></div><div class="modal-field"><label>BizFit PW</label><input id="cs-pw" type="password" placeholder="패스워드" autocomplete="new-password"></div></div>`
+          }</div>
+        </div>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">취소</button>
           <button class="btn-save" id="user-save-btn">${isEdit?'저장':'추가'}</button>
@@ -296,20 +298,11 @@
               };
             }else{
               body.innerHTML=`
-                <div class="modal-row" style="margin-bottom:10px;">
+                <div class="modal-row" style="margin-bottom:0">
                   <div class="modal-field"><label>BizFit ID</label><input id="cs-id" type="text" value="${d?.id||''}" placeholder="로그인 아이디" autocomplete="off"></div>
                   <div class="modal-field"><label>BizFit PW</label><input id="cs-pw" type="password" value="${d?.pw||''}" placeholder="패스워드" autocomplete="new-password"></div>
                 </div>
-                <div style="display:flex;gap:8px;">
-                  <button class="action-btn btn-add" id="cs-save">저장</button>
-                  ${d?`<button class="btn-cancel" id="cs-cancel">취소</button>`:''}
-                </div>`;
-              body.querySelector('#cs-save').onclick=async()=>{
-                const id=body.querySelector('#cs-id').value.trim();
-                const pw=body.querySelector('#cs-pw').value;
-                if(!id||!pw){alert('ID와 PW를 입력하세요.');return;}
-                await set(chargeRef,{id,pw});existing={id,pw};editing=false;renderCS();
-              };
+                ${d?`<div style="margin-top:6px"><button class="btn-cancel" id="cs-cancel">취소</button></div>`:''}`;
               const cancelBtn=body.querySelector('#cs-cancel');
               if(cancelBtn)cancelBtn.onclick=()=>{editing=false;renderCS();};
             }
@@ -394,6 +387,18 @@
     } else {
       if (!password) return alert('비밀번호를 입력하세요.');
       await HA.addUser({ ...data, password });
+    }
+    // BizFit 충전 계정 저장 (입력값이 있을 때만)
+    const csIdEl = document.getElementById('cs-id');
+    if(csIdEl){
+      const bfId = csIdEl.value.trim();
+      const bfPw = document.getElementById('cs-pw').value;
+      if(bfId && bfPw && agencyVal){
+        try{
+          const {getDatabase,ref,set:dbSet}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+          await dbSet(ref(getDatabase(),`ha/bizfit_charge/${agencyVal.replace(/[.#$[\]/]/g,'_')}`),{id:bfId,pw:bfPw});
+        }catch(e){console.error('충전 계정 저장 오류:',e);}
+      }
     }
     document.querySelector('.modal-overlay').remove();
     renderUsers(false);
