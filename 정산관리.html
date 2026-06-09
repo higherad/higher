@@ -1132,7 +1132,7 @@
         }
       }catch(e){ok=false;resultMsg=`서버 연결 실패: ${e.message}`;}
       if(ok){
-        cell.innerHTML=badge('#dcfce7','#166534',`✅ ${resultMsg}`);
+        cell.innerHTML=badge('#dcfce7','#166534',`✅ 캐시 충전 완료 · ${amount.toLocaleString()}원`);
         const rowsData=JSON.parse(cell.closest('.agency-block').dataset.rows||'[]');
         await Promise.all(rowsData
           .filter(r=>!snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)
