@@ -146,21 +146,6 @@
   .pm-btn-del:hover{background:rgba(239,68,68,.18);}
 </style>
 
-<div class="stat-bar" id="receipt-stat-bar" style="grid-template-columns:repeat(3,1fr)">
-  <div class="stat-box">
-    <div class="sb-icon" style="background:rgba(245,158,11,.1)">⏳</div>
-    <div><div class="sb-label">대기</div><div class="sb-val" id="stat-pending" style="color:var(--warn)">-</div></div>
-  </div>
-  <div class="stat-box">
-    <div class="sb-icon" style="background:rgba(59,130,246,.1)">📋</div>
-    <div><div class="sb-label">접수</div><div class="sb-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
-  </div>
-  <div class="stat-box">
-    <div class="sb-icon" style="background:rgba(16,185,129,.1)">✅</div>
-    <div><div class="sb-label">승인</div><div class="sb-val" id="stat-active" style="color:var(--accent)">-</div></div>
-  </div>
-</div>
-
 <!-- 상품 유형 설정 패널 -->
 <div class="prod-panel" id="prod-panel">
   <div class="prod-ph">
@@ -200,6 +185,21 @@
         <button class="ps-nav-btn" id="psNavFR" onclick="psScrollProdFixed(1)">&#8250;</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="stat-bar" id="receipt-stat-bar" style="grid-template-columns:repeat(3,1fr)">
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(245,158,11,.1)">⏳</div>
+    <div><div class="sb-label">대기</div><div class="sb-val" id="stat-pending" style="color:var(--warn)">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(59,130,246,.1)">📋</div>
+    <div><div class="sb-label">접수</div><div class="sb-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(16,185,129,.1)">✅</div>
+    <div><div class="sb-label">승인</div><div class="sb-val" id="stat-active" style="color:var(--accent)">-</div></div>
   </div>
 </div>
 
