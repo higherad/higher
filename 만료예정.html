@@ -22,6 +22,7 @@
   .loading-wrap { display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:8px; }
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
+  .kw-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:#eff6ff; color:#1d4ed8; display:inline-block; }
 
   /* ── 반응형 ── */
   @media (max-width: 768px) {
@@ -59,11 +60,11 @@
       <tr>
         <th>번호</th><th>대행사</th><th>유저ID</th>
         <th>플레이스명</th><th>MID</th><th>순위키워드</th><th>시작일</th><th>종료일</th>
-        <th>일 목표</th><th>D-Day</th><th>액션</th><th>순위</th>
+        <th>일 목표</th><th>검색키워드</th><th>D-Day</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="expire-body">
-      <tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -120,7 +121,7 @@
   };
   window.renderExpire = async function() {
     document.getElementById('expire-body').innerHTML =
-      '<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
 
@@ -150,7 +151,7 @@
 
     const body = document.getElementById('expire-body');
     if(!slots.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="12">만료 예정 캠페인이 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="13">만료 예정 캠페인이 없습니다.</td></tr>';
       return;
     }
     body.innerHTML = slots.map((s,i) => `
@@ -164,6 +165,7 @@
         <td style="color:var(--text2)">${s.startDate}</td>
         <td style="color:var(--text2);font-weight:600">${s.endDate}</td>
         <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
+        <td><span class="kw-badge">${(s.searchKeyword||s.workKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length}개</span></td>
         <td>${ddayBadge(getDday(s.endDate))}</td>
         <td><button class="action-btn btn-extend" onclick="extendFromExpire('${s._key}')">연장</button></td>
         <td><button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup_e('${s._key}')">순위</button></td>
