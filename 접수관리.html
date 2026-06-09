@@ -139,10 +139,12 @@
 
 <script>
 (function(){
-  let currentPage = 1;
-  const PER_PAGE  = 20;
-  let allSlots    = [];
-  let filteredAll = [];
+  let currentPage  = 1;
+  const PER_PAGE   = 20;
+  let allSlots     = [];
+  let filteredAll  = [];
+  let _slotsLoaded = false;
+  let _detailOpen  = false;
 
   const stMap = {
     pending:  '<span class="status-badge s-pending">대기</span>',
@@ -348,21 +350,24 @@
     renderReceipts();
   };
 
-  window.renderReceipts = async function(resetPage = true) {
+  window.renderReceipts = async function(resetPage = true, forceReload = false) {
     if (resetPage) currentPage = 1;
-    document.getElementById('receipt-body').innerHTML =
-      '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    allSlots = await HA.getSlots();
+    if (!_slotsLoaded || forceReload) {
+      document.getElementById('receipt-body').innerHTML =
+        '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      allSlots = await HA.getSlots();
+      _slotsLoaded = true;
 
-    // ── 종료일 지난 active 캠페인 자동 만료 처리 ──────────────
-    const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-    const toExpire = allSlots.filter(s =>
-      s.status === 'active' && s.endDate && s.endDate < todayStr
-    );
-    if (toExpire.length) {
-      await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
-      toExpire.forEach(s => { s.status = 'expired'; });
+      // ── 종료일 지난 active 캠페인 자동 만료 처리 ──────────────
+      const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+      const toExpire = allSlots.filter(s =>
+        s.status === 'active' && s.endDate && s.endDate < todayStr
+      );
+      if (toExpire.length) {
+        await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
+        toExpire.forEach(s => { s.status = 'expired'; });
+      }
     }
 
     const all      = getFiltered();
@@ -478,8 +483,11 @@
   // ── 승인 ─────────────────────────────────────────────────
   window.approveOne = async function(key) {
     await HA.approveSlot(key);
+    const idx = allSlots.findIndex(x => x._key === key);
+    if (idx !== -1) allSlots[idx].status = 'active';
     const overlay = document.querySelector('.modal-overlay');
     if (overlay) overlay.remove();
+    _detailOpen = false;
     renderReceipts(false);
   };
 
@@ -487,14 +495,21 @@
     const keys = getCheckedKeys();
     if (!keys.length) return alert('선택된 항목이 없습니다.');
     await Promise.all(keys.map(k => HA.approveSlot(k)));
+    keys.forEach(k => {
+      const idx = allSlots.findIndex(x => x._key === k);
+      if (idx !== -1) allSlots[idx].status = 'active';
+    });
     renderReceipts(false);
   };
 
   // ── 접수 처리 ─────────────────────────────────────────────
   window.acceptOne = async function(key) {
     await HA.updateSlot(key, { status: 'accepted' });
+    const idx = allSlots.findIndex(x => x._key === key);
+    if (idx !== -1) allSlots[idx].status = 'accepted';
     const overlay = document.querySelector('.modal-overlay');
     if (overlay) overlay.remove();
+    _detailOpen = false;
     renderReceipts(false);
   };
 
@@ -508,8 +523,11 @@
       if (idx !== -1) allSlots[idx].searchKeyword = kw;
     }
     await HA.updateSlot(key, { status: 'accepted' });
+    const idx2 = allSlots.findIndex(x => x._key === key);
+    if (idx2 !== -1) allSlots[idx2].status = 'accepted';
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
+    _detailOpen = false;
     renderReceipts(false);
   };
 
@@ -518,15 +536,20 @@
     const labelMap = { pending: '대기', accepted: '접수', active: '승인' };
     if (!confirm(`상태를 "${labelMap[newStatus]}"(으)로 변경하시겠습니까?`)) return;
     await HA.updateSlot(key, { status: newStatus });
+    const idx = allSlots.findIndex(x => x._key === key);
+    if (idx !== -1) allSlots[idx].status = newStatus;
     const overlay = document.querySelector('.modal-overlay');
     if (overlay) overlay.remove();
+    _detailOpen = false;
     renderReceipts(false);
   };
 
   // ── 상세 보기 ─────────────────────────────────────────────
   window.viewDetail = async function(key) {
+    if (_detailOpen) return;
     const s = allSlots.find(x => x._key === key);
     if (!s) return;
+    _detailOpen = true;
 
     // 캐시에 충돌 기록이 있으면 네트워크 없이 즉시 차단
     const _cached = LOCK_CHECK_CACHE.get(key);
@@ -722,6 +745,7 @@
     }
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
+    _detailOpen = false;
   };
 
   // ── 수정 ─────────────────────────────────────────────────
@@ -752,7 +776,7 @@
   };
 
   window.saveEdit = async function(key) {
-    await HA.updateSlot(key, {
+    const updates = {
       storeName:     document.getElementById('e-storeName').value,
       startDate:     document.getElementById('e-startDate').value,
       endDate:       document.getElementById('e-endDate').value,
@@ -761,7 +785,10 @@
       url:           document.getElementById('e-url').value,
       mid:           document.getElementById('e-mid').value,
       memo:          document.getElementById('e-memo').value,
-    });
+    };
+    await HA.updateSlot(key, updates);
+    const idx = allSlots.findIndex(x => x._key === key);
+    if (idx !== -1) Object.assign(allSlots[idx], updates);
     document.querySelector('.modal-overlay').remove();
     renderReceipts(false);
   };
@@ -822,8 +849,21 @@
   // Firebase SDK 미리 로드 — 첫 상세 클릭 딜레이 제거
   import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').catch(() => {});
 
-  // lock REST 엔드포인트 연결 예열 — TCP/TLS 수립으로 첫 잠금 확인 속도 향상
-  fetch(`${LOCK_FB}.json?shallow=true`).catch(() => {});
+  // lock 전체 상태 프리페치 — TCP 예열 + 캐시 초기화로 첫 상세 클릭 시 네트워크 없이 즉시 확인
+  fetch(`${LOCK_FB}.json`).then(r => r.ok ? r.json() : null).then(data => {
+    if (!data || typeof data !== 'object') return;
+    const cu   = window.HA?.getCurrentUser?.() || {};
+    const myId = cu.username || cu.id || 'unknown';
+    Object.entries(data).forEach(([key, lock]) => {
+      if (!lock) { LOCK_CHECK_CACHE.set(key, { conflict: false, ts: Date.now() }); return; }
+      const age = Date.now() - new Date(lock.lockedAt).getTime();
+      if (lock.staffId !== myId && age < LOCK_TTL_MS) {
+        LOCK_CHECK_CACHE.set(key, { conflict: true, by: lock.staffName || lock.staffId, ts: Date.now() });
+      } else {
+        LOCK_CHECK_CACHE.set(key, { conflict: false, ts: Date.now() });
+      }
+    });
+  }).catch(() => {});
 
   // ── 순위 팝업 (접수관리) ─────────────────────────────────
   window.openRankPopup = async function(slotKey) {
