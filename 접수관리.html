@@ -219,7 +219,8 @@
 
 <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;">
   <div style="display:flex;gap:8px;">
-    <button class="action-btn" id="dl-main-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcel()">📥 대행사별 엑셀 다운로드</button>
+    <button class="action-btn" id="dl-single-btn" style="background:#2563eb;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcelList()">📥 엑셀 다운로드</button>
+    <button class="action-btn" id="dl-main-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcel()">📥 엑셀 시트 분류</button>
     <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button>
   </div>
 </div>
@@ -1463,6 +1464,37 @@ window.toggleProdPanel = function(e) {
     document.getElementById('dl-prog-fill').style.width = (pct||0) + '%';
     document.getElementById('dl-prog-lbl').textContent  = lbl || '';
   }
+
+  // ── 엑셀 다운로드 (접수 리스트) ────────────────────────────
+  window.downloadExcelList = function() {
+    const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
+    const filtered = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
+    if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
+
+    function buildAndDownload() {
+      const XLSX = window.XLSX;
+      const wb = XLSX.utils.book_new();
+      const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드'];
+      const rows = filtered.map(s => [
+        s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
+        s.agencyId||'', s.storeName||'', s.url||'', s.mid||'',
+        s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', s.searchKeyword||'',
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+      ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20}];
+      XLSX.utils.book_append_sheet(wb, ws, '접수');
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+      XLSX.writeFile(wb, `접수_${dateStr}.xlsx`);
+    }
+
+    if (window.XLSX) { buildAndDownload(); } else {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = buildAndDownload;
+      document.head.appendChild(s);
+    }
+  };
 
   // ── 엑셀 다운로드 (대행사별 · 3시트) ────────────────────────
   window.downloadExcel = function() {
