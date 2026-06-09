@@ -1051,8 +1051,12 @@ window.toggleProdPanel = function(e) {
   function saveProdSettings() {
     const path = getProdSettingsPath();
     if (!path) return;
-    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set }) => {
-      set(ref(getDatabase(), path), { prods, groups: prodGroups });
+    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set, remove }) => {
+      const payload = { prods };
+      if (prodGroups.length > 0) payload.groups = prodGroups;
+      set(ref(getDatabase(), path), payload)
+        .then(() => { if (!prodGroups.length) remove(ref(getDatabase(), path + '/groups')).catch(()=>{}); })
+        .catch(() => {});
     }).catch(() => {});
   }
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
