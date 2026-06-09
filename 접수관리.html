@@ -989,8 +989,8 @@
     {id:'p3',     name:'X3',    color:'#10b981', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p4',     name:'X4',    color:'#f97316', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p5',     name:'X5',    color:'#cbd5e1', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
-    {id:'charlie',name:'찰리',  color:'#f43f5e', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0},
-    {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
+    {id:'charlie',name:'찰리',  color:'#f43f5e', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, autoBalance:false},
+    {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0, fixedAlloc:true, kwLimit:5, autoBalance:false},
   ];
   const FIXED_PROD_IDS = new Set(['charlie', 'yupfl']);
   const ap = () => prods.filter(p => p.active);
@@ -1012,12 +1012,16 @@
   async function loadProdSettings() {
     const path = getProdSettingsPath();
     if (!path) return;
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,kwLimit:p.kwLimit,autoBalance:p.autoBalance}]));
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
       const snap = await get(ref(getDatabase(), path));
       const data = snap.val();
       if (data) {
-        if (Array.isArray(data.prods))  prods = data.prods;
+        if (Array.isArray(data.prods)) {
+          prods = data.prods;
+          prods.forEach(p => { const f = staticFlags.get(p.id); if(f) Object.assign(p, f); });
+        }
         if (Array.isArray(data.groups)) prodGroups = data.groups;
       }
     } catch(e) {}
@@ -1029,16 +1033,14 @@
       set(ref(getDatabase(), path), { prods, groups: prodGroups });
     }).catch(() => {});
   }
-  function saveProdDefault() {
-    defaultProdsState = prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
-  }
+  const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
+  function saveProdDefault() { defaultProdsState = prodSnapshot(); }
   function deactivateProdGroup() {
     activeProdGroupId = null;
     if (defaultProdsState) {
       defaultProdsState.forEach(s => {
         const p = prods.find(x => x.id === s.id); if(!p) return;
-        p.active = s.active; p.ratio = s.ratio; p.name = s.name; p.ver = s.ver;
-        if(s.kwPct !== undefined) p.kwPct = s.kwPct;
+        Object.assign(p, s);
       });
     }
     renderPS();
@@ -1082,8 +1084,7 @@
   window.saveProdGroup = function() {
     const name = document.getElementById('prodGroupNameInput').value.trim();
     if (!name) { document.getElementById('prodGroupNameInput').focus(); return; }
-    const state = prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
-    prodGroups.push({ id:'g'+Date.now(), name, state });
+    prodGroups.push({ id:'g'+Date.now(), name, state: prodSnapshot() });
     saveProdSettings(); window.hideAddProdGroup(); renderProdGroups();
   };
   window.deleteProdGroup = function(id) {
@@ -1120,7 +1121,7 @@
   function updateActiveProdGroup() {
     if (!activeProdGroupId) return;
     const g = prodGroups.find(x => x.id === activeProdGroupId); if(!g) return;
-    g.state = prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
+    g.state = prodSnapshot();
     saveProdSettings(); renderProdGroups();
   }
   function nextProdColor() {
@@ -1157,8 +1158,10 @@
         <span class="ps-name" style="color:${p.color}">${escProd(p.name)}</span>
         <button class="ps-tog ${p.active?'on':'off'}" onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
       </div>`;
-    document.getElementById('psWrapNormal').innerHTML = prods.filter(p => !FIXED_PROD_IDS.has(p.id)).map(prodHtml).join('');
-    document.getElementById('psWrapFixed').innerHTML  = prods.filter(p =>  FIXED_PROD_IDS.has(p.id)).map(prodHtml).join('');
+    const normalProds = [], fixedProds = [];
+    for (const p of prods) (FIXED_PROD_IDS.has(p.id) ? fixedProds : normalProds).push(p);
+    document.getElementById('psWrapNormal').innerHTML = normalProds.map(prodHtml).join('');
+    document.getElementById('psWrapFixed').innerHTML  = fixedProds.map(prodHtml).join('');
     updatePSNavArrows();
   }
 
@@ -1179,13 +1182,13 @@
     renderPS();
   };
   function rebalanceProdActive(field) {
-    const active = ap().filter(p => p.id !== 'yupfl');
+    const active = ap().filter(p => p.autoBalance !== false);
     const n = active.length;
     if(!n){ prods.forEach(p => { p[field]=0; }); return; }
     const each = Math.round(10/n*10)/10;
     const last  = Math.round((10-each*(n-1))*10)/10;
     active.forEach((p,i) => { p[field] = i===n-1?last:each; });
-    prods.forEach(p => { if(!p.active||p.id==='yupfl') p[field]=0; });
+    prods.forEach(p => { if(!p.active || p.autoBalance === false) p[field]=0; });
   }
 
   window.openProdModal = function(id) {
@@ -1198,35 +1201,32 @@
     const delBtn = document.getElementById('pm-del-btn');
     if (delBtn) delBtn.style.display = FIXED_PROD_IDS.has(id) ? 'none' : '';
 
-    const isFixed = id === 'yupfl';
-    const actives = isFixed ? [] : ap().filter(q => q.id !== 'yupfl');
-
-    document.getElementById('pm-kw-grid').innerHTML = isFixed
-      ? `<div style="grid-column:1/-1;font-size:12px;color:var(--text2);padding:6px 0;">검색키워드 앞 <strong>5개</strong> 고정 배분</div>`
-      : actives.map(q => `
+    const isFixed = !!p.fixedAlloc;
+    const actives = isFixed ? [] : ap().filter(q => !q.fixedAlloc);
+    const makeGrid = (items, field, prefix) => items.map(q => `
           <div class="ratio-item">
             <div class="ri-dot" style="background:${q.color}"></div>
             <span class="ri-name" style="color:${q.color}">${q.name}</span>
-            <input type="number" step="any" min="0" max="10" value="${q.kwPct !== undefined ? q.kwPct : 0}" id="pm-kwpct-${q.id}" oninput="updateProdModalNotes()" />
+            <input type="number" step="any" min="0" max="10" value="${q[field] ?? 0}" id="${prefix}${q.id}" oninput="updateProdModalNotes()" />
           </div>`).join('');
+
+    document.getElementById('pm-kw-grid').innerHTML = isFixed
+      ? `<div style="grid-column:1/-1;font-size:12px;color:var(--text2);padding:6px 0;">검색키워드 앞 <strong>${p.kwLimit||5}개</strong> 고정 배분</div>`
+      : makeGrid(actives, 'kwPct', 'pm-kwpct-');
 
     document.getElementById('pm-ratio-grid').innerHTML = isFixed
       ? `<div style="grid-column:1/-1;font-size:12px;color:var(--text2);padding:6px 0;"><strong>300타 이상</strong>: 일 목표의 15% &nbsp;/&nbsp; <strong>300타 미만</strong>: 50타 고정</div>`
-      : actives.map(q => `
-          <div class="ratio-item">
-            <div class="ri-dot" style="background:${q.color}"></div>
-            <span class="ri-name" style="color:${q.color}">${q.name}</span>
-            <input type="number" step="any" min="0" max="10" value="${q.ratio !== undefined ? q.ratio : 0}" id="pm-ratio-${q.id}" oninput="updateProdModalNotes()" />
-          </div>`).join('');
+      : makeGrid(actives, 'ratio', 'pm-ratio-');
 
     updateProdModalNotes();
     document.getElementById('prod-modal-bg').classList.add('show');
   };
   window.updateProdModalNotes = function() {
-    if (_prodModalId === 'yupfl') return;
-    const actives = ap().filter(q => q.id !== 'yupfl');
-    const kwR  = Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`pm-kwpct-${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
-    const ratR = Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`pm-ratio-${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
+    const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
+    if (!cur || cur.fixedAlloc) return;
+    const actives = ap().filter(q => !q.fixedAlloc);
+    const sumInputs = prefix => Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`${prefix}${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
+    const kwR = sumInputs('pm-kwpct-'), ratR = sumInputs('pm-ratio-');
     const kwNote = document.getElementById('pm-kw-note');
     const ratNote = document.getElementById('pm-ratio-note');
     if(kwNote)  { kwNote.textContent=`합계: ${kwR}`;   kwNote.className='ratio-note '+(kwR===10||kwR===0?'ok':'ng'); }
@@ -1240,11 +1240,11 @@
     const p = prods.find(x => x.id === _prodModalId); if(!p) return;
     p.name = document.getElementById('pm-name').value.trim() || p.name;
     p.ver  = document.getElementById('pm-ver').value.trim();
-    if (_prodModalId !== 'yupfl') {
-      const actives = ap().filter(q => q.id !== 'yupfl');
+    if (!p.fixedAlloc) {
+      const actives = ap().filter(q => !q.fixedAlloc);
       if(actives.length) {
-        const kwR  = Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`pm-kwpct-${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
-        const ratR = Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`pm-ratio-${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
+        const sumInputs = prefix => Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`${prefix}${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
+        const kwR = sumInputs('pm-kwpct-'), ratR = sumInputs('pm-ratio-');
         if(kwR!==10 && kwR!==0){ alert(`키워드 배분 합계는 10 또는 모두 0이어야 합니다. (현재: ${kwR})`); return; }
         if(ratR!==10){ alert(`일 목표 배분 합계는 10이어야 합니다. (현재: ${ratR})`); return; }
         actives.forEach(q => {
@@ -1281,58 +1281,41 @@
 
   function yupflAlloc(target) { return target >= 300 ? Math.round(target * 0.15) : 50; }
 
-  function allocate(asgn, target) {
-    if (!asgn.length) return {};
-    const yupfl = asgn.find(p => p.id === 'yupfl');
-    if (yupfl) {
-      const yAmt = Math.min(yupflAlloc(target), target);
-      const remaining = Math.max(0, target - yAmt);
-      const others = asgn.filter(p => p.id !== 'yupfl');
-      const map = { yupfl: yAmt };
-      if (others.length) {
-        const totalW = others.reduce((s, p) => s + p.ratio, 0) || 1;
-        const exact  = others.map(p => remaining * p.ratio / totalW);
-        const floors = exact.map(v => Math.floor(v));
-        const rems   = exact.map((v, i) => v - floors[i]);
-        let leftover = remaining - floors.reduce((s, v) => s + v, 0);
-        const order  = rems.map((_, i) => i).sort((a, b) => rems[b] - rems[a]);
-        for (let i = 0; i < leftover; i++) floors[order[i]]++;
-        others.forEach((p, i) => { map[p.id] = floors[i]; });
-      }
-      return map;
-    }
-    const totalW = asgn.reduce((s, p) => s + p.ratio, 0) || 1;
-    const exact  = asgn.map(p => target * p.ratio / totalW);
+  function lrm(items, total) {
+    if (!items.length) return {};
+    const totalW = items.reduce((s, p) => s + p.ratio, 0) || 1;
+    const exact  = items.map(p => total * p.ratio / totalW);
     const floors = exact.map(v => Math.floor(v));
     const rems   = exact.map((v, i) => v - floors[i]);
-    let leftover = target - floors.reduce((s, v) => s + v, 0);
+    let leftover = total - floors.reduce((s, v) => s + v, 0);
     const order  = rems.map((_, i) => i).sort((a, b) => rems[b] - rems[a]);
     for (let i = 0; i < leftover; i++) floors[order[i]]++;
-    const map = {};
-    asgn.forEach((p, i) => { map[p.id] = floors[i]; });
-    return map;
+    return items.reduce((m, p, i) => (m[p.id] = floors[i], m), {});
+  }
+
+  function allocate(asgn, target) {
+    if (!asgn.length) return {};
+    const yupfl = asgn.find(p => p.fixedAlloc);
+    if (yupfl) {
+      const yAmt = Math.min(yupflAlloc(target), target);
+      return { [yupfl.id]: yAmt, ...lrm(asgn.filter(p => !p.fixedAlloc), Math.max(0, target - yAmt)) };
+    }
+    return lrm(asgn, target);
   }
 
   function kwForProd(keywords, prod) {
     if (!keywords) return '';
     const parts = keywords.split(',').map(k => k.trim()).filter(k => k);
     if (!parts.length) return '';
-    if (prod.id === 'yupfl') return parts.slice(0, 5).join(',');
-    const activeOthers = ap().filter(p => p.id !== 'yupfl');
-    const totalKw = parts.length;
-    const pcts    = activeOthers.map(p => p.kwPct || 0);
-    const totalPct = pcts.reduce((s, v) => s + v, 0);
+    if (prod.kwLimit) return parts.slice(0, prod.kwLimit).join(',');
+    const activeOthers = ap().filter(p => !p.fixedAlloc);
+    const totalPct = activeOthers.reduce((s, p) => s + (p.kwPct || 0), 0);
     if (totalPct === 0) return parts.join(',');
-    const exact  = pcts.map(pct => totalKw * pct / totalPct);
-    const floors = exact.map(v => Math.floor(v));
-    const rems   = exact.map((v, i) => v - floors[i]);
-    let leftover = totalKw - floors.reduce((s, v) => s + v, 0);
-    const order  = rems.map((_, i) => i).sort((a, b) => rems[b] - rems[a]);
-    for (let i = 0; i < leftover; i++) floors[order[i]]++;
+    const counts = lrm(activeOthers.map(p => ({id: p.id, ratio: p.kwPct || 0})), parts.length);
     let offset = 0;
-    for (let i = 0; i < activeOthers.length; i++) {
-      if (activeOthers[i].id === prod.id) return parts.slice(offset, offset + floors[i]).join(',');
-      offset += floors[i];
+    for (const p of activeOthers) {
+      if (p.id === prod.id) return parts.slice(offset, offset + (counts[p.id] || 0)).join(',');
+      offset += counts[p.id] || 0;
     }
     return '';
   }
@@ -1367,14 +1350,13 @@
     };
   }
 
+  const agencyLabel = s => (s.agencyId||'').trim() || '(대행사 미지정)';
   function getAgencies(slots) {
     const seen = new Set(), list = [];
-    slots.forEach(s => { const ag=(s.agencyId||'').trim()||'(대행사 미지정)'; if(!seen.has(ag)){seen.add(ag);list.push(ag);} });
+    slots.forEach(s => { const ag=agencyLabel(s); if(!seen.has(ag)){seen.add(ag);list.push(ag);} });
     return list;
   }
-  function slotsByAgency(slots, ag) {
-    return slots.filter(s => ((s.agencyId||'').trim()||'(대행사 미지정)') === ag);
-  }
+  function slotsByAgency(slots, ag) { return slots.filter(s => agencyLabel(s) === ag); }
 
   function buildJusuSheet(wb, f) {
     const ws = {};
@@ -1385,16 +1367,15 @@
     const baseH = ['업체명','URL','MID','순위키워드','일수','시작일','일 목표','분류','검색키워드','키워드 수'];
     const headers = [...baseH, ...AP.map(p=>p.name), '합계'];
     headers.forEach((h, ci) => {
-      const prod = AP.find(p => p.name === h);
+      const prod = (ci >= 10 && ci < 10 + AP.length) ? AP[ci - 10] : null;
       const fill = prod ? prod.color.replace('#','') : (ci < 10 ? 'D97706' : '374151');
       sc(ws, 3, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill, align:'center'});
     });
     f.forEach((r, ri) => {
       const rowIdx = 4 + ri;
-      const asgn   = AP.slice();
-      const alloc  = allocate(asgn, r.dailyTarget||0);
+      const alloc  = allocate(AP.slice(), r.dailyTarget||0);
       const kwCount = r.searchKeyword ? r.searchKeyword.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
-      const base = [r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',r.days||0,null,r.dailyTarget||0,asgn.length,r.searchKeyword||'',kwCount];
+      const base = [r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',r.days||0,null,r.dailyTarget||0,AP.length,r.searchKeyword||'',kwCount];
       const pv   = AP.map(p => alloc[p.id] ?? '');
       const row  = [...base, ...pv, (r.dailyTarget||0)*(r.days||0)];
       row.forEach((v, ci) => {
@@ -1403,9 +1384,10 @@
         const pi=ci-10, isProd=ci>=10&&ci<10+AP.length&&pv[pi]!=='', fc=isProd?AP[pi].color.replace('#',''):null;
         sc(ws, rowIdx, ci, v, { align:[0,1,3,8].includes(ci)?'left':'center', font:fc?{color:{rgb:fc},bold:true}:{} });
       });
-      ws['!ref'] = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:rowIdx, c:headers.length-1}});
     });
-    if (!ws['!ref']) ws['!ref'] = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:4, c:headers.length-1}});
+    ws['!ref'] = f.length
+      ? window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:3+f.length, c:headers.length-1}})
+      : window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:4, c:headers.length-1}});
     ws['!cols'] = [{wch:22},{wch:44},{wch:14},{wch:18},{wch:6},{wch:13},{wch:12},{wch:6},{wch:44},{wch:8},...AP.map(()=>({wch:10})),{wch:10}];
     window.XLSX.utils.book_append_sheet(wb, ws, '접수');
   }
@@ -1418,12 +1400,12 @@
     const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표','일 수','예약일','검색키워드'];
     headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':'1F2937'}); });
     let curRow = 1;
+    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0)]));
     pList.forEach(prod => {
       f.forEach(r => {
-        const asgn    = AP.slice();
-        const alloc   = allocate(asgn, r.dailyTarget||0);
+        const alloc   = allocBySlot.get(r);
         const pp      = alloc[prod.id] ?? 0;
-        const daysVal = prod.id === 'charlie' ? pp*(r.days||0) : (r.days||0);
+        const daysVal = prod.daysMultiplied ? pp*(r.days||0) : (r.days||0);
         const kw      = kwForProd(r.searchKeyword||'', prod);
         const pc      = prod.color.replace('#','');
         const row     = [prod.name,r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',pp,daysVal,null,kw];
@@ -1439,9 +1421,6 @@
     ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:6},{wch:13},{wch:52}];
     window.XLSX.utils.book_append_sheet(wb, ws, label);
   }
-  function buildJumuNormalSheet(wb, f){ buildJumuSheet_(wb, f, '일반', p=>!FIXED_PROD_IDS.has(p.id)); }
-  function buildJumuFixedSheet(wb, f) { buildJumuSheet_(wb, f, '고정', p=> FIXED_PROD_IDS.has(p.id)); }
-
   function setProg(show, pct, lbl) {
     const wrap = document.getElementById('dl-prog-wrap'); if(!wrap) return;
     wrap.style.display = show ? 'block' : 'none';
@@ -1469,7 +1448,9 @@
             setProg(true, Math.round(100*i/agencies.length), `[${ag}] 시트 생성 중... (${i+1}/${agencies.length}개 대행사)`);
             await sleep(60);
             const wb = window.XLSX.utils.book_new();
-            buildJusuSheet(wb, f); buildJumuNormalSheet(wb, f); buildJumuFixedSheet(wb, f);
+            buildJusuSheet(wb, f);
+            buildJumuSheet_(wb, f, '일반', p => !FIXED_PROD_IDS.has(p.id));
+            buildJumuSheet_(wb, f, '고정', p =>  FIXED_PROD_IDS.has(p.id));
             window.XLSX.writeFile(wb, realAg ? `${realAg}-주문서.xlsx` : `주문서-${shortD()}.xlsx`);
             await sleep(300);
           }
