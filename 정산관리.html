@@ -1111,6 +1111,11 @@
     for(const cell of document.querySelectorAll('#settle-reg-body .charge-status-cell')){
       const agencyId=cell.dataset.agency;
       const amount=parseInt(cell.dataset.amount);
+      const rowsData=JSON.parse(cell.closest('.agency-block').dataset.rows||'[]');
+      if(rowsData.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)){
+        cell.innerHTML=badge('#f0fdf4','#166534','✅ 이미 충전 완료');
+        continue;
+      }
       const acctSnap=await get(ref(db,`ha/bizfit_charge/${safe(agencyId)}`));
       const acct=acctSnap.exists()?acctSnap.val():null;
       if(!acct){
@@ -1137,7 +1142,6 @@
       }catch(e){ok=false;resultMsg=`서버 연결 실패: ${e.message}`;}
       if(ok){
         cell.innerHTML=badge('#dcfce7','#166534',`✅ 캐시 충전 완료 · ${amount.toLocaleString()}원`);
-        const rowsData=JSON.parse(cell.closest('.agency-block').dataset.rows||'[]');
         await Promise.all(rowsData
           .filter(r=>!snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)
           .map(r=>chargeConfirm(r.timeKey,r.agencyId,r.userId)));
