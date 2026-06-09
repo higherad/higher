@@ -94,11 +94,11 @@
         <th><input type="checkbox" id="s-check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>대행사</th><th>유저ID</th>
         <th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>순위</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>상태</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="slots-body">
-      <tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -146,7 +146,7 @@
   window.renderSlots = async function(resetPage = true) {
     if (resetPage) page = 1;
     document.getElementById('slots-body').innerHTML =
-      '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
 
@@ -173,7 +173,7 @@
     const body  = document.getElementById('slots-body');
 
     if (!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="13">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((s,i) => {
         const kwCount = (s.searchKeyword||s.workKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length;
@@ -189,7 +189,8 @@
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
-          <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong>${kwCount > 0 ? `<br><span class="kw-badge">${kwCount}개</span>` : ''}</td>
+          <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
+          <td><span class="kw-badge">${kwCount}개</span></td>
           <td>${stLabel[s.status]||s.status}</td>
           <td>
             <div style="display:flex;gap:4px;justify-content:center;">

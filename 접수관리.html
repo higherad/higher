@@ -50,7 +50,6 @@
   .slot-detail dt { font-size:11px; color:var(--text2); margin-top:10px; }
   .slot-detail dd { font-size:13px; margin:2px 0 0 0; font-weight:500; }
   .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:13px; gap:8px; }
-  .kw-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:#eff6ff; color:#1d4ed8; display:inline-block; }
   .spinner { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
   .detail-kw-input { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; outline:none; color:var(--text); box-sizing:border-box; margin-top:3px; }
@@ -249,11 +248,11 @@
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
         <th>캠페인타입</th><th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>상태</th><th>액션</th><th>순위</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="receipt-body">
-      <tr><td colspan="17" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
+      <tr><td colspan="16" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
     </tbody>
   </table>
 </div>
@@ -543,7 +542,7 @@
 
     if (!_slotsLoaded || forceReload) {
       document.getElementById('receipt-body').innerHTML =
-        '<tr><td colspan="17"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+        '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
       allSlots = await HA.getSlots();
       _slotsLoaded = true;
 
@@ -572,7 +571,7 @@
     const body  = document.getElementById('receipt-body');
 
     if (!page.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="17">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="15">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = page.map((s,i) => `
         <tr>
@@ -601,7 +600,6 @@
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
-          <td><span class="kw-badge">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length}개</span></td>
           <td>${stMap[s.status]||s.status}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
