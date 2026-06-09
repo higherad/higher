@@ -1051,7 +1051,7 @@
 
       const hd=document.createElement('div');
       hd.className='agency-hd';
-      hd.innerHTML=`<div><div class="aname">${agency}</div><div class="ameta">총 ${list.length}건 · 미정산 ${pendCount}건</div></div><button class="agency-copy-btn">📋 복사</button>`;
+      hd.innerHTML=`<div><div class="aname">${agency}</div><div class="ameta">총 ${totalCamp}건 · 전체 목표 ${Math.round(totalG).toLocaleString()}건</div></div><button class="agency-copy-btn">📋 복사</button>`;
       block.appendChild(hd);
 
       const wrap=document.createElement('div');
