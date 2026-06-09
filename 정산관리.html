@@ -141,7 +141,10 @@
 
 <div id="settle-reg-overlay" class="sp-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="sp-box">
-    <div class="sp-title">📂 정산 등록 — 대행사별 분류</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
+      <div class="sp-title">📂 정산 등록 — 대행사별 분류</div>
+      <button id="settle-charge-btn" onclick="startSettleCharge()" style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">⚡ 충전 신청</button>
+    </div>
     <div class="sp-sub" id="settle-reg-sub"></div>
     <div id="settle-reg-body"></div>
     <div class="sp-footer"><button class="btn-close-sp" onclick="document.getElementById('settle-reg-overlay').style.display='none'">닫기</button></div>
@@ -1066,7 +1069,8 @@
 
       const ft=document.createElement('div');
       ft.className='agency-ft';
-      ft.innerHTML=`<div class="totals"><span>정산 합계 <b>${Math.round(totalAmt).toLocaleString()}원</b></span><span>입금 합계 <b>${Math.round(totalDep).toLocaleString()}원</b></span>${totalRefund?`<span style="color:#dc2626">환불 <b>${Math.round(totalRefund).toLocaleString()}원</b></span>`:''}</div>`;
+      ft.innerHTML=`<div class="totals"><span>정산 합계 <b>${Math.round(totalAmt).toLocaleString()}원</b></span><span>입금 합계 <b>${Math.round(totalDep).toLocaleString()}원</b></span>${totalRefund?`<span style="color:#dc2626">환불 <b>${Math.round(totalRefund).toLocaleString()}원</b></span>`:''}</div><div class="charge-status-cell" data-agency="${agency}" data-amount="${Math.round(totalAmt)}"></div>`;
+      block.dataset.rows=JSON.stringify(list.map(r=>({timeKey:r.date,agencyId:r.agency,userId:r.userId})));
       block.appendChild(ft);
       container.appendChild(block);
 
@@ -1083,10 +1087,61 @@
       };
     });
 
+    const cBtn=document.getElementById('settle-charge-btn');
+    cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#0d9488';cBtn.style.cursor='pointer';
     regBody.innerHTML='';
     regBody.appendChild(container);
     regSub.textContent=selectedSnapKeys.size>0?`선택 ${rows.length}건`:`전체 ${rows.length}건`;
     regOverlay.style.display='flex';
+  };
+
+  window.startSettleCharge=async function(){
+    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+    const btn=document.getElementById('settle-charge-btn');
+    btn.disabled=true;btn.textContent='⏳ 처리 중...';btn.style.background='#6b7280';btn.style.cursor='default';
+    const {getDatabase,ref,get}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+    const db=getDatabase();
+    const SERVER='https://macro-1-bizfit-charge-938928195180.asia-northeast3.run.app';
+    for(const cell of document.querySelectorAll('#settle-reg-body .charge-status-cell')){
+      const agencyId=cell.dataset.agency;
+      const amount=parseInt(cell.dataset.amount);
+      const acctSnap=await get(ref(db,`ha/bizfit_charge/${safe(agencyId)}`));
+      const acct=acctSnap.exists()?acctSnap.val():null;
+      if(!acct){
+        cell.innerHTML=`<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:#fef9c3;color:#854d0e">⚠️ 계정 정보 미등록</span>`;
+        continue;
+      }
+      cell.innerHTML=`<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:#dbeafe;color:#1d4ed8">⏳ 충전 중... ${amount.toLocaleString()}원</span>`;
+      let ok=false,resultMsg='';
+      try{
+        const res=await fetch(`${SERVER}/charge-stream`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:acct.id,pw:acct.pw,amount}),signal:AbortSignal.timeout(120000)});
+        if(!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
+        const reader=res.body.getReader();const decoder=new TextDecoder();let buffer='';
+        outer:while(true){
+          const{done:sd,value}=await reader.read();if(sd)break;
+          buffer+=decoder.decode(value,{stream:true});
+          const lines=buffer.split('\n');buffer=lines.pop();
+          for(const line of lines){
+            if(!line.startsWith('data: '))continue;
+            let data;try{data=JSON.parse(line.slice(6));}catch{continue;}
+            if(data.ping)continue;
+            if(data.done!==undefined){ok=data.done.success;resultMsg=data.done.message||(ok?'충전 완료':'실패');break outer;}
+          }
+        }
+      }catch(e){ok=false;resultMsg=`서버 연결 실패: ${e.message}`;}
+      if(ok){
+        cell.innerHTML=`<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:#dcfce7;color:#166534">✅ ${resultMsg} · ${amount.toLocaleString()}원</span>`;
+        const rowsData=JSON.parse(cell.closest('.agency-block').dataset.rows||'[]');
+        for(const r of rowsData){
+          if(!snapshotMap[`${safe(r.timeKey)}__${safe(r.agencyId)}__${safe(r.userId)}`]?.chargeConfirmedByName){
+            await chargeConfirm(r.timeKey,r.agencyId,r.userId);
+          }
+        }
+      }else{
+        cell.innerHTML=`<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b">❌ ${resultMsg}</span>`;
+      }
+    }
+    btn.textContent='✅ 충전 완료';btn.style.background='#166534';
   };
 
   renderSettle(false);

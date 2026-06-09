@@ -63,6 +63,9 @@
   .sp-footer { display:flex;justify-content:flex-end;margin-top:20px; }
   .btn-close-sp { padding:9px 24px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit; }
 
+  .charge-sect{margin-top:20px;padding-top:16px;border-top:1.5px solid var(--border);}
+  .charge-sect-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;}
+
   /* ── 반응형 ── */
   @media (max-width: 768px) {
     #user-page .action-bar { flex-wrap: wrap; gap: 6px; }
@@ -401,12 +404,70 @@
           <thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
           <tbody>${mRows || '<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody>
         </table>
+        <div class="charge-sect">
+          <div class="charge-sect-title">⚡ 충전 계정 정보</div>
+          <div class="agency-charge-body"><span style="color:var(--muted);font-size:12px">불러오는 중...</span></div>
+        </div>
         <div class="sp-footer">
           <button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button>
         </div>
       </div>`;
     document.body.appendChild(ov);
     ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+    (async function(){
+      try{
+        const {getDatabase,ref,get,set,remove:fbRemove}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+        const db=getDatabase();
+        const safeKey=(agencyName||'').replace(/[.#$[\]/]/g,'_');
+        const chargeRef=ref(db,`ha/bizfit_charge/${safeKey}`);
+        const snap=await get(chargeRef);
+        let existing=snap.exists()?snap.val():null;
+        const body=ov.querySelector('.agency-charge-body');
+        if(!body)return;
+        let editing=!existing;
+        function renderCS(){
+          const d=existing;
+          if(!editing&&d){
+            body.innerHTML=`
+              <div style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;">
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:700;color:var(--text)">ID: ${d.id}</div>
+                  <div style="font-size:12px;color:var(--muted);margin-top:1px">PW: ${'•'.repeat(Math.min(d.pw.length,10))}</div>
+                </div>
+                <button class="action-btn btn-edit" id="cs-edit">수정</button>
+                <button class="action-btn btn-del" id="cs-del">삭제</button>
+              </div>`;
+            body.querySelector('#cs-edit').onclick=()=>{editing=true;renderCS();};
+            body.querySelector('#cs-del').onclick=async()=>{
+              if(!confirm('충전 계정 정보를 삭제하시겠습니까?'))return;
+              await fbRemove(chargeRef);existing=null;editing=true;renderCS();
+            };
+          }else{
+            body.innerHTML=`
+              <div class="modal-row" style="margin-bottom:10px;">
+                <div class="modal-field"><label>BizFit ID</label><input id="cs-id" type="text" value="${d?.id||''}" placeholder="로그인 아이디" autocomplete="off"></div>
+                <div class="modal-field"><label>BizFit PW</label><input id="cs-pw" type="password" value="${d?.pw||''}" placeholder="패스워드" autocomplete="new-password"></div>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button class="action-btn btn-add" id="cs-save">저장</button>
+                ${d?`<button class="btn-cancel" id="cs-cancel">취소</button>`:''}
+              </div>`;
+            body.querySelector('#cs-save').onclick=async()=>{
+              const id=body.querySelector('#cs-id').value.trim();
+              const pw=body.querySelector('#cs-pw').value;
+              if(!id||!pw){alert('ID와 PW를 입력하세요.');return;}
+              await set(chargeRef,{id,pw});existing={id,pw};editing=false;renderCS();
+            };
+            const cancelBtn=body.querySelector('#cs-cancel');
+            if(cancelBtn)cancelBtn.onclick=()=>{editing=false;renderCS();};
+          }
+        }
+        renderCS();
+      }catch(e){
+        const body=ov.querySelector('.agency-charge-body');
+        if(body)body.innerHTML=`<span style="font-size:12px;color:var(--danger)">로드 실패</span>`;
+      }
+    })();
   };
 
   renderUsers();
