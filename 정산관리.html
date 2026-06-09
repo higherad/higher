@@ -1088,7 +1088,11 @@
     });
 
     const cBtn=document.getElementById('settle-charge-btn');
-    if(!window.settleCharging){cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#0d9488';cBtn.style.cursor='pointer';}
+    if(!window.settleCharging){
+      const allCharged=rows.every(r=>snapshotMap[refundKey(r.date,r.agency,r.userId)]?.chargeConfirmedByName);
+      if(allCharged){cBtn.disabled=true;cBtn.textContent='✅ 충전 완료';cBtn.style.background='#166534';cBtn.style.cursor='default';}
+      else{cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#0d9488';cBtn.style.cursor='pointer';}
+    }
     regBody.innerHTML='';
     regBody.appendChild(container);
     regSub.textContent=selectedSnapKeys.size>0?`선택 ${rows.length}건`:`전체 ${rows.length}건`;
