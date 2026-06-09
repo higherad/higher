@@ -1001,10 +1001,10 @@
   };
 
   window.openSettleRegModal=function(){
+    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
     let rows;
     if(selectedSnapKeys.size>0){
       rows=filteredRows.filter(g=>{
-        const safe=s=>s.replace(/[.#$[\]/]/g,'_');
         const sk=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
         return selectedSnapKeys.has(sk);
       });
@@ -1012,9 +1012,11 @@
       rows=filteredRows;
     }
     if(!rows.length) return;
+    const regBody=document.getElementById('settle-reg-body');
+    const regSub=document.getElementById('settle-reg-sub');
+    const regOverlay=document.getElementById('settle-reg-overlay');
 
     const agencyRows=rows.map(g=>{
-      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
       const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
       const savedSnap=snapshotMap[snapKey];
       const groupDate=g.timeKey.slice(0,10);
@@ -1038,10 +1040,8 @@
     const container=document.createElement('div');
     order.forEach(agency=>{
       const list=groups[agency];
-      const totalAmt=list.reduce((s,r)=>s+r.amount,0);
-      const totalDep=list.reduce((s,r)=>s+r.deposit,0);
-      const totalRefund=list.reduce((s,r)=>s+r.refund,0);
-      const pendCount=list.filter(r=>r.status!=='정산완료').length;
+      let totalAmt=0,totalDep=0,totalRefund=0,totalCamp=0,totalG=0,pendCount=0;
+      list.forEach(r=>{totalAmt+=r.amount;totalDep+=r.deposit;totalRefund+=r.refund;totalCamp+=r.campaigns;totalG+=r.totalGoal;if(r.status!=='정산완료')pendCount++;});
 
       const block=document.createElement('div');
       block.className='agency-block';
@@ -1071,8 +1071,6 @@
       container.appendChild(block);
 
       hd.querySelector('.agency-copy-btn').onclick=function(){
-        const totalCamp=list.reduce((s,r)=>s+r.campaigns,0);
-        const totalG=list.reduce((s,r)=>s+r.totalGoal,0);
         const uPrice=list[0].unitPrice;
         const header=`• 캠페인 수: ${totalCamp}건\n• 전체 목표: ${Math.round(totalG).toLocaleString()}개\n\n• 단가: ${Math.round(uPrice).toLocaleString()}원\n`;
         const amtPart=totalRefund>0?`• 환불 금액: -${Math.round(totalRefund).toLocaleString()}원\n• 금액: ${Math.round(totalAmt).toLocaleString()}원 (VAT 별도)\n\n• 입금액: ${Math.round(totalDep).toLocaleString()}원 (VAT 포함)`:`• 금액: ${Math.round(totalAmt).toLocaleString()}원 (VAT 별도)\n\n• 입금액: ${Math.round(totalDep).toLocaleString()}원 (VAT 포함)`;
@@ -1085,11 +1083,10 @@
       };
     });
 
-    const regBody=document.getElementById('settle-reg-body');
     regBody.innerHTML='';
     regBody.appendChild(container);
-    document.getElementById('settle-reg-sub').textContent=selectedSnapKeys.size>0?`선택 ${rows.length}건`:`전체 ${rows.length}건`;
-    document.getElementById('settle-reg-overlay').style.display='flex';
+    regSub.textContent=selectedSnapKeys.size>0?`선택 ${rows.length}건`:`전체 ${rows.length}건`;
+    regOverlay.style.display='flex';
   };
 
   renderSettle(false);
