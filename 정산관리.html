@@ -58,7 +58,7 @@
   .agency-block{margin-bottom:16px;border:1.5px solid #c7d2fe;border-radius:14px;overflow:hidden}
   .agency-block:last-child{margin-bottom:0}
   .agency-hd{display:flex;justify-content:space-between;align-items:center;background:#eff4ff;padding:12px 16px;border-bottom:1.5px solid #c7d2fe}
-  .agency-hd .aname{font-size:15px;font-weight:800;color:var(--accent)}
+  .agency-hd .aname{font-size:15px;font-weight:800;color:var(--info)}
   .agency-hd .ameta{font-size:12px;color:#6366f1;margin-top:1px}
   .ag-table{width:100%;border-collapse:collapse;font-size:13px}
   .ag-table thead th{background:#f8fafc;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.3px;padding:9px 14px;text-align:left;border-bottom:1px solid var(--border)}
@@ -66,11 +66,11 @@
   .ag-table tbody tr:last-child{border-bottom:none}
   .ag-table tbody td{padding:10px 14px}
   .badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
-  .badge-done{background:#eff4ff;color:var(--accent)}
+  .badge-done{background:#eff6ff;color:var(--info)}
   .badge-pend{background:#fef9c3;color:#854d0e}
   .agency-ft{background:#f0f4ff;border-top:1.5px solid #c7d2fe;padding:11px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
   .agency-ft .totals{display:flex;gap:20px;font-size:13px;color:var(--muted);flex-wrap:wrap}
-  .agency-ft .totals span b{color:var(--accent)}
+  .agency-ft .totals span b{color:var(--info)}
   .agency-copy-btn{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s}
   .agency-copy-btn:hover{background:#0f766e}
   .agency-copy-btn.ok{background:#0f766e}
@@ -1059,7 +1059,7 @@
       const tbody=document.createElement('tbody');
       list.forEach(r=>{
         const tr=document.createElement('tr');
-        tr.innerHTML=`<td>${r.date}</td><td>${r.userId}</td><td style="text-align:right">${r.campaigns.toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.totalGoal).toLocaleString()}</b></td><td style="text-align:right">${Math.round(r.unitPrice).toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.amount).toLocaleString()}</b></td><td style="text-align:right;color:var(--accent);font-weight:700">${Math.round(r.deposit).toLocaleString()}</td><td style="text-align:right${r.refund?';color:#dc2626;font-weight:700':''}">${r.refund?Math.round(r.refund).toLocaleString():'-'}</td><td><span class="badge ${r.status==='정산완료'?'badge-done':'badge-pend'}">${r.status}</span></td>`;
+        tr.innerHTML=`<td>${r.date}</td><td>${r.userId}</td><td style="text-align:right">${r.campaigns.toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.totalGoal).toLocaleString()}</b></td><td style="text-align:right">${Math.round(r.unitPrice).toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.amount).toLocaleString()}</b></td><td style="text-align:right;color:var(--info);font-weight:700">${Math.round(r.deposit).toLocaleString()}</td><td style="text-align:right${r.refund?';color:#dc2626;font-weight:700':''}">${r.refund?Math.round(r.refund).toLocaleString():'-'}</td><td><span class="badge ${r.status==='정산완료'?'badge-done':'badge-pend'}">${r.status}</span></td>`;
         tbody.appendChild(tr);
       });
       tbl.appendChild(tbody);wrap.appendChild(tbl);block.appendChild(wrap);
