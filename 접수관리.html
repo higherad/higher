@@ -75,9 +75,16 @@
 
   /* ── 상품 패널 ── */
   .prod-panel{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;}
-  .prod-ph{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:#f8fafc;}
+  .prod-ph{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:#f8fafc;cursor:pointer;user-select:none;transition:background .15s;}
+  .prod-ph:hover{background:#f1f5f9;}
   .prod-ph-title{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;}
   .prod-pb{padding:14px 16px;}
+  .prod-panel.collapsed .prod-ph{border-bottom:none;}
+  .prod-panel.collapsed .prod-pb{display:none;}
+  .prod-panel.collapsed .prod-ph-desc{display:none;}
+  .prod-panel.collapsed .prod-ph-actions{display:none !important;}
+  .prod-toggle-icon{margin-left:2px;font-size:11px;color:var(--text2);transition:transform .2s;display:inline-block;}
+  .prod-panel.collapsed .prod-toggle-icon{transform:rotate(-90deg);}
   .prod-grp-btn{display:inline-flex;align-items:center;gap:7px;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px 5px 12px;cursor:pointer;transition:all .2s;user-select:none;}
   .prod-grp-btn:hover{border-color:rgba(0,0,0,.2);background:white;}
   .prod-grp-btn.active-g{border-color:var(--info);background:#eff6ff;box-shadow:0 0 0 2px rgba(59,130,246,.12);}
@@ -147,12 +154,13 @@
 </style>
 
 <!-- 상품 유형 설정 패널 -->
-<div class="prod-panel" id="prod-panel">
-  <div class="prod-ph">
+<div class="prod-panel collapsed" id="prod-panel">
+  <div class="prod-ph" onclick="toggleProdPanel(event)">
     <span>🏷️</span>
     <span class="prod-ph-title">상품 유형 설정</span>
-    <span style="margin-left:4px;font-size:11px;color:var(--muted);">클릭하면 상품명·버전·고정 비율 설정 가능</span>
-    <div style="display:flex;gap:6px;margin-left:auto;">
+    <span class="prod-toggle-icon">&#9660;</span>
+    <span class="prod-ph-desc" style="flex:1;text-align:center;font-size:11px;color:var(--muted);">상품을 클릭하면 상품명·버전·고정 비율 설정 가능</span>
+    <div class="prod-ph-actions" onclick="event.stopPropagation()" style="display:flex;gap:6px;">
       <button class="action-btn" style="background:var(--info);color:#fff;font-size:11px;padding:4px 10px;" onclick="showAddProdModal()">＋ 상품 추가</button>
       <button class="action-btn" style="background:#475569;color:#fff;font-size:11px;padding:4px 10px;" onclick="showAddProdGroup()">＋ 그룹 추가</button>
     </div>
@@ -324,6 +332,12 @@
 </div>
 
 <script>
+// 상품 유형 설정 패널 접기/펼치기
+window.toggleProdPanel = function(e) {
+  const panel = document.getElementById('prod-panel');
+  panel.classList.toggle('collapsed');
+};
+
 (function(){
   let currentPage  = 1;
   const PER_PAGE   = 20;
@@ -1004,7 +1018,7 @@
   let defaultProdsState = null;
   let _prodModalId = null;
 
-  const PROD_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f97316','#cbd5e1','#84cc16','#ec4899',
+  const PROD_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f97316','#64748b','#84cc16','#ec4899',
     '#eab308','#f43f5e','#06b6d4','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6',
     '#facc15','#ef4444','#14b8a6','#d946ef','#78716c'];
   let _apColor = '#06b6d4';
