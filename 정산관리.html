@@ -55,6 +55,26 @@
   .sp-footer { display:flex;justify-content:flex-end;margin-top:20px; }
   .btn-close-sp { padding:9px 24px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit; }
 
+  .agency-block{margin-bottom:16px;border:1.5px solid #c7d2fe;border-radius:14px;overflow:hidden}
+  .agency-block:last-child{margin-bottom:0}
+  .agency-hd{display:flex;justify-content:space-between;align-items:center;background:#eff4ff;padding:12px 16px;border-bottom:1.5px solid #c7d2fe}
+  .agency-hd .aname{font-size:15px;font-weight:800;color:var(--accent)}
+  .agency-hd .ameta{font-size:12px;color:#6366f1;margin-top:1px}
+  .ag-table{width:100%;border-collapse:collapse;font-size:13px}
+  .ag-table thead th{background:#f8fafc;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.3px;padding:9px 14px;text-align:left;border-bottom:1px solid var(--border)}
+  .ag-table tbody tr{border-bottom:1px solid var(--border)}
+  .ag-table tbody tr:last-child{border-bottom:none}
+  .ag-table tbody td{padding:10px 14px}
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .badge-done{background:#f0fdfa;color:#0d9488}
+  .badge-pend{background:#fef9c3;color:#854d0e}
+  .agency-ft{background:#f0f4ff;border-top:1.5px solid #c7d2fe;padding:11px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  .agency-ft .totals{display:flex;gap:20px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+  .agency-ft .totals span b{color:var(--accent);font-weight:800}
+  .agency-copy-btn{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s}
+  .agency-copy-btn:hover{background:#0f766e}
+  .agency-copy-btn.ok{background:#0f766e}
+
   /* ── 반응형 ── */
   @media (max-width: 768px) {
     #settle-page .summary-grid { grid-template-columns: 1fr 1fr !important; }
@@ -75,6 +95,7 @@
 <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;">
   <div style="display:flex;gap:8px;">
     <button class="action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="exportSettleExcel()">📥 엑셀 다운로드</button>
+    <button class="action-btn" style="background:#0d9488;color:#fff;padding:7px 16px;font-size:12px;" onclick="openSettleRegModal()">📋 정산 등록</button>
     <button class="action-btn btn-confirm" style="padding:7px 16px;font-size:12px;background:var(--info);" onclick="bulkChargeConfirm()">선택 충전</button>
     <button class="action-btn btn-confirm" style="padding:7px 16px;font-size:12px;background:var(--accent);" onclick="bulkPayConfirm()">선택 입금</button>
   </div>
@@ -116,6 +137,15 @@
   </table>
 </div>
 <div class="pagination" id="settle-pagination"></div>
+
+<div id="settle-reg-overlay" class="sp-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="sp-box">
+    <div class="sp-title">📂 정산 등록 — 대행사별 분류</div>
+    <div class="sp-sub" id="settle-reg-sub"></div>
+    <div id="settle-reg-body"></div>
+    <div class="sp-footer"><button class="btn-close-sp" onclick="document.getElementById('settle-reg-overlay').style.display='none'">닫기</button></div>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -967,6 +997,98 @@
       await Promise.all(slotKeys.map(k=>HA.setPaid(k,true)));
     }
     renderSettle(false);
+  };
+
+  window.openSettleRegModal=function(){
+    let rows;
+    if(selectedSnapKeys.size>0){
+      rows=filteredRows.filter(g=>{
+        const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+        const sk=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
+        return selectedSnapKeys.has(sk);
+      });
+    } else {
+      rows=filteredRows;
+    }
+    if(!rows.length) return;
+
+    const agencyRows=rows.map(g=>{
+      const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+      const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
+      const savedSnap=snapshotMap[snapKey];
+      const groupDate=g.timeKey.slice(0,10);
+      const useSnap=groupDate<todayStr&&savedSnap;
+      const tot=useSnap?(savedSnap.totalTarget||0):g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+      const grossAmt=useSnap?(savedSnap.amount+(savedSnap.refund||0)):g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const refund=useSnap?(savedSnap.refund||0):getRefund(g.timeKey,g.agencyId,g.userId);
+      const netAmt=grossAmt-refund;
+      const uPrice=useSnap?(savedSnap.unitPrice||getSlotPrice(g.slots[0])):getSlotPrice(g.slots[0]);
+      const slotCount=useSnap?(savedSnap.slotCount||g.slots.length):g.slots.length;
+      const allP=g.slots.every(s=>paidSet.has(s._key));
+      return {date:g.timeKey,agency:g.agencyId,userId:g.userId,campaigns:slotCount,totalGoal:tot,unitPrice:uPrice,amount:netAmt,deposit:Math.round(netAmt*1.1),refund,status:allP?'정산완료':'미정산'};
+    });
+
+    const order=[],groups={};
+    agencyRows.forEach(r=>{
+      if(!groups[r.agency]){groups[r.agency]=[];order.push(r.agency);}
+      groups[r.agency].push(r);
+    });
+
+    const container=document.createElement('div');
+    order.forEach(agency=>{
+      const list=groups[agency];
+      const totalAmt=list.reduce((s,r)=>s+r.amount,0);
+      const totalDep=list.reduce((s,r)=>s+r.deposit,0);
+      const totalRefund=list.reduce((s,r)=>s+r.refund,0);
+      const pendCount=list.filter(r=>r.status!=='정산완료').length;
+
+      const block=document.createElement('div');
+      block.className='agency-block';
+
+      const hd=document.createElement('div');
+      hd.className='agency-hd';
+      hd.innerHTML=`<div><div class="aname">${agency}</div><div class="ameta">총 ${list.length}건 · 미정산 ${pendCount}건</div></div><button class="agency-copy-btn">📋 복사</button>`;
+      block.appendChild(hd);
+
+      const wrap=document.createElement('div');
+      wrap.style.overflowX='auto';
+      const tbl=document.createElement('table');
+      tbl.className='ag-table';
+      tbl.innerHTML=`<thead><tr><th>접수일시</th><th>유저ID</th><th>캠페인 수</th><th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>상태</th></tr></thead>`;
+      const tbody=document.createElement('tbody');
+      list.forEach(r=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${r.date}</td><td>${r.userId}</td><td style="text-align:right">${r.campaigns.toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.totalGoal).toLocaleString()}</b></td><td style="text-align:right">${Math.round(r.unitPrice).toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.amount).toLocaleString()}</b></td><td style="text-align:right;color:var(--accent);font-weight:700">${Math.round(r.deposit).toLocaleString()}</td><td style="text-align:right${r.refund?';color:#dc2626;font-weight:700':''}">${r.refund?Math.round(r.refund).toLocaleString():'-'}</td><td><span class="badge ${r.status==='정산완료'?'badge-done':'badge-pend'}">${r.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);wrap.appendChild(tbl);block.appendChild(wrap);
+
+      const ft=document.createElement('div');
+      ft.className='agency-ft';
+      ft.innerHTML=`<div class="totals"><span>정산 합계 <b>${Math.round(totalAmt).toLocaleString()}원</b></span><span>입금 합계 <b>${Math.round(totalDep).toLocaleString()}원</b></span>${totalRefund?`<span style="color:#dc2626">환불 <b>${Math.round(totalRefund).toLocaleString()}원</b></span>`:''}</div>`;
+      block.appendChild(ft);
+      container.appendChild(block);
+
+      hd.querySelector('.agency-copy-btn').onclick=function(){
+        const totalCamp=list.reduce((s,r)=>s+r.campaigns,0);
+        const totalG=list.reduce((s,r)=>s+r.totalGoal,0);
+        const uPrice=list[0].unitPrice;
+        const header=`• 캠페인 수: ${totalCamp}건\n• 전체 목표: ${Math.round(totalG).toLocaleString()}개\n\n• 단가: ${Math.round(uPrice).toLocaleString()}원\n`;
+        const amtPart=totalRefund>0?`• 환불 금액: -${Math.round(totalRefund).toLocaleString()}원\n• 금액: ${Math.round(totalAmt).toLocaleString()}원 (VAT 별도)\n\n• 입금액: ${Math.round(totalDep).toLocaleString()}원 (VAT 포함)`:`• 금액: ${Math.round(totalAmt).toLocaleString()}원 (VAT 별도)\n\n• 입금액: ${Math.round(totalDep).toLocaleString()}원 (VAT 포함)`;
+        const msg=header+amtPart+'\n\n주식회사 하이어애드\n666-045450-04-013\nIBK기업은행\n\n확인 후 입금 부탁드립니다.';
+        navigator.clipboard.writeText(msg).then(()=>{
+          const btn=this;
+          btn.classList.add('ok');btn.textContent='✓ 복사됨';
+          setTimeout(()=>{btn.classList.remove('ok');btn.textContent='📋 복사';},1500);
+        });
+      };
+    });
+
+    const regBody=document.getElementById('settle-reg-body');
+    regBody.innerHTML='';
+    regBody.appendChild(container);
+    document.getElementById('settle-reg-sub').textContent=selectedSnapKeys.size>0?`선택 ${rows.length}건`:`전체 ${rows.length}건`;
+    document.getElementById('settle-reg-overlay').style.display='flex';
   };
 
   renderSettle(false);
