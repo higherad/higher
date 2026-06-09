@@ -155,7 +155,6 @@
     <div style="display:flex;gap:6px;margin-left:auto;">
       <button class="action-btn" style="background:var(--info);color:#fff;font-size:11px;padding:4px 10px;" onclick="showAddProdModal()">＋ 상품 추가</button>
       <button class="action-btn" style="background:#475569;color:#fff;font-size:11px;padding:4px 10px;" onclick="showAddProdGroup()">＋ 그룹 추가</button>
-      <button class="action-btn" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-size:11px;padding:4px 10px;" onclick="resetProdSettings()">↺ 초기화</button>
     </div>
   </div>
   <div class="prod-pb">
@@ -1038,18 +1037,6 @@
       set(ref(getDatabase(), path), { prods, groups: prodGroups });
     }).catch(() => {});
   }
-  window.resetProdSettings = function() {
-    if (!confirm('상품 설정을 기본값으로 초기화할까요?\n저장된 그룹 프리셋도 모두 삭제됩니다.')) return;
-    prods = DEFAULT_PRODS.map(p => ({...p}));
-    prodGroups = [];
-    activeProdGroupId = null;
-    const path = getProdSettingsPath();
-    if (path) import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, remove }) => {
-      remove(ref(getDatabase(), path));
-    }).catch(() => {});
-    saveProdDefault();
-    renderPS();
-  };
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
   function deactivateProdGroup() {
