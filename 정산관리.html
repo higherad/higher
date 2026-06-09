@@ -139,7 +139,7 @@
 </div>
 <div class="pagination" id="settle-pagination"></div>
 
-<div id="settle-reg-overlay" class="sp-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+<div id="settle-reg-overlay" class="sp-overlay" style="display:none" onclick="if(event.target===this&&!window.settleCharging)this.style.display='none'">
   <div class="sp-box">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
       <div class="sp-title">📂 정산 등록 — 대행사별 분류</div>
@@ -147,7 +147,7 @@
     </div>
     <div class="sp-sub" id="settle-reg-sub"></div>
     <div id="settle-reg-body"></div>
-    <div class="sp-footer"><button class="btn-close-sp" onclick="document.getElementById('settle-reg-overlay').style.display='none'">닫기</button></div>
+    <div class="sp-footer"><button class="btn-close-sp" onclick="if(!window.settleCharging)document.getElementById('settle-reg-overlay').style.display='none'">닫기</button></div>
   </div>
 </div>
 
@@ -1088,7 +1088,7 @@
     });
 
     const cBtn=document.getElementById('settle-charge-btn');
-    cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#0d9488';cBtn.style.cursor='pointer';
+    if(!window.settleCharging){cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#0d9488';cBtn.style.cursor='pointer';}
     regBody.innerHTML='';
     regBody.appendChild(container);
     regSub.textContent=selectedSnapKeys.size>0?`선택 ${rows.length}건`:`전체 ${rows.length}건`;
@@ -1098,6 +1098,7 @@
   window.startSettleCharge=async function(){
     const safe=s=>s.replace(/[.#$[\]/]/g,'_');
     const btn=document.getElementById('settle-charge-btn');
+    window.settleCharging=true;
     btn.disabled=true;btn.textContent='⏳ 처리 중...';btn.style.background='#6b7280';btn.style.cursor='default';
     const {getDatabase,ref,get}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
     const db=getDatabase();
@@ -1141,6 +1142,7 @@
         cell.innerHTML=`<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:#fee2e2;color:#991b1b">❌ ${resultMsg}</span>`;
       }
     }
+    window.settleCharging=false;
     btn.textContent='✅ 충전 완료';btn.style.background='#166534';
   };
 
