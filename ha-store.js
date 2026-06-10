@@ -374,7 +374,25 @@ const HA = {
   },
 
   async deleteUser(key) {
+    const snap = await get(ref(db, `${PATHS.users}/${key}`));
+    const username = snap.exists() ? snap.val().username : null;
+
     await remove(ref(db, `${PATHS.users}/${key}`));
+
+    // Firebase Auth 계정도 함께 삭제 (재가입 시 "이미 사용 중인 아이디" 방지)
+    if (username) {
+      try {
+        const idToken = await auth.currentUser.getIdToken();
+        await fetch(`${CLOUD_RUN}/delete-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+          body: JSON.stringify({ username }),
+        });
+      } catch (e) {
+        console.warn('Firebase Auth 계정 삭제 실패:', e);
+      }
+    }
+
     dispatch('ha:users:updated');
   },
 
