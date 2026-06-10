@@ -716,6 +716,7 @@
       if (avatarEl) avatarEl.textContent = (cur.name || cur.username).charAt(0).toUpperCase();
     }
     document.body.style.display = 'flex';
+    lucide.createIcons();
     await HA.seedIfEmpty();
     await renderDashboard();
     lucide.createIcons();
