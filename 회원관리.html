@@ -11,6 +11,10 @@
   #user-page tbody tr.row-pending { background:rgba(245,158,11,.03); }
   .pw-wrap { display:flex; align-items:center; justify-content:center; gap:6px; }
   .pw-toggle { font-size:10px; color:var(--info); cursor:pointer; border-bottom:1px solid var(--info); }
+  .pw-input-wrap { position:relative; }
+  .pw-input-wrap input { padding-right:34px !important; }
+  .pw-eye-btn { position:absolute; right:6px; top:50%; transform:translateY(-50%); cursor:pointer; line-height:1; background:none; border:none; padding:4px; color:var(--text2); display:flex; align-items:center; }
+  .pw-eye-btn svg { width:16px; height:16px; }
   .action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
   .btn-edit    { background:#eff6ff; color:#1d4ed8; }
   .btn-del     { background:#fef2f2; color:var(--danger); }
@@ -28,6 +32,9 @@
   .modal-field label { display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px; }
   .modal-field input,.modal-field select { width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;outline:none;color:var(--text); }
   .modal-field input:focus { border-color:var(--accent); }
+  .modal-field input[type=number]::-webkit-outer-spin-button,
+  .modal-field input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  .modal-field input[type=number] { -moz-appearance:textfield; }
   .modal-row { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
   .modal-footer { display:flex;justify-content:flex-end;gap:10px;margin-top:20px; }
   .btn-cancel { padding:8px 20px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;font-size:13px; }
@@ -208,6 +215,16 @@
     else { span.textContent='••••••'; el.textContent='보기'; }
   };
 
+  const EYE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  window.PW_EYE_ICON = EYE_OFF_ICON;
+
+  window.toggleInputPw = function(btn) {
+    const input = btn.previousElementSibling;
+    if (input.type === 'password') { input.type = 'text'; btn.innerHTML = EYE_ICON; }
+    else { input.type = 'password'; btn.innerHTML = EYE_OFF_ICON; }
+  };
+
   // ── 승인 ─────────────────────────────────────────────────
   window.approveUser = async function(key) {
     if (!confirm('이 회원을 승인하시겠습니까?')) return;
@@ -239,7 +256,7 @@
         <div class="modal-title">${isEdit?'회원 정보 수정':'회원 추가'}</div>
         <div class="modal-row">
           <div class="modal-field"><label>아이디 *</label><input id="um-username" value="${u.username||''}" ${isEdit?'readonly':''}></div>
-          <div class="modal-field"><label>비밀번호 *</label><input id="um-password" type="password" value="${u.password||''}" placeholder="${isEdit?'변경 시 입력':''}"></div>
+          <div class="modal-field"><label>비밀번호 *</label><div class="pw-input-wrap"><input id="um-password" type="password" value="${u.password||''}" placeholder="${isEdit?'변경 시 입력':''}"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
         </div>
         <div class="modal-row">
           <div class="modal-field">
@@ -257,7 +274,7 @@
           <div class="charge-sect-title">⚡ 충전 계정 정보</div>
           <div class="agency-charge-body">${isEdit
             ? '<span style="color:var(--muted);font-size:12px">불러오는 중...</span>'
-            : `<div class="modal-row" style="margin-bottom:0"><div class="modal-field"><label>BizFit ID</label><input id="cs-id" type="text" placeholder="로그인 아이디" autocomplete="off"></div><div class="modal-field"><label>BizFit PW</label><input id="cs-pw" type="password" placeholder="패스워드" autocomplete="new-password"></div></div>`
+            : `<div class="modal-row" style="margin-bottom:0"><div class="modal-field"><label>BizFit ID</label><input id="cs-id" type="text" placeholder="로그인 아이디" autocomplete="off"></div><div class="modal-field"><label>BizFit PW</label><div class="pw-input-wrap"><input id="cs-pw" type="password" placeholder="패스워드" autocomplete="new-password"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div></div>`
           }</div>
         </div>
         <div class="modal-footer">
@@ -300,7 +317,7 @@
               body.innerHTML=`
                 <div class="modal-row" style="margin-bottom:0">
                   <div class="modal-field"><label>BizFit ID</label><input id="cs-id" type="text" value="${d?.id||''}" placeholder="로그인 아이디" autocomplete="off"></div>
-                  <div class="modal-field"><label>BizFit PW</label><input id="cs-pw" type="password" value="${d?.pw||''}" placeholder="패스워드" autocomplete="new-password"></div>
+                  <div class="modal-field"><label>BizFit PW</label><div class="pw-input-wrap"><input id="cs-pw" type="password" value="${d?.pw||''}" placeholder="패스워드" autocomplete="new-password"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
                 </div>
                 ${d?`<div style="margin-top:6px"><button class="btn-cancel" id="cs-cancel">취소</button></div>`:''}`;
               const cancelBtn=body.querySelector('#cs-cancel');
