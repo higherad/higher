@@ -1573,21 +1573,13 @@ window.toggleProdPanel = function(e) {
       if (btn) btn.disabled = true;
       const sleep = ms => new Promise(r => setTimeout(r, ms));
       const shortD = () => { const d=new Date(); return String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'); };
-      const fname = (realAg, label) => label === '접수'
-        ? (realAg ? `접수-${realAg}.xlsx` : `접수-${shortD()}.xlsx`)
-        : (realAg ? `${realAg}-${label}.xlsx` : `${shortD()}-${label}.xlsx`);
+      const fname = (realAg, label) => realAg ? `${realAg}-${label}.xlsx` : `${shortD()}-${label}.xlsx`;
       (async () => {
         try {
-          const totalFiles = agencies.length * (1 + AP.length);
+          const totalFiles = agencies.length * AP.length;
           let done = 0;
           for (let i = 0; i < agencies.length; i++) {
             const ag = agencies[i], f = slotsByAgency(target, ag), realAg = ag === '(대행사 미지정)' ? '' : ag;
-            setProg(true, Math.round(100*done/totalFiles), `[${ag}] 접수 시트 생성 중...`);
-            await sleep(60);
-            const wb0 = window.XLSX.utils.book_new();
-            buildJusuSheet(wb0, f);
-            window.XLSX.writeFile(wb0, fname(realAg, '접수'));
-            done++; await sleep(300);
 
             for (let j = 0; j < AP.length; j++) {
               const p = AP[j];
