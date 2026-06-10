@@ -143,7 +143,7 @@
   <div class="sp-box">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
       <div class="sp-title">📂 정산 등록 — 대행사별 분류</div>
-      <button id="settle-charge-btn" onclick="startSettleCharge()" style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">⚡ 충전 신청</button>
+      <button id="settle-charge-btn" onclick="startSettleCharge()" style="background:#ea580c;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">⚡ 충전 신청</button>
     </div>
     <div class="sp-sub" id="settle-reg-sub"></div>
     <div id="settle-reg-body"></div>
@@ -1091,7 +1091,7 @@
     if(!window.settleCharging){
       const allCharged=rows.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName);
       if(allCharged){cBtn.disabled=true;cBtn.textContent='✅ 충전 완료';cBtn.style.background='#166534';cBtn.style.cursor='default';}
-      else{cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#0d9488';cBtn.style.cursor='pointer';}
+      else{cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#ea580c';cBtn.style.cursor='pointer';}
     }
     regBody.innerHTML='';
     regBody.appendChild(container);
