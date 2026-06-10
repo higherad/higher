@@ -318,10 +318,7 @@
                 <div class="modal-row" style="margin-bottom:0">
                   <div class="modal-field"><label>BizFit ID</label><input id="cs-id" type="text" value="${d?.id||''}" placeholder="로그인 아이디" autocomplete="off"></div>
                   <div class="modal-field"><label>BizFit PW</label><div class="pw-input-wrap"><input id="cs-pw" type="password" value="${d?.pw||''}" placeholder="패스워드" autocomplete="new-password"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
-                </div>
-                ${d?`<div style="margin-top:6px"><button class="btn-cancel" id="cs-cancel">취소</button></div>`:''}`;
-              const cancelBtn=body.querySelector('#cs-cancel');
-              if(cancelBtn)cancelBtn.onclick=()=>{editing=false;renderCS();};
+                </div>`;
             }
           }
           renderCS();
