@@ -391,7 +391,22 @@
 
   /* ===== 변동 탭 ===== */
   const CHANGE_GAS_URL = 'https://script.google.com/macros/s/AKfycbxyFuM-npYQ_Rkgezgl6LqfhUCCdc3mff07ESh88VxE2nTqYeR5j1JriyY8mTRdSH_a/exec';
-  const CHANGE_BUCKETS = ["전체", "1-10위", "11-20위", "21-50위", "51-100위", "101-200위", "201-300위", "300위 밖"];
+  const RANK_FLOOR = 301; // 순위표에 없는(300위 밖) 항목을 가장 낮은 순위로 취급
+  const CHANGE_BUCKETS = [
+    { label: "전체",      min: -Infinity, max: Infinity },
+    { label: "1-10위",    min: 0,   max: 10 },
+    { label: "11-20위",   min: 10,  max: 20 },
+    { label: "21-50위",   min: 20,  max: 50 },
+    { label: "51-100위",  min: 50,  max: 100 },
+    { label: "101-200위", min: 100, max: 200 },
+    { label: "201-300위", min: 200, max: 300 },
+    { label: "300위 밖",  min: 300, max: Infinity },
+  ];
+  const CHANGE_SECTIONS = [
+    { title: "▲ 순위 상승", color: "#ef4444", match: i => i.diff > 0 },
+    { title: "▼ 순위 하락", color: "#3b82f6", match: i => i.diff < 0 },
+    { title: "◆ 보합",      color: "#64748b", match: i => i.diff === 0 },
+  ];
 
   let rkChangeLoaded = false;
   let rkChangeData = { branchNames: [], dateLabels: ["-","-","-","-","-"], results: [] };
@@ -412,14 +427,14 @@
       rkRenderBucketTabs();
       rkRenderChange();
     } catch(e) {
-      content.innerHTML = `<div class="loading-wrap" style="color:#dc2626">데이터 연동 실패: ${e.message}</div>`;
+      content.innerHTML = `<div class="rk-msg err">데이터 연동 실패: ${e.message}</div>`;
     }
   }
 
   function rkRenderBucketTabs() {
     const tabsArea = document.getElementById('rk-bucket-tabs');
     tabsArea.innerHTML = CHANGE_BUCKETS.map(b =>
-      `<button class="rk-bucket-tab ${rkChangeBucket === b ? 'active' : ''}" onclick="rkSetBucket('${b}')">${b}</button>`
+      `<button class="rk-bucket-tab ${rkChangeBucket === b.label ? 'active' : ''}" onclick="rkSetBucket('${b.label}')">${b.label}</button>`
     ).join('');
   }
 
@@ -433,9 +448,9 @@
     const cells = ranks && ranks.length > 0 ? ranks : dateLabels.map(() => '-');
     return cells.map((v, idx) => {
       const prev = idx === 0 ? null : cells[idx - 1];
-      const pNum = prev === null ? 301 : (parseFloat(prev) || 301);
-      const cNum = parseFloat(v) || 301;
-      const color = (idx === 0 || pNum >= 301 || cNum >= 301)
+      const pNum = prev === null ? RANK_FLOOR : (parseFloat(prev) || RANK_FLOOR);
+      const cNum = parseFloat(v) || RANK_FLOOR;
+      const color = (idx === 0 || pNum >= RANK_FLOOR || cNum >= RANK_FLOOR)
         ? '#94a3b8'
         : (cNum < pNum ? '#ef4444' : cNum > pNum ? '#3b82f6' : '#94a3b8');
       const display = (v === '' || v === null || v === undefined || v === '-') ? '-' : v;
@@ -443,31 +458,23 @@
     }).join('');
   }
 
+  function rkDiffCell(diff) {
+    if (diff > 0) return `<td class="rk-up">↑${diff}</td>`;
+    if (diff < 0) return `<td class="rk-down">↓${Math.abs(diff)}</td>`;
+    return `<td class="rk-eq">-</td>`;
+  }
+
   window.rkRenderChange = function() {
     const selectedBranch = document.getElementById('rk-change-branch').value;
     const content = document.getElementById('rk-change-content');
     const dateLabels = rkChangeData.dateLabels || ["-","-","-","-","-"];
+    const bucket = CHANGE_BUCKETS.find(b => b.label === rkChangeBucket);
 
     const filtered = (rkChangeData.results || []).filter(item => {
-      const branchMatch = (selectedBranch === "all" || item.branch === selectedBranch);
-      let bucketMatch = false;
-      if (rkChangeBucket === "전체") bucketMatch = true;
-      else {
-        const r = item.rankNum;
-        if      (rkChangeBucket === "1-10위")    bucketMatch = (r <= 10);
-        else if (rkChangeBucket === "11-20위")   bucketMatch = (r > 10  && r <= 20);
-        else if (rkChangeBucket === "21-50위")   bucketMatch = (r > 20  && r <= 50);
-        else if (rkChangeBucket === "51-100위")  bucketMatch = (r > 50  && r <= 100);
-        else if (rkChangeBucket === "101-200위") bucketMatch = (r > 100 && r <= 200);
-        else if (rkChangeBucket === "201-300위") bucketMatch = (r > 200 && r <= 300);
-        else if (rkChangeBucket === "300위 밖")  bucketMatch = (r > 300);
-      }
-      return branchMatch && bucketMatch;
+      const r = Number(item.rankNum) || 0;
+      return (selectedBranch === "all" || item.branch === selectedBranch) &&
+        (r > bucket.min && r <= bucket.max);
     });
-
-    const upList   = filtered.filter(i => i.diff > 0);
-    const downList = filtered.filter(i => i.diff < 0);
-    const eqList   = filtered.filter(i => i.diff === 0);
 
     const theadHtml = `<thead><tr>
       <th>영업점</th><th>업체명</th><th>키워드</th>
@@ -475,33 +482,23 @@
       <th>전날대비</th>
     </tr></thead>`;
 
-    content.innerHTML = `
-      ${rkChangeSection("▲ 순위 상승", upList,   "rk-up",   theadHtml, dateLabels)}
-      ${rkChangeSection("▼ 순위 하락", downList, "rk-down", theadHtml, dateLabels)}
-      ${rkChangeSection("◆ 보합",      eqList,   "rk-eq",   theadHtml, dateLabels)}
-    `;
+    content.innerHTML = CHANGE_SECTIONS.map(section =>
+      rkChangeSection(section, filtered.filter(section.match), theadHtml, dateLabels)
+    ).join('');
   };
 
-  function rkChangeSection(title, list, type, theadHtml, dateLabels) {
-    const colorMap = { 'rk-up': '#ef4444', 'rk-down': '#3b82f6', 'rk-eq': '#64748b' };
-    const color = colorMap[type];
+  function rkChangeSection(section, list, theadHtml, dateLabels) {
+    const { title, color } = section;
     const colCount = 4 + dateLabels.length;
     const rows = list.length === 0
       ? `<tr><td colspan="${colCount}" style="font-size:11px; color:var(--muted); text-align:center; padding:14px;">데이터 없음</td></tr>`
-      : list.map(i => {
-          const diffCell = i.diff > 0
-            ? `<td class="rk-up">↑${i.diff}</td>`
-            : i.diff < 0
-            ? `<td class="rk-down">↓${Math.abs(i.diff)}</td>`
-            : `<td class="rk-eq">-</td>`;
-          return `<tr>
+      : list.map(i => `<tr>
             <td style="color:${color};font-weight:700">${i.branch}</td>
             <td>${i.company}</td>
             <td>${i.keyword}</td>
             ${rkRankCells(i.ranks, dateLabels)}
-            ${diffCell}
-          </tr>`;
-        }).join('');
+            ${rkDiffCell(i.diff)}
+          </tr>`).join('');
 
     return `
       <div class="rk-change-section">
