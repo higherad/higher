@@ -188,9 +188,8 @@
       <div class="ps-divider-h"></div>
       <div class="ps-row">
         <span class="ps-sect-lbl">고정</span>
-        <button class="ps-nav-btn" id="psNavFL" onclick="psScrollProdFixed(-1)">&#8249;</button>
         <div class="ps-row-inner" id="psWrapFixed"></div>
-        <button class="ps-nav-btn" id="psNavFR" onclick="psScrollProdFixed(1)">&#8250;</button>
+        <button class="action-btn" id="dl-main-btn" style="background:#2563eb;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="downloadExcel()">📥 엑셀 시트 분류</button>
       </div>
     </div>
   </div>
@@ -217,12 +216,9 @@
   </div>
 </div>
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-  <button class="action-btn" id="dl-main-btn" style="background:#2563eb;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcel()">📥 엑셀 시트 분류</button>
-  <div style="display:flex;gap:8px;">
-    <button class="action-btn" id="dl-single-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcelList()">📥 엑셀 다운로드</button>
-    <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button>
-  </div>
+<div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px;">
+  <button class="action-btn" id="dl-single-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcelList()">📥 엑셀 다운로드</button>
+  <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button>
 </div>
 
 <div class="filter-bar">
@@ -1200,12 +1196,9 @@ window.toggleProdPanel = function(e) {
   }
 
   window.psScrollProd      = function(dir) { const el = document.getElementById('psWrapNormal'); if(el){el.scrollLeft+=dir*220;setTimeout(updatePSNavArrows,180);} };
-  window.psScrollProdFixed = function(dir) { const el = document.getElementById('psWrapFixed');  if(el){el.scrollLeft+=dir*220;setTimeout(updatePSNavArrows,180);} };
   function updatePSNavArrows() {
     const el = document.getElementById('psWrapNormal');
     if(el){ const l=document.getElementById('psNavL'),r=document.getElementById('psNavR'); if(l) l.disabled=el.scrollLeft<=0; if(r) r.disabled=Math.ceil(el.scrollLeft+el.clientWidth)>=el.scrollWidth; }
-    const fel = document.getElementById('psWrapFixed');
-    if(fel){ const fl=document.getElementById('psNavFL'),fr=document.getElementById('psNavFR'); if(fl) fl.disabled=fel.scrollLeft<=0; if(fr) fr.disabled=Math.ceil(fel.scrollLeft+fel.clientWidth)>=fel.scrollWidth; }
   }
 
   window.toggleProd = function(id) {
