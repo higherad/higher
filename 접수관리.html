@@ -1124,6 +1124,7 @@ window.toggleProdPanel = function(e) {
     saveProdSettings(); renderProdGroups();
   };
   window.applyProdGroup = function(id) {
+    if (id === activeProdGroupId) { deactivateProdGroup(); return; }
     const g = prodGroups.find(x => x.id === id); if(!g) return;
     if (!activeProdGroupId) saveProdDefault();
     g.state.forEach(s => {
@@ -1298,15 +1299,6 @@ window.toggleProdPanel = function(e) {
     if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
     renderPS();
   };
-
-  document.addEventListener('mousedown', e => {
-    if (!activeProdGroupId) return;
-    if (e.target.closest('#prod-panel') || e.target.closest('#prod-modal-bg')) return;
-    // 버튼, 링크, input 등 기능 요소 클릭은 그룹 해제 안 함
-    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input') ||
-        e.target.closest('select') || e.target.closest('textarea') || e.target.closest('.modal-overlay')) return;
-    deactivateProdGroup();
-  });
 
   // ── 분배 로직 ─────────────────────────────────────────────────
 
