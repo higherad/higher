@@ -5,7 +5,8 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-import { getDatabase, ref, set, get, push, update, remove, onValue }
+import { getDatabase, ref,
+  set as _set, get as _get, push as _push, update as _update, remove as _remove, onValue as _onValue }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, signOut }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
@@ -25,6 +26,23 @@ const firebaseConfig = {
 const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
 const auth = getAuth(app);
+
+// ── 인증 상태 복원 대기 래퍼 ─────────────────────────────────
+// RTDB 규칙(auth != null)으로 인해 새로고침 직후 세션 복원 전에
+// get/onValue가 먼저 실행되면 permission denied가 발생할 수 있음.
+const authReady = auth.authStateReady();
+
+async function get(r)        { await authReady; return _get(r); }
+async function set(r, v)     { await authReady; return _set(r, v); }
+async function push(r, v)    { await authReady; return _push(r, v); }
+async function update(r, v)  { await authReady; return _update(r, v); }
+async function remove(r)     { await authReady; return _remove(r); }
+function onValue(r, cb, ...args) {
+  let unsub = () => {};
+  let cancelled = false;
+  authReady.then(() => { if (!cancelled) unsub = _onValue(r, cb, ...args); });
+  return () => { cancelled = true; unsub(); };
+}
 
 // ── Cloud Run 엔드포인트 ─────────────────────────────────────
 const CLOUD_RUN = 'https://higherad-auto-938928195180.asia-northeast3.run.app';
@@ -635,6 +653,6 @@ function getDefaultUsers() {
 window.HA = HA;
 
 // 앱 시작 시 빈 DB면 기본 데이터 삽입
-HA.seedIfEmpty();
+HA.seedIfEmpty().catch(() => {});
 
 export default HA;
