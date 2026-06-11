@@ -10,14 +10,15 @@
 
 /**
  * 전일 대비 순위 변동 추세를 계산
+ * 전일 순위가 없거나 '-'인 경우 300위로 간주하여 비교
  * @returns {'up'|'down'|'same'|null} up=순위 상승(숫자 감소), down=순위 하락(숫자 증가),
- *          same=변동 없음/비교 불가, null=현재 순위 데이터 없음
+ *          same=변동 없음, null=현재 순위 데이터 없음
  */
 export function getRankTrend(rank, prevRank) {
   const r = Number(rank);
   if (!Number.isFinite(r) || r <= 0) return null;
-  const p = Number(prevRank);
-  if (!Number.isFinite(p) || p <= 0) return 'same';
+  let p = Number(prevRank);
+  if (!Number.isFinite(p) || p <= 0) p = 300;
   if (r < p) return 'up';
   if (r > p) return 'down';
   return 'same';
