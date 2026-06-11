@@ -10,13 +10,15 @@
 
 /**
  * 전일 대비 순위 변동 추세를 계산
- * 전일 순위가 없거나 '-'인 경우 300위로 간주하여 비교
+ * - 전일 데이터 자체가 없으면(null/undefined) 비교하지 않음 → 'same'
+ * - 전일 순위가 '-'(미확인)이면 300위로 간주하여 비교
  * @returns {'up'|'down'|'same'|null} up=순위 상승(숫자 감소), down=순위 하락(숫자 증가),
- *          same=변동 없음, null=현재 순위 데이터 없음
+ *          same=변동 없음/비교 불가, null=현재 순위 데이터 없음
  */
 export function getRankTrend(rank, prevRank) {
   const r = Number(rank);
   if (!Number.isFinite(r) || r <= 0) return null;
+  if (prevRank == null) return 'same';
   let p = Number(prevRank);
   if (!Number.isFinite(p) || p <= 0) p = 300;
   if (r < p) return 'up';
@@ -78,7 +80,7 @@ async function renderRankTable(rankPath, area) {
             let display = '<span style="color:var(--muted)">-</span>';
             if (r.rank && r.rank !== '-' && Number.isFinite(rn)) {
               const prev = rows[i + 1];
-              const trend = getRankTrend(rn, prev ? Number(prev.rank) : NaN);
+              const trend = getRankTrend(rn, prev ? prev.rank : null);
               const cls = trend === 'up' ? 'rank-up' : trend === 'down' ? 'rank-down' : 'rank-same';
               display = `<span class="rank-num ${cls}">${rn}위</span>`;
             }
