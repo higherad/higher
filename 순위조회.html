@@ -199,7 +199,7 @@
     const tbody = document.getElementById('rk-tbody');
     try {
       if (!_getRankTrend) {
-        ({ getRankTrend: _getRankTrend } = await import('./rank-popup.js'));
+        ({ getRankTrend: _getRankTrend } = await import(new URL('rank-popup.js', document.baseURI).href));
       }
       const slots = await HA.getSlots();
       const active = Object.values(slots || {})

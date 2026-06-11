@@ -402,7 +402,7 @@
   // ── 순위 팝업 열기 ────────────────────────────────────────
   window.openRankPopup = async function(slotKey) {
     const s = allSlots.find(x => x._key === slotKey);
-    const { openRankPopup: _openRankPopup } = await import('./rank-popup.js');
+    const { openRankPopup: _openRankPopup } = await import(new URL('rank-popup.js', document.baseURI).href);
     await _openRankPopup(s);
   };
 
