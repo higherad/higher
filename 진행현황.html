@@ -176,7 +176,7 @@
       body.innerHTML = '<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((s,i) => {
-        const kwCount = (s.searchKeyword||s.workKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+        const kwCount = (s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length;
         return `
         <tr>
           <td><input type="checkbox" class="s-check" data-key="${s._key}"></td>
@@ -299,8 +299,8 @@
             <input id="m-mid" value="${s.mid||''}">
           </div>
           <div class="modal-field">
-            <label>작업 키워드</label>
-            <input id="m-workKeyword" value="${s.searchKeyword||s.workKeyword||''}">
+            <label>검색 키워드</label>
+            <input id="m-searchKeyword" value="${s.searchKeyword||''}">
           </div>
         </div>
         <div class="modal-row">
@@ -371,7 +371,7 @@
       rankKeyword: document.getElementById('m-rankKeyword').value,
       url:         document.getElementById('m-url').value,
       mid:         document.getElementById('m-mid').value,
-      workKeyword:   document.getElementById('m-workKeyword').value,
+      searchKeyword: document.getElementById('m-searchKeyword').value,
       days:        Number(document.getElementById('m-days').value)||0,
       dailyTarget: Number(document.getElementById('m-dailyTarget').value)||0,
       startDate:   document.getElementById('m-startDate').value,

@@ -165,7 +165,7 @@
         <td style="color:var(--text2)">${s.startDate}</td>
         <td style="color:var(--text2);font-weight:600">${s.endDate}</td>
         <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
-        <td><span class="kw-badge">${(s.searchKeyword||s.workKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length}개</span></td>
+        <td><span class="kw-badge">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length}개</span></td>
         <td>${ddayBadge(getDday(s.endDate))}</td>
         <td><button class="action-btn btn-extend" onclick="extendFromExpire('${s._key}')">연장</button></td>
         <td><button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup_e('${s._key}')">순위</button></td>

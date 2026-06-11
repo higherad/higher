@@ -169,7 +169,6 @@ const HA = {
       rankKeyword:   data.rankKeyword   || '',
       url:           data.url           || '',
       mid:           data.mid           || '',
-      workKeyword:   data.workKeyword   || '',
       memo:          data.memo          || '',
       days:          Number(data.days)        || 0,
       dailyTarget:   Number(data.dailyTarget) || 0,
