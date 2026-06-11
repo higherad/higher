@@ -399,114 +399,12 @@
     });
   };
 
-  // ── 순위 팝업 공통 스타일 (최초 1회 삽입) ─────────────────
-  if (!document.getElementById('rank-popup-style')) {
-    const st = document.createElement('style');
-    st.id = 'rank-popup-style';
-    st.textContent = `
-      .rank-modal-box { background:#fff; border-radius:16px; width:480px; max-height:80vh; overflow-y:auto; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
-      .rank-modal-title { font-size:16px; font-weight:700; margin-bottom:6px; }
-      .rank-modal-sub { font-size:12px; color:var(--text2); margin-bottom:16px; }
-      .rank-tbl { width:100%; border-collapse:collapse; font-size:12px; }
-      .rank-tbl thead th { background:#1e293b; color:#fff; padding:9px 10px; text-align:center; font-weight:500; }
-      .rank-tbl tbody td { padding:9px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
-      .rank-tbl tbody tr:last-child td { border-bottom:none; }
-      .rank-tbl tbody tr:hover { background:#f8fafc; }
-      .rank-num { display:inline-block; font-weight:700; font-size:13px; padding:2px 10px; border-radius:5px; }
-      .rank-1 { background:#fef9c3; color:#92400e; }
-      .rank-top3 { background:#eff6ff; color:#1d4ed8; }
-      .rank-top10 { background:#f0fdf4; color:#15803d; }
-      .rank-other { background:#f1f5f9; color:#475569; }
-
-      .rank-empty { text-align:center; padding:40px 0; color:var(--muted); font-size:13px; }
-    `;
-    document.head.appendChild(st);
-  }
-
   // ── 순위 팝업 열기 ────────────────────────────────────────
   window.openRankPopup = async function(slotKey) {
     const s = allSlots.find(x => x._key === slotKey);
-    if (!s || !s.mid) return alert('MID 정보가 없습니다.');
-
-    const SHEET_ID   = '14j9wwFedE-kwAebFSnBWjgCYcoCUW2L0hDdBmtGqAf8';
-    const SHEET_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dashboard`;
-    const RANK_PATH  = `ha/ranks/${s.mid.replace(/[.#$[\]/]/g, '_')}`;
-
-    // 모달 생성
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.onclick = function(e) {
-      if (e.target === overlay) {
-        overlay.remove();
-      }
-    };
-    overlay.innerHTML = `
-      <div class="rank-modal-box">
-        <div style="margin-bottom:4px;">
-          <div class="rank-modal-title">📊 일자별 순위</div>
-          <div class="rank-modal-sub">${s.storeName} &nbsp;·&nbsp; MID: ${s.mid} &nbsp;·&nbsp; 순위키워드: <strong>${s.rankKeyword||'-'}</strong></div>
-        </div>
-        <div id="rank-table-area">
-          <div class="loading-wrap"><div class="spinner"></div> 순위 데이터 불러오는 중...</div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
-          <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">닫기</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-
-    await renderRankTable(s.mid, RANK_PATH);
+    const { openRankPopup: _openRankPopup } = await import('./rank-popup.js');
+    await _openRankPopup(s);
   };
-
-  // ── 순위 테이블 렌더 ──────────────────────────────────────
-  async function renderRankTable(mid, rankPath) {
-    const area = document.getElementById('rank-table-area');
-    if (!area) return;
-
-    try {
-      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const dbInst = getDatabase();
-      const snap = await get(ref(dbInst, rankPath));
-
-      if (!snap.exists()) {
-        area.innerHTML = `<div class="rank-empty">저장된 순위 데이터가 없습니다.<br><small style="color:var(--muted)">매일 오후 자동으로 업데이트됩니다.</small></div>`;
-        return;
-      }
-
-      const data = snap.val(); // { "2026-03-26": { keyword, rank }, ... }
-      const rows = Object.entries(data)
-        .map(([date, v]) => ({ date, keyword: v.keyword||'-', rank: v.rank }))
-        .sort((a, b) => b.date.localeCompare(a.date));
-
-      // 중복 날짜+키워드 제거 (동일 날짜+키워드는 한 번만)
-      const seen = new Set();
-      const unique = rows.filter(r => {
-        const k = `${r.date}_${r.keyword}`;
-        if (seen.has(k)) return false;
-        seen.add(k); return true;
-      });
-
-      area.innerHTML = `
-        <table class="rank-tbl">
-          <thead><tr><th>날짜</th><th>순위 키워드</th><th>순위</th></tr></thead>
-          <tbody>
-            ${unique.map(r => {
-              const rn = Number(r.rank);
-              const cls = rn===1?'rank-1': rn<=3?'rank-top3': rn<=10?'rank-top10':'rank-other';
-              const display = (!r.rank || r.rank==='-') ? '<span style="color:var(--muted)">-</span>'
-                            : `<span class="rank-num ${cls}">${rn}위</span>`;
-              return `<tr>
-                <td style="color:var(--text2)">${r.date}</td>
-                <td style="font-weight:500">${r.keyword}</td>
-                <td>${display}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>`;
-    } catch(e) {
-      area.innerHTML = `<div class="rank-empty" style="color:var(--danger)">데이터 로드 실패: ${e.message}</div>`;
-    }
-  }
 
 
   renderSlots(false);

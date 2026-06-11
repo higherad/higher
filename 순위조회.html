@@ -184,14 +184,13 @@
     if (tab === 'change' && !rkChangeLoaded) loadChangeData();
   };
 
-  /* 순위 배지 */
+  /* 순위 배지 (전일 대비 추세는 rank-popup.js의 getRankTrend와 동일 기준) */
+  let _getRankTrend = null;
   function rb(rank, prevRank) {
     const r = Number(rank);
     if (!r) return '<span class="rb nd">-</span>';
-    const p = Number(prevRank);
-    let trendCls = '';
-    if (p && r < p) trendCls = ' up';        // 숫자 감소 = 순위 상승 → 빨간색
-    else if (p && r > p) trendCls = ' down';  // 숫자 증가 = 순위 하락 → 파란색
+    const trend = _getRankTrend ? _getRankTrend(r, prevRank) : null;
+    const trendCls = trend === 'up' ? ' up' : trend === 'down' ? ' down' : '';
     return `<span class="rb${trendCls}">${r}위</span>`;
   }
 
@@ -199,6 +198,9 @@
   async function loadAll() {
     const tbody = document.getElementById('rk-tbody');
     try {
+      if (!_getRankTrend) {
+        ({ getRankTrend: _getRankTrend } = await import('./rank-popup.js'));
+      }
       const slots = await HA.getSlots();
       const active = Object.values(slots || {})
         .filter(s => s.status === 'active' && s.mid && s.rankKeyword);
