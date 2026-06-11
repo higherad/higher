@@ -56,7 +56,6 @@ const PATHS = {
   refunds:         'ha/refunds',
   adClassify:      'ha/ad_classify',
   settleSnapshots: 'ha/settle_snapshots',
-  statusLog:       'ha/status_log',   // 담당자 상태 변경 이력
 };
 
 async function sendTelegram(message) {
@@ -241,22 +240,6 @@ const HA = {
 
   async updateSlot(key, patch) {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
-    // 상태(status) 변경이 포함된 경우 담당자 이력 누적 저장
-    if (patch.status !== undefined) {
-      const currentUser = this.getCurrentUser();
-      if (currentUser) {
-        const logEntry = {
-          slotKey:   key,
-          status:    patch.status,
-          staffId:   currentUser.username,
-          staffName: currentUser.name || currentUser.username,
-          role:      currentUser.role || 'unknown',
-          changedAt: new Date().toISOString(),
-          ...(patch.rejectReason ? { rejectReason: patch.rejectReason } : {}),
-        };
-        await push(ref(db, `${PATHS.statusLog}/${key}`), logEntry);
-      }
-    }
     dispatch('ha:slots:updated');
   },
 
