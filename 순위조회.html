@@ -447,12 +447,16 @@
   function rkRankCells(ranks, dateLabels) {
     const cells = ranks && ranks.length > 0 ? ranks : dateLabels.map(() => '-');
     return cells.map((v, idx) => {
-      const prev = idx === 0 ? null : cells[idx - 1];
-      const pNum = prev === null ? RANK_FLOOR : (parseFloat(prev) || RANK_FLOOR);
       const cNum = parseFloat(v) || RANK_FLOOR;
-      const color = (idx === 0 || pNum >= RANK_FLOOR || cNum >= RANK_FLOOR)
-        ? '#94a3b8'
-        : (cNum < pNum ? '#ef4444' : cNum > pNum ? '#3b82f6' : '#94a3b8');
+      let color = '#94a3b8';
+      if (idx > 0) {
+        const pNumRaw = parseFloat(cells[idx - 1]) || RANK_FLOOR;
+        // 직전 값이 "-"(데이터 없음/300위 밖)인데 현재 값은 있으면 300위에서 진입한 것으로 간주
+        const pNum = (pNumRaw === RANK_FLOOR && cNum !== RANK_FLOOR) ? 300 : pNumRaw;
+        color = (cNum === RANK_FLOOR || pNum === RANK_FLOOR)
+          ? '#94a3b8'
+          : (cNum < pNum ? '#ef4444' : cNum > pNum ? '#3b82f6' : '#94a3b8');
+      }
       const display = (v === '' || v === null || v === undefined || v === '-') ? '-' : v;
       return `<td style="color:${color};${idx === cells.length - 1 ? 'font-weight:700' : ''}">${display}</td>`;
     }).join('');
