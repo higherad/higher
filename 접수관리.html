@@ -368,50 +368,7 @@ window.toggleProdPanel = function(e) {
     return Array.isArray(data) ? data : Object.values(data);
   }
 
-  // 잠금 충돌 여부 확인 — 캐시 히트 시 네트워크 0ms
-  async function checkDetailLock(key) {
-    const cached = LOCK_CHECK_CACHE.get(key);
-    if (cached && cached.conflict && Date.now() - cached.ts < LOCK_CACHE_TTL) {
-      return { conflict: cached.conflict, by: cached.by };
-    }
-    const cu      = window.HA?.getCurrentUser?.() || {};
-    const staffId = cu.username || cu.id || 'unknown';
-    try {
-      const res  = await fetch(`${LOCK_FB}/${key}.json`);
-      const data = res.ok ? await res.json() : null;
-      if (data && data.staffId !== staffId) {
-        const age = Date.now() - new Date(data.lockedAt).getTime();
-        if (age < LOCK_TTL_MS) {
-          const result = { conflict: true, by: data.staffName || data.staffId };
-          LOCK_CHECK_CACHE.set(key, { ...result, ts: Date.now() });
-          return result;
-        }
-      }
-    } catch (_) {}
-    return { conflict: false };
-  }
-
-  // 잠금 쓰기 (백그라운드 전용) — 완료 후 캐시 무효화
-  async function writeDetailLock(key) {
-    const cu        = window.HA?.getCurrentUser?.() || {};
-    const staffId   = cu.username || cu.id || 'unknown';
-    const staffName = cu.name || staffId;
-    const lockData  = { staffId, staffName, lockedAt: new Date().toISOString() };
-    const res = await fetch(`${LOCK_FB}/${key}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(lockData),
-    });
-    if (!res.ok) throw new Error('Failed to write detail lock');
-    LOCK_CHECK_CACHE.delete(key);
-    try {
-      const { getDatabase, ref, onDisconnect } = await import(
-        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-      );
-      onDisconnect(ref(getDatabase(), `ha/detail_locks/${key}`)).remove();
-    } catch (_) {}
-  }
-
+  // 잠금 획득 — Firebase 트랜잭션으로 충돌(check-then-write race) 없이 원자적으로 처리
   async function acquireDetailLock(key) {
     const cu        = window.HA?.getCurrentUser?.() || {};
     const staffId   = cu.username || cu.id || 'unknown';
