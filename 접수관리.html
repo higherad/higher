@@ -371,7 +371,7 @@ window.toggleProdPanel = function(e) {
   // 잠금 충돌 여부 확인 — 캐시 히트 시 네트워크 0ms
   async function checkDetailLock(key) {
     const cached = LOCK_CHECK_CACHE.get(key);
-    if (cached && Date.now() - cached.ts < LOCK_CACHE_TTL) {
+    if (cached && cached.conflict && Date.now() - cached.ts < LOCK_CACHE_TTL) {
       return { conflict: cached.conflict, by: cached.by };
     }
     const cu      = window.HA?.getCurrentUser?.() || {};
@@ -388,7 +388,6 @@ window.toggleProdPanel = function(e) {
         }
       }
     } catch (_) {}
-    LOCK_CHECK_CACHE.set(key, { conflict: false, ts: Date.now() });
     return { conflict: false };
   }
 
@@ -398,11 +397,12 @@ window.toggleProdPanel = function(e) {
     const staffId   = cu.username || cu.id || 'unknown';
     const staffName = cu.name || staffId;
     const lockData  = { staffId, staffName, lockedAt: new Date().toISOString() };
-    await fetch(`${LOCK_FB}/${key}.json`, {
+    const res = await fetch(`${LOCK_FB}/${key}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(lockData),
     });
+    if (!res.ok) throw new Error('Failed to write detail lock');
     LOCK_CHECK_CACHE.delete(key);
     try {
       const { getDatabase, ref, onDisconnect } = await import(
@@ -413,9 +413,32 @@ window.toggleProdPanel = function(e) {
   }
 
   async function acquireDetailLock(key) {
-    const check = await checkDetailLock(key);
-    if (check.conflict) return { acquired: false, by: check.by };
-    await writeDetailLock(key);
+    const cu        = window.HA?.getCurrentUser?.() || {};
+    const staffId   = cu.username || cu.id || 'unknown';
+    const staffName = cu.name || staffId;
+    const lockData  = { staffId, staffName, lockedAt: new Date().toISOString() };
+    const { getDatabase, ref, runTransaction, onDisconnect } = await import(
+      'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
+    );
+    const lockRef = ref(getDatabase(), `ha/detail_locks/${key}`);
+    let conflictBy = null;
+    const result = await runTransaction(lockRef, current => {
+      if (current && current.staffId !== staffId) {
+        const age = Date.now() - new Date(current.lockedAt).getTime();
+        if (age < LOCK_TTL_MS) {
+          conflictBy = current.staffName || current.staffId;
+          return;
+        }
+      }
+      return lockData;
+    }, { applyLocally: false });
+    if (!result.committed) {
+      const by = conflictBy || 'other staff';
+      LOCK_CHECK_CACHE.set(key, { conflict: true, by, ts: Date.now() });
+      return { acquired: false, by };
+    }
+    LOCK_CHECK_CACHE.delete(key);
+    onDisconnect(lockRef).remove();
     return { acquired: true };
   }
 
@@ -756,6 +779,19 @@ window.toggleProdPanel = function(e) {
       showLockNotice(_cached.by);
       return;
     }
+    let lock;
+    try {
+      lock = await acquireDetailLock(key);
+    } catch (e) {
+      _detailOpen = false;
+      alert('Failed to acquire detail lock. Please try again.');
+      return;
+    }
+    if (!lock.acquired) {
+      _detailOpen = false;
+      showLockNotice(lock.by);
+      return;
+    }
 
     // modal 즉시 표시 (낙관적 UI)
     const overlay = document.createElement('div');
@@ -804,15 +840,6 @@ window.toggleProdPanel = function(e) {
 
     // 잠금 확인 + 쓰기 백그라운드 — 예열된 연결로 빠르게 완료
     // 충돌이면 modal 닫고 알림, 아니면 잠금 쓰기
-    checkDetailLock(key).then(check => {
-      if (check.conflict) {
-        overlay.remove();
-        _detailOpen = false;
-        showLockNotice(check.by);
-      } else {
-        writeDetailLock(key);
-      }
-    });
   };
 
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──
@@ -1621,12 +1648,10 @@ window.toggleProdPanel = function(e) {
     const cu   = window.HA?.getCurrentUser?.() || {};
     const myId = cu.username || cu.id || 'unknown';
     Object.entries(data).forEach(([key, lock]) => {
-      if (!lock) { LOCK_CHECK_CACHE.set(key, { conflict: false, ts: Date.now() }); return; }
+      if (!lock) return;
       const age = Date.now() - new Date(lock.lockedAt).getTime();
       if (lock.staffId !== myId && age < LOCK_TTL_MS) {
         LOCK_CHECK_CACHE.set(key, { conflict: true, by: lock.staffName || lock.staffId, ts: Date.now() });
-      } else {
-        LOCK_CHECK_CACHE.set(key, { conflict: false, ts: Date.now() });
       }
     });
   }).catch(() => {});
