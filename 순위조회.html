@@ -484,7 +484,7 @@
     });
 
     const theadHtml = `<thead><tr>
-      <th>영업점</th><th>업체명</th><th>키워드</th>
+      <th>영업점</th><th>MID</th><th>업체명</th><th>키워드</th>
       ${dateLabels.map(l => `<th class="dc">${l}</th>`).join('')}
       <th>전날대비</th>
     </tr></thead>`;
@@ -496,11 +496,12 @@
 
   function rkChangeSection(section, list, theadHtml, dateLabels) {
     const { title, color } = section;
-    const colCount = 4 + dateLabels.length;
+    const colCount = 5 + dateLabels.length;
     const rows = list.length === 0
       ? `<tr><td colspan="${colCount}" style="font-size:11px; color:var(--muted); text-align:center; padding:14px;">데이터 없음</td></tr>`
       : list.map(i => `<tr>
             <td style="color:${color};font-weight:700">${i.branch}</td>
+            <td>${i.mid}</td>
             <td>${i.company}</td>
             <td>${i.keyword}</td>
             ${rkRankCells(i.ranks, dateLabels)}
