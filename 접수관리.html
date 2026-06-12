@@ -752,6 +752,7 @@ window.toggleProdPanel = function(e) {
     // 캐시에 충돌 기록이 있으면 네트워크 없이 즉시 차단
     const _cached = LOCK_CHECK_CACHE.get(key);
     if (_cached && _cached.conflict && Date.now() - _cached.ts < LOCK_CACHE_TTL) {
+      _detailOpen = false;
       showLockNotice(_cached.by);
       return;
     }
@@ -806,6 +807,7 @@ window.toggleProdPanel = function(e) {
     checkDetailLock(key).then(check => {
       if (check.conflict) {
         overlay.remove();
+        _detailOpen = false;
         showLockNotice(check.by);
       } else {
         writeDetailLock(key);
