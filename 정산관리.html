@@ -1116,6 +1116,10 @@
         cell.innerHTML=badge('#f0fdf4','#166534','✅ 이미 충전 완료');
         continue;
       }
+      if(rowsData.some(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)){
+        cell.innerHTML=badge('#fee2e2','#991b1b','❌ 일부 항목 이미 충전됨 (충전 담당자 확인 필요)');
+        continue;
+      }
       const acctSnap=await get(ref(db,`ha/bizfit_charge/${safe(agencyId)}`));
       const acct=acctSnap.exists()?acctSnap.val():null;
       if(!acct){
