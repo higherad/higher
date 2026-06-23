@@ -245,7 +245,7 @@
 
     const result = await HA.login(username, password);
 
-    if (result.ok && (result.user.role === 'admin' || result.user.role === 'staff')) {
+    if (result.ok && (result.user.role === 'admin' || result.user.role === 'staff' || result.user.role === 'guest')) {
       sessionStorage.setItem('ha_admin_auth', '1');
       location.href = 'index.html';
     } else {
