@@ -135,6 +135,10 @@
       return d >= today;
     });
 
+    if (HA.getCurrentUser()?.role === 'guest') {
+      slots = slots.filter(s => s.createdAt && new Date(s.createdAt).getMonth() + 1 === 6);
+    }
+
     if(range !== 'all') {
       const limit = new Date(today);
       limit.setDate(today.getDate()+Number(range));

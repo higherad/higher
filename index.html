@@ -311,15 +311,15 @@
     <div class="brand-sub">Admin Portal</div>
   </div>
   <div class="nav-section">
-    <div class="nav-label">Management</div>
+    <div class="nav-label" id="navlabel-mgmt">Management</div>
     <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)"><i data-lucide="layers" size="16"></i> 진행 현황</div>
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)"><i data-lucide="inbox" size="16"></i> 접수 관리<span class="badge" id="pending-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-expire"  onclick="loadPage('만료예정.html',this)"><i data-lucide="clock-alert" size="16"></i> 만료 예정</div>
-    <div class="nav-label">Finance & Users</div>
+    <div class="nav-label" id="navlabel-finance">Finance & Users</div>
     <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)"><i data-lucide="wallet" size="16"></i> 정산 관리<span class="badge" id="settle-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)"><i data-lucide="users" size="16"></i> 회원 관리<span class="badge" id="users-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-notice"  onclick="loadPage('공지사항.html',this)"><i data-lucide="megaphone" size="16"></i> 공지사항</div>
-    <div class="nav-label">Tools</div>
+    <div class="nav-label" id="navlabel-tools">Tools</div>
     <div class="nav-item" id="nav-adclassify" onclick="loadPage('광고분류.html',this)"><i data-lucide="table-2" size="16"></i> 광고 분류</div>
     <div class="nav-item" id="nav-rank" onclick="loadPage('순위조회.html',this)"><i data-lucide="chart-no-axes-column" size="16"></i> 순위 조회</div>
   </div>
@@ -499,11 +499,25 @@
   };
 
   window.loadDashboard = function() {
+    if (HA.getCurrentUser()?.role === 'guest') {
+      loadPage('진행현황.html', document.getElementById('nav-slots'));
+      return;
+    }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     document.getElementById('page-heading').textContent = '운영 현황 대시보드';
     renderDashboard();
     window.scrollTo(0, 0);
   };
+
+  // ── 게스트 계정: 사이드바를 진행 현황 / 접수 관리 / 만료 예정만 노출 ──
+  function applyGuestRestrictions(role) {
+    if (role !== 'guest') return;
+    ['navlabel-finance', 'nav-settle', 'nav-users', 'nav-notice',
+     'navlabel-tools', 'nav-adclassify', 'nav-rank'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
 
   window.loadQuickNewReceipts = function() {
     const today = new Date().toISOString().slice(0, 10);
@@ -718,7 +732,12 @@
     document.body.style.display = 'flex';
     lucide.createIcons();
     await HA.seedIfEmpty();
-    await renderDashboard();
+    applyGuestRestrictions(cur?.role);
+    if (cur?.role === 'guest') {
+      await loadPage('진행현황.html', document.getElementById('nav-slots'));
+    } else {
+      await renderDashboard();
+    }
     lucide.createIcons();
   }
 

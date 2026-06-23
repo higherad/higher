@@ -232,7 +232,7 @@
   <select id="filter-slot-type" onchange="renderReceipts()" disabled>
     <option value="">⏳ 등급 로딩 중...</option>
   </select>
-  <div style="position:relative;display:flex;align-items:center;">
+  <div id="date-filter-wrap" style="position:relative;display:flex;align-items:center;">
     <button id="date-pick-btn" onclick="document.getElementById('filter-date-from').showPicker?document.getElementById('filter-date-from').showPicker():document.getElementById('filter-date-from').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
       📅 <span id="date-label">접수일 선택</span>
     </button>
@@ -497,6 +497,9 @@ window.toggleProdPanel = function(e) {
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       const slotDate = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
       if (dateFrom && slotDate !== dateFrom) return false;
+      if (HA.getCurrentUser()?.role === 'guest') {
+        if (!s.createdAt || new Date(s.createdAt).getMonth() + 1 !== 6) return false;
+      }
       return true;
     });
   }
@@ -530,6 +533,11 @@ window.toggleProdPanel = function(e) {
 
   window.renderReceipts = async function(resetPage = true, forceReload = false) {
     if (resetPage) currentPage = 1;
+
+    if (HA.getCurrentUser()?.role === 'guest') {
+      const dateWrap = document.getElementById('date-filter-wrap');
+      if (dateWrap) dateWrap.style.display = 'none';
+    }
 
     if (!_slotsLoaded || forceReload) {
       document.getElementById('receipt-body').innerHTML =

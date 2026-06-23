@@ -115,14 +115,20 @@
     expired: '<span class="status-badge s-expired">만료</span>',
   };
 
+  function isGuest() { return HA.getCurrentUser()?.role === 'guest'; }
+
   function getFiltered() {
     const status = document.getElementById('f-status').value;
     const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
+    const guest  = isGuest();
     return allSlots.filter(s => {
       const st = status || '';
       if (st) { if (s.status !== st) return false; }
       else { if (s.status !== 'active' && s.status !== 'expired') return false; }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
+      if (guest) {
+        if (!s.createdAt || new Date(s.createdAt).getMonth() + 1 !== 6) return false;
+      }
       return true;
     });
   }
