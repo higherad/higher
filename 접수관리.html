@@ -26,6 +26,7 @@
   .s-accepted  { background:rgba(59,130,246,.1);  color:#1d4ed8; }
   .s-active    { background:rgba(16,185,129,.1);  color:#059669; }
   .s-expired   { background:#f1f5f9; color:#64748b; }
+  #receipt-page.guest-mode .rank-col { display:none; }
   .action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; transition:.15s; }
   .btn-approve { background:var(--accent); color:#fff; }
   .btn-approve:hover { background:var(--accent2); }
@@ -253,7 +254,7 @@
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
         <th>캠페인타입</th><th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>순위</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th class="rank-col">순위</th>
       </tr>
     </thead>
     <tbody id="receipt-body">
@@ -537,6 +538,7 @@ window.toggleProdPanel = function(e) {
     if (HA.getCurrentUser()?.role === 'guest') {
       const dateWrap = document.getElementById('date-filter-wrap');
       if (dateWrap) dateWrap.style.display = 'none';
+      document.getElementById('receipt-page')?.classList.add('guest-mode');
     }
 
     if (!_slotsLoaded || forceReload) {
@@ -616,7 +618,7 @@ window.toggleProdPanel = function(e) {
               ` : ''}
             </div>
           </td>
-          <td>
+          <td class="rank-col">
             <button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup('${s._key}')">순위</button>
           </td>
         </tr>`).join('');

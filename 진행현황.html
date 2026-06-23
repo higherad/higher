@@ -49,6 +49,7 @@
   .status-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
   .s-active   { background:rgba(16,185,129,.1); color:#059669; }
   .s-expired  { background:#f1f5f9; color:#64748b; }
+  #slots-page.guest-mode .rank-col { display:none; }
 </style>
 
 <div class="stat-bar" style="grid-template-columns:repeat(3,1fr)">
@@ -94,7 +95,7 @@
         <th><input type="checkbox" id="s-check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>대행사</th><th>유저ID</th>
         <th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>상태</th><th>액션</th><th>순위</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>상태</th><th>액션</th><th class="rank-col">순위</th>
       </tr>
     </thead>
     <tbody id="slots-body">
@@ -116,6 +117,7 @@
   };
 
   function isGuest() { return HA.getCurrentUser()?.role === 'guest'; }
+  document.getElementById('slots-page').classList.toggle('guest-mode', isGuest());
 
   function getFiltered() {
     const status = document.getElementById('f-status').value;
@@ -204,7 +206,7 @@
               <button class="action-btn btn-del"  onclick="delSlot('${s._key}')">삭제</button>
             </div>
           </td>
-          <td>
+          <td class="rank-col">
             <button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup('${s._key}')">순위</button>
           </td>
         </tr>`;
