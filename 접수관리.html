@@ -1178,12 +1178,16 @@ window.toggleProdPanel = function(e) {
     renderPS();
   };
 
+  function prodDisplayName(p) {
+    return (p.id === 'yupfl' && HA.getCurrentUser()?.role === 'guest') ? '테스트' : p.name;
+  }
+
   function renderPS() {
     renderProdGroups();
     const prodHtml = p => `
       <div class="ps-item${p.active?' active':''}" id="psi-${p.id}" onclick="openProdModal('${p.id}')">
         <div class="ps-dot" style="background:${p.color};border-color:rgba(0,0,0,.1);"></div>
-        <span class="ps-name" style="color:${p.color}">${escProd(p.name)}</span>
+        <span class="ps-name" style="color:${p.color}">${escProd(prodDisplayName(p))}</span>
         <button class="ps-tog ${p.active?'on':'off'}" onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
       </div>`;
     const normalProds = [], fixedProds = [];
@@ -1220,7 +1224,7 @@ window.toggleProdPanel = function(e) {
     const p = prods.find(x => x.id === id); if (!p) return;
     _prodModalId = id;
     document.getElementById('prod-modal-dot').style.background  = p.color;
-    document.getElementById('prod-modal-title').textContent     = `${p.name} 설정`;
+    document.getElementById('prod-modal-title').textContent     = `${prodDisplayName(p)} 설정`;
     document.getElementById('pm-name').value = p.name;
     document.getElementById('pm-ver').value  = p.ver || '';
     const delBtn = document.getElementById('pm-del-btn');
