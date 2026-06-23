@@ -790,7 +790,7 @@ window.toggleProdPanel = function(e) {
               검색키워드
               <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
             </span>
-            ${s.mid ? `<button onclick="toggleMidHistory('${s.mid}','${key}')" id="mid-hist-btn"
+            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleMidHistory('${s.mid}','${key}')" id="mid-hist-btn"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
