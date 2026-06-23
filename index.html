@@ -729,10 +729,10 @@
       if (roleEl)   roleEl.textContent   = cur.role === 'admin' ? 'Super Admin' : (cur.role === 'guest' ? '게스트' : '담당자');
       if (avatarEl) avatarEl.textContent = (cur.name || cur.username).charAt(0).toUpperCase();
     }
+    applyGuestRestrictions(cur?.role);
     document.body.style.display = 'flex';
     lucide.createIcons();
     await HA.seedIfEmpty();
-    applyGuestRestrictions(cur?.role);
     if (cur?.role === 'guest') {
       await loadPage('진행현황.html', document.getElementById('nav-slots'));
     } else {
