@@ -1705,7 +1705,8 @@ window.toggleProdPanel = function(e) {
     overlay.addEventListener('click', e => { if (e.target === overlay && !window.bizfitSubmitting) overlay.remove(); });
   }
 
-  // 대행사 1곳에 대한 미리보기 블록 — 등급별 건수/목표만 먼저 보여주고, 상태칸은 접수 신청 전까지 '-'
+  // 대행사 1곳에 대한 미리보기 블록 — 충전 신청 팝업(정산관리)과 동일한 agency-block/ag-table 스타일.
+  // 행 = (업체명, 등급) 쌍. 상태칸은 접수 신청 전까지 '-'
   function buildSubmitAgencyBlock(p) {
     const block = document.createElement('div');
     block.className = 'agency-block';
@@ -1717,10 +1718,11 @@ window.toggleProdPanel = function(e) {
       return block;
     }
 
-    const byGrade = new Map();
+    const groups = new Map(); // "업체명__등급" → { storeName, gradeName, rows }
     p.rows.forEach(r => {
-      if (!byGrade.has(r.상품등급명)) byGrade.set(r.상품등급명, []);
-      byGrade.get(r.상품등급명).push(r);
+      const key = `${r.업체명}__${r.상품등급명}`;
+      if (!groups.has(key)) groups.set(key, { storeName: r.업체명, gradeName: r.상품등급명, rows: [] });
+      groups.get(key).rows.push(r);
     });
 
     const hd = document.createElement('div');
@@ -1730,18 +1732,21 @@ window.toggleProdPanel = function(e) {
 
     const wrap = document.createElement('div'); wrap.style.overflowX = 'auto';
     const tbl  = document.createElement('table'); tbl.className = 'ag-table';
-    tbl.innerHTML = '<thead><tr><th>등급</th><th>건수</th><th>목표 합계</th><th>상태</th></tr></thead>';
+    tbl.innerHTML = '<thead><tr><th>업체명</th><th>수량</th><th>등급</th><th>건수</th><th>목표 합계</th><th>상태</th></tr></thead>';
     const tbody = document.createElement('tbody');
-    p.gradeRowEls = new Map();
-    byGrade.forEach((rs, name) => {
-      const tgt = rs.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+    p.gradeRowEls = new Map(); // 등급명 → [statusTd, ...] (등록은 등급 단위로 일어나므로 같은 등급의 모든 행이 함께 갱신됨)
+    groups.forEach(g => {
+      const qty = g.rows[0].일목표;
+      const cnt = g.rows.length;
+      const tgt = g.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
       const tr  = document.createElement('tr');
       const statusTd = document.createElement('td');
       statusTd.textContent = '-';
-      tr.innerHTML = `<td>${escProd(name)}</td><td>${rs.length}건</td><td>${tgt.toLocaleString()}</td>`;
+      tr.innerHTML = `<td style="text-align:left">${escProd(g.storeName)}</td><td>${qty.toLocaleString()}</td><td>${escProd(g.gradeName)}</td><td>${cnt}건</td><td>${tgt.toLocaleString()}</td>`;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
-      p.gradeRowEls.set(name, statusTd);
+      if (!p.gradeRowEls.has(g.gradeName)) p.gradeRowEls.set(g.gradeName, []);
+      p.gradeRowEls.get(g.gradeName).push(statusTd);
     });
     tbl.appendChild(tbody); wrap.appendChild(tbl); block.appendChild(wrap);
 
@@ -1752,6 +1757,13 @@ window.toggleProdPanel = function(e) {
     p.msgEl = ft.querySelector('.totals');
 
     return block;
+  }
+
+  function setGradeStatus(p, gradeName, html) {
+    (p.gradeRowEls.get(gradeName) || []).forEach(td => td.innerHTML = html);
+  }
+  function setAllStatus(p, html) {
+    p.gradeRowEls.forEach((_, name) => setGradeStatus(p, name, html));
   }
 
   async function executeSubmit(plan, overlay) {
@@ -1765,11 +1777,11 @@ window.toggleProdPanel = function(e) {
 
     for (const p of plan) {
       if (!p.rows.length) continue;
-      p.gradeRowEls.forEach(td => td.innerHTML = '<span style="color:var(--info);">⏳</span>');
+      setAllStatus(p, '<span style="color:var(--info);">⏳</span>');
 
       const account = p.realAg ? await fetchBizfitAccount(p.realAg) : null;
       if (!account) {
-        p.gradeRowEls.forEach(td => td.innerHTML = '<span style="color:var(--danger);">❌ 계정 미등록</span>');
+        setAllStatus(p, '<span style="color:var(--danger);">❌ 계정 미등록</span>');
         if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">비즈핏 계정 정보 미등록 (정산관리에서 먼저 등록 필요)</span>';
         failTotal += p.rows.length;
         continue;
@@ -1782,7 +1794,7 @@ window.toggleProdPanel = function(e) {
 
       if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
         const msg = gi.message || '전송 가능한 등급이 없습니다.';
-        p.gradeRowEls.forEach(td => td.innerHTML = `<span style="color:var(--danger);" title="${escProd(msg)}">❌ 등급조회 실패</span>`);
+        setAllStatus(p, `<span style="color:var(--danger);" title="${escProd(msg)}">❌ 등급조회 실패</span>`);
         if (p.msgEl) p.msgEl.innerHTML = `<span style="color:var(--danger);font-size:11px;">${escProd(msg)}</span>`;
         failTotal += p.rows.length;
         continue;
@@ -1793,7 +1805,6 @@ window.toggleProdPanel = function(e) {
         const grpRows = p.rows.filter(r => r.상품등급명 === g.gradeName);
         if (!grpRows.length) continue;
         matchedGrades.add(g.gradeName);
-        const statusTd = p.gradeRowEls.get(g.gradeName);
         const payloadRows = grpRows.map(({_slotKey, ...rest}) => rest);
         let result;
         try {
@@ -1806,20 +1817,20 @@ window.toggleProdPanel = function(e) {
         if (result.success) {
           okTotal += grpRows.length;
           grpRows.forEach(r => approvedKeys.add(r._slotKey));
-          if (statusTd) statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>';
+          setGradeStatus(p, g.gradeName, '<span style="color:var(--accent);">✅ 완료</span>');
         } else {
           failTotal += grpRows.length;
-          if (statusTd) statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`;
+          setGradeStatus(p, g.gradeName, `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`);
         }
       }
       // 시트에는 있지만 비즈핏 등급맵과 매칭 안 된 등급명
-      p.gradeRowEls.forEach((td, name) => {
-        if (!matchedGrades.has(name) && td.textContent === '⏳') {
-          td.innerHTML = '<span style="color:var(--danger);">❌ 등급 불일치</span>';
-          failTotal += (byGradeCount(p.rows, name));
+      p.gradeRowEls.forEach((tds, name) => {
+        if (!matchedGrades.has(name)) {
+          setGradeStatus(p, name, '<span style="color:var(--danger);">❌ 등급 불일치</span>');
+          failTotal += byGradeCount(p.rows, name);
         }
       });
-      const agencyFailCount = [...p.gradeRowEls.values()].filter(td => td.textContent.includes('❌')).length;
+      const agencyFailCount = [...p.gradeRowEls.values()].flat().filter(td => td.textContent.includes('❌')).length;
       if (p.msgEl) {
         p.msgEl.innerHTML = agencyFailCount
           ? `<span style="color:var(--danger);font-size:11px;">일부 등급 실패 — 상태 칸에서 사유 확인(마우스오버)</span>`
