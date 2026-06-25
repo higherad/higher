@@ -1662,115 +1662,168 @@ window.toggleProdPanel = function(e) {
       alert('활성화된 일반 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.\n(고정 상품은 직접 접수 대상이 아닙니다)');
       return;
     }
-
-    (async () => {
-      const btn = document.getElementById('dl-submit-btn');
-      if (btn) btn.disabled = true;
-      setProg(true, 0, '대행사별 계정·등급 확인 중...');
-      const agencies = getAgencies(target);
-      const plan = [];
-      for (let i = 0; i < agencies.length; i++) {
-        const ag = agencies[i], realAg = ag === '(대행사 미지정)' ? '' : ag;
-        setProg(true, Math.round(100*i/agencies.length), `[${ag}] 확인 중... (${i+1}/${agencies.length})`);
-        const slots = slotsByAgency(target, ag);
-        const rows  = buildNormalRows(slots);
-        if (!rows.length) { plan.push({agency:ag, error:'일반 상품 배분 결과가 없습니다 (목표 0).'}); continue; }
-        const account = realAg ? await fetchBizfitAccount(realAg) : null;
-        if (!account) { plan.push({agency:ag, error:'비즈핏 계정 정보 미등록 (정산관리 > 충전 계정 먼저 등록 필요)'}); continue; }
-        let gi;
-        try {
-          gi = await callBizfitProxy('/grade-info', {
-            domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, rawData: rows,
-          });
-        } catch(e) { plan.push({agency:ag, error:'서버 호출 실패: '+e.message}); continue; }
-        if (!gi.success) { plan.push({agency:ag, error: gi.message || '등급 조회 실패'}); continue; }
-        if (!gi.gradeGroups || !gi.gradeGroups.length) { plan.push({agency:ag, error:'전송 가능한 등급이 없습니다.'}); continue; }
-        plan.push({agency:ag, account, rows, gradeGroups: gi.gradeGroups, spPrice: gi.spPrice||0});
-      }
-      setProg(false);
-      if (btn) btn.disabled = false;
-      showSubmitConfirm(plan);
-    })();
+    openSubmitModal(target);
   };
 
-  function showSubmitConfirm(plan) {
+  // 정산관리의 "정산 등록" 팝업과 동일한 패턴: 팝업은 즉시 띄워서 정리된 목록을 먼저 보여주고,
+  // "접수 신청" 버튼을 눌러야 실제로 grade-info/register API가 나간다.
+  function openSubmitModal(target) {
+    const agencies = getAgencies(target);
+    const plan = agencies.map(ag => {
+      const realAg = ag === '(대행사 미지정)' ? '' : ag;
+      const rows = buildNormalRows(slotsByAgency(target, ag));
+      return { agency: ag, realAg, rows };
+    });
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-    let grandTotal = 0, grandCount = 0;
-    const blocksHtml = plan.map((p, i) => {
-      if (p.error) {
-        return `<div class="agency-block" style="border-color:#fca5a5;">
-          <div style="padding:12px 16px;font-weight:700;color:var(--danger);">${escProd(p.agency)}</div>
-          <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ ${escProd(p.error)}</div>
-        </div>`;
-      }
-      let agencyTotal = 0, agencyCount = 0;
-      const rowsHtml = p.gradeGroups.map(g => {
-        const grpRows = p.rows.filter(r => r.상품등급명 === g.gradeName);
-        const cnt = grpRows.length;
-        const tgt = grpRows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0),0);
-        const cost = tgt * Number(p.spPrice||0);
-        agencyTotal += cost; agencyCount += cnt;
-        return `<tr><td>${escProd(g.gradeName)}</td><td>${cnt}건</td><td>${tgt.toLocaleString()}</td><td>${Number(p.spPrice||0).toLocaleString()}원</td><td>${cost.toLocaleString()}원</td></tr>`;
-      }).join('');
-      grandTotal += agencyTotal; grandCount += agencyCount;
-      return `<div class="agency-block" data-idx="${i}">
-        <div class="agency-hd"><div class="aname">${escProd(p.agency)}</div></div>
-        <table class="ag-table"><thead><tr><th>등급</th><th>건수</th><th>일목표 합산</th><th>단가</th><th>금액</th></tr></thead>
-        <tbody>${rowsHtml}</tbody></table>
-        <div class="agency-ft"><div class="totals">건수 <b>${agencyCount}</b> · 금액 <b>${agencyTotal.toLocaleString()}원</b></div>
-          <div class="charge-status-cell"></div></div>
+    overlay.innerHTML = `
+      <div class="modal-box" style="width:680px;max-height:82vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
+          <div class="modal-title" style="margin-bottom:0;">📨 비즈핏 접수 확인</div>
+          <button id="submit-apply-btn" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">📨 접수 신청</button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px;" id="submit-sub"></div>
+        <div id="submit-body"></div>
+        <div class="modal-footer"><button class="btn-cancel" id="submit-close-btn">닫기</button></div>
       </div>`;
-    }).join('');
-
-    const validCount = plan.filter(p => !p.error).length;
-    overlay.innerHTML = `<div class="modal-box" style="width:640px;max-height:80vh;overflow-y:auto;">
-      <div class="modal-title">비즈핏 접수 확인</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">총 ${grandCount}건 · ${grandTotal.toLocaleString()}원</div>
-      ${blocksHtml}
-      <div class="modal-footer">
-        <button class="btn-cancel" id="submit-cancel-btn">취소</button>
-        <button class="btn-save" id="submit-confirm-btn" style="background:#dc2626;" ${validCount?'':'disabled'}>접수 진행</button>
-      </div>
-    </div>`;
     document.body.appendChild(overlay);
-    overlay.querySelector('#submit-cancel-btn').onclick = () => overlay.remove();
-    overlay.querySelector('#submit-confirm-btn').onclick = () => executeSubmit(plan, overlay);
+
+    const bodyEl = overlay.querySelector('#submit-body');
+    let totalRows = 0, totalTarget = 0;
+    plan.forEach(p => {
+      const block = buildSubmitAgencyBlock(p);
+      bodyEl.appendChild(block);
+      totalRows += p.rows.length;
+      totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+    });
+    overlay.querySelector('#submit-sub').textContent =
+      `대행사 ${plan.length}곳 · 일반 상품 ${totalRows}건 · 목표 합계 ${totalTarget.toLocaleString()} — 검토 후 "접수 신청"을 눌러야 실제로 전송됩니다.`;
+
+    overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
+    overlay.querySelector('#submit-apply-btn').onclick = () => executeSubmit(plan, overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay && !window.bizfitSubmitting) overlay.remove(); });
+  }
+
+  // 대행사 1곳에 대한 미리보기 블록 — 등급별 건수/목표만 먼저 보여주고, 상태칸은 접수 신청 전까지 '-'
+  function buildSubmitAgencyBlock(p) {
+    const block = document.createElement('div');
+    block.className = 'agency-block';
+
+    if (!p.rows.length) {
+      block.style.borderColor = '#fca5a5';
+      block.innerHTML = `<div style="padding:12px 16px;font-weight:700;color:var(--danger);">${escProd(p.agency)}</div>
+        <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ 일반 상품 배분 결과가 없습니다 (목표 0).</div>`;
+      return block;
+    }
+
+    const byGrade = new Map();
+    p.rows.forEach(r => {
+      if (!byGrade.has(r.상품등급명)) byGrade.set(r.상품등급명, []);
+      byGrade.get(r.상품등급명).push(r);
+    });
+
+    const hd = document.createElement('div');
+    hd.className = 'agency-hd';
+    hd.innerHTML = `<div><div class="aname">${escProd(p.agency)}</div><div class="ameta">${p.rows.length}건</div></div>`;
+    block.appendChild(hd);
+
+    const wrap = document.createElement('div'); wrap.style.overflowX = 'auto';
+    const tbl  = document.createElement('table'); tbl.className = 'ag-table';
+    tbl.innerHTML = '<thead><tr><th>등급</th><th>건수</th><th>목표 합계</th><th>상태</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    p.gradeRowEls = new Map();
+    byGrade.forEach((rs, name) => {
+      const tgt = rs.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+      const tr  = document.createElement('tr');
+      const statusTd = document.createElement('td');
+      statusTd.textContent = '-';
+      tr.innerHTML = `<td>${escProd(name)}</td><td>${rs.length}건</td><td>${tgt.toLocaleString()}</td>`;
+      tr.appendChild(statusTd);
+      tbody.appendChild(tr);
+      p.gradeRowEls.set(name, statusTd);
+    });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); block.appendChild(wrap);
+
+    const ft = document.createElement('div');
+    ft.className = 'agency-ft';
+    ft.innerHTML = '<div class="totals"></div>';
+    block.appendChild(ft);
+    p.msgEl = ft.querySelector('.totals');
+
+    return block;
   }
 
   async function executeSubmit(plan, overlay) {
-    const confirmBtn = overlay.querySelector('#submit-confirm-btn');
-    const cancelBtn  = overlay.querySelector('#submit-cancel-btn');
-    confirmBtn.disabled = true; cancelBtn.disabled = true;
-    confirmBtn.textContent = '처리 중...';
+    const applyBtn = overlay.querySelector('#submit-apply-btn');
+    const closeBtn = overlay.querySelector('#submit-close-btn');
+    window.bizfitSubmitting = true;
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
+    closeBtn.disabled = true;
     const approvedKeys = new Set();
+    let okTotal = 0, failTotal = 0;
 
-    for (let i = 0; i < plan.length; i++) {
-      const p = plan[i];
-      if (p.error) continue;
-      const statusCell = overlay.querySelector(`.agency-block[data-idx="${i}"] .charge-status-cell`);
-      if (statusCell) statusCell.innerHTML = '<span style="color:var(--info);font-size:11px;">⏳ 접수 중...</span>';
-      const slotKeysCovered = new Set(p.rows.map(r => r._slotKey));
-      const failedSlotKeys  = new Set();
-      for (const g of p.gradeGroups) {
+    for (const p of plan) {
+      if (!p.rows.length) continue;
+      p.gradeRowEls.forEach(td => td.innerHTML = '<span style="color:var(--info);">⏳</span>');
+
+      const account = p.realAg ? await fetchBizfitAccount(p.realAg) : null;
+      if (!account) {
+        p.gradeRowEls.forEach(td => td.innerHTML = '<span style="color:var(--danger);">❌ 계정 미등록</span>');
+        if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">비즈핏 계정 정보 미등록 (정산관리에서 먼저 등록 필요)</span>';
+        failTotal += p.rows.length;
+        continue;
+      }
+
+      let gi;
+      try {
+        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, rawData: p.rows });
+      } catch(e) { gi = { success:false, message: '서버 호출 실패: '+e.message }; }
+
+      if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
+        const msg = gi.message || '전송 가능한 등급이 없습니다.';
+        p.gradeRowEls.forEach(td => td.innerHTML = `<span style="color:var(--danger);" title="${escProd(msg)}">❌ 등급조회 실패</span>`);
+        if (p.msgEl) p.msgEl.innerHTML = `<span style="color:var(--danger);font-size:11px;">${escProd(msg)}</span>`;
+        failTotal += p.rows.length;
+        continue;
+      }
+
+      const matchedGrades = new Set();
+      for (const g of gi.gradeGroups) {
         const grpRows = p.rows.filter(r => r.상품등급명 === g.gradeName);
-        const grpSlotKeys = grpRows.map(r => r._slotKey);
+        if (!grpRows.length) continue;
+        matchedGrades.add(g.gradeName);
+        const statusTd = p.gradeRowEls.get(g.gradeName);
         const payloadRows = grpRows.map(({_slotKey, ...rest}) => rest);
         let result;
         try {
           result = await callBizfitProxy('/register', {
-            domain: BIZFIT_DOMAIN, loginId: p.account.id, pwd: p.account.pw,
+            domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw,
             tab: g.actualTab || BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType,
             rowData: payloadRows,
           });
-        } catch(e) { result = {success:false, message:e.message}; }
-        if (!result.success) grpSlotKeys.forEach(k => failedSlotKeys.add(k));
+        } catch(e) { result = { success:false, message: e.message }; }
+        if (result.success) {
+          okTotal += grpRows.length;
+          grpRows.forEach(r => approvedKeys.add(r._slotKey));
+          if (statusTd) statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>';
+        } else {
+          failTotal += grpRows.length;
+          if (statusTd) statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`;
+        }
       }
-      slotKeysCovered.forEach(k => { if (!failedSlotKeys.has(k)) approvedKeys.add(k); });
-      if (statusCell) {
-        statusCell.innerHTML = failedSlotKeys.size
-          ? `<span style="color:var(--danger);font-size:11px;">❌ 일부 실패 (${failedSlotKeys.size}건)</span>`
-          : `<span style="color:var(--accent);font-size:11px;">✅ 접수 완료</span>`;
+      // 시트에는 있지만 비즈핏 등급맵과 매칭 안 된 등급명
+      p.gradeRowEls.forEach((td, name) => {
+        if (!matchedGrades.has(name) && td.textContent === '⏳') {
+          td.innerHTML = '<span style="color:var(--danger);">❌ 등급 불일치</span>';
+          failTotal += (byGradeCount(p.rows, name));
+        }
+      });
+      const agencyFailCount = [...p.gradeRowEls.values()].filter(td => td.textContent.includes('❌')).length;
+      if (p.msgEl) {
+        p.msgEl.innerHTML = agencyFailCount
+          ? `<span style="color:var(--danger);font-size:11px;">일부 등급 실패 — 상태 칸에서 사유 확인(마우스오버)</span>`
+          : `<span style="color:var(--accent);font-size:11px;">✅ 전체 접수 완료</span>`;
       }
     }
 
@@ -1778,11 +1831,15 @@ window.toggleProdPanel = function(e) {
       await Promise.all([...approvedKeys].map(k => HA.approveSlot(k)));
       approvedKeys.forEach(k => { const idx = allSlots.findIndex(x => x._key === k); if (idx !== -1) allSlots[idx].status = 'active'; });
     }
-    confirmBtn.textContent = '완료';
-    cancelBtn.textContent  = '닫기';
-    cancelBtn.disabled = false;
-    cancelBtn.onclick = () => { overlay.remove(); renderReceipts(false); };
+
+    window.bizfitSubmitting = false;
+    applyBtn.textContent = failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`;
+    applyBtn.style.background = failTotal ? '#b91c1c' : '#16a34a';
+    closeBtn.disabled = false;
+    closeBtn.onclick = () => { overlay.remove(); renderReceipts(false); };
   }
+
+  function byGradeCount(rows, name) { return rows.filter(r => r.상품등급명 === name).length; }
 
   // 최초 로드
   renderReceipts(false);
