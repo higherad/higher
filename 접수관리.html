@@ -1752,7 +1752,7 @@ window.toggleProdPanel = function(e) {
       <th style="width:62px;text-align:right">일목표</th>
       <th style="width:44px;text-align:center">일수</th>
       <th style="width:84px">예약일</th>
-      <th style="width:56px;text-align:center">검색키워드</th>
+      <th style="width:64px;text-align:center">검색키워드</th>
       <th style="width:76px;text-align:center">상태</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
@@ -1773,7 +1773,7 @@ window.toggleProdPanel = function(e) {
         <td style="text-align:right;white-space:nowrap">${(r.일목표||0).toLocaleString()}</td>
         <td style="text-align:center;white-space:nowrap">${r.일수||0}</td>
         <td style="white-space:nowrap">${escProd(r.예약일||'-')}</td>
-        <td style="text-align:center;vertical-align:middle" title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;display:inline-block">${kwCount}개</span></td>
+        <td style="text-align:center;vertical-align:middle;padding:10px 4px" title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;display:inline-block">${kwCount}개</span></td>
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
