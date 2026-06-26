@@ -1699,7 +1699,7 @@ window.toggleProdPanel = function(e) {
           <div class="modal-title" style="margin-bottom:0;">비즈핏 접수 확인</div>
           <button id="submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:14px;" id="submit-sub"></div>
+        <div style="font-size:12px;margin-bottom:14px;" id="submit-sub"></div>
         <div id="submit-body"></div>
         <div class="modal-footer"><button class="btn-cancel" id="submit-close-btn">닫기</button></div>
       </div>`;
@@ -1713,8 +1713,8 @@ window.toggleProdPanel = function(e) {
       totalStores += new Set(p.rows.map(r => r.업체명)).size;
       totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
     });
-    overlay.querySelector('#submit-sub').textContent =
-      `대행사 ${plan.length}곳 · 일반 상품 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} — 검토 후 접수 신청을 눌러주세요.`;
+    overlay.querySelector('#submit-sub').innerHTML =
+      `<span style="color:var(--muted)">대행사 ${plan.length}곳 · 일반 상품 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
 
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#submit-apply-btn').onclick = () => executeSubmit(plan, overlay);
