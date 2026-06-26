@@ -206,7 +206,7 @@
         <div class="ps-row-inner" id="psWrapFixed" style="margin-left:28px;"></div>
         <button class="action-btn" id="dl-split-btn" style="background:#475569;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="downloadExcelSplit()">📥 단독 분류</button>
         <button class="action-btn" id="dl-main-btn" style="background:#2563eb;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="downloadExcel()">📥 전체 시트 분류</button>
-        <button class="action-btn" id="dl-submit-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="submitDirect()">접수</button>
+        <button class="action-btn" id="dl-submit-btn" style="background:#ea580c;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="submitDirect()">접수</button>
       </div>
     </div>
   </div>
@@ -367,7 +367,7 @@ window.toggleProdPanel = function(e) {
     expired:  '<span class="status-badge s-expired">만료</span>',
   };
 
-  // ── 비즈핏 직접 접수 (테스트) ─────────────────────────────────
+  // ── 비즈핏 직접 접수 ─────────────────────────────────────────
   const BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
   const BIZFIT_DOMAIN = 'http://higherad.co.kr';
   const BIZFIT_TAB    = '99'; // 전체 — 대행사별 단독/랜덤/통합 구분 정보가 없어 기본값 사용
