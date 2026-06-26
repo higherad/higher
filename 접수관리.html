@@ -1682,7 +1682,7 @@ window.toggleProdPanel = function(e) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal-box" style="width:680px;max-height:82vh;overflow-y:auto;">
+      <div class="modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
           <div class="modal-title" style="margin-bottom:0;">비즈핏 접수 확인</div>
           <button id="submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
@@ -1731,18 +1731,18 @@ window.toggleProdPanel = function(e) {
     const wrap = document.createElement('div'); wrap.style.overflowX = 'auto';
     const tbl  = document.createElement('table'); tbl.className = 'ag-table';
     tbl.style.tableLayout = 'fixed';
-    tbl.style.minWidth = '860px';
+    tbl.style.minWidth = '800px';
     tbl.innerHTML = `<thead><tr>
-      <th style="width:64px">등급</th>
+      <th style="width:60px">등급</th>
       <th style="width:110px">업체명</th>
-      <th style="width:130px">URL</th>
-      <th style="width:80px">MID</th>
+      <th style="width:150px">URL</th>
+      <th style="width:76px">MID</th>
       <th style="width:90px">순위키워드</th>
-      <th style="width:62px;text-align:right">일목표</th>
-      <th style="width:44px;text-align:center">일수</th>
-      <th style="width:84px">예약일</th>
-      <th style="width:60px;text-align:center">검색키워드</th>
-      <th style="width:80px;text-align:center">상태</th>
+      <th style="width:58px;text-align:right">일목표</th>
+      <th style="width:42px;text-align:center">일수</th>
+      <th style="width:80px">예약일</th>
+      <th style="width:56px;text-align:center">검색키워드</th>
+      <th style="width:78px;text-align:center">상태</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
     p.gradeRowEls = new Map(); // 등급명 → [statusTd, ...] (등록은 등급 단위로 일어나므로 같은 등급의 모든 행이 함께 갱신됨)
