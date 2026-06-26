@@ -1773,7 +1773,7 @@ window.toggleProdPanel = function(e) {
         <td style="text-align:right;white-space:nowrap">${(r.일목표||0).toLocaleString()}</td>
         <td style="text-align:center;white-space:nowrap">${r.일수||0}</td>
         <td style="white-space:nowrap">${escProd(r.예약일||'-')}</td>
-        <td style="text-align:center;vertical-align:middle;padding:10px 4px" title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;display:inline-block">${kwCount}개</span></td>
+        <td style="padding:10px 4px" title="${escProd(r.검색키워드||'')}"><div style="display:flex;justify-content:center"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap">${kwCount}개</span></div></td>
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
