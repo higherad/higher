@@ -1740,25 +1740,24 @@ window.toggleProdPanel = function(e) {
     hd.innerHTML = `<div><div class="aname">${escProd(p.agency)}</div><div class="ameta">총 ${p.rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}</div></div>`;
     block.appendChild(hd);
 
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'overflow-x:auto;overflow-y:visible;width:100%;';
+    const wrap = document.createElement('div'); wrap.style.width = '100%';
     const tbl  = document.createElement('table'); tbl.className = 'ag-table';
-    tbl.style.minWidth = '820px';
+    tbl.style.cssText = 'table-layout:fixed;width:100%';
     tbl.innerHTML = `<thead><tr>
-      <th style="white-space:nowrap">등급</th>
-      <th style="white-space:nowrap">업체명</th>
-      <th style="white-space:nowrap">URL</th>
-      <th style="white-space:nowrap">MID</th>
-      <th style="white-space:nowrap">순위키워드</th>
-      <th style="white-space:nowrap;text-align:right">일목표</th>
-      <th style="white-space:nowrap;text-align:center">일수</th>
-      <th style="white-space:nowrap">예약일</th>
-      <th style="white-space:nowrap;text-align:center">검색키워드</th>
-      <th style="white-space:nowrap;text-align:center">상태</th>
+      <th style="width:56px">등급</th>
+      <th style="width:100px">업체명</th>
+      <th style="width:162px">URL</th>
+      <th style="width:80px">MID</th>
+      <th style="width:96px">순위키워드</th>
+      <th style="width:62px;text-align:right">일목표</th>
+      <th style="width:44px;text-align:center">일수</th>
+      <th style="width:84px">예약일</th>
+      <th style="width:56px;text-align:center">검색키워드</th>
+      <th style="width:76px;text-align:center">상태</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
-    p.gradeRowEls = new Map(); // 등급명 → [statusTd, ...] (등록은 등급 단위로 일어나므로 같은 등급의 모든 행이 함께 갱신됨)
-    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    p.gradeRowEls = new Map();
+    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     p.rows.forEach(r => {
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
       const tr = document.createElement('tr');
@@ -1768,7 +1767,7 @@ window.toggleProdPanel = function(e) {
       tr.innerHTML = `
         <td style="${ell};font-weight:700" title="${escProd(r.상품등급명)}">${escProd(r.상품등급명)}</td>
         <td style="${ell}" title="${escProd(r.업체명)}">${escProd(r.업체명)}</td>
-        <td style="${ell}" title="${escProd(r.업체URL||'')}"><a href="${escProd(r.업체URL||'')}" target="_blank" style="color:var(--info);text-decoration:none">${escProd(r.업체URL||'-')}</a></td>
+        <td style="${ell}" title="${escProd(r.업체URL||'')}"><a href="${escProd(r.업체URL||'')}" target="_blank" style="color:var(--info);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escProd(r.업체URL||'-')}</a></td>
         <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.PID번호||r.업체PID번호||'')}">${escProd(r.PID번호||r.업체PID번호||'-')}</td>
         <td style="${ell}" title="${escProd(r.순위키워드||'')}">${escProd(r.순위키워드||'-')}</td>
         <td style="text-align:right;white-space:nowrap">${(r.일목표||0).toLocaleString()}</td>
