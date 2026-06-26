@@ -1672,7 +1672,8 @@ window.toggleProdPanel = function(e) {
   window.submitDirect = function() {
     const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
     // 접수(accepted) 상태만 직접 접수 대상 — 승인(active)은 이미 처리 완료
-    const base   = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
+    const keySet = new Set(checkedKeys);
+    const base   = checkedKeys.length ? allSlots.filter(s => keySet.has(s._key)) : filteredAll;
     const target = base.filter(s => s.status === 'accepted');
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재접수 불필요)'); return; }
     if (!ap().filter(p => !FIXED_PROD_IDS.has(p.id)).length) {
@@ -1807,6 +1808,7 @@ window.toggleProdPanel = function(e) {
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
     let okTotal = 0, failTotal = 0;
+    const slotMap = new Map(allSlots.map(s => [s._key, s]));
 
     // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
     async function processAgency(p) {
@@ -1835,6 +1837,7 @@ window.toggleProdPanel = function(e) {
       }
 
       const matchedGrades = new Set();
+      let agencyFail = 0;
       for (const g of gi.gradeGroups) {
         const grpRows = p.rows.filter(r => r.상품등급명 === g.gradeName);
         if (!grpRows.length) continue;
@@ -1851,12 +1854,13 @@ window.toggleProdPanel = function(e) {
         if (result.success) {
           okTotal += grpRows.length;
           // 등록 성공 즉시 각 슬롯을 승인(active)으로 전환
-          const slotKeys = [...new Set(grpRows.map(r => r._slotKey).filter(Boolean))];
+          const slotKeys = grpRows.map(r => r._slotKey).filter(Boolean);
           await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
-          slotKeys.forEach(k => { const idx = allSlots.findIndex(x => x._key === k); if (idx !== -1) allSlots[idx].status = 'active'; });
+          slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
           setGradeStatus(p, g.gradeName, '<span style="color:var(--accent);">✅ 완료</span>');
         } else {
           failTotal += grpRows.length;
+          agencyFail += grpRows.length;
           setGradeStatus(p, g.gradeName, `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`);
         }
       }
@@ -1864,12 +1868,13 @@ window.toggleProdPanel = function(e) {
       p.gradeRowEls.forEach((tds, name) => {
         if (!matchedGrades.has(name)) {
           setGradeStatus(p, name, '<span style="color:var(--danger);">❌ 등급 불일치</span>');
-          failTotal += byGradeCount(p.rows, name);
+          const cnt = byGradeCount(p.rows, name);
+          failTotal += cnt;
+          agencyFail += cnt;
         }
       });
-      const agencyFailCount = [...p.gradeRowEls.values()].flat().filter(td => td.textContent.includes('❌')).length;
       if (p.msgEl) {
-        p.msgEl.innerHTML = agencyFailCount
+        p.msgEl.innerHTML = agencyFail
           ? `<span style="color:var(--danger);font-size:11px;">일부 등급 실패 — 상태 칸에서 사유 확인(마우스오버)</span>`
           : `<span style="color:var(--accent);font-size:11px;">✅ 전체 접수 완료</span>`;
       }
