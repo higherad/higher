@@ -1694,15 +1694,15 @@ window.toggleProdPanel = function(e) {
     document.body.appendChild(overlay);
 
     const bodyEl = overlay.querySelector('#submit-body');
-    let totalRows = 0, totalTarget = 0;
+    let totalStores = 0, totalTarget = 0;
     plan.forEach(p => {
       const block = buildSubmitAgencyBlock(p);
       bodyEl.appendChild(block);
-      totalRows += p.rows.length;
+      totalStores += new Set(p.rows.map(r => r.업체명)).size;
       totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
     });
     overlay.querySelector('#submit-sub').textContent =
-      `대행사 ${plan.length}곳 · 일반 상품 ${totalRows}건 · 목표 합계 ${totalTarget.toLocaleString()} — 검토 후 "접수 신청"을 눌러야 실제로 전송됩니다.`;
+      `대행사 ${plan.length}곳 · 일반 상품 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} — 검토 후 접수 신청을 눌러주세요.`;
 
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#submit-apply-btn').onclick = () => executeSubmit(plan, overlay);
