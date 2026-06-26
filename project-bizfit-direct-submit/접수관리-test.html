@@ -1671,8 +1671,10 @@ window.toggleProdPanel = function(e) {
 
   window.submitDirect = function() {
     const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
-    const target = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
-    if (!target.length) { alert('접수할 데이터가 없습니다.'); return; }
+    // 접수(accepted) 상태만 직접 접수 대상 — 승인(active)은 이미 처리 완료
+    const base   = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
+    const target = base.filter(s => s.status === 'accepted');
+    if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재접수 불필요)'); return; }
     if (!ap().filter(p => !FIXED_PROD_IDS.has(p.id)).length) {
       alert('활성화된 일반 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.\n(고정 상품은 직접 접수 대상이 아닙니다)');
       return;
@@ -1804,11 +1806,11 @@ window.toggleProdPanel = function(e) {
     window.bizfitSubmitting = true;
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
-    const approvedKeys = new Set();
     let okTotal = 0, failTotal = 0;
 
-    for (const p of plan) {
-      if (!p.rows.length) continue;
+    // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
+    async function processAgency(p) {
+      if (!p.rows.length) return;
       setAllStatus(p, '<span style="color:var(--info);">⏳</span>');
 
       const account = p.realAg ? await fetchBizfitAccount(p.realAg) : null;
@@ -1816,7 +1818,7 @@ window.toggleProdPanel = function(e) {
         setAllStatus(p, '<span style="color:var(--danger);">❌ 계정 미등록</span>');
         if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">비즈핏 계정 정보 미등록 (회원 관리에서 BizFit ID/PW 등록 필요)</span>';
         failTotal += p.rows.length;
-        continue;
+        return;
       }
 
       let gi;
@@ -1829,7 +1831,7 @@ window.toggleProdPanel = function(e) {
         setAllStatus(p, `<span style="color:var(--danger);" title="${escProd(msg)}">❌ 등급조회 실패</span>`);
         if (p.msgEl) p.msgEl.innerHTML = `<span style="color:var(--danger);font-size:11px;">${escProd(msg)}</span>`;
         failTotal += p.rows.length;
-        continue;
+        return;
       }
 
       const matchedGrades = new Set();
@@ -1848,14 +1850,17 @@ window.toggleProdPanel = function(e) {
         } catch(e) { result = { success:false, message: e.message }; }
         if (result.success) {
           okTotal += grpRows.length;
-          grpRows.forEach(r => approvedKeys.add(r._slotKey));
+          // 등록 성공 즉시 각 슬롯을 승인(active)으로 전환
+          const slotKeys = [...new Set(grpRows.map(r => r._slotKey).filter(Boolean))];
+          await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
+          slotKeys.forEach(k => { const idx = allSlots.findIndex(x => x._key === k); if (idx !== -1) allSlots[idx].status = 'active'; });
           setGradeStatus(p, g.gradeName, '<span style="color:var(--accent);">✅ 완료</span>');
         } else {
           failTotal += grpRows.length;
           setGradeStatus(p, g.gradeName, `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`);
         }
       }
-      // 시트에는 있지만 비즈핏 등급맵과 매칭 안 된 등급명
+      // 비즈핏 등급맵과 매칭 안 된 등급명
       p.gradeRowEls.forEach((tds, name) => {
         if (!matchedGrades.has(name)) {
           setGradeStatus(p, name, '<span style="color:var(--danger);">❌ 등급 불일치</span>');
@@ -1870,10 +1875,8 @@ window.toggleProdPanel = function(e) {
       }
     }
 
-    if (approvedKeys.size) {
-      await Promise.all([...approvedKeys].map(k => HA.approveSlot(k)));
-      approvedKeys.forEach(k => { const idx = allSlots.findIndex(x => x._key === k); if (idx !== -1) allSlots[idx].status = 'active'; });
-    }
+    // 대행사(계정)별로 병렬 처리
+    await Promise.all(plan.map(p => processAgency(p)));
 
     window.bizfitSubmitting = false;
     applyBtn.textContent = failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`;
