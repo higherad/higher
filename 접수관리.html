@@ -1744,10 +1744,10 @@ window.toggleProdPanel = function(e) {
     const tbl  = document.createElement('table'); tbl.className = 'ag-table';
     tbl.style.cssText = 'table-layout:fixed;width:100%';
     tbl.innerHTML = `<thead><tr>
-      <th style="width:56px">등급</th>
+      <th style="width:72px">등급</th>
       <th style="width:100px">업체명</th>
-      <th style="width:162px">URL</th>
-      <th style="width:80px">MID</th>
+      <th style="width:130px">URL</th>
+      <th style="width:100px">MID</th>
       <th style="width:96px">순위키워드</th>
       <th style="width:62px;text-align:right">일목표</th>
       <th style="width:44px;text-align:center">일수</th>
@@ -1773,7 +1773,7 @@ window.toggleProdPanel = function(e) {
         <td style="text-align:right;white-space:nowrap">${(r.일목표||0).toLocaleString()}</td>
         <td style="text-align:center;white-space:nowrap">${r.일수||0}</td>
         <td style="white-space:nowrap">${escProd(r.예약일||'-')}</td>
-        <td style="text-align:center" title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap">${kwCount}개</span></td>
+        <td style="text-align:center;vertical-align:middle" title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;display:inline-block">${kwCount}개</span></td>
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
