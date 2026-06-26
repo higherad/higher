@@ -1731,18 +1731,18 @@ window.toggleProdPanel = function(e) {
     const wrap = document.createElement('div'); wrap.style.overflowX = 'auto';
     const tbl  = document.createElement('table'); tbl.className = 'ag-table';
     tbl.style.tableLayout = 'fixed';
-    tbl.style.minWidth = '800px';
+    tbl.style.minWidth = '840px';
     tbl.innerHTML = `<thead><tr>
-      <th style="width:60px">등급</th>
-      <th style="width:110px">업체명</th>
-      <th style="width:150px">URL</th>
-      <th style="width:76px">MID</th>
-      <th style="width:90px">순위키워드</th>
-      <th style="width:58px;text-align:right">일목표</th>
-      <th style="width:42px;text-align:center">일수</th>
-      <th style="width:80px">예약일</th>
-      <th style="width:56px;text-align:center">검색키워드</th>
-      <th style="width:78px;text-align:center">상태</th>
+      <th style="width:60px;white-space:nowrap">등급</th>
+      <th style="width:110px;white-space:nowrap">업체명</th>
+      <th style="width:150px;white-space:nowrap">URL</th>
+      <th style="width:76px;white-space:nowrap">MID</th>
+      <th style="width:90px;white-space:nowrap">순위키워드</th>
+      <th style="width:68px;text-align:right;white-space:nowrap">일목표</th>
+      <th style="width:52px;text-align:center;white-space:nowrap">일수</th>
+      <th style="width:80px;white-space:nowrap">예약일</th>
+      <th style="width:68px;text-align:center;white-space:nowrap">검색키워드</th>
+      <th style="width:78px;text-align:center;white-space:nowrap">상태</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
     p.gradeRowEls = new Map(); // 등급명 → [statusTd, ...] (등록은 등급 단위로 일어나므로 같은 등급의 모든 행이 함께 갱신됨)
