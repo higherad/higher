@@ -1733,13 +1733,6 @@ window.toggleProdPanel = function(e) {
       return block;
     }
 
-    const groups = new Map(); // "업체명__등급" → { storeName, gradeName, rows }
-    p.rows.forEach(r => {
-      const key = `${r.업체명}__${r.상품등급명}`;
-      if (!groups.has(key)) groups.set(key, { storeName: r.업체명, gradeName: r.상품등급명, rows: [] });
-      groups.get(key).rows.push(r);
-    });
-
     const totalTarget = p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
     const hd = document.createElement('div');
     hd.className = 'agency-hd';
@@ -1748,21 +1741,44 @@ window.toggleProdPanel = function(e) {
 
     const wrap = document.createElement('div'); wrap.style.overflowX = 'auto';
     const tbl  = document.createElement('table'); tbl.className = 'ag-table';
-    tbl.innerHTML = '<thead><tr><th>업체명</th><th>수량</th><th>등급</th><th>건수</th><th>목표 합계</th><th>상태</th></tr></thead>';
+    tbl.style.tableLayout = 'fixed';
+    tbl.style.minWidth = '860px';
+    tbl.innerHTML = `<thead><tr>
+      <th style="width:64px">등급</th>
+      <th style="width:110px">업체명</th>
+      <th style="width:130px">URL</th>
+      <th style="width:80px">MID</th>
+      <th style="width:90px">순위키워드</th>
+      <th style="width:62px;text-align:right">일목표</th>
+      <th style="width:44px;text-align:center">일수</th>
+      <th style="width:84px">예약일</th>
+      <th style="width:110px">검색키워드</th>
+      <th style="width:80px;text-align:center">상태</th>
+    </tr></thead>`;
     const tbody = document.createElement('tbody');
     p.gradeRowEls = new Map(); // 등급명 → [statusTd, ...] (등록은 등급 단위로 일어나므로 같은 등급의 모든 행이 함께 갱신됨)
-    groups.forEach(g => {
-      const qty = g.rows[0].일목표;
-      const cnt = g.rows.length;
-      const tgt = g.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
-      const tr  = document.createElement('tr');
+    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    p.rows.forEach(r => {
+      const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+      const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
+      statusTd.style.cssText = 'text-align:center;white-space:nowrap';
       statusTd.textContent = '-';
-      tr.innerHTML = `<td style="text-align:left">${escProd(g.storeName)}</td><td>${qty.toLocaleString()}</td><td>${escProd(g.gradeName)}</td><td>${cnt}건</td><td>${tgt.toLocaleString()}</td>`;
+      tr.innerHTML = `
+        <td style="${ell};font-weight:700" title="${escProd(r.상품등급명)}">${escProd(r.상품등급명)}</td>
+        <td style="${ell}" title="${escProd(r.업체명)}">${escProd(r.업체명)}</td>
+        <td style="${ell}" title="${escProd(r.업체URL||'')}"><a href="${escProd(r.업체URL||'')}" target="_blank" style="color:var(--info);text-decoration:none">${escProd(r.업체URL||'-')}</a></td>
+        <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.PID번호||r.업체PID번호||'')}">${escProd(r.PID번호||r.업체PID번호||'-')}</td>
+        <td style="${ell}" title="${escProd(r.순위키워드||'')}">${escProd(r.순위키워드||'-')}</td>
+        <td style="text-align:right;white-space:nowrap">${(r.일목표||0).toLocaleString()}</td>
+        <td style="text-align:center;white-space:nowrap">${r.일수||0}</td>
+        <td style="white-space:nowrap">${escProd(r.예약일||'-')}</td>
+        <td style="${ell}" title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;margin-right:4px">${kwCount}개</span>${escProd(r.검색키워드||'-')}</td>
+      `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
-      if (!p.gradeRowEls.has(g.gradeName)) p.gradeRowEls.set(g.gradeName, []);
-      p.gradeRowEls.get(g.gradeName).push(statusTd);
+      if (!p.gradeRowEls.has(r.상품등급명)) p.gradeRowEls.set(r.상품등급명, []);
+      p.gradeRowEls.get(r.상품등급명).push(statusTd);
     });
     tbl.appendChild(tbody); wrap.appendChild(tbl); block.appendChild(wrap);
 
