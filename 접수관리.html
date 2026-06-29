@@ -1718,7 +1718,13 @@ window.toggleProdPanel = function(e) {
       `<span style="color:var(--muted)">대행사 ${plan.length}곳 · 일반 상품 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
 
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
-    overlay.querySelector('#submit-apply-btn').onclick = () => executeSubmit(plan, overlay);
+    const applyBtn = overlay.querySelector('#submit-apply-btn');
+    const allActive = target.every(s => s.status === 'active');
+    if (allActive) {
+      applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+    } else {
+      applyBtn.onclick = () => executeSubmit(plan, overlay);
+    }
     overlay.addEventListener('click', e => { if (e.target === overlay && !window.bizfitSubmitting) overlay.remove(); });
   }
 
@@ -1883,7 +1889,8 @@ window.toggleProdPanel = function(e) {
 
     window.bizfitSubmitting = false;
     applyBtn.textContent = failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`;
-    applyBtn.style.background = failTotal ? '#b91c1c' : '#16a34a';
+    applyBtn.style.background = failTotal ? '#b91c1c' : '#475569';
+    applyBtn.style.cursor = 'default';
     closeBtn.disabled = false;
     closeBtn.onclick = () => { overlay.remove(); renderReceipts(false); };
   }
