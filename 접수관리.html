@@ -1767,6 +1767,7 @@ window.toggleProdPanel = function(e) {
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     p.rows.forEach(r => {
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+      const kwOver = kwCount > 50;
       const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
       statusTd.style.cssText = 'text-align:center;white-space:nowrap';
@@ -1780,10 +1781,11 @@ window.toggleProdPanel = function(e) {
         <td style="text-align:right;white-space:nowrap">${(r.일목표||0).toLocaleString()}</td>
         <td style="text-align:center;white-space:nowrap">${r.일수||0}</td>
         <td style="white-space:nowrap">${escProd(r.예약일||'-')}</td>
-        <td title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap">${kwCount}개</span></td>
+        <td title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwOver?'#fee2e2':'#eff6ff'};color:${kwOver?'#dc2626':'#1d4ed8'};border:1px solid ${kwOver?'#fca5a5':'#bfdbfe'};white-space:nowrap">${kwCount}개${kwOver?' ⚠️':''}</span></td>
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
+      r._statusTd = statusTd;
       if (!p.gradeRowEls.has(r.상품등급명)) p.gradeRowEls.set(r.상품등급명, []);
       p.gradeRowEls.get(r.상품등급명).push(statusTd);
     });
@@ -1819,34 +1821,51 @@ window.toggleProdPanel = function(e) {
       if (!p.rows.length) return;
       setAllStatus(p, '<span style="color:var(--info);">⏳</span>');
 
+      // 키워드 50개 초과 행 즉시 실패 처리
+      p.rows.forEach(r => {
+        const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+        if (kwCount > 50) {
+          r._kwFail = true;
+          if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="검색키워드 50개 초과">❌ 키워드 초과</span>';
+          failTotal++;
+        }
+      });
+
+      const validRows = p.rows.filter(r => !r._kwFail);
+
+      if (!validRows.length) {
+        if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">전체 키워드 초과 (50개 제한)</span>';
+        return;
+      }
+
       const account = p.realAg ? await fetchBizfitAccount(p.realAg) : null;
       if (!account) {
-        setAllStatus(p, '<span style="color:var(--danger);">❌ 계정 미등록</span>');
+        validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);">❌ 계정 미등록</span>'; });
         if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">비즈핏 계정 정보 미등록 (회원 관리에서 BizFit ID/PW 등록 필요)</span>';
-        failTotal += p.rows.length;
+        failTotal += validRows.length;
         return;
       }
 
       let gi;
       try {
-        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, rawData: p.rows });
+        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, ...rest}) => rest) });
       } catch(e) { gi = { success:false, message: '서버 호출 실패: '+e.message }; }
 
       if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
         const msg = gi.message || '전송 가능한 등급이 없습니다.';
-        setAllStatus(p, `<span style="color:var(--danger);" title="${escProd(msg)}">❌ 등급조회 실패</span>`);
+        validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(msg)}">❌ 등급조회 실패</span>`; });
         if (p.msgEl) p.msgEl.innerHTML = `<span style="color:var(--danger);font-size:11px;">${escProd(msg)}</span>`;
-        failTotal += p.rows.length;
+        failTotal += validRows.length;
         return;
       }
 
       const matchedGrades = new Set();
       let agencyFail = 0;
       for (const g of gi.gradeGroups) {
-        const grpRows = p.rows.filter(r => r.상품등급명 === g.gradeName);
+        const grpRows = validRows.filter(r => r.상품등급명 === g.gradeName);
         if (!grpRows.length) continue;
         matchedGrades.add(g.gradeName);
-        const payloadRows = grpRows.map(({_slotKey, ...rest}) => rest);
+        const payloadRows = grpRows.map(({_slotKey, _statusTd, _kwFail, ...rest}) => rest);
         let result;
         try {
           result = await callBizfitProxy('/register', {
@@ -1861,25 +1880,28 @@ window.toggleProdPanel = function(e) {
           const slotKeys = grpRows.map(r => r._slotKey).filter(Boolean);
           await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
           slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
-          setGradeStatus(p, g.gradeName, '<span style="color:var(--accent);">✅ 완료</span>');
+          grpRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
         } else {
           failTotal += grpRows.length;
           agencyFail += grpRows.length;
-          setGradeStatus(p, g.gradeName, `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`);
+          grpRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
         }
       }
-      // 비즈핏 등급맵과 매칭 안 된 등급명
-      p.gradeRowEls.forEach((tds, name) => {
+      // 비즈핏 등급맵과 매칭 안 된 등급명 (유효 행 기준)
+      const validGradeNames = new Set(validRows.map(r => r.상품등급명));
+      validGradeNames.forEach(name => {
         if (!matchedGrades.has(name)) {
-          setGradeStatus(p, name, '<span style="color:var(--danger);">❌ 등급 불일치</span>');
-          const cnt = byGradeCount(p.rows, name);
-          failTotal += cnt;
-          agencyFail += cnt;
+          const unmatchedRows = validRows.filter(r => r.상품등급명 === name);
+          unmatchedRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);">❌ 등급 불일치</span>'; });
+          failTotal += unmatchedRows.length;
+          agencyFail += unmatchedRows.length;
         }
       });
       if (p.msgEl) {
-        p.msgEl.innerHTML = agencyFail
-          ? `<span style="color:var(--danger);font-size:11px;">일부 등급 실패 — 상태 칸에서 사유 확인(마우스오버)</span>`
+        const kwFailCount = p.rows.filter(r => r._kwFail).length;
+        const parts = [kwFailCount ? `키워드 초과 ${kwFailCount}건` : '', agencyFail ? '일부 등급 실패 — 상태 칸에서 사유 확인(마우스오버)' : ''].filter(Boolean);
+        p.msgEl.innerHTML = parts.length
+          ? `<span style="color:var(--danger);font-size:11px;">${parts.join(' / ')}</span>`
           : `<span style="color:var(--accent);font-size:11px;">✅ 전체 접수 완료</span>`;
       }
     }
