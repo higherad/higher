@@ -1921,32 +1921,33 @@ window.toggleProdPanel = function(e) {
   async function executeYoupflSubmit(rows, overlay) {
     const applyBtn = overlay.querySelector('#youpfl-apply-btn');
     const closeBtn = overlay.querySelector('#youpfl-close-btn');
-    applyBtn.disabled = true; applyBtn.textContent = '⏳ 생성 중...'; applyBtn.style.background = '#6b7280';
+    const subEl    = overlay.querySelector('#youpfl-sub');
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 업로드 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
 
-    function buildAndDownload() {
-      const XLSX   = window.XLSX;
-      const header = ['순위키워드\n(100등이내)', '작업키워드\n(100등이내)', '플레이스ID', '작업타수', '신청일수', '미션', '익일시작'];
-      const data   = rows.map(r => [r.rankKw||'', r.workKw||'', r.placeId||'', r.target||0, r.days||0, '', '']);
-      const ws     = XLSX.utils.aoa_to_sheet([header, ...data]);
-      ws['!cols']  = [16,16,13,9,8,7,9].map(w => ({wch: w}));
-      const wb     = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '유입플접수');
-      const today  = new Date().toISOString().slice(0,10).replace(/-/g,'');
-      XLSX.writeFile(wb, `유입플_접수_${today}.xlsx`);
-      rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--info);">📥</span>'; });
-      overlay.querySelector('#youpfl-sub').innerHTML =
-        '<span style="color:var(--info);font-weight:600;">엑셀 다운로드 완료 — premiumset.shop에서 직접 업로드해주세요.</span>';
-      applyBtn.textContent = '✅ 엑셀 다운로드됨'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
-      closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
+    let result;
+    try {
+      result = await callBizfitProxy('/youpfl-upload', {
+        rows: rows.map(r => ({ rankKw: r.rankKw, workKw: r.workKw, placeId: r.placeId, target: r.target, days: r.days })),
+      });
+    } catch(e) {
+      result = { success: false, message: '서버 호출 실패: ' + e.message };
     }
 
-    if (window.XLSX) { buildAndDownload(); }
-    else {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      s.onload = buildAndDownload;
-      document.head.appendChild(s);
+    if (result.success) {
+      rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+      subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ ${escProd(result.message||'업로드 완료')}</span>`;
+      const slotMap = new Map(allSlots.map(s => [s._key, s]));
+      const slotKeys = rows.map(r => r._slotKey).filter(Boolean);
+      await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
+      slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+      applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+      closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); renderReceipts(false); };
+    } else {
+      rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
+      subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'업로드 실패')}</span>`;
+      applyBtn.textContent = '❌ 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
+      closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
     }
   }
 
