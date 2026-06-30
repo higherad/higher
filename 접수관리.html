@@ -1679,6 +1679,7 @@ window.toggleProdPanel = function(e) {
       if (yAmt <= 0) return null;
       return {
         _slotKey:  s._key,
+        agencyId:  s.agencyId||'(대행사 미지정)',
         storeName: s.storeName||'',
         rankKw:    s.rankKeyword||'',
         workKw:    yupfl ? kwForProd(s.searchKeyword||'', yupfl) : (s.searchKeyword||''),
@@ -1778,10 +1779,14 @@ window.toggleProdPanel = function(e) {
     // 고정 탭 구성
     const youpflBodyEl = overlay.querySelector('#youpfl-body');
     if (hasFixed) {
-      youpflBodyEl.appendChild(buildYoupflTableBlock(yupflRows));
+      const yupflAgencies = [...new Set(yupflRows.map(r => r.agencyId))];
+      yupflAgencies.forEach(ag => {
+        const agRows = yupflRows.filter(r => r.agencyId === ag);
+        youpflBodyEl.appendChild(buildYoupflTableBlock(agRows, ag));
+      });
       const totalTarget = yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
       overlay.querySelector('#youpfl-sub').innerHTML =
-        `<span style="color:var(--muted)">유입플 ${yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+        `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
       overlay.querySelector('#youpfl-apply-btn').onclick = () => executeYoupflSubmit(yupflRows, overlay);
     } else {
       overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
@@ -1873,7 +1878,7 @@ window.toggleProdPanel = function(e) {
     return block;
   }
 
-  function buildYoupflTableBlock(rows) {
+  function buildYoupflTableBlock(rows, agencyName) {
     const block = document.createElement('div');
     block.className = 'agency-block';
     if (!rows.length) {
@@ -1883,7 +1888,7 @@ window.toggleProdPanel = function(e) {
     const totalTarget = rows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
     const hd = document.createElement('div');
     hd.className = 'agency-hd';
-    hd.innerHTML = `<div><div class="aname">유입플 (고정)</div><div class="ameta">총 ${rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}</div></div>`;
+    hd.innerHTML = `<div><div class="aname">${escProd(agencyName||'')} <span style="font-weight:400;font-size:13px;color:var(--text2)">(유입플)</span></div><div class="ameta">총 ${rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}</div></div>`;
     block.appendChild(hd);
 
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
