@@ -136,6 +136,10 @@
   .dl-prog-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
   .dl-prog-fill{height:100%;background:linear-gradient(90deg,var(--info),#7c3aed);border-radius:2px;width:0%;transition:width .3s;}
   .dl-prog-lbl{font-size:11px;color:var(--text2);text-align:center;margin-top:6px;}
+  /* 접수 모달 탭 */
+  .submit-tab{padding:9px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:none;cursor:pointer;color:var(--text2);font-family:inherit;margin-bottom:-2px;transition:color .15s,border-color .15s;}
+  .submit-tab.active{color:var(--info);border-bottom-color:var(--info);}
+  .submit-tab:disabled{opacity:.3;cursor:not-allowed;}
   /* 상품 설정 모달 */
   .prod-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:none;align-items:center;justify-content:center;}
   .prod-modal-bg.show{display:flex;}
@@ -1668,65 +1672,127 @@ window.toggleProdPanel = function(e) {
     return rows;
   }
 
+  function buildYoupflRows(slots) {
+    return slots.map(s => {
+      const yAmt = Math.min(yupflAlloc(s.dailyTarget||0), s.dailyTarget||0);
+      if (yAmt <= 0) return null;
+      return {
+        _slotKey:  s._key,
+        storeName: s.storeName||'',
+        rankKw:    s.rankKeyword||'',
+        workKw:    s.searchKeyword||'',
+        placeId:   s.mid||'',
+        target:    yAmt,
+        days:      s.days||0,
+        startDate: s.startDate||'',
+      };
+    }).filter(Boolean);
+  }
+
   window.submitDirect = function() {
     const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
-    // 접수(accepted) 상태만 직접 접수 대상 — 승인(active)은 이미 처리 완료
     const keySet = new Set(checkedKeys);
     const base   = checkedKeys.length ? allSlots.filter(s => keySet.has(s._key)) : filteredAll;
     const target = base.filter(s => s.status === 'accepted');
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재접수 불필요)'); return; }
-    if (!ap().filter(p => !FIXED_PROD_IDS.has(p.id)).length) {
-      alert('활성화된 일반 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.\n(고정 상품은 직접 접수 대상이 아닙니다)');
+    const hasNormal = ap().some(p => !FIXED_PROD_IDS.has(p.id));
+    const hasFixed  = ap().some(p => p.fixedAlloc);
+    if (!hasNormal && !hasFixed) {
+      alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
     }
     openSubmitModal(target);
   };
 
-  // 정산관리의 "정산 등록" 팝업과 동일한 패턴: 팝업은 즉시 띄워서 정리된 목록을 먼저 보여주고,
-  // "접수 신청" 버튼을 눌러야 실제로 grade-info/register API가 나간다.
   function openSubmitModal(target) {
-    const agencies = getAgencies(target);
-    const plan = agencies.map(ag => {
-      const realAg = ag === '(대행사 미지정)' ? '' : ag;
-      const rows = buildNormalRows(slotsByAgency(target, ag));
-      return { agency: ag, realAg, rows };
-    });
+    const agencies   = getAgencies(target);
+    const normalPlan = agencies.map(ag => ({
+      agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
+      rows: buildNormalRows(slotsByAgency(target, ag)),
+    }));
+    const yupflRows  = buildYoupflRows(target);
+    const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
+    const hasFixed   = yupflRows.length > 0;
+    const defaultTab = hasNormal ? 'normal' : 'fixed';
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;overflow-x:hidden;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
-          <div class="modal-title" style="margin-bottom:0;">비즈핏 접수 확인</div>
-          <button id="submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
+          <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
         </div>
-        <div style="font-size:12px;margin-bottom:14px;" id="submit-sub"></div>
-        <div id="submit-body"></div>
-        <div class="modal-footer"><button class="btn-cancel" id="submit-close-btn">닫기</button></div>
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
+          <button id="stab-normal" class="submit-tab${defaultTab==='normal'?' active':''}"
+            onclick="switchSubmitTab('normal')"${!hasNormal?' disabled':''}>일반</button>
+          <button id="stab-fixed" class="submit-tab${defaultTab==='fixed'?' active':''}"
+            onclick="switchSubmitTab('fixed')"${!hasFixed?' disabled':''}>고정</button>
+        </div>
+        <div id="stab-panel-normal" style="display:${defaultTab==='normal'?'block':'none'}">
+          <div style="font-size:12px;margin-bottom:14px;" id="submit-sub"></div>
+          <div id="submit-body"></div>
+          <div class="modal-footer">
+            <button class="btn-cancel" id="submit-close-btn">닫기</button>
+            <button id="submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
+          </div>
+        </div>
+        <div id="stab-panel-fixed" style="display:${defaultTab==='fixed'?'block':'none'}">
+          <div style="font-size:12px;margin-bottom:14px;" id="youpfl-sub"></div>
+          <div id="youpfl-body"></div>
+          <div class="modal-footer">
+            <button class="btn-cancel" id="youpfl-close-btn">닫기</button>
+            <button id="youpfl-apply-btn" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
+          </div>
+        </div>
       </div>`;
     document.body.appendChild(overlay);
 
-    const bodyEl = overlay.querySelector('#submit-body');
-    let totalStores = 0, totalTarget = 0;
-    plan.forEach(p => {
-      const block = buildSubmitAgencyBlock(p);
-      bodyEl.appendChild(block);
-      totalStores += new Set(p.rows.map(r => r.업체명)).size;
-      totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
-    });
-    overlay.querySelector('#submit-sub').innerHTML =
-      `<span style="color:var(--muted)">대행사 ${plan.length}곳 · 일반 상품 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
-
-    overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
-    const applyBtn = overlay.querySelector('#submit-apply-btn');
-    const allActive = target.every(s => s.status === 'active');
-    if (allActive) {
-      applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
-    } else {
-      applyBtn.onclick = () => executeSubmit(plan, overlay);
+    // 일반 탭 구성
+    if (hasNormal) {
+      const bodyEl = overlay.querySelector('#submit-body');
+      let totalStores = 0, totalTarget = 0;
+      normalPlan.forEach(p => {
+        const block = buildSubmitAgencyBlock(p);
+        bodyEl.appendChild(block);
+        totalStores += new Set(p.rows.map(r => r.업체명)).size;
+        totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+      });
+      overlay.querySelector('#submit-sub').innerHTML =
+        `<span style="color:var(--muted)">대행사 ${normalPlan.length}곳 · 일반 상품 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+      const applyBtn = overlay.querySelector('#submit-apply-btn');
+      const allActive = target.every(s => s.status === 'active');
+      if (allActive) {
+        applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+      } else {
+        applyBtn.onclick = () => executeSubmit(normalPlan, overlay);
+      }
     }
+
+    // 고정 탭 구성
+    const youpflBodyEl = overlay.querySelector('#youpfl-body');
+    if (hasFixed) {
+      youpflBodyEl.appendChild(buildYoupflTableBlock(yupflRows));
+      const totalTarget = yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
+      overlay.querySelector('#youpfl-sub').innerHTML =
+        `<span style="color:var(--muted)">유입플 ${yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+      overlay.querySelector('#youpfl-apply-btn').onclick = () => executeYoupflSubmit(yupflRows, overlay);
+    } else {
+      overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
+      overlay.querySelector('#youpfl-apply-btn').disabled = true;
+    }
+    overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
+    overlay.querySelector('#youpfl-close-btn').onclick = () => overlay.remove();
     overlay.addEventListener('click', e => { if (e.target === overlay && !window.bizfitSubmitting) overlay.remove(); });
   }
+
+  window.switchSubmitTab = function(tab) {
+    ['normal','fixed'].forEach(k => {
+      const panel = document.getElementById(`stab-panel-${k}`);
+      const btn   = document.getElementById(`stab-${k}`);
+      if (panel) panel.style.display = k === tab ? 'block' : 'none';
+      if (btn)   btn.classList.toggle('active', k === tab);
+    });
+  };
 
   // 대행사 1곳에 대한 미리보기 블록 — 충전 신청 팝업(정산관리)과 동일한 agency-block/ag-table 스타일.
   // 행 = (업체명, 등급) 쌍. 상태칸은 접수 신청 전까지 '-'
@@ -1798,6 +1864,90 @@ window.toggleProdPanel = function(e) {
     p.msgEl = ft.querySelector('.totals');
 
     return block;
+  }
+
+  function buildYoupflTableBlock(rows) {
+    const block = document.createElement('div');
+    block.className = 'agency-block';
+    if (!rows.length) {
+      block.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--text2);">유입플 배분 대상이 없습니다.</div>';
+      return block;
+    }
+    const totalTarget = rows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
+    const hd = document.createElement('div');
+    hd.className = 'agency-hd';
+    hd.innerHTML = `<div><div class="aname">유입플 (고정)</div><div class="ameta">총 ${rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}</div></div>`;
+    block.appendChild(hd);
+
+    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
+    const tbl = document.createElement('table');
+    tbl.className = 'ag-table';
+    tbl.style.cssText = 'table-layout:fixed;width:100%';
+    tbl.innerHTML = `<thead><tr>
+      <th style="width:100px">업체명</th>
+      <th style="width:100px">순위키워드</th>
+      <th style="width:68px;text-align:center">작업키워드</th>
+      <th style="width:110px">플레이스ID</th>
+      <th style="width:72px;text-align:right">작업타수</th>
+      <th style="width:44px;text-align:center">일수</th>
+      <th style="width:84px">시작일</th>
+      <th style="width:76px;text-align:center">상태</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    rows.forEach(r => {
+      const kwCount = (r.workKw||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+      const tr = document.createElement('tr');
+      const statusTd = document.createElement('td');
+      statusTd.style.cssText = 'text-align:center;white-space:nowrap';
+      statusTd.textContent = '-';
+      tr.innerHTML = `
+        <td style="${ell}" title="${escProd(r.storeName)}">${escProd(r.storeName||'-')}</td>
+        <td style="${ell}" title="${escProd(r.rankKw)}">${escProd(r.rankKw||'-')}</td>
+        <td style="text-align:center" title="${escProd(r.workKw||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap">${kwCount}개</span></td>
+        <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.placeId||'')}">${escProd(r.placeId||'-')}</td>
+        <td style="text-align:right;white-space:nowrap">${(r.target||0).toLocaleString()}</td>
+        <td style="text-align:center;white-space:nowrap">${r.days||0}</td>
+        <td style="white-space:nowrap">${escProd(r.startDate||'-')}</td>
+      `;
+      tr.appendChild(statusTd);
+      tbody.appendChild(tr);
+      r._statusTd = statusTd;
+    });
+    tbl.appendChild(tbody);
+    block.appendChild(tbl);
+    return block;
+  }
+
+  async function executeYoupflSubmit(rows, overlay) {
+    const applyBtn = overlay.querySelector('#youpfl-apply-btn');
+    const closeBtn = overlay.querySelector('#youpfl-close-btn');
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 생성 중...'; applyBtn.style.background = '#6b7280';
+    closeBtn.disabled = true;
+
+    function buildAndDownload() {
+      const XLSX   = window.XLSX;
+      const header = ['순위키워드\n(100등이내)', '작업키워드\n(100등이내)', '플레이스ID', '작업타수', '신청일수', '미션', '익일시작'];
+      const data   = rows.map(r => [r.rankKw||'', r.workKw||'', r.placeId||'', r.target||0, r.days||0, '', '']);
+      const ws     = XLSX.utils.aoa_to_sheet([header, ...data]);
+      ws['!cols']  = [16,16,13,9,8,7,9].map(w => ({wch: w}));
+      const wb     = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '유입플접수');
+      const today  = new Date().toISOString().slice(0,10).replace(/-/g,'');
+      XLSX.writeFile(wb, `유입플_접수_${today}.xlsx`);
+      rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--info);">📥</span>'; });
+      overlay.querySelector('#youpfl-sub').innerHTML =
+        '<span style="color:var(--info);font-weight:600;">엑셀 다운로드 완료 — premiumset.shop에서 직접 업로드해주세요.</span>';
+      applyBtn.textContent = '✅ 엑셀 다운로드됨'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+      closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
+    }
+
+    if (window.XLSX) { buildAndDownload(); }
+    else {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = buildAndDownload;
+      document.head.appendChild(s);
+    }
   }
 
   function setGradeStatus(p, gradeName, html) {
