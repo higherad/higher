@@ -1918,6 +1918,8 @@ window.toggleProdPanel = function(e) {
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 업로드 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
     window.bizfitSubmitting = true;
+    const normalBtn = overlay.querySelector('#submit-apply-btn');
+    if (normalBtn) normalBtn.disabled = true;
 
     function calcIkil(startDate) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -1971,6 +1973,8 @@ window.toggleProdPanel = function(e) {
     window.bizfitSubmitting = true;
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
+    const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
+    if (youpflBtn) youpflBtn.disabled = true;
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
     const approvedKeys = gate ? new Set() : null;
