@@ -1326,7 +1326,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 분배 로직 ─────────────────────────────────────────────────
 
-  function yupflAlloc(target) { return target >= 300 ? Math.round(target * 0.3) : 50; }
+  function yupflAlloc(target) { return Math.round(target * 0.3); }
 
   function lrm(items, total) {
     if (!items.length) return {};
