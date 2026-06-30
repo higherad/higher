@@ -1892,10 +1892,15 @@ window.toggleProdPanel = function(e) {
     const applyBtn = overlay.querySelector('#youpfl-apply-btn');
     const closeBtn = overlay.querySelector('#youpfl-close-btn');
     const subEl    = overlay.querySelector('#youpfl-sub');
+    const misVal = overlay.querySelector('#youpfl-mission')?.value;
+    if (misVal === '' || misVal === null || misVal === undefined) {
+      alert('미션 횟수를 입력해주세요.');
+      return;
+    }
+    const mis = Math.max(0, parseInt(misVal, 10) || 0);
+
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 업로드 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
-
-    const mis = Math.max(0, parseInt(overlay.querySelector('#youpfl-mission')?.value || '0', 10) || 0);
 
     function calcIkil(startDate) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
