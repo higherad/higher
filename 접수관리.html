@@ -1992,12 +1992,16 @@ window.toggleProdPanel = function(e) {
       if (!p.rows.length) return;
       setAllStatus(p, '<span style="color:var(--info);">⏳</span>');
 
-      // 키워드 50개 초과 행 즉시 실패 처리
+      // 유효성 검사 — 키워드 50개 초과 / 일목표 10 미만
       p.rows.forEach(r => {
         const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
         if (kwCount > 50) {
           r._kwFail = true;
           if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="검색키워드 50개 초과">❌ 키워드 초과</span>';
+          failTotal++;
+        } else if ((r.일목표||0) < 10) {
+          r._kwFail = true;
+          if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="일목표 ${r.일목표||0}개 — 10 미만">❌ 일목표 미달</span>`;
           failTotal++;
         }
       });
@@ -2005,7 +2009,7 @@ window.toggleProdPanel = function(e) {
       const validRows = p.rows.filter(r => !r._kwFail);
 
       if (!validRows.length) {
-        if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">전체 키워드 초과 (50개 제한)</span>';
+        if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">전체 유효성 검사 실패 (키워드 초과 또는 일목표 미달)</span>';
         return;
       }
 
@@ -2070,7 +2074,7 @@ window.toggleProdPanel = function(e) {
       });
       if (p.msgEl) {
         const kwFailCount = p.rows.filter(r => r._kwFail).length;
-        const parts = [kwFailCount ? `키워드 초과 ${kwFailCount}건` : '', agencyFail ? '일부 등급 실패 — 상태 칸에서 사유 확인(마우스오버)' : ''].filter(Boolean);
+        const parts = [kwFailCount ? `유효성 실패 ${kwFailCount}건` : '', agencyFail ? '일부 등급 실패 — 상태 칸에서 사유 확인(마우스오버)' : ''].filter(Boolean);
         p.msgEl.innerHTML = parts.length
           ? `<span style="color:var(--danger);font-size:11px;">${parts.join(' / ')}</span>`
           : `<span style="color:var(--accent);font-size:11px;">✅ 전체 접수 완료</span>`;
