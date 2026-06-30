@@ -1468,7 +1468,7 @@ window.toggleProdPanel = function(e) {
     window.XLSX.utils.book_append_sheet(wb, ws, label);
   }
 
-  function buildYoupflSheet(wb, f) {
+  function buildYoupflSheet(wb, f, sheetName) {
     const yupfl = ap().find(p => p.fixedAlloc);
     if (!yupfl) return;
     const ws = {};
@@ -1494,7 +1494,7 @@ window.toggleProdPanel = function(e) {
     if (curRow < 2) curRow = 2;
     ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:6}});
     ws['!cols'] = [{wch:18},{wch:40},{wch:14},{wch:8},{wch:8},{wch:8},{wch:8}];
-    window.XLSX.utils.book_append_sheet(wb, ws, '유입플');
+    window.XLSX.utils.book_append_sheet(wb, ws, sheetName || '유입플');
   }
 
   function setProg(show, pct, lbl) {
@@ -1557,8 +1557,10 @@ window.toggleProdPanel = function(e) {
             const wb = window.XLSX.utils.book_new();
             buildJusuSheet(wb, f);
             buildJumuSheet_(wb, f, '일반', p => !FIXED_PROD_IDS.has(p.id));
-            buildJumuSheet_(wb, f, '고정', p => FIXED_PROD_IDS.has(p.id) && !p.fixedAlloc);
-            if (ap().find(p => p.fixedAlloc)) buildYoupflSheet(wb, f);
+            ap().filter(p => FIXED_PROD_IDS.has(p.id)).forEach(prod => {
+              if (prod.fixedAlloc) buildYoupflSheet(wb, f, prod.name);
+              else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id);
+            });
             window.XLSX.writeFile(wb, realAg ? `${realAg}-주문서.xlsx` : `주문서-${shortD()}.xlsx`);
             await sleep(300);
           }
