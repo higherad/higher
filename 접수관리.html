@@ -1910,7 +1910,7 @@ window.toggleProdPanel = function(e) {
     const subEl    = overlay.querySelector('#youpfl-sub');
     const misVal = overlay.querySelector('#youpfl-mission')?.value;
     if (misVal === '' || misVal === null || misVal === undefined) {
-      alert('미션 횟수를 입력해주세요.');
+      alert('미션 번호를 지정해주세요.');
       return;
     }
     const mis = Math.max(0, parseInt(misVal, 10) || 0);
