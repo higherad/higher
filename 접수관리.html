@@ -1674,6 +1674,7 @@ window.toggleProdPanel = function(e) {
 
   function buildYoupflRows(slots) {
     const yupfl = ap().find(p => p.fixedAlloc);
+    if (!yupfl) return [];
     return slots.map(s => {
       const yAmt = Math.min(yupflAlloc(s.dailyTarget||0), s.dailyTarget||0);
       if (yAmt <= 0) return null;
