@@ -1917,6 +1917,7 @@ window.toggleProdPanel = function(e) {
 
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 업로드 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
+    window.bizfitSubmitting = true;
 
     function calcIkil(startDate) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -1946,11 +1947,13 @@ window.toggleProdPanel = function(e) {
         slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
       }
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+      window.bizfitSubmitting = false;
       closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
     } else {
       rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
       subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'업로드 실패')}</span>`;
       applyBtn.textContent = '❌ 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
+      window.bizfitSubmitting = false;
       closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
     }
   }
