@@ -1713,6 +1713,22 @@ window.toggleProdPanel = function(e) {
       </div>`;
     document.body.appendChild(overlay);
 
+    // 일반+고정 동시 활성 시 양쪽 모두 완료해야 승인으로 전환하는 게이트
+    const gate = (hasNormal && hasFixed) ? {
+      normalKeys: null,
+      fixedKeys: null,
+      slotMap: new Map(allSlots.map(s => [s._key, s])),
+      async tryApprove() {
+        if (this.normalKeys === null || this.fixedKeys === null) return;
+        const keys = [...this.normalKeys].filter(k => this.fixedKeys.has(k));
+        if (keys.length) {
+          await Promise.all(keys.map(k => HA.approveSlot(k)));
+          keys.forEach(k => { const s = this.slotMap.get(k); if (s) s.status = 'active'; });
+        }
+        renderReceipts(false);
+      }
+    } : null;
+
     // 일반 탭 구성
     if (hasNormal) {
       const bodyEl = overlay.querySelector('#submit-body');
@@ -1730,7 +1746,7 @@ window.toggleProdPanel = function(e) {
       if (allActive) {
         applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       } else {
-        applyBtn.onclick = () => executeSubmit(normalPlan, overlay);
+        applyBtn.onclick = () => executeSubmit(normalPlan, overlay, gate);
       }
     }
 
@@ -1745,7 +1761,7 @@ window.toggleProdPanel = function(e) {
       const totalTarget = yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
       overlay.querySelector('#youpfl-sub').innerHTML =
         `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
-      overlay.querySelector('#youpfl-apply-btn').onclick = () => executeYoupflSubmit(yupflRows, overlay);
+      overlay.querySelector('#youpfl-apply-btn').onclick = () => executeYoupflSubmit(yupflRows, overlay, gate);
     } else {
       overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
       overlay.querySelector('#youpfl-apply-btn').disabled = true;
@@ -1888,7 +1904,7 @@ window.toggleProdPanel = function(e) {
     return block;
   }
 
-  async function executeYoupflSubmit(rows, overlay) {
+  async function executeYoupflSubmit(rows, overlay, gate=null) {
     const applyBtn = overlay.querySelector('#youpfl-apply-btn');
     const closeBtn = overlay.querySelector('#youpfl-close-btn');
     const subEl    = overlay.querySelector('#youpfl-sub');
@@ -1922,10 +1938,15 @@ window.toggleProdPanel = function(e) {
       subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ ${escProd(result.message||'업로드 완료')}</span>`;
       const slotMap = new Map(allSlots.map(s => [s._key, s]));
       const slotKeys = rows.map(r => r._slotKey).filter(Boolean);
-      await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
-      slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+      if (gate) {
+        gate.fixedKeys = new Set(slotKeys);
+        await gate.tryApprove();
+      } else {
+        await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
+        slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+      }
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
-      closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); renderReceipts(false); };
+      closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
     } else {
       rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
       subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'업로드 실패')}</span>`;
@@ -1941,7 +1962,7 @@ window.toggleProdPanel = function(e) {
     p.gradeRowEls.forEach((_, name) => setGradeStatus(p, name, html));
   }
 
-  async function executeSubmit(plan, overlay) {
+  async function executeSubmit(plan, overlay, gate=null) {
     const applyBtn = overlay.querySelector('#submit-apply-btn');
     const closeBtn = overlay.querySelector('#submit-close-btn');
     window.bizfitSubmitting = true;
@@ -1949,6 +1970,7 @@ window.toggleProdPanel = function(e) {
     closeBtn.disabled = true;
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
+    const approvedKeys = gate ? new Set() : null;
 
     // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
     async function processAgency(p) {
@@ -2014,10 +2036,13 @@ window.toggleProdPanel = function(e) {
         } catch(e) { result = { success:false, message: e.message }; }
         if (result.success) {
           okTotal += grpRows.length;
-          // 등록 성공 즉시 각 슬롯을 승인(active)으로 전환
           const slotKeys = grpRows.map(r => r._slotKey).filter(Boolean);
-          await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
-          slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+          if (gate) {
+            slotKeys.forEach(k => approvedKeys.add(k));
+          } else {
+            await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
+            slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+          }
           grpRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
         } else {
           failTotal += grpRows.length;
@@ -2047,12 +2072,17 @@ window.toggleProdPanel = function(e) {
     // 대행사(계정)별로 병렬 처리
     await Promise.all(plan.map(p => processAgency(p)));
 
+    if (gate) {
+      gate.normalKeys = approvedKeys;
+      await gate.tryApprove();
+    }
+
     window.bizfitSubmitting = false;
     applyBtn.textContent = failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`;
     applyBtn.style.background = failTotal ? '#b91c1c' : '#475569';
     applyBtn.style.cursor = 'default';
     closeBtn.disabled = false;
-    closeBtn.onclick = () => { overlay.remove(); renderReceipts(false); };
+    closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
   }
 
   function byGradeCount(rows, name) { return rows.filter(r => r.상품등급명 === name).length; }
