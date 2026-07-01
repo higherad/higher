@@ -301,12 +301,12 @@
         </div>
       </div>
       <div class="pmf">
-        <label>키워드 배분 <span class="pmf-note">— 활성 상품 간 검색키워드 분배 (합계 10 또는 모두 0)</span></label>
+        <label>키워드 배분</label>
         <div class="ratio-grid" id="pm-kw-grid"></div>
         <div class="ratio-note" id="pm-kw-note"></div>
       </div>
       <div class="pmf">
-        <label>일 목표 배분 <span class="pmf-note">— 활성 상품 간 일 목표 분배 (합계 10)</span></label>
+        <label>일 목표 배분</label>
         <div class="ratio-grid" id="pm-ratio-grid"></div>
         <div class="ratio-note" id="pm-ratio-note"></div>
       </div>
@@ -1291,7 +1291,14 @@ window.toggleProdPanel = function(e) {
   };
   window.updateProdModalNotes = function() {
     const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
-    if (!cur || cur.fixedAlloc) return;
+    if (!cur) return;
+    if (cur.fixedAlloc) {
+      const kwNote = document.getElementById('pm-kw-note');
+      const ratNote = document.getElementById('pm-ratio-note');
+      if (kwNote)  kwNote.textContent  = '';
+      if (ratNote) ratNote.textContent = '';
+      return;
+    }
     const actives = ap().filter(q => !q.fixedAlloc);
     const sumInputs = prefix => Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`${prefix}${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
     const kwR = sumInputs('pm-kwpct-'), ratR = sumInputs('pm-ratio-');
