@@ -250,6 +250,14 @@
     }
   }
 
+  // 해당 날짜 레코드의 groupSums에서 '유입플' 그룹 합계를 추출
+  // (유입플은 injectYoupflData에서 store.np 필드에 값을 담아 저장되므로 총 NP트래픽에서 분리해야 함)
+  function getYoupflSum(day){
+    if(!day||!day.groupSums) return 0;
+    const yg=day.groupSums.find(g=>g.name==='유입플');
+    return yg?(yg.gSum||0):0;
+  }
+
   window.acSelectDateMonth=function(yyMM){
     document.querySelectorAll('#ac-result-area .ac-month-btn').forEach(b=>{
       b.classList.toggle('active', b.dataset.ym===yyMM);
@@ -262,19 +270,23 @@
       return;
     }
 
-    const tot={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+    const tot={ns:0,np:0,nps:0,na:0,vm:0,yp:0,sum:0};
     const rows=keys.map(k=>{
-      const t=(daily[k]&&daily[k].total)||{};
-      tot.ns+=t.ns||0; tot.np+=t.np||0; tot.nps+=t.nps||0;
-      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.sum+=t.sum||0;
+      const day=daily[k];
+      const t=(day&&day.total)||{};
+      const yp=getYoupflSum(day);
+      const np=(t.np||0)-yp;
+      tot.ns+=t.ns||0; tot.np+=np; tot.nps+=t.nps||0;
+      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.yp+=yp; tot.sum+=t.sum||0;
       const dd=k.slice(4,6);
       return `<tr class="ac-date-row">
         <td class="ac-date-label">${yyMM.slice(2)}.${dd}</td>
         <td>${fmt(t.ns)}</td>
-        <td>${fmt(t.np)}</td>
+        <td>${fmt(np)}</td>
         <td>${fmt(t.nps)}</td>
         <td>${fmt(t.na)}</td>
         <td>${fmt(t.vm)}</td>
+        <td>${fmt(yp)}</td>
         <td class="ac-date-total">${fmt(t.sum)}</td>
       </tr>`;
     }).join('');
@@ -288,6 +300,7 @@
       <td style="${td1}">${fmt(tot.nps)}</td>
       <td style="${td1}">${fmt(tot.na)}</td>
       <td style="${td1}">${fmt(tot.vm)}</td>
+      <td style="${td1}">${fmt(tot.yp)}</td>
       <td style="${td0}">${fmt(tot.sum)}</td>
     </tr>`;
 
@@ -298,6 +311,7 @@
       nps:n?Math.round(tot.nps/n):0,
       na:n?Math.round(tot.na/n):0,
       vm:n?Math.round(tot.vm/n):0,
+      yp:n?Math.round(tot.yp/n):0,
       sum:n?Math.round(tot.sum/n):0
     };
     const tdA0=`background:#0c4a6e;color:#bae6fd;font-weight:800;text-align:center;padding:11px 13px;border-top:1px solid #0369a1`;
@@ -309,6 +323,7 @@
       <td style="${tdA1}">${fmt(avg.nps)}</td>
       <td style="${tdA1}">${fmt(avg.na)}</td>
       <td style="${tdA1}">${fmt(avg.vm)}</td>
+      <td style="${tdA1}">${fmt(avg.yp)}</td>
       <td style="${tdA0}">${fmt(avg.sum)}</td>
     </tr>`;
 
@@ -333,7 +348,7 @@
         <thead><tr>
           <th>날짜</th>
           <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
-          <th>N자동완성</th><th>방문미션</th><th>총합계</th>
+          <th>N자동완성</th><th>방문미션</th><th>유입플</th><th>총합계</th>
         </tr></thead>
         <tbody>${rows}${totalRow}${avgRow}</tbody>
       </table>
@@ -646,16 +661,19 @@
     const daily=window._acDailyAll||{};
     const yyMM=window._acSelectedMonth||'';
     const keys=Object.keys(daily).filter(k=>k.startsWith(yyMM)).sort().reverse();
-    let csv='\uFEFF날짜,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,총합계\n';
-    let tot={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+    let csv='\uFEFF날짜,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,유입플,총합계\n';
+    let tot={ns:0,np:0,nps:0,na:0,vm:0,yp:0,sum:0};
     keys.forEach(k=>{
-      const t=(daily[k]&&daily[k].total)||{};
+      const day=daily[k];
+      const t=(day&&day.total)||{};
+      const yp=getYoupflSum(day);
+      const np=(t.np||0)-yp;
       const mm=k.slice(2,4), dd=k.slice(4,6);
-      csv+=`${mm}.${dd},${t.ns||''},${t.np||''},${t.nps||''},${t.na||''},${t.vm||''},${t.sum||''}\n`;
-      tot.ns+=t.ns||0; tot.np+=t.np||0; tot.nps+=t.nps||0;
-      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.sum+=t.sum||0;
+      csv+=`${mm}.${dd},${t.ns||''},${np||''},${t.nps||''},${t.na||''},${t.vm||''},${yp||''},${t.sum||''}\n`;
+      tot.ns+=t.ns||0; tot.np+=np; tot.nps+=t.nps||0;
+      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.yp+=yp; tot.sum+=t.sum||0;
     });
-    csv+=`총합,${tot.ns||''},${tot.np||''},${tot.nps||''},${tot.na||''},${tot.vm||''},${tot.sum||''}\n`;
+    csv+=`총합,${tot.ns||''},${tot.np||''},${tot.nps||''},${tot.na||''},${tot.vm||''},${tot.yp||''},${tot.sum||''}\n`;
     dlCSV(csv,'광고분류_날짜별_');
   };
   function dlCSV(csv,prefix){
