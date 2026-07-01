@@ -237,7 +237,7 @@
 
 <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px;">
   <button class="action-btn" id="dl-single-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcelList()">📥 엑셀 다운로드</button>
-  <button class="action-btn" id="adlog-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="submitAdlog()">애드로그 접수</button>
+  <button class="action-btn" id="adlog-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="submitAdlog()">📤 애드로그</button>
   <!-- <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button> -->
 </div>
 
@@ -1605,52 +1605,72 @@ window.toggleProdPanel = function(e) {
   }
 
   function openAdlogModal(target) {
-    const rows = buildAdlogRows(target);
+    const rows   = buildAdlogRows(target);
+    const groups = [...new Set(rows.map(r => r.group))];
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal-box" style="width:min(96vw,760px);max-height:82vh;overflow-y:auto;">
+      <div class="modal-box" style="width:min(96vw,760px);max-height:82vh;overflow-y:auto;overflow-x:hidden;">
         <div class="modal-title">애드로그 대량등록 확인</div>
-        <div style="font-size:12px;margin-bottom:14px;color:var(--muted)">총 ${rows.length}건 — <span style="color:#dc2626;font-weight:600;">검토 후 등록 신청을 눌러주세요.</span></div>
-        <div class="tbl-wrap" style="margin-bottom:16px;">
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead><tr style="background:#f8fafc;">
-              <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">그룹(대행사)</th>
-              <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">순위키워드</th>
-              <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">MID</th>
-              <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">메모</th>
-              <th style="padding:8px;text-align:center;border-bottom:1px solid var(--border);">상태</th>
-            </tr></thead>
-            <tbody id="adlog-preview-body"></tbody>
-          </table>
-        </div>
+        <div style="font-size:12px;margin-bottom:14px;" id="adlog-sub"></div>
+        <div id="adlog-body"></div>
         <div class="modal-footer">
           <button class="btn-cancel" id="adlog-close-btn">닫기</button>
-          <button id="adlog-apply-btn" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">등록 신청</button>
+          <button id="adlog-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">등록 신청</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
 
-    const tbody = overlay.querySelector('#adlog-preview-body');
+    const bodyEl = overlay.querySelector('#adlog-body');
+    groups.forEach(g => bodyEl.appendChild(buildAdlogAgencyBlock(g, rows.filter(r => r.group === g))));
+
+    overlay.querySelector('#adlog-sub').innerHTML =
+      `<span style="color:var(--muted)">대행사 ${groups.length}곳 · 총 ${rows.length}건 —</span> <span style="color:#dc2626;font-weight:600;">검토 후 등록 신청을 눌러주세요.</span>`;
+
+    overlay.querySelector('#adlog-close-btn').onclick = () => { if (!window.adlogSubmitting) overlay.remove(); };
+    overlay.addEventListener('click', e => { if (e.target === overlay && !window.adlogSubmitting) overlay.remove(); });
+    overlay.querySelector('#adlog-apply-btn').onclick = () => executeAdlogSubmit(rows, overlay);
+  }
+
+  // buildYoupflTableBlock과 동일한 agency-hd/ag-table 스타일 — 단일 배치 제출이라 agency-ft(개별 요약)는 두지 않음
+  function buildAdlogAgencyBlock(agency, rows) {
+    const block = document.createElement('div');
+    block.className = 'agency-block';
+
+    const hd = document.createElement('div');
+    hd.className = 'agency-hd';
+    hd.innerHTML = `<div><div class="aname">${escProd(agency)}</div><div class="ameta">총 ${rows.length}건</div></div>`;
+    block.appendChild(hd);
+
+    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
+    const tbl = document.createElement('table');
+    tbl.className = 'ag-table';
+    tbl.style.cssText = 'table-layout:fixed;width:100%';
+    tbl.innerHTML = `<thead><tr>
+      <th style="width:160px">순위키워드</th>
+      <th style="width:140px">MID</th>
+      <th style="width:110px">메모</th>
+      <th style="width:76px;text-align:center">상태</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
     rows.forEach(r => {
       const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
       statusTd.style.cssText = 'text-align:center;white-space:nowrap';
       statusTd.textContent = '-';
       tr.innerHTML = `
-        <td style="padding:8px;border-bottom:1px solid var(--border);">${escProd(r.group)}</td>
-        <td style="padding:8px;border-bottom:1px solid var(--border);">${escProd(r.keyword||'-')}</td>
-        <td style="padding:8px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);">${escProd(r.mid||'-')}</td>
-        <td style="padding:8px;border-bottom:1px solid var(--border);">${escProd(r.memo||'-')}</td>
+        <td style="${ell}" title="${escProd(r.keyword)}">${escProd(r.keyword||'-')}</td>
+        <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.mid)}">${escProd(r.mid||'-')}</td>
+        <td style="${ell}" title="${escProd(r.memo)}">${escProd(r.memo||'-')}</td>
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
       r._statusTd = statusTd;
     });
-
-    overlay.querySelector('#adlog-close-btn').onclick = () => { if (!window.adlogSubmitting) overlay.remove(); };
-    overlay.addEventListener('click', e => { if (e.target === overlay && !window.adlogSubmitting) overlay.remove(); });
-    overlay.querySelector('#adlog-apply-btn').onclick = () => executeAdlogSubmit(rows, overlay);
+    tbl.appendChild(tbody);
+    block.appendChild(tbl);
+    return block;
   }
 
   function buildAdlogXlsxBase64(rows) {
@@ -1671,6 +1691,7 @@ window.toggleProdPanel = function(e) {
   async function executeAdlogSubmit(rows, overlay) {
     const applyBtn = overlay.querySelector('#adlog-apply-btn');
     const closeBtn = overlay.querySelector('#adlog-close-btn');
+    const subEl    = overlay.querySelector('#adlog-sub');
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 등록 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
     window.adlogSubmitting = true;
@@ -1686,13 +1707,14 @@ window.toggleProdPanel = function(e) {
 
       if (result.success) {
         rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+        subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ ${escProd(result.message||'등록 완료')}</span>`;
         applyBtn.textContent = '✅ 등록 완료';
       } else {
-        rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);">✗ 실패</span>'; });
+        rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
+        subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'등록 실패')}</span>`;
         applyBtn.textContent = '❌ 등록 실패';
-        applyBtn.style.background = '#dc2626';
+        applyBtn.style.background = '#b91c1c';
       }
-      alert(result.message || (result.success ? '등록 완료' : '알 수 없는 오류'));
       closeBtn.disabled = false;
       window.adlogSubmitting = false;
     }
