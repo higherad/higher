@@ -1024,7 +1024,7 @@ window.toggleProdPanel = function(e) {
     {id:'p7',     name:'X7',    color:'#ec4899', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'charlie',name:'찰리',  color:'#f43f5e', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, autoBalance:false},
-    {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0, fixedAlloc:true, kwLimit:5, autoBalance:false},
+    {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0, fixedAlloc:true, kwLimit:5, fixedPct:30, autoBalance:false},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
   const FIXED_PROD_IDS = new Set(['charlie', 'yupfl']);
@@ -1047,7 +1047,8 @@ window.toggleProdPanel = function(e) {
   async function loadProdSettings() {
     const path = getProdSettingsPath();
     if (!path) return;
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,kwLimit:p.kwLimit,autoBalance:p.autoBalance}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance}]));
+    const fixedDefaults = new Map(prods.map(p => [p.id, {kwLimit:p.kwLimit,fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
@@ -1062,6 +1063,11 @@ window.toggleProdPanel = function(e) {
         prods = arr;
         prods.forEach(p => {
           const f = staticFlags.get(p.id); if(f) Object.assign(p, f);
+          const fd = fixedDefaults.get(p.id);
+          if (fd) {
+            if (p.kwLimit === undefined)  p.kwLimit  = fd.kwLimit;
+            if (p.fixedPct === undefined) p.fixedPct = fd.fixedPct;
+          }
           if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
         });
       }
@@ -1263,11 +1269,19 @@ window.toggleProdPanel = function(e) {
           </div>`).join('');
 
     document.getElementById('pm-kw-grid').innerHTML = isFixed
-      ? `<div style="grid-column:1/-1;font-size:12px;color:var(--text2);padding:6px 0;">검색키워드 앞 <strong>${p.kwLimit||5}개</strong> 고정 배분</div>`
+      ? `<div class="ratio-item" style="grid-column:1/-1;">
+          <span class="ri-name" style="color:${p.color}">검색키워드 앞</span>
+          <input type="number" step="1" min="1" max="50" value="${p.kwLimit ?? 5}" id="pm-kwlimit" />
+          <span style="font-size:12px;color:var(--text2);">개 고정 배분</span>
+        </div>`
       : makeGrid(actives, 'kwPct', 'pm-kwpct-');
 
     document.getElementById('pm-ratio-grid').innerHTML = isFixed
-      ? `<div style="grid-column:1/-1;font-size:12px;color:var(--text2);padding:6px 0;">일타수의 <strong>30% 고정</strong></div>`
+      ? `<div class="ratio-item" style="grid-column:1/-1;">
+          <span class="ri-name" style="color:${p.color}">일타수의</span>
+          <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" />
+          <span style="font-size:12px;color:var(--text2);">% 고정</span>
+        </div>`
       : makeGrid(actives, 'ratio', 'pm-ratio-');
 
     updateProdModalNotes();
@@ -1305,6 +1319,11 @@ window.toggleProdPanel = function(e) {
           if(ratEl) q.ratio = Math.round((parseFloat(ratEl.value)||0)*10)/10;
         });
       }
+    } else {
+      const kwLimitEl  = document.getElementById('pm-kwlimit');
+      const fixedPctEl = document.getElementById('pm-fixedpct');
+      if (kwLimitEl)  p.kwLimit  = Math.max(1, parseInt(kwLimitEl.value, 10) || 5);
+      if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
     }
     prodGroups.forEach(g => { const gs=g.state.find(s=>s.id===p.id); if(gs){gs.name=p.name;gs.ver=p.ver;} });
     window.closeProdModal();
@@ -1325,7 +1344,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 분배 로직 ─────────────────────────────────────────────────
 
-  function yupflAlloc(target) { return Math.round(target * 0.3); }
+  function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
 
   function lrm(items, total) {
     if (!items.length) return {};
@@ -1343,7 +1362,7 @@ window.toggleProdPanel = function(e) {
     if (!asgn.length) return {};
     const yupfl = asgn.find(p => p.fixedAlloc);
     if (yupfl) {
-      const yAmt = Math.min(yupflAlloc(target), target);
+      const yAmt = Math.min(yupflAlloc(target, yupfl.fixedPct), target);
       return { [yupfl.id]: yAmt, ...lrm(asgn.filter(p => !p.fixedAlloc), Math.max(0, target - yAmt)) };
     }
     return lrm(asgn, target);
@@ -1479,7 +1498,7 @@ window.toggleProdPanel = function(e) {
     const today = new Date(); today.setHours(0,0,0,0);
     let curRow = 1;
     f.forEach(r => {
-      const yAmt = Math.min(yupflAlloc(r.dailyTarget||0), r.dailyTarget||0);
+      const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, yupfl.fixedPct), r.dailyTarget||0);
       if (yAmt <= 0) return;
       const workKw = kwForProd(r.searchKeyword||'', yupfl);
       const start  = r.startDate ? new Date(r.startDate) : today;
@@ -1633,7 +1652,7 @@ window.toggleProdPanel = function(e) {
     const yupfl = ap().find(p => p.fixedAlloc);
     if (!yupfl) return [];
     return slots.map(s => {
-      const yAmt = Math.min(yupflAlloc(s.dailyTarget||0), s.dailyTarget||0);
+      const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, yupfl.fixedPct), s.dailyTarget||0);
       if (yAmt <= 0) return null;
       return {
         _slotKey:  s._key,
