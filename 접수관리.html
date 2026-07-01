@@ -1509,7 +1509,7 @@ window.toggleProdPanel = function(e) {
     });
     if(curRow<2) curRow=2;
     ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:8}});
-    ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:6},{wch:13},{wch:52}];
+    ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:8},{wch:13},{wch:52}];
     window.XLSX.utils.book_append_sheet(wb, ws, label);
   }
 
