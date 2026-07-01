@@ -1683,6 +1683,8 @@ window.toggleProdPanel = function(e) {
     return btoa(binary);
   }
 
+  const ADLOG_BATCH_SIZE = 100; // adlog.kr 대량등록 1회 최대 100건 제한
+
   async function executeAdlogSubmit(rows, overlay) {
     const applyBtn = overlay.querySelector('#adlog-apply-btn');
     const closeBtn = overlay.querySelector('#adlog-close-btn');
@@ -1692,21 +1694,44 @@ window.toggleProdPanel = function(e) {
     window.adlogSubmitting = true;
 
     async function run() {
-      let result;
-      try {
-        const fileBase64 = buildAdlogXlsxBase64(rows);
-        result = await callBizfitProxy('/adlog-register', { fileBase64 });
-      } catch(e) {
-        result = { success: false, message: '서버 호출 실패: ' + e.message };
+      const chunks = [];
+      for (let i = 0; i < rows.length; i += ADLOG_BATCH_SIZE) chunks.push(rows.slice(i, i + ADLOG_BATCH_SIZE));
+
+      let totalCount = 0, totalRegistered = 0, hadFailure = false;
+      const failMessages = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        if (chunks.length > 1) {
+          applyBtn.textContent = `⏳ 등록 중... (${i+1}/${chunks.length}배치)`;
+          subEl.innerHTML = `<span style="color:var(--muted)">배치 ${i+1}/${chunks.length} 전송 중 (${chunk.length}건)...</span>`;
+        }
+
+        let result;
+        try {
+          const fileBase64 = buildAdlogXlsxBase64(chunk);
+          result = await callBizfitProxy('/adlog-register', { fileBase64 });
+        } catch(e) {
+          result = { success: false, message: '서버 호출 실패: ' + e.message };
+        }
+
+        if (result.success) {
+          chunk.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+          totalCount      += (result.total ?? chunk.length);
+          totalRegistered += (result.registered ?? chunk.length);
+        } else {
+          hadFailure = true;
+          failMessages.push(result.message || '알 수 없는 오류');
+          chunk.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
+        }
       }
 
-      if (result.success) {
-        rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
-        subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ ${escProd(result.message||'등록 완료')}</span>`;
+      if (!hadFailure) {
+        const batchNote = chunks.length > 1 ? ` (${chunks.length}개 배치로 전송)` : '';
+        subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 총${totalCount}개 중 ${totalRegistered}개 등록 되었습니다.${batchNote}</span>`;
         applyBtn.textContent = '✅ 등록 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       } else {
-        rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
-        subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'등록 실패')}</span>`;
+        subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ 일부 배치 실패: ${escProd(failMessages.join(' / '))}</span>`;
         applyBtn.textContent = '❌ 등록 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
       }
       applyBtn.disabled = true;
