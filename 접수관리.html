@@ -237,6 +237,7 @@
 
 <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px;">
   <button class="action-btn" id="dl-single-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcelList()">📥 엑셀 다운로드</button>
+  <button class="action-btn" id="adlog-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadAdlogExcel()">📥 애드로그</button>
   <!-- <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button> -->
 </div>
 
@@ -1570,6 +1571,40 @@ window.toggleProdPanel = function(e) {
       const today = new Date();
       const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
       XLSX.writeFile(wb, `접수_${dateStr}.xlsx`);
+    }
+
+    if (window.XLSX) { buildAndDownload(); } else {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = buildAndDownload;
+      document.head.appendChild(s);
+    }
+  };
+
+  // ── 애드로그 대량등록 양식 추출 (그룹/키워드/URL/메모) ──────
+  window.downloadAdlogExcel = function() {
+    const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
+    const filtered = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
+    if (!filtered.length) return alert('추출할 데이터가 없습니다.');
+
+    function buildAndDownload() {
+      const XLSX = window.XLSX;
+      const wb = XLSX.utils.book_new();
+      const header = ['그룹(띄어쓰기까지 일치해야됨)', '키워드(필수)', 'URL(필수)', '메모(미작성시 공란)'];
+      const rows = filtered.map(s => {
+        let memo = '';
+        if (s.startDate) {
+          const [, m, d] = s.startDate.split('-').map(Number);
+          memo = `1test ${m}/${d}`;
+        }
+        return [s.agencyId||'', s.rankKeyword||'', s.mid||'', memo];
+      });
+      const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+      ws['!cols'] = [{wch:22},{wch:20},{wch:20},{wch:16}];
+      XLSX.utils.book_append_sheet(wb, ws, '대량등록');
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+      XLSX.writeFile(wb, `애드로그_대량등록_${dateStr}.xlsx`);
     }
 
     if (window.XLSX) { buildAndDownload(); } else {
