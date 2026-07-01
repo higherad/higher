@@ -1687,7 +1687,7 @@ window.toggleProdPanel = function(e) {
     const applyBtn = overlay.querySelector('#adlog-apply-btn');
     const closeBtn = overlay.querySelector('#adlog-close-btn');
     const subEl    = overlay.querySelector('#adlog-sub');
-    applyBtn.disabled = true; applyBtn.textContent = '⏳ 등록 중...'; applyBtn.style.background = '#6b7280';
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 등록 중...'; applyBtn.style.background = '#6b7280'; applyBtn.style.cursor = 'default';
     closeBtn.disabled = true;
     window.adlogSubmitting = true;
 
@@ -1703,13 +1703,13 @@ window.toggleProdPanel = function(e) {
       if (result.success) {
         rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
         subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ ${escProd(result.message||'등록 완료')}</span>`;
-        applyBtn.textContent = '✅ 등록 완료';
+        applyBtn.textContent = '✅ 등록 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       } else {
         rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
         subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'등록 실패')}</span>`;
-        applyBtn.textContent = '❌ 등록 실패';
-        applyBtn.style.background = '#b91c1c';
+        applyBtn.textContent = '❌ 등록 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
       }
+      applyBtn.disabled = true;
       closeBtn.disabled = false;
       window.adlogSubmitting = false;
     }
