@@ -52,7 +52,7 @@
   .sp-tbl th { background:#1e293b;color:#fff;padding:8px 8px;font-weight:500;text-align:center;white-space:nowrap; }
   .sp-tbl td { padding:8px 8px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2);white-space:nowrap; }
   .sp-tbl tr:last-child td { border-bottom:none; }
-  .sp-footer { display:flex;justify-content:flex-end;margin-top:20px; }
+  .sp-footer { display:flex;justify-content:flex-end;gap:10px;margin-top:20px; }
   .btn-close-sp { padding:9px 24px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit; }
 
   .agency-block{margin-bottom:16px;border:1.5px solid #c7d2fe;border-radius:14px;overflow:hidden}
@@ -143,11 +143,13 @@
   <div class="sp-box">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
       <div class="sp-title">📂 정산 등록 — 대행사별 분류</div>
-      <button id="settle-charge-btn" onclick="startSettleCharge()" style="background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">⚡ 충전 신청</button>
     </div>
     <div class="sp-sub" id="settle-reg-sub"></div>
     <div id="settle-reg-body"></div>
-    <div class="sp-footer"><button class="btn-close-sp" onclick="if(!window.settleCharging)document.getElementById('settle-reg-overlay').style.display='none'">닫기</button></div>
+    <div class="sp-footer">
+      <button class="btn-close-sp" onclick="if(!window.settleCharging)document.getElementById('settle-reg-overlay').style.display='none'">닫기</button>
+      <button id="settle-charge-btn" onclick="startSettleCharge()" style="background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">⚡ 충전 신청</button>
+    </div>
   </div>
 </div>
 
