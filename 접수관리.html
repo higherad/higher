@@ -237,7 +237,7 @@
 
 <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px;">
   <button class="action-btn" id="dl-single-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcelList()">📥 엑셀 다운로드</button>
-  <button class="action-btn" id="adlog-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadAdlogExcel()">📥 애드로그</button>
+  <button class="action-btn" id="adlog-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="submitAdlog()">애드로그 접수</button>
   <!-- <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button> -->
 </div>
 
@@ -1581,39 +1581,132 @@ window.toggleProdPanel = function(e) {
     }
   };
 
-  // ── 애드로그 대량등록 양식 추출 (그룹/키워드/URL/메모) ──────
-  window.downloadAdlogExcel = function() {
+  // ── 애드로그 대량등록 접수 (그룹/키워드/URL/메모) ────────────
+  // 프론트(SheetJS)가 만든 xlsx를 그대로 프록시로 릴레이한다.
+  // openpyxl 등 서버에서 새로 생성한 xlsx는 adlog.kr이 거부하는 것이 실측으로 확인됨.
+  window.submitAdlog = function() {
     const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
-    const filtered = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
-    if (!filtered.length) return alert('추출할 데이터가 없습니다.');
-
-    function buildAndDownload() {
-      const XLSX = window.XLSX;
-      const wb = XLSX.utils.book_new();
-      const header = ['그룹(띄어쓰기까지 일치해야됨)', '키워드(필수)', 'URL(필수)', '메모(미작성시 공란)'];
-      const rows = filtered.map(s => {
-        let memo = '';
-        if (s.startDate) {
-          const [, m, d] = s.startDate.split('-').map(Number);
-          memo = `1test ${m}/${d}`;
-        }
-        return [s.agencyId||'', s.rankKeyword||'', s.mid||'', memo];
-      });
-      const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-      ws['!cols'] = [{wch:22},{wch:20},{wch:20},{wch:16}];
-      XLSX.utils.book_append_sheet(wb, ws, '대량등록');
-      const today = new Date();
-      const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
-      XLSX.writeFile(wb, `애드로그_대량등록_${dateStr}.xlsx`);
-    }
-
-    if (window.XLSX) { buildAndDownload(); } else {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      s.onload = buildAndDownload;
-      document.head.appendChild(s);
-    }
+    const keySet = new Set(checkedKeys);
+    const base   = checkedKeys.length ? allSlots.filter(s => keySet.has(s._key)) : filteredAll;
+    const target = base.filter(s => s.status === 'accepted');
+    if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재등록 불필요)'); return; }
+    openAdlogModal(target);
   };
+
+  function buildAdlogRows(slots) {
+    return slots.map(s => {
+      let memo = '';
+      if (s.startDate) {
+        const [, m, d] = s.startDate.split('-').map(Number);
+        memo = `1test ${m}/${d}`;
+      }
+      return { _slotKey: s._key, group: s.agencyId||'(대행사 미지정)', keyword: s.rankKeyword||'', mid: s.mid||'', memo, _statusTd: null };
+    });
+  }
+
+  function openAdlogModal(target) {
+    const rows = buildAdlogRows(target);
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box" style="width:min(96vw,760px);max-height:82vh;overflow-y:auto;">
+        <div class="modal-title">애드로그 대량등록 확인</div>
+        <div style="font-size:12px;margin-bottom:14px;color:var(--muted)">총 ${rows.length}건 — <span style="color:#dc2626;font-weight:600;">검토 후 등록 신청을 눌러주세요.</span></div>
+        <div class="tbl-wrap" style="margin-bottom:16px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="background:#f8fafc;">
+              <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">그룹(대행사)</th>
+              <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">순위키워드</th>
+              <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">MID</th>
+              <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">메모</th>
+              <th style="padding:8px;text-align:center;border-bottom:1px solid var(--border);">상태</th>
+            </tr></thead>
+            <tbody id="adlog-preview-body"></tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" id="adlog-close-btn">닫기</button>
+          <button id="adlog-apply-btn" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">등록 신청</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const tbody = overlay.querySelector('#adlog-preview-body');
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      const statusTd = document.createElement('td');
+      statusTd.style.cssText = 'text-align:center;white-space:nowrap';
+      statusTd.textContent = '-';
+      tr.innerHTML = `
+        <td style="padding:8px;border-bottom:1px solid var(--border);">${escProd(r.group)}</td>
+        <td style="padding:8px;border-bottom:1px solid var(--border);">${escProd(r.keyword||'-')}</td>
+        <td style="padding:8px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);">${escProd(r.mid||'-')}</td>
+        <td style="padding:8px;border-bottom:1px solid var(--border);">${escProd(r.memo||'-')}</td>
+      `;
+      tr.appendChild(statusTd);
+      tbody.appendChild(tr);
+      r._statusTd = statusTd;
+    });
+
+    overlay.querySelector('#adlog-close-btn').onclick = () => { if (!window.adlogSubmitting) overlay.remove(); };
+    overlay.addEventListener('click', e => { if (e.target === overlay && !window.adlogSubmitting) overlay.remove(); });
+    overlay.querySelector('#adlog-apply-btn').onclick = () => executeAdlogSubmit(rows, overlay);
+  }
+
+  function buildAdlogXlsxBase64(rows) {
+    const XLSX = window.XLSX;
+    const header = ['그룹(띄어쓰기까지 일치해야됨)', '키워드(필수)', 'URL(필수)', '메모(미작성시 공란)'];
+    const aoa = [header, ...rows.map(r => [r.group, r.keyword, r.mid, r.memo])];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:22},{wch:20},{wch:20},{wch:16}];
+    XLSX.utils.book_append_sheet(wb, ws, '대량등록');
+    const arr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const bytes = new Uint8Array(arr);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  async function executeAdlogSubmit(rows, overlay) {
+    const applyBtn = overlay.querySelector('#adlog-apply-btn');
+    const closeBtn = overlay.querySelector('#adlog-close-btn');
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 등록 중...'; applyBtn.style.background = '#6b7280';
+    closeBtn.disabled = true;
+    window.adlogSubmitting = true;
+
+    async function run() {
+      let result;
+      try {
+        const fileBase64 = buildAdlogXlsxBase64(rows);
+        result = await callBizfitProxy('/adlog-register', { fileBase64 });
+      } catch(e) {
+        result = { success: false, message: '서버 호출 실패: ' + e.message };
+      }
+
+      if (result.success) {
+        rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+        applyBtn.textContent = '✅ 등록 완료';
+      } else {
+        rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);">✗ 실패</span>'; });
+        applyBtn.textContent = '❌ 등록 실패';
+        applyBtn.style.background = '#dc2626';
+      }
+      alert(result.message || (result.success ? '등록 완료' : '알 수 없는 오류'));
+      closeBtn.disabled = false;
+      window.adlogSubmitting = false;
+    }
+
+    if (window.XLSX) { await run(); } else {
+      await new Promise(resolve => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+      });
+      await run();
+    }
+  }
 
   // ── 엑셀 다운로드 (대행사별 · 3시트) ────────────────────────
   window.downloadExcel = function() {
