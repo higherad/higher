@@ -1592,7 +1592,7 @@ window.toggleProdPanel = function(e) {
     const target = checkedKeys.length
       ? allSlots.filter(s => keySet.has(s._key) && (s.status === 'accepted' || s.status === 'active'))
       : filteredAll.filter(s => s.status === 'accepted');
-    if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재등록 불필요)'); return; }
+    if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(체크박스로 직접 선택하면 승인 완료 항목도 재등록 가능합니다)'); return; }
     openAdlogModal(target);
   };
 
