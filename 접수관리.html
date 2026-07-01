@@ -1487,7 +1487,8 @@ window.toggleProdPanel = function(e) {
     const AP = ap();
     const pList = AP.filter(filterFn);
     if(!pList.length) return;
-    const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표','일 수','예약일','검색키워드'];
+    const daysColLabel = pList.every(p => p.daysMultiplied) ? '전체 목표' : '일 수';
+    const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표',daysColLabel,'예약일','검색키워드'];
     headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':'1F2937'}); });
     let curRow = 1;
     const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0)]));
