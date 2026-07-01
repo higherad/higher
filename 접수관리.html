@@ -1301,7 +1301,7 @@ window.toggleProdPanel = function(e) {
       if (ratNote) {
         const pctEl = document.getElementById('pm-fixedpct');
         const pctVal = pctEl ? parseFloat(pctEl.value) : NaN;
-        if (pctVal >= 100) {
+        if (pctVal === 100) {
           ratNote.textContent = '⚠️ 100%로 설정하면 일반 상품은 배분되지 않습니다';
           ratNote.className = 'ratio-note ng';
         } else {
