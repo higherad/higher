@@ -97,7 +97,6 @@
   <div style="display:flex;gap:8px;">
     <button class="action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="exportSettleExcel()">📥 엑셀 다운로드</button>
     <button class="action-btn" style="background:#0d9488;color:#fff;padding:7px 16px;font-size:12px;" onclick="openSettleRegModal()">📋 정산 등록</button>
-    <button class="action-btn btn-confirm" style="padding:7px 16px;font-size:12px;background:var(--info);" onclick="bulkChargeConfirm()">선택 충전</button>
     <button class="action-btn btn-confirm" style="padding:7px 16px;font-size:12px;background:var(--accent);" onclick="bulkPayConfirm()">선택 입금</button>
   </div>
 </div>
@@ -938,39 +937,6 @@
       script.onload=buildAndDownload;
       document.head.appendChild(script);
     }
-  };
-
-  window.bulkChargeConfirm=async function(){
-    const keys=[...selectedSnapKeys];
-    if(!keys.length) return alert('선택된 항목이 없습니다.');
-    if(!confirm(`선택된 ${keys.length}건을 충전 확인 처리하시겠습니까?`)) return;
-    const currentUser=HA.getCurrentUser?HA.getCurrentUser():null;
-    const staffName=currentUser?(currentUser.name||currentUser.username):'알 수 없음';
-    const staffId=currentUser?currentUser.username:'-';
-    for(const snapKey of keys){
-      let snap=snapshotMap[snapKey];
-      // snap이 없으면(오늘 날짜 등) 슬롯에서 직접 생성
-      if(!snap){
-        const slots=allSlots.filter(s=>{
-          const safe=v=>v.replace(/[.#$[\]/]/g,'_');
-          return `${safe(getMinuteKey(s.createdAt))}__${safe(s.agencyId||'-')}__${safe(s.userId||'-')}`===snapKey;
-        });
-        if(!slots.length) continue;
-        const timeKey=getMinuteKey(slots[0].createdAt);
-        const agencyId=slots[0].agencyId||'-';
-        const userId=slots[0].userId||'-';
-        const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-        const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-        const refund=getRefund(timeKey,agencyId,userId);
-        snap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,unitPrice:getSlotPrice(slots[0])};
-        snapshotMap[snapKey]=snap;
-      }
-      if(snap.chargeConfirmedByName) continue;
-      const updates={chargeConfirmedAt:new Date().toISOString(),chargeConfirmedBy:staffId,chargeConfirmedByName:staffName};
-      Object.assign(snap,updates);
-      await HA.saveSettleSnapshot(snapKey,snap,true);
-    }
-    renderSettle(false);
   };
 
   window.bulkPayConfirm=async function(){
