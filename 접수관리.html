@@ -1829,6 +1829,7 @@ window.toggleProdPanel = function(e) {
         const kw = kwForProd(r.searchKeyword||'', prod);
         rows.push({
           _slotKey:   r._key,
+          _normalSubmitted: !!r.normalSubmitted,
           상품등급명: prod.name,
           업체명:     r.storeName||'',
           업체URL:    r.url||'',
@@ -1852,6 +1853,7 @@ window.toggleProdPanel = function(e) {
       if (yAmt <= 0) return null;
       return {
         _slotKey:  s._key,
+        _fixedSubmitted: !!s.fixedSubmitted,
         agencyId:  s.agencyId||'(대행사 미지정)',
         storeName: s.storeName||'',
         rankKw:    s.rankKeyword||'',
@@ -1937,8 +1939,12 @@ window.toggleProdPanel = function(e) {
         if (this.normalKeys === null || this.fixedKeys === null) return;
         const keys = [...this.normalKeys].filter(k => this.fixedKeys.has(k));
         if (keys.length) {
-          await Promise.all(keys.map(k => HA.approveSlot(k)));
-          keys.forEach(k => { const s = this.slotMap.get(k); if (s) s.status = 'active'; });
+          // 승인 전환과 동시에 임시 플래그 삭제(null) — 둘 다 완료된 이상 더 보관할 필요 없음
+          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', normalSubmitted: null, fixedSubmitted: null })));
+          keys.forEach(k => {
+            const s = this.slotMap.get(k);
+            if (s) { s.status = 'active'; delete s.normalSubmitted; delete s.fixedSubmitted; }
+          });
         }
         renderReceipts(false);
       }
@@ -2038,7 +2044,7 @@ window.toggleProdPanel = function(e) {
       const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
       statusTd.style.cssText = 'text-align:center;white-space:nowrap';
-      statusTd.textContent = '-';
+      statusTd.innerHTML = r._normalSubmitted ? '<span style="color:var(--accent);" title="이전에 이미 접수 완료됨">✅ 완료(기존)</span>' : '-';
       tr.innerHTML = `
         <td style="${ell};font-weight:700" title="${escProd(r.상품등급명)}">${escProd(r.상품등급명)}</td>
         <td style="${ell}" title="${escProd(r.업체명)}">${escProd(r.업체명)}</td>
@@ -2100,7 +2106,7 @@ window.toggleProdPanel = function(e) {
       const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
       statusTd.style.cssText = 'text-align:center;white-space:nowrap';
-      statusTd.textContent = '-';
+      statusTd.innerHTML = r._fixedSubmitted ? '<span style="color:var(--accent);" title="이전에 이미 접수 완료됨">✅ 완료(기존)</span>' : '-';
       tr.innerHTML = `
         <td style="${ell}" title="${escProd(r.storeName)}">${escProd(r.storeName||'-')}</td>
         <td style="${ell}" title="${escProd(r.rankKw)}">${escProd(r.rankKw||'-')}</td>
@@ -2123,6 +2129,24 @@ window.toggleProdPanel = function(e) {
     const applyBtn = overlay.querySelector('#youpfl-apply-btn');
     const closeBtn = overlay.querySelector('#youpfl-close-btn');
     const subEl    = overlay.querySelector('#youpfl-sub');
+
+    // 이전에 이미 접수 완료된 행(일반만 남아 모달을 닫았다가 재오픈한 경우)은 재제출하지 않음
+    const alreadyRows = rows.filter(r => r._fixedSubmitted);
+    const pendingRows = rows.filter(r => !r._fixedSubmitted);
+    alreadyRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);" title="이전에 이미 접수 완료됨">✅ 완료(기존)</span>'; });
+
+    if (!pendingRows.length) {
+      // 전부 이미 완료된 경우 — 업로드 없이 게이트만 마무리
+      subEl.innerHTML = '<span style="color:var(--accent);font-weight:600;">✅ 이미 모두 접수 완료된 항목입니다.</span>';
+      applyBtn.disabled = true; applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+      if (gate) {
+        gate.fixedKeys = new Set(rows.map(r => r._slotKey).filter(Boolean));
+        await gate.tryApprove();
+      }
+      closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
+      return;
+    }
+
     const misVal = overlay.querySelector('#youpfl-mission')?.value;
     if (misVal === '' || misVal === null || misVal === undefined) {
       alert('미션 번호를 지정해주세요.');
@@ -2145,32 +2169,46 @@ window.toggleProdPanel = function(e) {
     let result;
     try {
       result = await callBizfitProxy('/youpfl-upload', {
-        rows: rows.map(r => ({ rankKw: r.rankKw, workKw: r.workKw, placeId: r.placeId, target: r.target, days: r.days, mission: mis, ikil: calcIkil(r.startDate) })),
+        rows: pendingRows.map(r => ({ rankKw: r.rankKw, workKw: r.workKw, placeId: r.placeId, target: r.target, days: r.days, mission: mis, ikil: calcIkil(r.startDate) })),
       });
     } catch(e) {
       result = { success: false, message: '서버 호출 실패: ' + e.message };
     }
 
     if (result.success) {
-      rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+      pendingRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
       subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ ${escProd(result.message||'업로드 완료')}</span>`;
       const slotMap = new Map(allSlots.map(s => [s._key, s]));
-      const slotKeys = rows.map(r => r._slotKey).filter(Boolean);
+      const pendingSlotKeys = pendingRows.map(r => r._slotKey).filter(Boolean);
+      const allDoneSlotKeys = rows.map(r => r._slotKey).filter(Boolean); // already + 이번에 성공한 것 전부
       if (gate) {
-        gate.fixedKeys = new Set(slotKeys);
+        gate.fixedKeys = new Set(allDoneSlotKeys);
+        if (pendingSlotKeys.length) {
+          // 일반이 아직 안 끝났으면 여기서 바로 승인 전환 안 됨 — 재접수 시 이번에 새로 성공한 것만 스킵되도록 임시 플래그 저장
+          await Promise.all(pendingSlotKeys.map(k => HA.updateSlot(k, { fixedSubmitted: true })));
+          pendingSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.fixedSubmitted = true; });
+        }
         await gate.tryApprove();
       } else {
-        await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
-        slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+        await Promise.all(pendingSlotKeys.map(k => HA.approveSlot(k)));
+        pendingSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
       }
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       window.bizfitSubmitting = false;
       closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
+      // 일반 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 일반도 마저 접수할 수 있어야 함
+      if (normalBtn) normalBtn.disabled = false;
     } else {
-      rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
+      pendingRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
       subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'업로드 실패')}</span>`;
       applyBtn.textContent = '❌ 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
       window.bizfitSubmitting = false;
+      if (normalBtn) normalBtn.disabled = false;
+      // 이미 완료된 것만이라도 게이트에 반영 (새로 실패한 것은 제외)
+      if (gate) {
+        gate.fixedKeys = new Set(alreadyRows.map(r => r._slotKey).filter(Boolean));
+        await gate.tryApprove();
+      }
       closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
     }
   }
@@ -2197,10 +2235,23 @@ window.toggleProdPanel = function(e) {
     // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
     async function processAgency(p) {
       if (!p.rows.length) return;
-      setAllStatus(p, '<span style="color:var(--info);">⏳</span>');
+
+      // 이전에 이미 접수 완료된 행(유입플만 남아 모달을 닫았다가 재오픈한 경우)은 재제출하지 않고 완료 표시만 유지
+      const alreadyRows = p.rows.filter(r => r._normalSubmitted);
+      const pendingRows = p.rows.filter(r => !r._normalSubmitted);
+      alreadyRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);" title="이전에 이미 접수 완료됨">✅ 완료(기존)</span>'; });
+      if (gate) alreadyRows.forEach(r => { if (r._slotKey) approvedKeys.add(r._slotKey); });
+      okTotal += alreadyRows.length;
+
+      if (!pendingRows.length) {
+        if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--accent);font-size:11px;">✅ 전체 접수 완료</span>';
+        return;
+      }
+
+      pendingRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--info);">⏳</span>'; });
 
       // 유효성 검사 — 키워드 50개 초과 / 일목표 10 미만
-      p.rows.forEach(r => {
+      pendingRows.forEach(r => {
         const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
         if (kwCount > 50) {
           r._kwFail = true;
@@ -2213,7 +2264,7 @@ window.toggleProdPanel = function(e) {
         }
       });
 
-      const validRows = p.rows.filter(r => !r._kwFail);
+      const validRows = pendingRows.filter(r => !r._kwFail);
 
       if (!validRows.length) {
         if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">전체 유효성 검사 실패 (키워드 초과 또는 일목표 미달)</span>';
@@ -2230,7 +2281,7 @@ window.toggleProdPanel = function(e) {
 
       let gi;
       try {
-        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, ...rest}) => rest) });
+        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, ...rest}) => rest) });
       } catch(e) { gi = { success:false, message: '서버 호출 실패: '+e.message }; }
 
       if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
@@ -2247,7 +2298,7 @@ window.toggleProdPanel = function(e) {
         const grpRows = validRows.filter(r => r.상품등급명 === g.gradeName);
         if (!grpRows.length) continue;
         matchedGrades.add(g.gradeName);
-        const payloadRows = grpRows.map(({_slotKey, _statusTd, _kwFail, ...rest}) => rest);
+        const payloadRows = grpRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, ...rest}) => rest);
         let result;
         try {
           result = await callBizfitProxy('/register', {
@@ -2296,6 +2347,13 @@ window.toggleProdPanel = function(e) {
 
     if (gate) {
       gate.normalKeys = approvedKeys;
+      // 유입플이 아직 안 끝났으면 여기서 바로 승인 전환 안 됨 — 재접수 시 이번에 새로 성공한 것만 스킵되도록 임시 플래그 저장
+      // (이미 _normalSubmitted였던 건 위에서 재기록 없이 그대로 approvedKeys에만 포함됨)
+      const newlyDone = [...approvedKeys].filter(k => { const s = slotMap.get(k); return s && !s.normalSubmitted; });
+      if (newlyDone.length) {
+        await Promise.all(newlyDone.map(k => HA.updateSlot(k, { normalSubmitted: true })));
+        newlyDone.forEach(k => { const s = slotMap.get(k); if (s) s.normalSubmitted = true; });
+      }
       await gate.tryApprove();
     }
 
@@ -2305,6 +2363,8 @@ window.toggleProdPanel = function(e) {
     applyBtn.style.cursor = 'default';
     closeBtn.disabled = false;
     closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
+    // 유입플 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 유입플도 마저 접수할 수 있어야 함
+    if (youpflBtn) youpflBtn.disabled = false;
   }
 
   function byGradeCount(rows, name) { return rows.filter(r => r.상품등급명 === name).length; }
