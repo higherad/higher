@@ -1270,7 +1270,8 @@ window.toggleProdPanel = function(e) {
 
     document.getElementById('pm-kw-grid').innerHTML = isFixed
       ? `<div class="ratio-item" style="grid-column:1/-1;">
-          <span class="ri-name" style="color:${p.color}">검색키워드 고정 배분</span>
+          <span class="ri-name" style="color:${p.color}">검색키워드</span>
+          <span style="font-size:12px;color:var(--text2);white-space:nowrap;">고정 배분</span>
           <input type="number" step="1" min="1" max="50" value="${p.kwLimit ?? 5}" id="pm-kwlimit" />
           <span style="font-size:12px;color:var(--text2);">개</span>
         </div>`
@@ -1278,7 +1279,8 @@ window.toggleProdPanel = function(e) {
 
     document.getElementById('pm-ratio-grid').innerHTML = isFixed
       ? `<div class="ratio-item" style="grid-column:1/-1;">
-          <span class="ri-name" style="color:${p.color}">일 목표 고정 배분</span>
+          <span class="ri-name" style="color:${p.color}">일 목표</span>
+          <span style="font-size:12px;color:var(--text2);white-space:nowrap;">고정 배분</span>
           <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" />
           <span style="font-size:12px;color:var(--text2);">%</span>
         </div>`
