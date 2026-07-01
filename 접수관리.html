@@ -362,6 +362,7 @@ window.toggleProdPanel = function(e) {
   let filteredAll  = [];
   let _slotsLoaded = false;
   let _detailOpen  = false;
+  const userPriceMap = new Map(); // userId -> 단가(원/개), 유입플 접수 모달 금액 표시용
 
   const stMap = {
     pending:  '<span class="status-badge s-pending">대기</span>',
@@ -1855,6 +1856,9 @@ window.toggleProdPanel = function(e) {
         _slotKey:  s._key,
         _fixedSubmitted: !!s.fixedSubmitted,
         agencyId:  s.agencyId||'(대행사 미지정)',
+        userId:    s.userId||'',
+        // 슬롯 저장 단가 우선, 없으면 현재 회원 단가로 폴백 (정산관리와 동일한 규칙)
+        unitPrice: (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null,
         storeName: s.storeName||'',
         rankKw:    s.rankKeyword||'',
         workKw:    yupfl ? kwForProd(s.searchKeyword||'', yupfl) : (s.searchKeyword||''),
@@ -2081,9 +2085,10 @@ window.toggleProdPanel = function(e) {
       return block;
     }
     const totalTarget = rows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
+    const totalAmount = rows.reduce((a,r) => a+(r.target||0)*(r.days||0)*(r.unitPrice ?? userPriceMap.get(r.userId) ?? 0), 0);
     const hd = document.createElement('div');
     hd.className = 'agency-hd';
-    hd.innerHTML = `<div><div class="aname">${escProd(agencyName||'')} <span style="font-weight:400;font-size:13px;color:var(--text2)">(유입플)</span></div><div class="ameta">총 ${rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}</div></div>`;
+    hd.innerHTML = `<div><div class="aname">${escProd(agencyName||'')} <span style="font-weight:400;font-size:13px;color:var(--text2)">(유입플)</span></div><div class="ameta">총 ${rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} · 금액 ${totalAmount.toLocaleString()}원</div></div>`;
     block.appendChild(hd);
 
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
@@ -2376,6 +2381,11 @@ window.toggleProdPanel = function(e) {
     saveProdDefault();
     renderPS();
   })();
+
+  // 유입플 접수 모달 금액 표시용 — 회원 단가 미리 로드
+  HA.getUsers().then(users => {
+    users.forEach(u => userPriceMap.set(u.username, u.unitPrice || 0));
+  }).catch(() => {});
 
   // Firebase SDK 미리 로드 — 첫 상세 클릭 딜레이 제거
   import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').catch(() => {});
