@@ -1343,7 +1343,11 @@ window.toggleProdPanel = function(e) {
     } else {
       const kwLimitEl  = document.getElementById('pm-kwlimit');
       const fixedPctEl = document.getElementById('pm-fixedpct');
-      if (kwLimitEl)  p.kwLimit  = Math.max(1, parseInt(kwLimitEl.value, 10) || 5);
+      if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
+        alert('일 목표 배분은 100%를 초과할 수 없습니다.');
+        return;
+      }
+      if (kwLimitEl)  p.kwLimit  = Math.max(1, parseInt(kwLimitEl.value, 10) || 1);
       if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
     }
     prodGroups.forEach(g => { const gs=g.state.find(s=>s.id===p.id); if(gs){gs.name=p.name;gs.ver=p.ver;} });
@@ -1510,7 +1514,7 @@ window.toggleProdPanel = function(e) {
 
   function buildYoupflSheet(wb, f, sheetName) {
     const yupfl = ap().find(p => p.fixedAlloc);
-    if (!yupfl) return;
+    if (!yupfl || !yupfl.fixedPct) return;
     const ws = {};
     const headers = ['순위키워드', '작업키워드', '플레이스ID', '작업타수', '신청일수', '미션', '익일시작'];
     headers.forEach((h, ci) => {
