@@ -1272,7 +1272,7 @@ window.toggleProdPanel = function(e) {
       ? `<div class="ratio-item" style="grid-column:1/-1;">
           <span class="ri-name" style="color:${p.color}">검색키워드</span>
           <span style="font-size:12px;color:var(--text2);white-space:nowrap;">고정 배분</span>
-          <input type="number" step="1" min="1" max="50" value="${p.kwLimit ?? 5}" id="pm-kwlimit" />
+          <input type="number" step="1" min="1" value="${p.kwLimit ?? 5}" id="pm-kwlimit" />
           <span style="font-size:12px;color:var(--text2);">개</span>
         </div>`
       : makeGrid(actives, 'kwPct', 'pm-kwpct-');
@@ -1281,7 +1281,7 @@ window.toggleProdPanel = function(e) {
       ? `<div class="ratio-item" style="grid-column:1/-1;">
           <span class="ri-name" style="color:${p.color}">일 목표</span>
           <span style="font-size:12px;color:var(--text2);white-space:nowrap;">고정 배분</span>
-          <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" />
+          <input type="number" step="1" min="0" max="100" title="100% 이상은 설정할 수 없습니다" value="${p.fixedPct ?? 30}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
           <span style="font-size:12px;color:var(--text2);">%</span>
         </div>`
       : makeGrid(actives, 'ratio', 'pm-ratio-');
@@ -1295,8 +1295,18 @@ window.toggleProdPanel = function(e) {
     if (cur.fixedAlloc) {
       const kwNote = document.getElementById('pm-kw-note');
       const ratNote = document.getElementById('pm-ratio-note');
-      if (kwNote)  kwNote.textContent  = '';
-      if (ratNote) ratNote.textContent = '';
+      if (kwNote) kwNote.textContent = '';
+      if (ratNote) {
+        const pctEl = document.getElementById('pm-fixedpct');
+        const pctVal = pctEl ? parseFloat(pctEl.value) : NaN;
+        if (pctVal >= 100) {
+          ratNote.textContent = '⚠️ 100%로 설정하면 일반 상품은 배분되지 않습니다';
+          ratNote.className = 'ratio-note ng';
+        } else {
+          ratNote.textContent = '';
+          ratNote.className = 'ratio-note';
+        }
+      }
       return;
     }
     const actives = ap().filter(q => !q.fixedAlloc);
