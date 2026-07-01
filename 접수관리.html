@@ -1605,8 +1605,7 @@ window.toggleProdPanel = function(e) {
   }
 
   function openAdlogModal(target) {
-    const rows   = buildAdlogRows(target);
-    const groups = [...new Set(rows.map(r => r.group))];
+    const rows = buildAdlogRows(target);
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -1622,32 +1621,27 @@ window.toggleProdPanel = function(e) {
       </div>`;
     document.body.appendChild(overlay);
 
-    const bodyEl = overlay.querySelector('#adlog-body');
-    groups.forEach(g => bodyEl.appendChild(buildAdlogAgencyBlock(g, rows.filter(r => r.group === g))));
+    overlay.querySelector('#adlog-body').appendChild(buildAdlogTable(rows));
 
     overlay.querySelector('#adlog-sub').innerHTML =
-      `<span style="color:var(--muted)">대행사 ${groups.length}곳 · 총 ${rows.length}건 —</span> <span style="color:#dc2626;font-weight:600;">검토 후 등록 신청을 눌러주세요.</span>`;
+      `<span style="color:var(--muted)">총 ${rows.length}건 —</span> <span style="color:#dc2626;font-weight:600;">검토 후 등록 신청을 눌러주세요.</span>`;
 
     overlay.querySelector('#adlog-close-btn').onclick = () => { if (!window.adlogSubmitting) overlay.remove(); };
     overlay.addEventListener('click', e => { if (e.target === overlay && !window.adlogSubmitting) overlay.remove(); });
     overlay.querySelector('#adlog-apply-btn').onclick = () => executeAdlogSubmit(rows, overlay);
   }
 
-  // buildYoupflTableBlock과 동일한 agency-hd/ag-table 스타일 — 단일 배치 제출이라 agency-ft(개별 요약)는 두지 않음
-  function buildAdlogAgencyBlock(agency, rows) {
+  // ag-table 스타일(비즈핏 접수 모달과 동일 클래스) — 대행사 열 포함 단일 테이블
+  function buildAdlogTable(rows) {
     const block = document.createElement('div');
     block.className = 'agency-block';
-
-    const hd = document.createElement('div');
-    hd.className = 'agency-hd';
-    hd.innerHTML = `<div><div class="aname">${escProd(agency)}</div><div class="ameta">총 ${rows.length}건</div></div>`;
-    block.appendChild(hd);
 
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     const tbl = document.createElement('table');
     tbl.className = 'ag-table';
     tbl.style.cssText = 'table-layout:fixed;width:100%';
     tbl.innerHTML = `<thead><tr>
+      <th style="width:120px">대행사</th>
       <th style="width:160px">순위키워드</th>
       <th style="width:140px">MID</th>
       <th style="width:110px">메모</th>
@@ -1660,6 +1654,7 @@ window.toggleProdPanel = function(e) {
       statusTd.style.cssText = 'text-align:center;white-space:nowrap';
       statusTd.textContent = '-';
       tr.innerHTML = `
+        <td style="${ell};font-weight:700" title="${escProd(r.group)}">${escProd(r.group)}</td>
         <td style="${ell}" title="${escProd(r.keyword)}">${escProd(r.keyword||'-')}</td>
         <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.mid)}">${escProd(r.mid||'-')}</td>
         <td style="${ell}" title="${escProd(r.memo)}">${escProd(r.memo||'-')}</td>
