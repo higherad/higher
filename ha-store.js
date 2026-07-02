@@ -56,6 +56,7 @@ const PATHS = {
   refunds:         'ha/refunds',
   adClassify:      'ha/ad_classify',
   settleSnapshots: 'ha/settle_snapshots',
+  kimproSlots:     'kimpro/slots',
 };
 
 async function sendTelegram(message) {
@@ -241,30 +242,32 @@ const HA = {
   async updateSlot(key, patch) {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
     dispatch('ha:slots:updated');
+    // kimpro/slots 동시 반영 — 이미 미러링된 슬롯에 한해, 편도(kimpro 쪽 변경은 여기로 안 들어옴), 실패해도 무시
+    get(ref(db, `${PATHS.kimproSlots}/${key}`)).then(snap => {
+      if (snap.exists()) return update(ref(db, `${PATHS.kimproSlots}/${key}`), patch);
+    }).catch(() => {});
   },
 
   async deleteSlot(key) {
     const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
     if (!slotSnap.exists()) return;
     const slot = slotSnap.val();
-    await update(ref(db, `${PATHS.slots}/${key}`), {
+    await this.updateSlot(key, {
       status:         'deleted',
       deletedAt:      new Date().toISOString(),
       originalStatus: slot.status || 'pending',
     });
-    dispatch('ha:slots:updated');
   },
 
   async restoreSlot(key) {
     const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
     if (!slotSnap.exists()) return;
     const slot = slotSnap.val();
-    await update(ref(db, `${PATHS.slots}/${key}`), {
+    await this.updateSlot(key, {
       status:         slot.originalStatus || 'pending',
       deletedAt:      null,
       originalStatus: null,
     });
-    dispatch('ha:slots:updated');
   },
 
   async permanentDeleteSlot(key) {
