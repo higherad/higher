@@ -314,7 +314,7 @@
     <div class="nav-label" id="navlabel-mgmt">Management</div>
     <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)"><i data-lucide="layers" size="16"></i> 진행 현황</div>
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)"><i data-lucide="inbox" size="16"></i> 접수 관리<span class="badge" id="pending-badge" style="display:none">0</span></div>
-    <div class="nav-item" id="nav-expire"  onclick="loadPage('만료예정.html',this)"><i data-lucide="clock-alert" size="16"></i> 종료 예정</div>
+    <div class="nav-item" id="nav-expire"  onclick="loadPage('종료예정.html',this)"><i data-lucide="clock-alert" size="16"></i> 종료 예정</div>
     <div class="nav-label" id="navlabel-finance">Finance & Users</div>
     <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)"><i data-lucide="wallet" size="16"></i> 정산 관리<span class="badge" id="settle-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)"><i data-lucide="users" size="16"></i> 회원 관리<span class="badge" id="users-badge" style="display:none">0</span></div>
@@ -541,7 +541,7 @@
     });
   };
   window.loadQuickExpireSoon = function() {
-    window.loadPage('만료예정.html', document.getElementById('nav-expire'), () => {
+    window.loadPage('종료예정.html', document.getElementById('nav-expire'), () => {
       const el = document.getElementById('ef-range');
       if (el) el.value = '3';
     });
@@ -555,7 +555,7 @@
 
   const PAGE_TITLES = {
     '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
-    '만료예정.html':'종료 예정 현황', '정산관리.html':'정산 관리',
+    '종료예정.html':'종료 예정 현황', '정산관리.html':'정산 관리',
     '회원관리.html':'회원 관리', '공지사항.html':'공지사항',
     '광고분류.html':'광고 분류', '순위조회.html':'순위 조회',
   };

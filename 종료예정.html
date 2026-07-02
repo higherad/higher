@@ -195,7 +195,7 @@
     alert(`${days}일 연장되었습니다.`);
   };
 
-  // ── 순위 팝업 (만료예정) ─────────────────────────────────
+  // ── 순위 팝업 (종료예정) ─────────────────────────────────
   window.openRankPopup_e = async function(slotKey) {
     const s = allSlots.find(x => x._key === slotKey);
     const { openRankPopup: _openRankPopup } = await import(new URL('rank-popup.js', document.baseURI).href);
