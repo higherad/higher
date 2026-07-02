@@ -1949,11 +1949,11 @@ window.toggleProdPanel = function(e) {
         if (this.normalKeys === null || this.fixedKeys === null) return;
         const keys = [...this.normalKeys].filter(k => this.fixedKeys.has(k));
         if (keys.length) {
-          // 승인 전환과 동시에 임시 플래그 삭제(null) — 둘 다 완료된 이상 더 보관할 필요 없음
-          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', normalSubmitted: null, fixedSubmitted: null })));
+          // normalSubmitted/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
+          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active' })));
           keys.forEach(k => {
             const s = this.slotMap.get(k);
-            if (s) { s.status = 'active'; delete s.normalSubmitted; delete s.fixedSubmitted; }
+            if (s) s.status = 'active';
           });
         }
         renderReceipts(false);
