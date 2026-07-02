@@ -243,22 +243,25 @@ const HA = {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
     dispatch('ha:slots:updated');
     // kimpro/slots 동기화 — 편도(kimpro 쪽 변경은 여기로 안 들어옴), 실패해도 무시
-    get(ref(db, `${PATHS.kimproSlots}/${key}`)).then(async kpSnap => {
+    // (fire-and-forget으로 두면 호출부가 await 후 곧바로 페이지 이동/탭 종료 시 씹힐 수 있어 반드시 await)
+    try {
+      const kpSnap = await get(ref(db, `${PATHS.kimproSlots}/${key}`));
       if (kpSnap.exists()) {
         // 이미 kimpro에 있는 슬롯 — 동일 patch 그대로 반영
         await update(ref(db, `${PATHS.kimproSlots}/${key}`), patch);
       } else if (patch.status === 'active') {
         // 접수관리에서 승인(active) 처리된 시점에 최초로 kimpro에 전체 데이터 복사
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
-        if (!slotSnap.exists()) return;
-        const slot = slotSnap.val();
-        await set(ref(db, `${PATHS.kimproSlots}/${key}`), {
-          ...slot,
-          agencyId:      (slot.agencyId || '').replace('[단독]', '').trim(),
-          searchKeyword: slot.searchKeyword || '',
-        });
+        if (slotSnap.exists()) {
+          const slot = slotSnap.val();
+          await set(ref(db, `${PATHS.kimproSlots}/${key}`), {
+            ...slot,
+            agencyId:      (slot.agencyId || '').replace('[단독]', '').trim(),
+            searchKeyword: slot.searchKeyword || '',
+          });
+        }
       }
-    }).catch(() => {});
+    } catch (e) {}
   },
 
   async deleteSlot(key) {
