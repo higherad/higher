@@ -572,7 +572,7 @@ window.toggleProdPanel = function(e) {
       allSlots = await HA.getSlots();
       _slotsLoaded = true;
 
-      // ── 종료일 지난 active 캠페인 자동 만료 처리 ──────────────
+      // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
       const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
       const toExpire = allSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
