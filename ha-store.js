@@ -176,6 +176,12 @@ const HA = {
     const newRef = await push(ref(db, PATHS.slots), newSlot);
     const result = { ...newSlot, _key: newRef.key };
     dispatch('ha:slots:updated');
+    // kimpro/slots 동시 접수 — 같은 키로 미러링, 대행사명의 [단독] 접두사는 제거, 실패해도 원 접수는 유지
+    set(ref(db, `${PATHS.kimproSlots}/${newRef.key}`), {
+      ...newSlot,
+      agencyId:      newSlot.agencyId.replace('[단독]', '').trim(),
+      searchKeyword: data.searchKeyword || '',
+    }).catch(() => {});
     return result;
   },
 
