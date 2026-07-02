@@ -247,8 +247,12 @@ const HA = {
     try {
       const kpSnap = await get(ref(db, `${PATHS.kimproSlots}/${key}`));
       if (kpSnap.exists()) {
-        // 이미 kimpro에 있는 슬롯 — 동일 patch 그대로 반영
-        await update(ref(db, `${PATHS.kimproSlots}/${key}`), patch);
+        // 이미 kimpro에 있는 슬롯 — status는 최초 승인(active) 상태로 고정, 그 외 필드만 반영
+        // (접수관리에서 이후 만료/일시중단 등으로 상태가 바뀌어도 kimpro 쪽 상태는 안 건드림)
+        const { status, ...rest } = patch;
+        if (Object.keys(rest).length) {
+          await update(ref(db, `${PATHS.kimproSlots}/${key}`), rest);
+        }
       } else if (patch.status === 'active') {
         // 접수관리에서 승인(active) 처리된 시점에 최초로 kimpro에 전체 데이터 복사
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
