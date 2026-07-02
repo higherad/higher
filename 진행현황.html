@@ -77,9 +77,9 @@
 
 <div class="filter-bar">
   <select id="f-status" onchange="renderSlots()">
-    <option value="">전체 (승인+만료)</option>
+    <option value="">전체 (승인+종료)</option>
     <option value="active">진행중</option>
-    <option value="expired">만료</option>
+    <option value="expired">종료</option>
   </select>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="f-kw" placeholder="대행사/ID/플레이스명/MID 검색" style="width:240px;" onkeydown="if(event.key==='Enter') renderSlots()">
@@ -113,7 +113,7 @@
 
   const stLabel = {
     active:  '<span class="status-badge s-active">진행</span>',
-    expired: '<span class="status-badge s-expired">만료</span>',
+    expired: '<span class="status-badge s-expired">종료</span>',
   };
 
   function isGuest() { return HA.getCurrentUser()?.role === 'guest'; }
@@ -254,7 +254,7 @@
     renderSlots(false);
   };
 
-  const STATUS_KO = { active:'진행중', expired:'만료' };
+  const STATUS_KO = { active:'진행중', expired:'종료' };
   const READONLY_STYLE = 'background:#f8fafc;color:var(--text2);cursor:default;';
 
   function slotModal(s, title, onSave) {
