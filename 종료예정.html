@@ -80,6 +80,13 @@
     return Math.ceil((end - today) / 86400000);
   }
 
+  // 시작일이 아직 안 된 캠페인인지 확인 (오늘 포함 이전이면 시작한 것으로 간주)
+  function hasStarted(s) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const start = new Date(s.startDate); start.setHours(0,0,0,0);
+    return start <= today;
+  }
+
   function ddayBadge(d) {
     if(d === 0) return `<span class="dday-today">D-Day</span>`;
     if(d < 0)   return `<span class="dday-today">D+${Math.abs(d)}</span>`;
@@ -91,10 +98,11 @@
 
   function renderSummary(slots, range) {
     const allSlotsCnt = slots.length;
-    const t3  = slots.filter(s => { const d=getDday(s.endDate); return d <= 3; }).length;
-    const t7  = slots.filter(s => { const d=getDday(s.endDate); return d >= 4  && d <= 7; }).length;
-    const t14 = slots.filter(s => { const d=getDday(s.endDate); return d >= 8  && d <= 14; }).length;
-    const t30 = slots.filter(s => { const d=getDday(s.endDate); return d >= 15 && d <= 30; }).length;
+    const started = slots.filter(hasStarted); // 종료임박 집계는 이미 시작한 캠페인만 대상으로 함
+    const t3  = started.filter(s => { const d=getDday(s.endDate); return d <= 3; }).length;
+    const t7  = started.filter(s => { const d=getDday(s.endDate); return d >= 4  && d <= 7; }).length;
+    const t14 = started.filter(s => { const d=getDday(s.endDate); return d >= 8  && d <= 14; }).length;
+    const t30 = started.filter(s => { const d=getDday(s.endDate); return d >= 15 && d <= 30; }).length;
     const el = document.getElementById('expire-summary');
     if(!el) return;
 
@@ -172,7 +180,7 @@
         <td style="color:var(--text2);font-weight:600">${s.endDate}</td>
         <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
         <td><span class="kw-badge">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length}개</span></td>
-        <td>${ddayBadge(getDday(s.endDate))}</td>
+        <td>${hasStarted(s) ? ddayBadge(getDday(s.endDate)) : '-'}</td>
         <td><button class="action-btn btn-extend" onclick="extendFromExpire('${s._key}')">연장</button></td>
         <td class="rank-col"><button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup_e('${s._key}')">순위</button></td>
       </tr>`).join('');
