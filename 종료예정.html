@@ -159,7 +159,14 @@
       });
     }
     if(kw)   slots = slots.filter(s => [s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw)));
-    slots.sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
+    // 시작한 캠페인 먼저(endDate 오름차순), 시작 전 캠페인은 뒤로
+    slots.sort((a,b) => {
+      const aStarted = hasStarted(a);
+      const bStarted = hasStarted(b);
+      if (aStarted && !bStarted) return -1;
+      if (!aStarted && bStarted) return 1;
+      return new Date(a.endDate) - new Date(b.endDate);
+    });
 
     renderSummary(slots, range);
 
