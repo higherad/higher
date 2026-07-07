@@ -621,7 +621,7 @@
 
     const exportFn={daily:'acExport',monthly:'acExportMonthly',realtime:'acExportRealtime'}[mode]||'acExport';
     const exportBtn=`<button class="ac-export-btn" onclick="${exportFn}()">⬇ CSV</button>`;
-    const titleText={daily:'분류 결과',monthly:'월별 합산',realtime:'⚡ 실시간 조회 결과'}[mode]||'분류 결과';
+    const titleText={daily:'분류 결과',monthly:'월별 합산',realtime:'실시간 조회 결과'}[mode]||'분류 결과';
     const refreshBtn=mode==='realtime'?`<button class="ac-export-btn" onclick="loadRealtime()">🔄 새로고침</button>`:'';
 
     return `
