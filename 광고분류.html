@@ -4,7 +4,8 @@
 
   <!-- 탭 -->
   <div class="ac-tabs" id="ac-tabs">
-    <button class="ac-tab active" onclick="acSwitchTab('daily',this)">📅 일별</button>
+    <button class="ac-tab active" onclick="acSwitchTab('realtime',this)">⚡ 실시간</button>
+    <button class="ac-tab" onclick="acSwitchTab('daily',this)">📅 일별</button>
     <button class="ac-tab" onclick="acSwitchTab('monthly',this)">📆 월별</button>
     <button class="ac-tab" onclick="acSwitchTab('dates',this)">📋 날짜별</button>
   </div>
@@ -17,46 +18,25 @@
 
   <!-- 결과 -->
   <div id="ac-result-area">
-    <div class="ac-no-result">📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.</div>
+    <div class="ac-no-result">⚡ 실시간 데이터를 불러오는 중입니다...</div>
   </div>
   <div class="ac-save-status" id="ac-save-status"></div>
 
-  <hr class="ac-divider">
+  <hr class="ac-divider" style="display:none">
 
   <!-- 구분 설정 -->
-  <p class="ac-sec">🏷️ 구분 설정</p>
-  <div class="ac-editor" id="ac-editor">
+  <p class="ac-sec" style="display:none">🏷️ 구분 설정</p>
+  <div class="ac-editor" id="ac-editor" style="display:none">
     <div style="padding:20px;text-align:center;color:var(--muted,#94a3b8);font-size:13px">불러오는 중...</div>
   </div>
-
-  <!-- 업로드 -->
-  <p class="ac-sec">📂 엑셀 파일 업로드</p>
-  <div class="ac-upload-zone" id="ac-zone">
-    <input type="file" id="ac-file-input" accept=".xls,.xlsx">
-    <div style="font-size:28px;margin-bottom:8px">📊</div>
-    <div style="font-size:14px;font-weight:600;color:var(--text,#1e293b);margin-bottom:4px">파일을 클릭하거나 드래그하여 업로드</div>
-    <div style="font-size:12px;color:var(--muted,#94a3b8)">.xls / .xlsx 형식 지원</div>
-    <div class="ac-upload-fname" id="ac-fname"></div>
-  </div>
-
-  <!-- 실행 -->
-  <button class="ac-run-btn" id="ac-run-btn" disabled onclick="acRun()">▶&nbsp; 분류 실행</button>
 </div>
 <div id="ac-toast"></div>
 
 <script>
 (function(){
 
-  /* ── XLSX 보장 로드 ── */
-  function ensureXLSX(cb){
-    if(window.XLSX){cb();return;}
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=cb; s.onerror=()=>toast('XLSX 로드 실패','err');
-    document.head.appendChild(s);
-  }
-
   /* ── 유틸 ── */
+  const LIVE_URL='https://macro-4-bizfit-traffic-938928195180.asia-northeast3.run.app';
   const DEFAULTS=[{name:'대행사',stores:[]},{name:'직광고주',stores:[]},{name:'단독',stores:[]},{name:'유입플',stores:[]}];
   const norm =s=>String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^\w가-힣]/g,'').trim();
   const normT=s=>String(s||'').toLowerCase().replace(/\s+/g,'').trim();
@@ -73,27 +53,27 @@
   function setStatus(msg){document.getElementById('ac-save-status').textContent=msg;}
 
   /* ── 탭 상태 ── */
-  let _activeTab='daily';
+  let _activeTab='realtime';
   window.acSwitchTab=function(tab,btn){
     _activeTab=tab;
     document.querySelectorAll('.ac-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    // 일별 전용 UI 토글 (구분설정 + 업로드/실행)
+    // 일별 전용 UI 토글 (구분설정)
     const isDaily=tab==='daily';
     const d=isDaily?'':'none';
-    document.getElementById('ac-zone').style.display=d;
-    document.getElementById('ac-run-btn').style.display=d;
     document.getElementById('ac-editor').style.display=d;
     document.querySelectorAll('.ac-sec')[0].style.display=d; // 구분 설정 타이틀
-    document.querySelectorAll('.ac-sec')[1].style.display=d; // 업로드 타이틀
     document.querySelector('.ac-divider').style.display=d;
     // 검색창 placeholder 전환
     const si=document.getElementById('ac-search');
     si.value='';
     si.placeholder=tab==='dates'?'🔍  날짜 검색 (예: 04.07)...':'🔍  업체명 검색...';
-    if(tab==='daily'){
+    if(tab==='realtime'){
+      loadRealtime();
+    } else if(tab==='daily'){
       const r=window._acDailyResult;
-      r?renderResult(r,''):showEmpty('📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');
+      if(r){ renderResult(r,''); setStatus('✅ 서버에서 불러옴 · '+r.ts); }
+      else showEmpty('📅 아직 저장된 일별 데이터가 없습니다 (매일 자동으로 갱신됩니다).');
     } else if(tab==='monthly'){
       loadMonthly();
     } else {
@@ -155,46 +135,14 @@
     toast(`✅ ${vals.length}개 업체 추가됨`);
   };
 
-  /* ── 파일 업로드 ── */
-  window._acData=null;
-  function setupUpload(){
-    const zone=document.getElementById('ac-zone');
-    zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over');});
-    zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
-    zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
-    document.getElementById('ac-file-input').addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
-  }
-  function handleFile(file){
-    document.getElementById('ac-fname').textContent='📎 '+file.name;
-    document.getElementById('ac-fname').style.display='block';
-    ensureXLSX(()=>{
-      const reader=new FileReader();
-      reader.onload=ev=>{
-        try{
-          const wb=XLSX.read(ev.target.result,{type:'array'});
-          const ws=wb.Sheets[wb.SheetNames[0]];
-          const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-          window._acData=rows.slice(1).map(r=>({
-            storeN:norm(String(r[2]||'').split(',').pop()),
-            typeN:normT(r[9]),goal:Number(r[15])||0
-          })).filter(r=>r.storeN);
-          document.getElementById('ac-run-btn').disabled=false;
-          toast('✅ '+file.name+' 로드 완료 ('+window._acData.length+'행)');
-        }catch(err){toast('파일 파싱 실패: '+err.message,'err');}
-      };
-      reader.readAsArrayBuffer(file);
-    });
-  }
-
-  /* ── 분류 실행 ── */
-  window.acRun=async function(){
-    if(!window._acData){toast('먼저 파일을 업로드해주세요','err');return;}
+  /* ── 구분 설정 기준 분류 계산 (실시간 조회용 — 일별 자동 저장은 Cloud Run이 담당) ── */
+  function classify(acData){
     const groupSums=_groups.map(g=>({
       name:g.name,
       stores:(g.stores||[]).map(sName=>{
         const key=norm(sName);
         let ns=0,np=0,nps=0,na=0,vm=0;
-        window._acData.forEach(r=>{
+        acData.forEach(r=>{
           if(r.storeN!==key)return;
           const t=r.typeN;
           if(t.startsWith('ns트래픽'))ns+=r.goal;
@@ -206,18 +154,55 @@
         return{name:sName.replace(/주식회사|\(주\)/g,'').trim(),raw:sName,ns,np,nps,na,vm,sum:ns+np+nps+na+vm};
       }),
     })).map(g=>({...g,stores:g.stores.filter(r=>r.sum>0),gSum:g.stores.filter(r=>r.sum>0).reduce((a,r)=>a+r.sum,0)}));
-    const total={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
-    groupSums.forEach(g=>g.stores.forEach(r=>{total.ns+=r.ns;total.np+=r.np;total.nps+=r.nps;total.na+=r.na;total.vm+=r.vm;total.sum+=r.sum;}));
-    const result={groupSums,total,ts:new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})};
-    window._acDailyResult=result;
-    await fbSaveResult(result);
-    // 저장 후 월별 데이터 갱신
-    const daily=await fbLoadDaily();
-    window._acDailyAll=daily;
-    window._acMonthData=buildMonthData(daily);
-    renderResult(result,'');
-    toast('✅ 분류 완료');
-  };
+    const total=computeTotal(groupSums);
+    return{groupSums,total,ts:new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})};
+  }
+
+  /* ── 유입플 물량을 분류 결과에 주입 (구분 설정의 '유입플' 그룹에 반영) ── */
+  function injectYoupfl(result, total){
+    let yg=result.groupSums.find(g=>g.name==='유입플');
+    if(!yg){ yg={name:'유입플',stores:[],gSum:0}; result.groupSums.push(yg); }
+    yg.stores=[{name:'유입플 플레이스',raw:'유입플',ns:0,np:total,nps:0,na:0,vm:0,sum:total}];
+    yg.gSum=total;
+    result.total=computeTotal(result.groupSums);
+    return result;
+  }
+
+  /* ── 실시간 조회 (BizFit + 유입플 즉석 조회, 저장 없음) ── */
+  async function fetchLiveData(){
+    const r=await fetch(`${LIVE_URL}/live`);
+    const j=await r.json();
+    if(!j.success) throw new Error((j.logs&&j.logs.length)?j.logs[j.logs.length-1]:'조회 실패');
+    return {rows:j.rows||[], youpflTotal:j.youpflTotal};
+  }
+  async function loadRealtime(){
+    showEmpty('⚡ BizFit에서 실시간 데이터를 조회하는 중...');
+    setStatus('');
+    try{
+      const{rows,youpflTotal}=await fetchLiveData();
+      const acData=rows.map(r=>({
+        storeN:norm(String(r[2]||'').split(',').pop()),
+        typeN:normT(r[9]),goal:Number(r[15])||0
+      })).filter(r=>r.storeN);
+      let result=classify(acData);
+      if(youpflTotal!=null) result=injectYoupfl(result,youpflTotal);
+      window._acRealtimeResult=result;
+      if(!window._acDailyAll){
+        const daily=await fbLoadDaily();
+        window._acDailyAll=daily;
+        window._acMonthData=buildMonthData(daily);
+      }
+      renderRealtimeResult(result,'');
+      setStatus('⚡ 실시간 조회 완료 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
+    }catch(e){
+      showEmpty('❌ 실시간 데이터 조회 실패: '+e.message);
+    }
+  }
+  function renderRealtimeResult(result,keyword){
+    if(!result){showEmpty('⚡ 실시간 데이터를 불러오는 중입니다...');return;}
+    window._acLastResult=result;
+    document.getElementById('ac-result-area').innerHTML=buildTable(result,keyword,'realtime',window._acMonthData||null);
+  }
 
   /* ── 날짜별 ── */
   async function loadDates(){
@@ -458,7 +443,7 @@
   };
 
   function renderMonthlyTable(result, keyword){
-    document.getElementById('ac-monthly-result').innerHTML=buildTable(result, keyword, true);
+    document.getElementById('ac-monthly-result').innerHTML=buildTable(result, keyword, 'monthly');
     window._acLastResult=result;
   }
 
@@ -469,7 +454,7 @@
   function renderResult(result, keyword){
     if(!result){showEmpty('📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');return;}
     window._acLastResult=result;
-    document.getElementById('ac-result-area').innerHTML=buildTable(result, keyword, false, window._acMonthData||null);
+    document.getElementById('ac-result-area').innerHTML=buildTable(result, keyword, 'daily', window._acMonthData||null);
   }
 
   /* ── 이번 달 합산 데이터 빌드 (일별 raw → {storeName: {sum,gSum by group}} 형태) ── */
@@ -505,11 +490,12 @@
     return {storeMap, groupMap, monthLabel, days:monthKeys.length};
   }
 
-  /* ── 공통 테이블 빌더 ── */
-  function buildTable(result, keyword, isMonthly, monthData){
+  /* ── 공통 테이블 빌더 (mode: 'daily' | 'monthly' | 'realtime') ── */
+  function buildTable(result, keyword, mode, monthData){
     const{groupSums,total,ts}=result;
     const kw=(keyword||'').trim().toLowerCase();
-    const md=(!isMonthly&&monthData)?monthData:null; // 일별 탭에서만 월별 컬럼 표시
+    const isMonthly=mode==='monthly';
+    const md=(!isMonthly&&monthData)?monthData:null; // 일별·실시간 탭에서만 월별 컬럼 표시
 
     // 월별 전체 합산
     let mTotal=0;
@@ -595,17 +581,19 @@
       ?`<th style="background:#334155;color:#e2e8f0;border-left:3px solid #1e293b">${mLabel} 합계</th><th style="background:#334155;color:#e2e8f0">${mLabel} 총합계</th>`
       :'';
 
-    const exportBtn=isMonthly
-      ?`<button class="ac-export-btn" onclick="acExportMonthly()">⬇ CSV</button>`
-      :`<button class="ac-export-btn" onclick="acExport()">⬇ CSV</button>`;
+    const exportFn={daily:'acExport',monthly:'acExportMonthly',realtime:'acExportRealtime'}[mode]||'acExport';
+    const exportBtn=`<button class="ac-export-btn" onclick="${exportFn}()">⬇ CSV</button>`;
+    const titleText={daily:'분류 결과',monthly:'월별 합산',realtime:'⚡ 실시간 조회 결과'}[mode]||'분류 결과';
+    const refreshBtn=mode==='realtime'?`<button class="ac-export-btn" onclick="loadRealtime()">🔄 새로고침</button>`:'';
 
     return `
       <div class="ac-result-hdr">
         <div>
-          <div class="ac-result-title">${isMonthly?'월별 합산':'분류 결과'}${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
+          <div class="ac-result-title">${titleText}${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
           <div class="ac-result-meta">${ts}${md?` &nbsp;·&nbsp; ${mLabel} 합산 포함 (${md.days}일)`:''}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
+          ${refreshBtn}
           ${exportBtn}
           <button class="ac-capture-btn" id="ac-cap-btn" onclick="acCapture()">📷 이미지 저장</button>
         </div>
@@ -627,7 +615,8 @@
 
   /* ── 검색 ── */
   window.acSearch=function(val){
-    if(_activeTab==='daily'){ if(window._acDailyResult)renderResult(window._acDailyResult,val); }
+    if(_activeTab==='realtime'){ if(window._acRealtimeResult)renderRealtimeResult(window._acRealtimeResult,val); }
+    else if(_activeTab==='daily'){ if(window._acDailyResult)renderResult(window._acDailyResult,val); }
     else if(_activeTab==='monthly'){ if(window._acMonthResult)renderMonthlyTable(window._acMonthResult,val); }
     else {
       // 날짜별: 날짜 레이블로 행 필터링
@@ -659,6 +648,7 @@
   }
   window.acExport=function(){ dlCSV(makeCSV(window._acDailyResult),'광고분류_일별_'); };
   window.acExportMonthly=function(){ dlCSV(makeCSV(window._acMonthResult),'광고분류_월별_'); };
+  window.acExportRealtime=function(){ dlCSV(makeCSV(window._acRealtimeResult),'광고분류_실시간_'); };
   window.acExportDates=function(){
     const daily=window._acDailyAll||{};
     const yyMM=window._acSelectedMonth||'';
@@ -800,26 +790,24 @@
 
   /* ── 초기화 ── */
   async function init(){
-    setupUpload();
     try{
       const data=await fbLoad();
       if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
       if(data.groups&&Array.isArray(data.groups)&&data.groups.length) _groups=data.groups;
       renderEditor();
+      // 일별/월별 아카이브 미리 로드 (일별 탭 + 실시간 탭의 '이번달 합계' 컬럼용)
+      const daily=await fbLoadDaily();
+      window._acDailyAll=daily;
+      window._acMonthData=buildMonthData(daily);
       if(data.result){
         window._acDailyResult=data.result;
-        // 월별 데이터도 함께 로드해서 일별 탭에 표시
-        const daily=await fbLoadDaily();
-        window._acDailyAll=daily;
-        window._acMonthData=buildMonthData(daily);
-        renderResult(data.result,'');
-        setStatus('✅ 서버에서 불러옴 · '+data.result.ts);
-        document.getElementById('ac-run-btn').disabled=false;
       }
     }catch(e){
       renderEditor();
       setStatus('⚠️ 불러오기 실패: '+e.message);
     }
+    // 기본 진입 탭: 실시간
+    loadRealtime();
   }
   function computeTotal(groupSums){
     const t={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
@@ -828,23 +816,6 @@
     }));
     return t;
   }
-  /* ── 유입플 데이터 주입 (Python Playwright에서 호출) ── */
-  window.injectYoupflData = async function(total) {
-    if (!window._acDailyResult) {
-      window._acDailyResult = {
-        groupSums: _groups.map(g => ({name: g.name, stores: [], gSum: 0})),
-        total: {ns:0, np:0, nps:0, na:0, vm:0, sum:0},
-        ts: new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'})
-      };
-    }
-    let yg = window._acDailyResult.groupSums.find(g => g.name === '유입플');
-    if (!yg) { yg = {name: '유입플', stores: [], gSum: 0}; window._acDailyResult.groupSums.push(yg); }
-    yg.stores = [{name: '유입플 플레이스', raw: '유입플', ns:0, np: total, nps:0, na:0, vm:0, sum: total}];
-    yg.gSum = total;
-    window._acDailyResult.total = computeTotal(window._acDailyResult.groupSums);
-    await fbSaveResult(window._acDailyResult);
-    renderResult(window._acDailyResult, '');
-  };
   init();
 })();
 </script>
