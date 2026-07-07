@@ -239,15 +239,15 @@
     .rd-header { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
     .rd-header i { width:18px; height:18px; }
     .rd-title { font-size:15px; font-weight:700; }
+    .rd-header-arrow { margin-left:auto; width:16px; height:16px; color:var(--muted); cursor:pointer; transition:.2s; }
+    .rd-header-arrow:hover { color:var(--accent); }
     .rd-body { display:flex; align-items:center; gap:24px; }
-    .rd-rows { flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
-    .rd-row { display:flex; align-items:center; gap:10px; padding:11px 6px; border-radius:10px; cursor:pointer; transition:.15s; }
-    .rd-row:hover { background:var(--bg); }
-    .rd-icon { width:17px; height:17px; flex-shrink:0; }
+    .rd-rows { flex:1; display:flex; flex-direction:column; gap:1px; min-width:0; }
+    .rd-row { display:flex; align-items:center; gap:10px; padding:7px 6px; border-radius:10px; }
+    .rd-icon { width:16px; height:16px; flex-shrink:0; }
     .rd-label { flex:1; font-size:13px; font-weight:600; color:var(--text2); }
-    .rd-count { font-size:15px; font-weight:800; color:var(--text); white-space:nowrap; }
+    .rd-count { font-size:14px; font-weight:800; color:var(--text); white-space:nowrap; }
     .rd-count small { font-size:11px; font-weight:500; color:var(--muted); margin-left:1px; }
-    .rd-arrow { color:var(--muted); font-size:13px; margin-left:2px; }
     .rd-donut { position:relative; width:120px; height:120px; flex-shrink:0; }
     .rd-donut svg { transform:rotate(-90deg); }
     .rd-total { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
@@ -255,8 +255,7 @@
     .rd-total-val { font-size:19px; font-weight:800; color:var(--text); }
     .rd-footer { display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
     .rd-basis { font-size:11px; color:var(--muted); }
-    .rd-unrec { font-size:11px; font-weight:700; color:var(--text2); background:var(--bg); padding:5px 12px; border-radius:20px; cursor:pointer; transition:.2s; }
-    .rd-unrec:hover { background:var(--border); }
+    .rd-unrec { font-size:11px; font-weight:700; color:var(--text2); background:var(--bg); padding:5px 12px; border-radius:20px; }
     .rd-empty { padding:40px 0; text-align:center; color:var(--muted); font-size:13px; }
 
     .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:14px; gap:10px; }
@@ -550,19 +549,25 @@
       s.startDate <= todayStr && s.endDate >= todayStr
     );
 
-    const result = { top10:0, top30:0, top100:0, outside:0, unrecorded:0, basisDate:'', total:0 };
+    const result = {
+      top10:0, top30:0, top100:0, top200:0, top300:0, outside:0,
+      unrecorded:0, basisDate:'', total:0,
+    };
     if (!running.length) return result;
 
     const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
     const db = getDatabase();
 
-    const dataArr = await Promise.all(running.map(async s => {
-      const safeMid = s.mid.replace(/[.#$[\]/]/g, '_');
-      try {
-        const snap = await get(ref(db, `ha/ranks/${safeMid}`));
-        return snap.exists() ? snap.val() : null;
-      } catch { return null; }
-    }));
+    const [dataArr, allDoneSnap] = await Promise.all([
+      Promise.all(running.map(async s => {
+        const safeMid = s.mid.replace(/[.#$[\]/]/g, '_');
+        try {
+          const snap = await get(ref(db, `ha/ranks/${safeMid}`));
+          return snap.exists() ? snap.val() : null;
+        } catch { return null; }
+      })),
+      get(ref(db, 'ha/pipeline/allDone')).catch(() => null),
+    ]);
 
     let maxDate = '';
     dataArr.forEach(rd => {
@@ -575,28 +580,41 @@
       else if (rank <= 10)  result.top10++;
       else if (rank <= 30)  result.top30++;
       else if (rank <= 100) result.top100++;
+      else if (rank <= 200) result.top200++;
+      else if (rank <= 300) result.top300++;
       else result.outside++;
     });
 
-    result.basisDate = maxDate;
-    result.total = result.top10 + result.top30 + result.top100 + result.outside;
+    // 기준일 = 파이프라인 완료 시점(ha/pipeline/allDone, YYMMDD). 없으면 실데이터 최신일로 대체.
+    const allDoneVal = allDoneSnap && allDoneSnap.exists() ? String(allDoneSnap.val()) : '';
+    result.basisDate = /^\d{6}$/.test(allDoneVal)
+      ? `20${allDoneVal.slice(0,2)}-${allDoneVal.slice(2,4)}-${allDoneVal.slice(4,6)}`
+      : (maxDate || '-');
+
+    result.total = result.top10 + result.top30 + result.top100 + result.top200 + result.top300 + result.outside;
     return result;
   }
 
   function renderRankDistCard(d) {
-    if (!d.total) {
-      return `<div class="rd-card">
-        <div class="rd-header"><i data-lucide="trophy" style="color:var(--warn)"></i><span class="rd-title">현재 순위 분포</span></div>
-        <div class="rd-empty">집계할 순위 데이터가 없습니다.</div>
+    const headerHtml = `
+      <div class="rd-header">
+        <i data-lucide="trophy" style="color:var(--warn)"></i>
+        <span class="rd-title">현재 순위 분포</span>
+        <i data-lucide="arrow-right" class="rd-header-arrow" onclick="rdGoRank()" title="순위 조회로 이동"></i>
       </div>`;
+
+    if (!d.total) {
+      return `<div class="rd-card">${headerHtml}<div class="rd-empty">집계할 순위 데이터가 없습니다.</div></div>`;
     }
 
     const C = 2 * Math.PI * 50;
     const segs = [
-      { val: d.top10,  color:'#3b82f6' },
-      { val: d.top30,  color:'#10b981' },
-      { val: d.top100, color:'#059669' },
-      { val: d.outside,color:'#22d3ee' },
+      { val: d.top10,   color:'#3b82f6' },
+      { val: d.top30,   color:'#10b981' },
+      { val: d.top100,  color:'#0d9488' },
+      { val: d.top200,  color:'#f59e0b' },
+      { val: d.top300,  color:'#f97316' },
+      { val: d.outside, color:'#ef4444' },
     ];
     let cum = 0;
     const circles = segs.map(s => {
@@ -607,21 +625,22 @@
     }).join('');
 
     const rows = [
-      { icon:'trophy',         color:'#eab308', label:'1~10위',        val:d.top10   },
-      { icon:'trending-up',    color:'#10b981', label:'11~30위',       val:d.top30   },
-      { icon:'award',          color:'#0d9488', label:'31~100위',      val:d.top100  },
-      { icon:'triangle-alert', color:'#ef4444', label:'권외 (101위~)', val:d.outside },
+      { icon:'trophy',      color:'#3b82f6', label:'1~10위',        val:d.top10   },
+      { icon:'trending-up', color:'#10b981', label:'11~30위',       val:d.top30   },
+      { icon:'award',       color:'#0d9488', label:'31~100위',      val:d.top100  },
+      { icon:'bar-chart-2', color:'#f59e0b', label:'101~200위',     val:d.top200  },
+      { icon:'bar-chart',   color:'#f97316', label:'201~300위',     val:d.top300  },
+      { icon:'triangle-alert', color:'#ef4444', label:'권외 (301위~)', val:d.outside },
     ].map(r => `
-      <div class="rd-row" onclick="rdGoRank()">
+      <div class="rd-row">
         <i data-lucide="${r.icon}" class="rd-icon" style="color:${r.color}"></i>
         <span class="rd-label">${r.label}</span>
         <span class="rd-count">${r.val.toLocaleString()}<small> 개</small></span>
-        <span class="rd-arrow">→</span>
       </div>`).join('');
 
     return `
       <div class="rd-card">
-        <div class="rd-header"><i data-lucide="trophy" style="color:var(--warn)"></i><span class="rd-title">현재 순위 분포</span></div>
+        ${headerHtml}
         <div class="rd-body">
           <div class="rd-rows">${rows}</div>
           <div class="rd-donut">
@@ -634,7 +653,7 @@
         </div>
         <div class="rd-footer">
           <span class="rd-basis">기준: ${d.basisDate || '-'}</span>
-          <span class="rd-unrec" onclick="rdGoRank()">미기록 ${d.unrecorded.toLocaleString()}개</span>
+          <span class="rd-unrec">미기록 ${d.unrecorded.toLocaleString()}개</span>
         </div>
       </div>`;
   }
