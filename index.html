@@ -538,7 +538,19 @@
 
   // ── 현재 순위 분포 (진행중 캠페인의 최신 순위 집계) ─────────
   window.rdGoRank = function() {
-    loadPage('순위조회.html', document.getElementById('nav-rank'));
+    loadPage('순위조회.html', document.getElementById('nav-rank'), () => {
+      // 순위조회.html의 스크립트는 afterLoad 이후 비동기(blob script)로 실행되므로
+      // window.rkTab이 정의될 때까지 잠깐 재시도한다.
+      const tryClick = (attempts = 0) => {
+        const btn = document.getElementById('rk-tab-change');
+        if (btn && typeof window.rkTab === 'function') {
+          window.rkTab('change', btn);
+        } else if (attempts < 20) {
+          setTimeout(() => tryClick(attempts + 1), 50);
+        }
+      };
+      tryClick();
+    });
   };
 
   // 순위조회.html '5일' 탭과 동일한 GAS 소스 — 어드민(ha/slots)에 없는 상품도 포함된 전체 순위 집계
