@@ -10,13 +10,13 @@
       <button class="ac-tab" onclick="acSwitchTab('monthly',this)">📆 월별</button>
       <button class="ac-tab" onclick="acSwitchTab('dates',this)">📋 날짜별</button>
     </div>
-    <button class="ac-export-btn" onclick="acOpenGroupsPopup()">🏷️ 구분 설정</button>
+    <button class="ac-export-btn" style="background:#eef2ff;color:#4f46e5;border-color:#c7d2fe" onclick="acOpenGroupsPopup()">🏷️ 구분 설정</button>
   </div>
 
   <!-- 검색 -->
   <div class="ac-search-bar">
     <input class="ac-search-input" id="ac-search" placeholder="🔍  업체명 검색..." oninput="acSearch(this.value)">
-    <button class="ac-search-clear" onclick="acClearSearch()">✕ 검색 초기화</button>
+    <button class="ac-search-clear" onclick="acClearSearch()">← 검색 초기화</button>
   </div>
 
   <!-- 결과 -->
