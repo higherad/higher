@@ -22,11 +22,11 @@
   </div>
   <div class="ac-save-status" id="ac-save-status"></div>
 
-  <hr class="ac-divider" style="display:none">
+  <hr class="ac-divider">
 
   <!-- 구분 설정 -->
-  <p class="ac-sec" style="display:none">🏷️ 구분 설정</p>
-  <div class="ac-editor" id="ac-editor" style="display:none">
+  <p class="ac-sec">🏷️ 구분 설정</p>
+  <div class="ac-editor" id="ac-editor">
     <div style="padding:20px;text-align:center;color:var(--muted,#94a3b8);font-size:13px">불러오는 중...</div>
   </div>
 </div>
@@ -58,9 +58,9 @@
     _activeTab=tab;
     document.querySelectorAll('.ac-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    // 일별 전용 UI 토글 (구분설정)
-    const isDaily=tab==='daily';
-    const d=isDaily?'':'none';
+    // 구분설정 UI 토글 (실시간·일별 탭에서만 노출)
+    const showGroupEditor=tab==='realtime'||tab==='daily';
+    const d=showGroupEditor?'':'none';
     document.getElementById('ac-editor').style.display=d;
     document.querySelectorAll('.ac-sec')[0].style.display=d; // 구분 설정 타이틀
     document.querySelector('.ac-divider').style.display=d;
@@ -69,7 +69,8 @@
     si.value='';
     si.placeholder=tab==='dates'?'🔍  날짜 검색 (예: 04.07)...':'🔍  업체명 검색...';
     if(tab==='realtime'){
-      loadRealtime();
+      const r=window._acRealtimeResult;
+      r?renderRealtimeResult(r,''):showRealtimePrompt();
     } else if(tab==='daily'){
       const r=window._acDailyResult;
       if(r){ renderResult(r,''); setStatus('✅ 서버에서 불러옴 · '+r.ts); }
@@ -168,14 +169,23 @@
     return result;
   }
 
-  /* ── 실시간 조회 (BizFit + 유입플 즉석 조회, 저장 없음) ── */
+  /* ── 실시간 조회 (BizFit + 유입플 즉석 조회, 저장 없음 — 버튼을 눌렀을 때만 실행) ── */
+  function showRealtimePrompt(){
+    document.getElementById('ac-result-area').innerHTML=`
+      <div class="ac-no-result">
+        ⚡ 조회 버튼을 눌러 지금 이 순간의 BizFit·유입플 데이터를 가져옵니다.
+        <div style="margin-top:16px;display:flex;justify-content:center">
+          <button class="ac-run-btn" style="width:auto;padding:12px 28px" onclick="loadRealtime()">🔍 실시간 조회</button>
+        </div>
+      </div>`;
+  }
   async function fetchLiveData(){
     const r=await fetch(`${LIVE_URL}/live`);
     const j=await r.json();
     if(!j.success) throw new Error((j.logs&&j.logs.length)?j.logs[j.logs.length-1]:'조회 실패');
     return {rows:j.rows||[], youpflTotal:j.youpflTotal};
   }
-  async function loadRealtime(){
+  window.loadRealtime=async function(){
     showEmpty('⚡ BizFit에서 실시간 데이터를 조회하는 중...');
     setStatus('');
     try{
@@ -197,7 +207,7 @@
     }catch(e){
       showEmpty('❌ 실시간 데이터 조회 실패: '+e.message);
     }
-  }
+  };
   function renderRealtimeResult(result,keyword){
     if(!result){showEmpty('⚡ 실시간 데이터를 불러오는 중입니다...');return;}
     window._acLastResult=result;
@@ -806,8 +816,8 @@
       renderEditor();
       setStatus('⚠️ 불러오기 실패: '+e.message);
     }
-    // 기본 진입 탭: 실시간
-    loadRealtime();
+    // 기본 진입 탭: 실시간 (자동 조회하지 않고 버튼 클릭 대기)
+    showRealtimePrompt();
   }
   function computeTotal(groupSums){
     const t={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
