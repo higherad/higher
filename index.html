@@ -541,23 +541,37 @@
     loadPage('순위조회.html', document.getElementById('nav-rank'));
   };
 
+  // 순위조회.html '5일' 탭과 동일한 GAS 소스 — 어드민(ha/slots)에 없는 상품도 포함된 전체 순위 집계
+  const RANK_CHANGE_GAS_URL = 'https://script.google.com/macros/s/AKfycbxyFuM-npYQ_Rkgezgl6LqfhUCCdc3mff07ESh88VxE2nTqYeR5j1JriyY8mTRdSH_a/exec';
+  const RANK_FLOOR = 301; // 5일 데이터에서 '-'(300위 밖/미확인)는 권외로 취급
+
   async function fetchRankDistribution(allSlots) {
     const todayStr = new Date().toISOString().slice(0, 10);
     const running = allSlots.filter(s =>
       s.status === 'active' && s.mid && s.rankKeyword &&
       s.startDate <= todayStr && s.endDate >= todayStr
     );
+    const adminMids = new Set(running.map(s => s.mid));
 
     const result = {
       top10:0, top30:0, top100:0, top200:0, top300:0, outside:0,
       unrecorded:0, basisDate:'', total:0,
     };
-    if (!running.length) return result;
+
+    const classify = rank => {
+      if (!Number.isFinite(rank) || rank <= 0)   { result.outside++; return; }
+      if (rank <= 10)  result.top10++;
+      else if (rank <= 30)  result.top30++;
+      else if (rank <= 100) result.top100++;
+      else if (rank <= 200) result.top200++;
+      else if (rank <= 300) result.top300++;
+      else result.outside++;
+    };
 
     const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
     const db = getDatabase();
 
-    const [dataArr, allDoneSnap] = await Promise.all([
+    const [dataArr, allDoneSnap, changeJson] = await Promise.all([
       Promise.all(running.map(async s => {
         const safeMid = s.mid.replace(/[.#$[\]/]/g, '_');
         try {
@@ -566,6 +580,7 @@
         } catch { return null; }
       })),
       get(ref(db, 'ha/pipeline/allDone')).catch(() => null),
+      fetch(`${RANK_CHANGE_GAS_URL}?action=getRankData&t=${Date.now()}`).then(r => r.json()).catch(() => null),
     ]);
 
     let maxDate = '';
@@ -574,15 +589,22 @@
       if (!dates.length) { result.unrecorded++; return; }
       const latestDate = dates[0];
       if (latestDate > maxDate) maxDate = latestDate;
-      const rank = Number(rd[latestDate]?.rank);
-      if (!Number.isFinite(rank) || rank <= 0)   result.outside++;
-      else if (rank <= 10)  result.top10++;
-      else if (rank <= 30)  result.top30++;
-      else if (rank <= 100) result.top100++;
-      else if (rank <= 200) result.top200++;
-      else if (rank <= 300) result.top300++;
-      else result.outside++;
+      classify(Number(rd[latestDate]?.rank));
     });
+
+    // 어드민(ha/slots)에 등록되지 않은 상품 — '5일' 데이터의 최신값으로 집계, 어드민 mid는 중복 제외
+    if (changeJson && Array.isArray(changeJson.results)) {
+      changeJson.results.forEach(item => {
+        if (!item.mid || adminMids.has(item.mid)) return;
+        const ranks = item.ranks || [];
+        if (!ranks.length) { result.unrecorded++; return; }
+        const latestRaw = ranks[ranks.length - 1];
+        const rank = (latestRaw === '' || latestRaw === null || latestRaw === undefined || latestRaw === '-')
+          ? RANK_FLOOR
+          : parseFloat(latestRaw);
+        classify(Number.isFinite(rank) ? rank : RANK_FLOOR);
+      });
+    }
 
     // 기준일 = 파이프라인 완료 시점(ha/pipeline/allDone, YYMMDD). 없으면 실데이터 최신일로 대체.
     const allDoneVal = allDoneSnap && allDoneSnap.exists() ? String(allDoneSnap.val()) : '';
