@@ -234,6 +234,31 @@
     .quick-btn.primary { background:var(--accent); color:#fff; }
     .quick-btn.primary:hover { background:var(--accent2); }
 
+    /* 현재 순위 분포 카드 */
+    .rd-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 24px; max-width:560px; margin-bottom:20px; }
+    .rd-header { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+    .rd-header i { width:18px; height:18px; }
+    .rd-title { font-size:15px; font-weight:700; }
+    .rd-body { display:flex; align-items:center; gap:24px; }
+    .rd-rows { flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
+    .rd-row { display:flex; align-items:center; gap:10px; padding:11px 6px; border-radius:10px; cursor:pointer; transition:.15s; }
+    .rd-row:hover { background:var(--bg); }
+    .rd-icon { width:17px; height:17px; flex-shrink:0; }
+    .rd-label { flex:1; font-size:13px; font-weight:600; color:var(--text2); }
+    .rd-count { font-size:15px; font-weight:800; color:var(--text); white-space:nowrap; }
+    .rd-count small { font-size:11px; font-weight:500; color:var(--muted); margin-left:1px; }
+    .rd-arrow { color:var(--muted); font-size:13px; margin-left:2px; }
+    .rd-donut { position:relative; width:120px; height:120px; flex-shrink:0; }
+    .rd-donut svg { transform:rotate(-90deg); }
+    .rd-total { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .rd-total-label { font-size:11px; color:var(--muted); font-weight:600; }
+    .rd-total-val { font-size:19px; font-weight:800; color:var(--text); }
+    .rd-footer { display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
+    .rd-basis { font-size:11px; color:var(--muted); }
+    .rd-unrec { font-size:11px; font-weight:700; color:var(--text2); background:var(--bg); padding:5px 12px; border-radius:20px; cursor:pointer; transition:.2s; }
+    .rd-unrec:hover { background:var(--border); }
+    .rd-empty { padding:40px 0; text-align:center; color:var(--muted); font-size:13px; }
+
     .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:14px; gap:10px; }
     .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
     @keyframes spin { to{transform:rotate(360deg)} }
@@ -279,6 +304,10 @@
 
       /* 하단 그리드 — 1열 */
       .bottom-grid { grid-template-columns:1fr; }
+
+      /* 현재 순위 분포 카드 — 세로 배치 */
+      .rd-card { max-width:100%; }
+      .rd-body { flex-direction:column; gap:16px; }
 
       /* 테이블 — 가로 스크롤 */
       .tbl-wrap, #receipt-page .tbl-wrap, #slots-page .tbl-wrap,
@@ -472,6 +501,9 @@
         <div class="stat-card c-info"><div class="stat-label">대기</div><div class="stat-value">${pendingCount}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-info"><div class="stat-label">접수</div><div class="stat-value">${acceptedCount}<span class="stat-unit">건</span></div></div>
       </div>
+      <div id="rd-slot">
+        <div class="rd-card"><div class="loading-wrap" style="height:160px"><div class="spinner"></div> 순위 데이터 불러오는 중...</div></div>
+      </div>
       <div class="bottom-grid">
         <div class="ha-box">
           <div class="box-header">
@@ -496,7 +528,116 @@
         </div>
       </div>`;
 
+    fetchRankDistribution(allSlots).then(d => {
+      const slot = document.getElementById('rd-slot');
+      if (slot) { slot.innerHTML = renderRankDistCard(d); lucide.createIcons(); }
+    }).catch(err => {
+      console.error('rank distribution error:', err);
+      const slot = document.getElementById('rd-slot');
+      if (slot) slot.innerHTML = `<div class="rd-card"><div class="rd-empty" style="color:var(--danger)">순위 분포 로드 실패: ${err.message}</div></div>`;
+    });
   };
+
+  // ── 현재 순위 분포 (진행중 캠페인의 최신 순위 집계) ─────────
+  window.rdGoRank = function() {
+    loadPage('순위조회.html', document.getElementById('nav-rank'));
+  };
+
+  async function fetchRankDistribution(allSlots) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const running = allSlots.filter(s =>
+      s.status === 'active' && s.mid && s.rankKeyword &&
+      s.startDate <= todayStr && s.endDate >= todayStr
+    );
+
+    const result = { top10:0, top30:0, top100:0, outside:0, unrecorded:0, basisDate:'', total:0 };
+    if (!running.length) return result;
+
+    const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+    const db = getDatabase();
+
+    const dataArr = await Promise.all(running.map(async s => {
+      const safeMid = s.mid.replace(/[.#$[\]/]/g, '_');
+      try {
+        const snap = await get(ref(db, `ha/ranks/${safeMid}`));
+        return snap.exists() ? snap.val() : null;
+      } catch { return null; }
+    }));
+
+    let maxDate = '';
+    dataArr.forEach(rd => {
+      const dates = rd ? Object.keys(rd).sort((a, b) => b.localeCompare(a)) : [];
+      if (!dates.length) { result.unrecorded++; return; }
+      const latestDate = dates[0];
+      if (latestDate > maxDate) maxDate = latestDate;
+      const rank = Number(rd[latestDate]?.rank);
+      if (!Number.isFinite(rank) || rank <= 0)   result.outside++;
+      else if (rank <= 10)  result.top10++;
+      else if (rank <= 30)  result.top30++;
+      else if (rank <= 100) result.top100++;
+      else result.outside++;
+    });
+
+    result.basisDate = maxDate;
+    result.total = result.top10 + result.top30 + result.top100 + result.outside;
+    return result;
+  }
+
+  function renderRankDistCard(d) {
+    if (!d.total) {
+      return `<div class="rd-card">
+        <div class="rd-header"><i data-lucide="trophy" style="color:var(--warn)"></i><span class="rd-title">현재 순위 분포</span></div>
+        <div class="rd-empty">집계할 순위 데이터가 없습니다.</div>
+      </div>`;
+    }
+
+    const C = 2 * Math.PI * 50;
+    const segs = [
+      { val: d.top10,  color:'#3b82f6' },
+      { val: d.top30,  color:'#10b981' },
+      { val: d.top100, color:'#059669' },
+      { val: d.outside,color:'#22d3ee' },
+    ];
+    let cum = 0;
+    const circles = segs.map(s => {
+      const len = (s.val / d.total) * C;
+      const circle = `<circle cx="60" cy="60" r="50" fill="none" stroke="${s.color}" stroke-width="16" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-cum}"></circle>`;
+      cum += len;
+      return circle;
+    }).join('');
+
+    const rows = [
+      { icon:'trophy',         color:'#eab308', label:'1~10위',        val:d.top10   },
+      { icon:'trending-up',    color:'#10b981', label:'11~30위',       val:d.top30   },
+      { icon:'award',          color:'#0d9488', label:'31~100위',      val:d.top100  },
+      { icon:'triangle-alert', color:'#ef4444', label:'권외 (101위~)', val:d.outside },
+    ].map(r => `
+      <div class="rd-row" onclick="rdGoRank()">
+        <i data-lucide="${r.icon}" class="rd-icon" style="color:${r.color}"></i>
+        <span class="rd-label">${r.label}</span>
+        <span class="rd-count">${r.val.toLocaleString()}<small> 개</small></span>
+        <span class="rd-arrow">→</span>
+      </div>`).join('');
+
+    return `
+      <div class="rd-card">
+        <div class="rd-header"><i data-lucide="trophy" style="color:var(--warn)"></i><span class="rd-title">현재 순위 분포</span></div>
+        <div class="rd-body">
+          <div class="rd-rows">${rows}</div>
+          <div class="rd-donut">
+            <svg viewBox="0 0 120 120" width="120" height="120">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#eef2f7" stroke-width="16"></circle>
+              ${circles}
+            </svg>
+            <div class="rd-total"><span class="rd-total-label">합계</span><span class="rd-total-val">${d.total.toLocaleString()}</span></div>
+          </div>
+        </div>
+        <div class="rd-footer">
+          <span class="rd-basis">기준: ${d.basisDate || '-'}</span>
+          <span class="rd-unrec" onclick="rdGoRank()">미기록 ${d.unrecorded.toLocaleString()}개</span>
+        </div>
+      </div>`;
+  }
 
   window.loadDashboard = function() {
     if (HA.getCurrentUser()?.role === 'guest') {
