@@ -225,6 +225,7 @@
     setStatus('');
     try{
       const daily=await fbLoadDaily();
+      if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
       const keys=Object.keys(daily).sort().reverse(); // 최신순
       if(!keys.length){showEmpty('📋 저장된 날짜별 데이터가 없습니다.');return;}
       window._acDailyAll=daily;
@@ -361,6 +362,7 @@
     setStatus('');
     try{
       const daily=await fbLoadDaily();
+      if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
       const keys=Object.keys(daily).sort(); // ["260301","260302",...]
       if(!keys.length){showEmpty('📆 저장된 일별 데이터가 없습니다.');return;}
 
@@ -801,6 +803,7 @@
     setupUpload();
     try{
       const data=await fbLoad();
+      if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
       if(data.groups&&Array.isArray(data.groups)&&data.groups.length) _groups=data.groups;
       renderEditor();
       if(data.result){

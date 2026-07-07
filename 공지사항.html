@@ -92,6 +92,7 @@
       '<tr><td colspan="6"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allNotices = await HA.getNotices();
+    if (!document.getElementById('notice-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
     const all   = getFiltered();
     const start = (page-1)*PER;

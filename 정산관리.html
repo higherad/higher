@@ -473,6 +473,7 @@
     try { refundMap = (await HA.getRefunds()) || {}; } catch(e) { refundMap={}; }
     snapshotMap={};
     try { snapshotMap = await HA.getAllSettleSnapshots(); } catch(e) { snapshotMap={}; }
+    if (!document.getElementById('settle-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
     renderSummary();
 
@@ -494,6 +495,7 @@
       await HA.saveSettleSnapshot(sk,snap,false); // 최초 1회만 저장
       snapshotMap[sk]=snap;
     }
+    if (!document.getElementById('settle-page')) return; // 스냅샷 저장 중 다른 메뉴로 이동한 경우 렌더 중단
 
     let rows=groupByTimeAgency(getFiltered());
     if(document.getElementById('sf-paid').value==='uncharged'){

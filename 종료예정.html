@@ -143,6 +143,7 @@
       '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
+    if (!document.getElementById('expire-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
     const range = document.getElementById('ef-range').value;
     const kw    = (document.getElementById('ef-kw').value||'').toLowerCase();

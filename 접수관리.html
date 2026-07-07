@@ -581,6 +581,7 @@ window.toggleProdPanel = function(e) {
         toExpire.forEach(s => { s.status = 'expired'; });
       }
     }
+    if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
     const all      = getFiltered();
     filteredAll    = all;
@@ -655,6 +656,7 @@ window.toggleProdPanel = function(e) {
     const uncachedMids  = uniqueMids.filter(mid => !GRADE_CACHE.has(mid));
     if (uncachedMids.length) {
       Promise.all(uncachedMids.map(mid => fetchGrade(mid))).then(() => {
+        if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
         buildGradeFilter(allSlots);
         if (document.getElementById('filter-slot-type').value) renderReceipts(false);
       });
@@ -2382,6 +2384,7 @@ window.toggleProdPanel = function(e) {
   renderReceipts(false);
   (async () => {
     await loadProdSettings();
+    if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
     saveProdDefault();
     renderPS();
   })();

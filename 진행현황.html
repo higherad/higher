@@ -184,6 +184,7 @@
       await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
       toExpire.forEach(s => { s.status = 'expired'; });
     }
+    if (!document.getElementById('slots-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
     renderSummary();
 

@@ -237,6 +237,7 @@
           return snap.exists() ? snap.val() : {};
         } catch { return {}; }
       }));
+      if (!document.getElementById('rank-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
       /* 전체 날짜 수집 → 최신순 */
       const dateSet = new Set();
@@ -444,6 +445,7 @@
       const res = await fetch(`${CHANGE_GAS_URL}?action=getRankData&t=${Date.now()}`);
       rkChangeData = await res.json();
       rkChangeLoaded = true;
+      if (!document.getElementById('rank-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
       const filter = document.getElementById('rk-change-branch');
       filter.innerHTML = '<option value="all">전체 영업점 보기</option>' +
