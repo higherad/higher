@@ -248,14 +248,20 @@
       const strip = s => s.replace(/^\[.*?\]/, '').trim() || s;
       const agencies = [...new Set(active.map(s => s.agencyId || '-'))]
         .sort((a, b) => strip(a).localeCompare(strip(b), 'ko'));
+      const agencyCounts = {};
+      active.forEach(s => {
+        const a = s.agencyId || '-';
+        agencyCounts[a] = (agencyCounts[a] || 0) + 1;
+      });
       let currentAgency = '';
       const filterWrap = document.getElementById('rk-agency-filter');
 
       function renderFilter() {
-        filterWrap.innerHTML = ['전체', ...agencies].map(a =>
-          `<button class="af-btn ${currentAgency === a || (a === '전체' && !currentAgency) ? 'active' : ''}"
-            onclick="rkAgencyFilter('${a}')">${a}</button>`
-        ).join('');
+        filterWrap.innerHTML = ['전체', ...agencies].map(a => {
+          const cnt = a === '전체' ? active.length : (agencyCounts[a] || 0);
+          return `<button class="af-btn ${currentAgency === a || (a === '전체' && !currentAgency) ? 'active' : ''}"
+            onclick="rkAgencyFilter('${a}')">${a}(${cnt})</button>`;
+        }).join('');
       }
 
       window.rkAgencyFilter = function(agency) {
