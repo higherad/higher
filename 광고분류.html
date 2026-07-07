@@ -54,7 +54,7 @@
 
   /* ── 탭 상태 ── */
   let _activeTab='realtime';
-  window.acSwitchTab=function(tab,btn){
+  window.acSwitchTab=async function(tab,btn){
     _activeTab=tab;
     document.querySelectorAll('.ac-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
@@ -69,8 +69,11 @@
     si.value='';
     si.placeholder=tab==='dates'?'🔍  날짜 검색 (예: 04.07)...':'🔍  업체명 검색...';
     if(tab==='realtime'){
-      const r=window._acRealtimeResult;
-      r?renderRealtimeResult(r,''):showRealtimePrompt();
+      showEmpty('⚡ 지난 조회 결과를 불러오는 중...');
+      const r=await loadCachedRealtime();
+      if(_activeTab!=='realtime') return; // 대기 중 다른 탭으로 이동한 경우 렌더 중단
+      if(r){ renderRealtimeResult(r,''); setStatus('📦 지난 조회 결과 표시 중 · '+r.ts+' (새로고침으로 갱신)'); }
+      else showRealtimePrompt();
     } else if(tab==='daily'){
       const r=window._acDailyResult;
       if(r){ renderResult(r,''); setStatus('✅ 서버에서 불러옴 · '+r.ts); }
@@ -102,6 +105,13 @@
   async function fbLoadDaily(){
     if(window.HA&&window.HA.getAdClassifyDaily) return await window.HA.getAdClassifyDaily()||{};
     return {};
+  }
+  async function fbSaveRealtime(result){
+    if(window.HA&&window.HA.saveAdClassifyRealtime) await window.HA.saveAdClassifyRealtime(result);
+  }
+  async function fbLoadRealtime(){
+    if(window.HA&&window.HA.getAdClassifyRealtime) return await window.HA.getAdClassifyRealtime();
+    return null;
   }
 
   /* ── 구분 편집기 ── */
@@ -169,7 +179,13 @@
     return result;
   }
 
-  /* ── 실시간 조회 (BizFit + 유입플 즉석 조회, 저장 없음 — 버튼을 눌렀을 때만 실행) ── */
+  /* ── 실시간 조회 (BizFit + 유입플 즉석 조회 — 조회 시 ha/ad_classify/realtime에 덮어쓰기 저장) ── */
+  async function loadCachedRealtime(){
+    if(window._acRealtimeResult) return window._acRealtimeResult;
+    const r=await fbLoadRealtime();
+    if(r) window._acRealtimeResult=r;
+    return window._acRealtimeResult;
+  }
   function showRealtimePrompt(){
     document.getElementById('ac-result-area').innerHTML=`
       <div class="ac-no-result">
@@ -197,6 +213,7 @@
       let result=classify(acData);
       if(youpflTotal!=null) result=injectYoupfl(result,youpflTotal);
       window._acRealtimeResult=result;
+      fbSaveRealtime(result);
       if(!window._acDailyAll){
         const daily=await fbLoadDaily();
         window._acDailyAll=daily;
@@ -816,8 +833,11 @@
       renderEditor();
       setStatus('⚠️ 불러오기 실패: '+e.message);
     }
-    // 기본 진입 탭: 실시간 (자동 조회하지 않고 버튼 클릭 대기)
-    showRealtimePrompt();
+    // 기본 진입 탭: 실시간 — 이전에 조회한 결과가 Firebase에 있으면 그대로 보여주고, 없으면 버튼 클릭 대기
+    const cached=await loadCachedRealtime();
+    if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
+    if(cached){ renderRealtimeResult(cached,''); setStatus('📦 지난 조회 결과 표시 중 · '+cached.ts+' (새로고침으로 갱신)'); }
+    else showRealtimePrompt();
   }
   function computeTotal(groupSums){
     const t={ns:0,np:0,nps:0,na:0,vm:0,sum:0};

@@ -658,6 +658,17 @@ const HA = {
     return snapshot.val(); // { "260323": result, "260324": result, ... }
   },
 
+  // 실시간 탭 전용 — 일별 아카이브(daily/*)와 분리된 별도 경로, 조회할 때마다 덮어씀
+  async getAdClassifyRealtime() {
+    const snapshot = await get(ref(db, `${PATHS.adClassify}/realtime`));
+    if (!snapshot.exists()) return null;
+    return snapshot.val();
+  },
+
+  async saveAdClassifyRealtime(result) {
+    await set(ref(db, `${PATHS.adClassify}/realtime`), result);
+  },
+
 };
 
 // ── 기본 데이터 ───────────────────────────────────────────────
