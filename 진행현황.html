@@ -48,14 +48,19 @@
   .kw-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:#eff6ff; color:#1d4ed8; display:inline-block; }
   .status-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
   .s-active   { background:rgba(16,185,129,.1); color:#059669; }
+  .s-reserved { background:rgba(245,158,11,.12); color:#d97706; }
   .s-expired  { background:#f1f5f9; color:#64748b; }
   #slots-page.guest-mode .rank-col { display:none; }
 </style>
 
-<div class="stat-bar" style="grid-template-columns:repeat(3,1fr)">
+<div class="stat-bar" style="grid-template-columns:repeat(4,1fr)">
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(16,185,129,.1)">▶️</div>
     <div><div class="sb-label">진행중</div><div class="sb-val" id="stat-companies" style="color:var(--accent)">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(245,158,11,.1)">📌</div>
+    <div><div class="sb-label">예약중</div><div class="sb-val" id="stat-reserved" style="color:var(--warn)">-</div></div>
   </div>
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(59,130,246,.1)">🎯</div>
@@ -79,6 +84,7 @@
   <select id="f-status" onchange="renderSlots()">
     <option value="">전체 (승인+종료)</option>
     <option value="active">진행중</option>
+    <option value="reserved">예약중</option>
     <option value="expired">종료</option>
   </select>
   <div style="margin-left:auto;display:flex;gap:6px;">
@@ -116,16 +122,29 @@
     expired: '<span class="status-badge s-expired">종료</span>',
   };
 
+  // 시작일이 오늘 이후인 active 캠페인 = 예약중 (실제 status 값은 그대로 active 유지)
+  function todayYMD() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function isReserved(s, todayStr) { return s.status === 'active' && s.startDate > todayStr; }
+  function statusBadge(s, todayStr) {
+    if (isReserved(s, todayStr)) return '<span class="status-badge s-reserved">예약</span>';
+    return stLabel[s.status] || s.status;
+  }
+
   function isGuest() { return HA.getCurrentUser()?.role === 'guest'; }
   document.getElementById('slots-page').classList.toggle('guest-mode', isGuest());
 
   function getFiltered() {
-    const status = document.getElementById('f-status').value;
-    const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
-    const guest  = isGuest();
+    const status  = document.getElementById('f-status').value;
+    const kw      = (document.getElementById('f-kw').value||'').toLowerCase();
+    const guest   = isGuest();
+    const todayStr = todayYMD();
     return allSlots.filter(s => {
-      const st = status || '';
-      if (st) { if (s.status !== st) return false; }
+      if (status === 'reserved') { if (!isReserved(s, todayStr)) return false; }
+      else if (status === 'active') { if (s.status !== 'active' || isReserved(s, todayStr)) return false; }
+      else if (status) { if (s.status !== status) return false; }
       else { if (s.status !== 'active' && s.status !== 'expired') return false; }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       if (guest) {
@@ -136,16 +155,14 @@
   }
 
   function renderSummary() {
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mo = String(now.getMonth()+1).padStart(2,'0');
-    const dd = String(now.getDate()).padStart(2,'0');
-    const todayStr = `${yyyy}-${mo}-${dd}`;
+    const todayStr    = todayYMD();
     const active      = allSlots.filter(s => s.status === 'active');
+    const reserved    = active.filter(s => isReserved(s, todayStr));
+    const inProgress  = active.filter(s => !isReserved(s, todayStr));
     const totalTarget = active.reduce((a,s) => a+((s.dailyTarget||0)*(s.days||0)), 0);
-    const todayActive = active.filter(s => s.startDate <= todayStr && s.endDate >= todayStr);
-    const todayTarget = todayActive.reduce((a,s) => a+(s.dailyTarget||0), 0);
-    document.getElementById('stat-companies').textContent    = active.length;
+    const todayTarget = inProgress.reduce((a,s) => a+(s.dailyTarget||0), 0);
+    document.getElementById('stat-companies').textContent    = inProgress.length;
+    document.getElementById('stat-reserved').textContent     = reserved.length;
     document.getElementById('stat-target').textContent      = totalTarget.toLocaleString();
     document.getElementById('stat-today-target').textContent = todayTarget.toLocaleString();
   }
@@ -159,11 +176,7 @@
     allSlots = await HA.getSlots();
 
     // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mo = String(now.getMonth()+1).padStart(2,'0');
-    const dd = String(now.getDate()).padStart(2,'0');
-    const todayStr = `${yyyy}-${mo}-${dd}`;
+    const todayStr = todayYMD();
     const toExpire = allSlots.filter(s =>
       s.status === 'active' && s.endDate && s.endDate < todayStr
     );
@@ -199,7 +212,7 @@
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
           <td><span class="kw-badge">${kwCount}개</span></td>
-          <td>${stLabel[s.status]||s.status}</td>
+          <td>${statusBadge(s, todayStr)}</td>
           <td>
             <div style="display:flex;gap:4px;justify-content:center;">
               <button class="action-btn btn-edit" onclick="openEditSlot('${s._key}')">수정</button>
