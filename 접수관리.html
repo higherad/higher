@@ -26,7 +26,6 @@
   .s-accepted  { background:rgba(59,130,246,.1);  color:#1d4ed8; }
   .s-active    { background:rgba(16,185,129,.1);  color:#059669; }
   .s-expired   { background:#f1f5f9; color:#64748b; }
-  #receipt-page.guest-mode .rank-col { display:none; }
   #receipt-page.guest-mode #dl-submit-btn { display:none; }
   .action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; transition:.15s; }
   .btn-approve { background:var(--accent); color:#fff; }
@@ -272,11 +271,11 @@
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
         <th>캠페인타입</th><th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th class="rank-col">순위</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="receipt-body">
-      <tr><td colspan="16" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
+      <tr><td colspan="15" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
     </tbody>
   </table>
 </div>
@@ -642,9 +641,6 @@ window.toggleProdPanel = function(e) {
                 <button class="action-btn" style="background:rgba(59,130,246,.15);color:#1d4ed8;" onclick="acceptOne('${s._key}')">접수</button>
               ` : ''}
             </div>
-          </td>
-          <td class="rank-col">
-            <button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup('${s._key}')">순위</button>
           </td>
         </tr>`).join('');
     }
@@ -2411,13 +2407,6 @@ window.toggleProdPanel = function(e) {
       }
     });
   }).catch(() => {});
-
-  // ── 순위 팝업 (접수관리) ─────────────────────────────────
-  window.openRankPopup = async function(slotKey) {
-    const s = allSlots.find(x => x._key === slotKey);
-    const { openRankPopup: _openRankPopup } = await import(new URL('rank-popup.js', document.baseURI).href);
-    await _openRankPopup(s);
-  };
 
 })();
 </script>
