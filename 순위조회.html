@@ -211,8 +211,16 @@
         ({ getRankTrend: _getRankTrend } = await import(new URL('rank-popup.js', document.baseURI).href));
       }
       const slots = await HA.getSlots();
+      const seenDup = new Set();
       const active = Object.values(slots || {})
-        .filter(s => s.status === 'active' && s.mid && s.rankKeyword);
+        .filter(s => s.status === 'active' && s.mid && s.rankKeyword)
+        .filter(s => {
+          // 대행사/플레이스명/MID/순위키워드 모두 일치하면 1번만 표시
+          const dupKey = `${s.agencyId || ''}_${s.storeName || ''}_${s.mid || ''}_${s.rankKeyword || ''}`;
+          if (seenDup.has(dupKey)) return false;
+          seenDup.add(dupKey);
+          return true;
+        });
 
       if (!active.length) {
         tbody.innerHTML = '<tr><td colspan="4" style="height:160px;text-align:center;color:var(--muted);font-size:13px">진행중인 캠페인이 없습니다.</td></tr>';
