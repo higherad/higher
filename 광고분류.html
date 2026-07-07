@@ -74,7 +74,7 @@
       showEmpty('⚡ 지난 조회 결과를 불러오는 중...');
       const r=await loadCachedRealtime();
       if(_activeTab!=='realtime') return; // 대기 중 다른 탭으로 이동한 경우 렌더 중단
-      if(r){ renderRealtimeResult(r,''); setStatus('📦 지난 조회 결과 표시 중 · '+r.ts+' (새로고침으로 갱신)'); }
+      if(r){ renderRealtimeResult(r,''); setStatus('📦 최종 조회 결과 · '+r.ts); }
       else showRealtimePrompt();
     } else if(tab==='daily'){
       const r=window._acDailyResult;
@@ -847,7 +847,7 @@
     // 기본 진입 탭: 실시간 — 이전에 조회한 결과가 Firebase에 있으면 그대로 보여주고, 없으면 버튼 클릭 대기
     const cached=await loadCachedRealtime();
     if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-    if(cached){ renderRealtimeResult(cached,''); setStatus('📦 지난 조회 결과 표시 중 · '+cached.ts+' (새로고침으로 갱신)'); }
+    if(cached){ renderRealtimeResult(cached,''); setStatus('📦 최종 조회 결과 · '+cached.ts); }
     else showRealtimePrompt();
   }
   function computeTotal(groupSums){
