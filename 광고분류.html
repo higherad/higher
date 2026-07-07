@@ -2,12 +2,15 @@
 <body>
 <div id="ac-wrap">
 
-  <!-- 탭 -->
-  <div class="ac-tabs" id="ac-tabs">
-    <button class="ac-tab active" onclick="acSwitchTab('realtime',this)">⚡ 실시간</button>
-    <button class="ac-tab" onclick="acSwitchTab('daily',this)">📅 일별</button>
-    <button class="ac-tab" onclick="acSwitchTab('monthly',this)">📆 월별</button>
-    <button class="ac-tab" onclick="acSwitchTab('dates',this)">📋 날짜별</button>
+  <!-- 헤더: 탭 + 구분 설정 버튼 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+    <div class="ac-tabs" id="ac-tabs" style="margin-bottom:0">
+      <button class="ac-tab active" onclick="acSwitchTab('realtime',this)">⚡ 실시간</button>
+      <button class="ac-tab" onclick="acSwitchTab('daily',this)">📅 일별</button>
+      <button class="ac-tab" onclick="acSwitchTab('monthly',this)">📆 월별</button>
+      <button class="ac-tab" onclick="acSwitchTab('dates',this)">📋 날짜별</button>
+    </div>
+    <button class="ac-export-btn" onclick="acOpenGroupsPopup()">🏷️ 구분 설정</button>
   </div>
 
   <!-- 검색 -->
@@ -21,13 +24,18 @@
     <div class="ac-no-result">⚡ 실시간 데이터를 불러오는 중입니다...</div>
   </div>
   <div class="ac-save-status" id="ac-save-status"></div>
+</div>
 
-  <hr class="ac-divider">
-
-  <!-- 구분 설정 -->
-  <p class="ac-sec">🏷️ 구분 설정</p>
-  <div class="ac-editor" id="ac-editor">
-    <div style="padding:20px;text-align:center;color:var(--muted,#94a3b8);font-size:13px">불러오는 중...</div>
+<!-- 구분 설정 팝업 -->
+<div class="modal-overlay" id="ac-groups-overlay" style="display:none" onclick="if(event.target===this)acCloseGroupsPopup()">
+  <div style="background:#fff;border-radius:14px;max-width:560px;width:92%;max-height:82vh;overflow-y:auto;padding:22px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:16px;font-weight:800">🏷️ 구분 설정</div>
+      <span style="cursor:pointer;font-size:22px;color:var(--muted,#94a3b8);line-height:1" onclick="acCloseGroupsPopup()">&times;</span>
+    </div>
+    <div class="ac-editor" id="ac-editor">
+      <div style="padding:20px;text-align:center;color:var(--muted,#94a3b8);font-size:13px">불러오는 중...</div>
+    </div>
   </div>
 </div>
 <div id="ac-toast"></div>
@@ -58,12 +66,6 @@
     _activeTab=tab;
     document.querySelectorAll('.ac-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    // 구분설정 UI 토글 (실시간·일별 탭에서만 노출)
-    const showGroupEditor=tab==='realtime'||tab==='daily';
-    const d=showGroupEditor?'':'none';
-    document.getElementById('ac-editor').style.display=d;
-    document.querySelectorAll('.ac-sec')[0].style.display=d; // 구분 설정 타이틀
-    document.querySelector('.ac-divider').style.display=d;
     // 검색창 placeholder 전환
     const si=document.getElementById('ac-search');
     si.value='';
@@ -113,6 +115,15 @@
     if(window.HA&&window.HA.getAdClassifyRealtime) return await window.HA.getAdClassifyRealtime();
     return null;
   }
+
+  /* ── 구분 설정 팝업 ── */
+  window.acOpenGroupsPopup=function(){
+    renderEditor();
+    document.getElementById('ac-groups-overlay').style.display='flex';
+  };
+  window.acCloseGroupsPopup=function(){
+    document.getElementById('ac-groups-overlay').style.display='none';
+  };
 
   /* ── 구분 편집기 ── */
   let _groups=DEFAULTS;
