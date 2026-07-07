@@ -211,7 +211,7 @@
     .stat-card.c-warn  .stat-value { color:var(--warn); }
     .stat-card.c-danger .stat-value{ color:var(--danger); }
 
-    .bottom-grid { display:grid; grid-template-columns:2fr 1.1fr; gap:20px; }
+    .bottom-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
     .ha-box { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; }
     .box-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
     .box-title { font-size:15px; font-weight:700; }
@@ -235,7 +235,7 @@
     .quick-btn.primary:hover { background:var(--accent2); }
 
     /* 현재 순위 분포 카드 */
-    .rd-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 24px; max-width:560px; margin-bottom:20px; }
+    .rd-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 24px; height:100%; }
     .rd-header { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
     .rd-header i { width:18px; height:18px; }
     .rd-title { font-size:15px; font-weight:700; }
@@ -253,9 +253,8 @@
     .rd-total { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
     .rd-total-label { font-size:11px; color:var(--muted); font-weight:600; }
     .rd-total-val { font-size:19px; font-weight:800; color:var(--text); }
-    .rd-footer { display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
+    .rd-footer { margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
     .rd-basis { font-size:11px; color:var(--muted); }
-    .rd-unrec { font-size:11px; font-weight:700; color:var(--text2); background:var(--bg); padding:5px 12px; border-radius:20px; }
     .rd-empty { padding:40px 0; text-align:center; color:var(--muted); font-size:13px; }
 
     .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:14px; gap:10px; }
@@ -500,10 +499,10 @@
         <div class="stat-card c-info"><div class="stat-label">대기</div><div class="stat-value">${pendingCount}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-info"><div class="stat-label">접수</div><div class="stat-value">${acceptedCount}<span class="stat-unit">건</span></div></div>
       </div>
-      <div id="rd-slot">
-        <div class="rd-card"><div class="loading-wrap" style="height:160px"><div class="spinner"></div> 순위 데이터 불러오는 중...</div></div>
-      </div>
       <div class="bottom-grid">
+        <div id="rd-slot">
+          <div class="rd-card"><div class="loading-wrap" style="height:160px"><div class="spinner"></div> 순위 데이터 불러오는 중...</div></div>
+        </div>
         <div class="ha-box">
           <div class="box-header">
             <span class="box-title">공지사항</span>
@@ -653,7 +652,6 @@
         </div>
         <div class="rd-footer">
           <span class="rd-basis">기준: ${d.basisDate || '-'}</span>
-          <span class="rd-unrec">미기록 ${d.unrecorded.toLocaleString()}개</span>
         </div>
       </div>`;
   }
