@@ -727,11 +727,18 @@ window.toggleProdPanel = function(e) {
   window.acceptFromDetail = async function(key) {
     const input = document.getElementById('detail-keyword-input');
     const kw = input ? input.value.trim() : null;
+    const yupflInput = document.getElementById('detail-yupfl-keyword-input');
+    const yupflKw = yupflInput ? yupflInput.value.trim() : null;
     const s = allSlots.find(x => x._key === key);
     if (kw !== null && kw !== (s.searchKeyword||'')) {
       await HA.updateSlot(key, { searchKeyword: kw });
       const idx = allSlots.findIndex(x => x._key === key);
       if (idx !== -1) allSlots[idx].searchKeyword = kw;
+    }
+    if (yupflKw !== null && yupflKw !== (s.yupflKeyword||'')) {
+      await HA.updateSlot(key, { yupflKeyword: yupflKw });
+      const idx = allSlots.findIndex(x => x._key === key);
+      if (idx !== -1) allSlots[idx].yupflKeyword = yupflKw;
     }
     await HA.updateSlot(key, { status: 'accepted' });
     const idx2 = allSlots.findIndex(x => x._key === key);
@@ -820,6 +827,15 @@ window.toggleProdPanel = function(e) {
           </dt>
           <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)"></dd>
           <dd id="mid-history-area" style="display:none;margin-top:8px;"></dd>
+          <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+            <span>유입플 키워드</span>
+            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleYupflMidHistory('${s.mid}','${key}')" id="yupfl-hist-btn"
+              style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
+              이전 키워드 보기
+            </button>` : ''}
+          </dt>
+          <dd><input type="text" class="detail-kw-input" id="detail-yupfl-keyword-input" value="${s.yupflKeyword||''}" placeholder="유입플 키워드를 입력해주세요"></dd>
+          <dd id="yupfl-history-area" style="display:none;margin-top:8px;"></dd>
         </dl>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
@@ -944,6 +960,53 @@ window.toggleProdPanel = function(e) {
     area.innerHTML = html;
   };
 
+  // ── MID 이전 유입플 키워드 히스토리 (자체 DB만) ──────────────
+  window.toggleYupflMidHistory = function(mid, currentKey) {
+    const area = document.getElementById('yupfl-history-area');
+    const btn  = document.getElementById('yupfl-hist-btn');
+    if (!area) return;
+
+    if (area.style.display !== 'none') {
+      area.style.display = 'none';
+      btn.textContent = '이전 키워드 보기';
+      return;
+    }
+
+    area.style.display = 'block';
+    btn.textContent = '닫기';
+
+    const history = allSlots
+      .filter(s => s.mid === mid && s._key !== currentKey && s.yupflKeyword)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    if (!history.length) {
+      area.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:6px 0;">이전 유입플 키워드 내역이 없습니다.</div>`;
+      return;
+    }
+
+    area.innerHTML = `<div style="background:#f8fafc;border-radius:7px;padding:8px 12px;border:1px solid var(--border);max-height:220px;overflow-y:auto;">
+      ${history.map(s => {
+        const kwStr  = s.yupflKeyword || '';
+        const kwCount = kwStr.split(',').map(k => k.trim()).filter(k => k).length;
+        const safeKw = kwStr.replace(/'/g, "\\'");
+        const dateStr = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
+        return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:11px;color:var(--text2);">${dateStr}</span>
+              <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCount}개</span>
+            </div>
+            <button onclick="(function(){var el=document.getElementById('detail-yupfl-keyword-input');el.value='${safeKw}';})()"
+              style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
+              적용
+            </button>
+          </div>
+          <div style="overflow:hidden;white-space:nowrap;font-size:11px;color:#475569;background:#f1f5f9;padding:4px 8px;border-radius:5px;user-select:all;">${kwStr}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
   window.updateKwCount = function(val) {
     const count = val.split(',').map(k => k.trim()).filter(k => k.length > 0).length;
     const badge = document.getElementById('kw-count-badge');
@@ -954,11 +1017,18 @@ window.toggleProdPanel = function(e) {
   window.closeDetailModal = async function(key) {
     const input = document.getElementById('detail-keyword-input');
     const kw = input ? input.value.trim() : null;
+    const yupflInput = document.getElementById('detail-yupfl-keyword-input');
+    const yupflKw = yupflInput ? yupflInput.value.trim() : null;
     const s = allSlots.find(x => x._key === key);
     if (kw !== null && kw !== (s.searchKeyword||'')) {
       await HA.updateSlot(key, { searchKeyword: kw });
       const idx = allSlots.findIndex(x => x._key === key);
       if (idx !== -1) allSlots[idx].searchKeyword = kw;
+    }
+    if (yupflKw !== null && yupflKw !== (s.yupflKeyword||'')) {
+      await HA.updateSlot(key, { yupflKeyword: yupflKw });
+      const idx = allSlots.findIndex(x => x._key === key);
+      if (idx !== -1) allSlots[idx].yupflKeyword = yupflKw;
     }
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
@@ -1526,7 +1596,7 @@ window.toggleProdPanel = function(e) {
     f.forEach(r => {
       const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, yupfl.fixedPct), r.dailyTarget||0);
       if (yAmt <= 0) return;
-      const workKw = kwForProd(r.searchKeyword||'', yupfl);
+      const workKw = (r.yupflKeyword||'').trim() || kwForProd(r.searchKeyword||'', yupfl);
       const start  = r.startDate ? new Date(r.startDate) : today;
       start.setHours(0,0,0,0);
       const ikil = Math.max(0, Math.round((start - today) / 86400000));
@@ -1861,7 +1931,7 @@ window.toggleProdPanel = function(e) {
         unitPrice: (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null,
         storeName: s.storeName||'',
         rankKw:    s.rankKeyword||'',
-        workKw:    yupfl ? kwForProd(s.searchKeyword||'', yupfl) : (s.searchKeyword||''),
+        workKw:    (s.yupflKeyword||'').trim() || (yupfl ? kwForProd(s.searchKeyword||'', yupfl) : (s.searchKeyword||'')),
         placeId:   s.mid||'',
         target:    yAmt,
         days:      s.days||0,
