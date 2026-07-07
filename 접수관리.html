@@ -1596,7 +1596,7 @@ window.toggleProdPanel = function(e) {
     f.forEach(r => {
       const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, yupfl.fixedPct), r.dailyTarget||0);
       if (yAmt <= 0) return;
-      const workKw = (r.yupflKeyword||'').trim() || kwForProd(r.searchKeyword||'', yupfl);
+      const workKw = (r.yupflKeyword||'').trim();
       const start  = r.startDate ? new Date(r.startDate) : today;
       start.setHours(0,0,0,0);
       const ikil = Math.max(0, Math.round((start - today) / 86400000));
@@ -1931,7 +1931,7 @@ window.toggleProdPanel = function(e) {
         unitPrice: (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null,
         storeName: s.storeName||'',
         rankKw:    s.rankKeyword||'',
-        workKw:    (s.yupflKeyword||'').trim() || (yupfl ? kwForProd(s.searchKeyword||'', yupfl) : (s.searchKeyword||'')),
+        workKw:    (s.yupflKeyword||'').trim(),
         placeId:   s.mid||'',
         target:    yAmt,
         days:      s.days||0,
