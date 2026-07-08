@@ -72,13 +72,15 @@
     si.placeholder=tab==='dates'?'🔍  날짜 검색 (예: 04.07)...':'🔍  업체명 검색...';
     if(tab==='realtime'){
       showEmpty('⚡ 지난 조회 결과를 불러오는 중...');
+      setStatus('');
       const r=await loadCachedRealtime();
       if(_activeTab!=='realtime') return; // 대기 중 다른 탭으로 이동한 경우 렌더 중단
-      if(r){ renderRealtimeResult(r,''); setStatus('✅ 최종 조회 결과 · '+r.ts); }
+      if(r){ renderRealtimeResult(r,''); }
       else showRealtimePrompt();
     } else if(tab==='daily'){
+      setStatus('');
       const r=window._acDailyResult;
-      if(r){ renderResult(r,''); setStatus('✅ 서버에서 불러옴 · '+r.ts); }
+      if(r){ renderResult(r,''); }
       else showEmpty('📅 아직 저장된 일별 데이터가 없습니다 (매일 자동으로 갱신됩니다).');
     } else if(tab==='monthly'){
       loadMonthly();
@@ -628,7 +630,7 @@
       <div class="ac-result-hdr">
         <div>
           <div class="ac-result-title">${titleText}${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
-          <div class="ac-result-meta">${ts}${md?` &nbsp;·&nbsp; ${mLabel} 합산 포함 (${md.days}일)`:''}</div>
+          <div class="ac-result-meta">✅ ${ts}${md?` &nbsp;·&nbsp; ${mLabel} 합산 포함 (${md.days}일)`:''}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${refreshBtn}
@@ -847,7 +849,7 @@
     // 기본 진입 탭: 실시간 — 이전에 조회한 결과가 Firebase에 있으면 그대로 보여주고, 없으면 버튼 클릭 대기
     const cached=await loadCachedRealtime();
     if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-    if(cached){ renderRealtimeResult(cached,''); setStatus('✅ 최종 조회 결과 · '+cached.ts); }
+    if(cached){ renderRealtimeResult(cached,''); }
     else showRealtimePrompt();
   }
   function computeTotal(groupSums){
