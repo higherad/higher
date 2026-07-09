@@ -1900,7 +1900,7 @@ window.toggleProdPanel = function(e) {
         const kw = kwForProd(r.searchKeyword||'', prod);
         rows.push({
           _slotKey:   r._key,
-          _normalSubmitted: !!r.normalSubmitted,
+          _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
           상품등급명: prod.name,
           업체명:     r.storeName||'',
           업체URL:    r.url||'',
@@ -2012,7 +2012,16 @@ window.toggleProdPanel = function(e) {
     // 일반+고정 동시 활성 시 양쪽 모두 완료해야 승인으로 전환하는 게이트
     // 모달을 닫았다가 재오픈한 경우 — 이전 세션에서 이미 완료된 쪽은 이번 세션에서 그 탭 버튼을
     // 다시 누르지 않아도(이미 완료(기존)로 표시되므로) 알 수 있도록 저장된 플래그로 미리 채워둠
-    const normalAlreadyDone = new Set(target.filter(s => s.normalSubmitted).map(s => s._key));
+    // 일반은 상품별로 개별 완료 여부가 갈리므로, 슬롯에 걸린 모든 상품행이 완료된 경우에만 "이미 완료"로 취급
+    const normalRowsBySlot = new Map();
+    normalPlan.forEach(pl => pl.rows.forEach(r => {
+      if (!r._slotKey) return;
+      if (!normalRowsBySlot.has(r._slotKey)) normalRowsBySlot.set(r._slotKey, []);
+      normalRowsBySlot.get(r._slotKey).push(r);
+    }));
+    const normalAlreadyDone = new Set(
+      [...normalRowsBySlot.entries()].filter(([, rs]) => rs.every(r => r._normalSubmitted)).map(([k]) => k)
+    );
     const fixedAlreadyDone  = new Set(target.filter(s => s.fixedSubmitted).map(s => s._key));
     const gate = (hasNormal && hasFixed) ? {
       normalKeys: normalAlreadyDone.size ? normalAlreadyDone : null,
@@ -2022,7 +2031,7 @@ window.toggleProdPanel = function(e) {
         if (this.normalKeys === null || this.fixedKeys === null) return;
         const keys = [...this.normalKeys].filter(k => this.fixedKeys.has(k));
         if (keys.length) {
-          // normalSubmitted/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
+          // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
           await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active' })));
           keys.forEach(k => {
             const s = this.slotMap.get(k);
@@ -2359,15 +2368,36 @@ window.toggleProdPanel = function(e) {
     async function processAgency(p) {
       if (!p.rows.length) return;
 
+      // 한 캠페인(슬롯)에 활성 상품이 여러 개면 상품별로 행이 나뉘어 각각 성공/실패가 갈릴 수 있음.
+      // 슬롯의 모든 상품행이 성공(또는 기존에 이미 완료)한 경우에만 그 슬롯을 승인 처리한다 — 일부라도 실패하면 승인 보류.
+      async function finalizeSlotApprovals() {
+        const bySlot = new Map();
+        p.rows.forEach(r => {
+          if (!r._slotKey) return;
+          if (!bySlot.has(r._slotKey)) bySlot.set(r._slotKey, []);
+          bySlot.get(r._slotKey).push(r);
+        });
+        const okSlots = [...bySlot.entries()]
+          .filter(([, rs]) => rs.every(r => r._normalSubmitted || r._rowOk === true))
+          .map(([k]) => k);
+        if (!okSlots.length) return;
+        if (gate) {
+          okSlots.forEach(k => approvedKeys.add(k));
+        } else {
+          await Promise.all(okSlots.map(k => HA.approveSlot(k)));
+          okSlots.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+        }
+      }
+
       // 이전에 이미 접수 완료된 행(유입플만 남아 모달을 닫았다가 재오픈한 경우)은 재제출하지 않고 완료 표시만 유지
       const alreadyRows = p.rows.filter(r => r._normalSubmitted);
       const pendingRows = p.rows.filter(r => !r._normalSubmitted);
       alreadyRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
-      if (gate) alreadyRows.forEach(r => { if (r._slotKey) approvedKeys.add(r._slotKey); });
       okTotal += alreadyRows.length;
 
       if (!pendingRows.length) {
         if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--accent);font-size:11px;">✅ 전체 접수 완료</span>';
+        await finalizeSlotApprovals();
         return;
       }
 
@@ -2395,6 +2425,7 @@ window.toggleProdPanel = function(e) {
 
       if (!validRows.length) {
         if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">전체 유효성 검사 실패 (키워드 초과 또는 일목표 미달)</span>';
+        await finalizeSlotApprovals();
         return;
       }
 
@@ -2403,6 +2434,7 @@ window.toggleProdPanel = function(e) {
         validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);">❌ 계정 미등록</span>'; });
         if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">비즈핏 계정 정보 미등록 (회원 관리에서 BizFit ID/PW 등록 필요)</span>';
         failTotal += validRows.length;
+        await finalizeSlotApprovals();
         return;
       }
 
@@ -2416,6 +2448,7 @@ window.toggleProdPanel = function(e) {
         validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(msg)}">❌ 등급조회 실패</span>`; });
         if (p.msgEl) p.msgEl.innerHTML = `<span style="color:var(--danger);font-size:11px;">${escProd(msg)}</span>`;
         failTotal += validRows.length;
+        await finalizeSlotApprovals();
         return;
       }
 
@@ -2436,14 +2469,7 @@ window.toggleProdPanel = function(e) {
         } catch(e) { result = { success:false, message: e.message }; }
         if (result.success) {
           okTotal += grpRows.length;
-          const slotKeys = grpRows.map(r => r._slotKey).filter(Boolean);
-          if (gate) {
-            slotKeys.forEach(k => approvedKeys.add(k));
-          } else {
-            await Promise.all(slotKeys.map(k => HA.approveSlot(k)));
-            slotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
-          }
-          grpRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+          grpRows.forEach(r => { r._rowOk = true; if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
         } else {
           failTotal += grpRows.length;
           agencyFail += grpRows.length;
@@ -2460,6 +2486,21 @@ window.toggleProdPanel = function(e) {
           agencyFail += unmatchedRows.length;
         }
       });
+      // 이번 회차에 성공한 상품만 슬롯별로 개별 기록 — 실패한 상품만 다음 재접수 때 다시 시도되도록
+      const newlyOkBySlot = new Map();
+      p.rows.forEach(r => {
+        if (r._rowOk !== true || !r._slotKey) return;
+        if (!newlyOkBySlot.has(r._slotKey)) newlyOkBySlot.set(r._slotKey, []);
+        newlyOkBySlot.get(r._slotKey).push(r.상품등급명);
+      });
+      await Promise.all([...newlyOkBySlot.entries()].map(async ([slotKey, names]) => {
+        const s = slotMap.get(slotKey);
+        const merged = [...new Set([...(s?.normalDoneProducts || []), ...names])];
+        await HA.updateSlot(slotKey, { normalDoneProducts: merged });
+        if (s) s.normalDoneProducts = merged;
+      }));
+      // 슬롯 단위 승인 판정 — 이 슬롯에 걸린 모든 상품행이 성공해야 승인 (일부 실패 시 보류)
+      await finalizeSlotApprovals();
       if (p.msgEl) {
         const kwFailCount = p.rows.filter(r => r._kwFail).length;
         const parts = [kwFailCount ? `유효성 실패 ${kwFailCount}건` : '', agencyFail ? '일부 등급 실패 — 상태 칸에서 사유 확인(마우스오버)' : ''].filter(Boolean);
@@ -2473,14 +2514,9 @@ window.toggleProdPanel = function(e) {
     await Promise.all(plan.map(p => processAgency(p)));
 
     if (gate) {
+      // 상품별 완료 기록(normalDoneProducts)은 processAgency에서 이미 개별 저장됨 —
+      // 여기서는 슬롯 전체(모든 활성 상품)가 완료된 키만 게이트에 반영
       gate.normalKeys = approvedKeys;
-      // 유입플이 아직 안 끝났으면 여기서 바로 승인 전환 안 됨 — 재접수 시 이번에 새로 성공한 것만 스킵되도록 임시 플래그 저장
-      // (이미 _normalSubmitted였던 건 위에서 재기록 없이 그대로 approvedKeys에만 포함됨)
-      const newlyDone = [...approvedKeys].filter(k => { const s = slotMap.get(k); return s && !s.normalSubmitted; });
-      if (newlyDone.length) {
-        await Promise.all(newlyDone.map(k => HA.updateSlot(k, { normalSubmitted: true })));
-        newlyDone.forEach(k => { const s = slotMap.get(k); if (s) s.normalSubmitted = true; });
-      }
       await gate.tryApprove();
     }
 
