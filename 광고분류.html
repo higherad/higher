@@ -81,7 +81,7 @@
       setStatus('');
       const r=window._acDailyResult;
       if(r){ renderResult(r,''); }
-      else showEmpty('📅 아직 저장된 일별 데이터가 없습니다 (매일 자동으로 갱신됩니다).');
+      else showEmpty('📅 아직 저장된 전일 데이터가 없습니다 (매일 자동으로 갱신됩니다).');
     } else if(tab==='monthly'){
       loadMonthly();
     } else {
@@ -487,7 +487,7 @@
     window._acLastResult=result;
   }
 
-  /* ── 결과 렌더 (일별) ── */
+  /* ── 결과 렌더 (전일) ── */
   function showEmpty(msg){
     document.getElementById('ac-result-area').innerHTML=`<div class="ac-no-result">${msg}</div>`;
   }
@@ -535,7 +535,7 @@
     const{groupSums,total,ts}=result;
     const kw=(keyword||'').trim().toLowerCase();
     const isMonthly=mode==='monthly';
-    const md=(!isMonthly&&monthData)?monthData:null; // 일별·실시간 탭에서만 월별 컬럼 표시
+    const md=(!isMonthly&&monthData)?monthData:null; // 전일·실시간 탭에서만 월별 컬럼 표시
 
     // 월별 전체 합산
     let mTotal=0;
@@ -630,7 +630,7 @@
       <div class="ac-result-hdr">
         <div>
           <div class="ac-result-title">${titleText}${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
-          <div class="ac-result-meta">✅ ${ts}${md?` &nbsp;·&nbsp; ${mLabel} 합산 포함 (${md.days}일)`:''}</div>
+          <div class="ac-result-meta">✅ ${ts}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${refreshBtn}
@@ -686,7 +686,7 @@
     csv+=`,총합,${total.ns||''},${total.np||''},${total.nps||''},${total.na||''},${total.vm||''},${total.sum||''}\n`;
     return csv;
   }
-  window.acExport=function(){ dlCSV(makeCSV(window._acDailyResult),'광고분류_일별_'); };
+  window.acExport=function(){ dlCSV(makeCSV(window._acDailyResult),'광고분류_전일_'); };
   window.acExportMonthly=function(){ dlCSV(makeCSV(window._acMonthResult),'광고분류_월별_'); };
   window.acExportRealtime=function(){ dlCSV(makeCSV(window._acRealtimeResult),'광고분류_실시간_'); };
   window.acExportDates=function(){
@@ -835,7 +835,7 @@
       if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
       if(data.groups&&Array.isArray(data.groups)&&data.groups.length) _groups=data.groups;
       renderEditor();
-      // 일별/월별 아카이브 미리 로드 (일별 탭 + 실시간 탭의 '이번달 합계' 컬럼용)
+      // 일별/월별 아카이브 미리 로드 (전일 탭 + 실시간 탭의 '이번달 합계' 컬럼용)
       const daily=await fbLoadDaily();
       window._acDailyAll=daily;
       window._acMonthData=buildMonthData(daily);
