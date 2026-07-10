@@ -464,7 +464,7 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  // 등급 배지(회색)와 유입플 미션 배지(주황)를 함께 렌더링 — 예: 블랙 올리브 9번
+  // 등급 배지(회색 채움)와 유입플 미션 배지(아웃라인)를 함께 렌더링 — 예: 블랙 올리브 9번
   function _renderGradeBadgesHtml(data) {
     if (!data) return '-';
     const entries = parseGradeEntries(data);
@@ -473,7 +473,7 @@ window.toggleProdPanel = function(e) {
     const missions = [...new Set(entries.flatMap(g => (g.mission || '').split(',').map(l => l.trim()).filter(l => l)))];
     if (!gradeLabels.length && !missions.length) return '-';
     const gradeHtml   = gradeLabels.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${l}</span>`).join('');
-    const missionHtml = missions.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#92400e;border:1px solid #fde68a">${l}</span>`).join('');
+    const missionHtml = missions.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:transparent;color:#52525b;border:1.5px solid #71717a">${l}</span>`).join('');
     return gradeHtml + missionHtml;
   }
 
