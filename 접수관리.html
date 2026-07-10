@@ -489,6 +489,14 @@ window.toggleProdPanel = function(e) {
     }));
   }
 
+  // 등급(gradeLabel)+유입플 미션 라벨을 합쳐서 반환 — 필터 목록/매칭에 공용 사용
+  function _allFilterLabels(cached) {
+    return parseGradeEntries(cached).flatMap(g => [
+      ...(g.gradeLabel ? g.gradeLabel.split(',').map(l => l.trim()).filter(l => l) : []),
+      ...(g.mission ? g.mission.split(',').map(l => l.trim()).filter(l => l) : []),
+    ]);
+  }
+
   function buildGradeFilter(slots) {
     const sel = document.getElementById('filter-slot-type');
     if (!sel) return;
@@ -498,9 +506,7 @@ window.toggleProdPanel = function(e) {
       if (!s.mid) return;
       const cached = GRADE_CACHE.get(s.mid);
       if (!cached) return;
-      parseGradeEntries(cached).forEach(g => {
-        if (g.gradeLabel) g.gradeLabel.split(',').map(l => l.trim()).filter(l => l).forEach(l => labels.add(l));
-      });
+      _allFilterLabels(cached).forEach(l => labels.add(l));
     });
     sel.innerHTML = '<option value="">전체 등급</option>';
     [...labels].sort().forEach(label => {
@@ -525,8 +531,7 @@ window.toggleProdPanel = function(e) {
         if (!['pending','accepted','active'].includes(s.status)) return false;
         const cached = GRADE_CACHE.get(s.mid);
         if (!cached) return false;
-        const allLabels = parseGradeEntries(cached).flatMap(g => g.gradeLabel ? g.gradeLabel.split(',').map(l => l.trim()).filter(l => l) : []);
-        if (!allLabels.includes(gradeFilter)) return false;
+        if (!_allFilterLabels(cached).includes(gradeFilter)) return false;
       }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       const slotDate = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
