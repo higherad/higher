@@ -2532,8 +2532,17 @@ window.toggleProdPanel = function(e) {
           });
         } catch(e) { result = { success:false, message: e.message }; }
         if (result.success) {
-          okTotal += grpRows.length;
-          grpRows.forEach(r => { r._rowOk = true; if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+          // 배치 내 일부 업체만 결제에서 제외(비즈핏 측 검증 실패)될 수 있음 — fail_pids로 해당 업체만 갈라 실패 처리
+          const failPids = new Set((result.fail_pids || []).map(String));
+          const okRows   = failPids.size ? grpRows.filter(r => !failPids.has(String(r.PID번호))) : grpRows;
+          const failRows = failPids.size ? grpRows.filter(r =>  failPids.has(String(r.PID번호))) : [];
+          okTotal += okRows.length;
+          okRows.forEach(r => { r._rowOk = true; if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+          if (failRows.length) {
+            failTotal += failRows.length;
+            agencyFail += failRows.length;
+            failRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="비즈핏 결제 제외 (데이터 검증 실패 — 검색키워드 등 확인)">❌ 실패</span>'; });
+          }
         } else {
           failTotal += grpRows.length;
           agencyFail += grpRows.length;
