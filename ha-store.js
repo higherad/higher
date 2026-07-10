@@ -247,20 +247,24 @@ const HA = {
     try {
       const kpSnap = await get(ref(db, `${PATHS.kimproSlots}/${key}`));
       if (kpSnap.exists()) {
-        // 이미 kimpro에 있는 슬롯 — status는 최초 승인(active) 상태로 고정, 그 외 필드만 반영
-        // (접수관리에서 이후 종료/일시중단 등으로 상태가 바뀌어도 kimpro 쪽 상태는 안 건드림)
-        const { status, ...rest } = patch;
-        if (Object.keys(rest).length) {
-          await update(ref(db, `${PATHS.kimproSlots}/${key}`), rest);
+        if (patch.status === 'deleted') {
+          // 접수관리에서 삭제(취소) — kimpro 쪽도 즉시 제거 (kimpro 자체 삭제와 동일하게 완전삭제)
+          await remove(ref(db, `${PATHS.kimproSlots}/${key}`));
+        } else {
+          // 이미 kimpro에 있는 슬롯 — status는 최초 승인(active) 상태로 고정, 그 외 필드만 반영
+          // (접수관리에서 이후 종료/일시중단 등으로 상태가 바뀌어도 kimpro 쪽 상태는 안 건드림)
+          const { status, ...rest } = patch;
+          if (Object.keys(rest).length) {
+            await update(ref(db, `${PATHS.kimproSlots}/${key}`), rest);
+          }
         }
       } else if (patch.status === 'active') {
-        // 접수관리에서 승인(active) 처리된 시점에 최초로 kimpro에 전체 데이터 복사
+        // 접수관리에서 승인(active) 처리된 시점에 최초로 kimpro에 전체 데이터 복사 — 접수관리에 있는 그대로 전달
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
           const slot = slotSnap.val();
           await set(ref(db, `${PATHS.kimproSlots}/${key}`), {
             ...slot,
-            agencyId:      (slot.agencyId || '').replace('[단독]', '').trim(),
             searchKeyword: slot.searchKeyword || '',
           });
         }
