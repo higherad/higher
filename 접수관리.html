@@ -2532,17 +2532,24 @@ window.toggleProdPanel = function(e) {
           });
         } catch(e) { result = { success:false, message: e.message }; }
         if (result.success) {
-          // 배치 내 일부 업체만 결제에서 제외(비즈핏 측 검증 실패)될 수 있음 — fail_pids로 해당 업체만 갈라 실패 처리
-          const failPids = new Set((result.fail_pids || []).map(String));
-          const okRows   = failPids.size ? grpRows.filter(r => !failPids.has(String(r.PID번호))) : grpRows;
-          const failRows = failPids.size ? grpRows.filter(r =>  failPids.has(String(r.PID번호))) : [];
-          okTotal += okRows.length;
-          okRows.forEach(r => { r._rowOk = true; if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
-          if (failRows.length) {
-            failTotal += failRows.length;
-            agencyFail += failRows.length;
-            failRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="비즈핏 결제 제외 (데이터 검증 실패 — 검색키워드 등 확인)">❌ 실패</span>'; });
-          }
+          // 배치 내 일부 행만 결제에서 제외(비즈핏 측 검증 실패)될 수 있음 — payloadRows는 grpRows를
+          // 그대로 map한 것이라 순서가 1:1 대응하므로, 서버가 반환한 행 인덱스로 매칭한다.
+          // PID(업체)로 매칭하지 않는 이유: 같은 업체가 슬롯 2개(예: 기간이 다른 캠페인)에 걸쳐
+          // 같은 배치에 들어오면 PID만으로는 어느 행이 실패했는지 구분할 수 없다.
+          const failByIdx = new Map((result.fail_rows || []).map(f => [f.index, f.reason]));
+          let okCount = 0;
+          grpRows.forEach((r, i) => {
+            const reason = failByIdx.get(i);
+            if (reason === undefined) {
+              r._rowOk = true; okCount++;
+              if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>';
+            } else if (r._statusTd) {
+              r._statusTd.innerHTML = `<span style="color:var(--danger);" title="비즈핏 결제 제외 (${escProd(reason||'데이터 검증 실패')})">❌ 실패</span>`;
+            }
+          });
+          okTotal += okCount;
+          const failCount = grpRows.length - okCount;
+          if (failCount) { failTotal += failCount; agencyFail += failCount; }
         } else {
           failTotal += grpRows.length;
           agencyFail += grpRows.length;
