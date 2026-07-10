@@ -464,19 +464,28 @@ window.toggleProdPanel = function(e) {
     }
   }
 
+  // 등급 배지(회색)와 유입플 미션 배지(주황)를 함께 렌더링 — 예: 블랙 올리브 9번
+  function _renderGradeBadgesHtml(data) {
+    if (!data) return '-';
+    const entries = parseGradeEntries(data);
+    const gradeLabels = [...new Map(entries.map(g => [g.gradeLabel, g])).values()]
+      .flatMap(g => (g.gradeLabel || '').split(',').map(l => l.trim()).filter(l => l));
+    const missions = [...new Set(entries.flatMap(g => (g.mission || '').split(',').map(l => l.trim()).filter(l => l)))];
+    if (!gradeLabels.length && !missions.length) return '-';
+    const gradeHtml   = gradeLabels.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${l}</span>`).join('');
+    const missionHtml = missions.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#92400e;border:1px solid #fde68a">${l}</span>`).join('');
+    return gradeHtml + missionHtml;
+  }
+
   async function injectGradeBadges(slots) {
     await Promise.all(slots.map(async s => {
       if (!['pending','accepted','active'].includes(s.status) || !s.mid) return;
       const el = document.getElementById(`grade-${s._key}`);
       if (!el) return;
       const data = await fetchGrade(s.mid);
-      if (!data) { el.textContent = '-'; return; }
-      const grades = [...new Map(parseGradeEntries(data).map(g => [g.gradeLabel, g])).values()];
-      if (!grades.length) { el.textContent = '-'; return; }
-      const gradeLabels = grades.flatMap(g => g.gradeLabel.split(',').map(l => l.trim()).filter(l => l));
-      el.outerHTML = `<div id="grade-${s._key}" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${
-        gradeLabels.map(label => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${label}</span>`).join('')
-      }</div>`;
+      const html = _renderGradeBadgesHtml(data);
+      if (html === '-') { el.textContent = '-'; return; }
+      el.outerHTML = `<div id="grade-${s._key}" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html}</div>`;
     }));
   }
 
@@ -798,13 +807,7 @@ window.toggleProdPanel = function(e) {
       <div class="modal-box">
         <div class="modal-title">캠페인 상세 정보</div>
         <dl class="slot-detail">
-          <dt>상품등급</dt><dd>${(() => {
-            const d = GRADE_CACHE.get(s.mid);
-            if (!d) return '-';
-            const labels = [...new Map(parseGradeEntries(d).map(g=>[g.gradeLabel,g])).values()]
-              .flatMap(g => g.gradeLabel.split(',').map(l => l.trim()).filter(l => l));
-            return labels.length ? labels.map(l=>`<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${l}</span>`).join(' ') : '-';
-          })()}</dd>
+          <dt>상품등급</dt><dd>${_renderGradeBadgesHtml(GRADE_CACHE.get(s.mid))}</dd>
           <dt>대행사</dt><dd>${s.agencyId} / ${s.userId}</dd>
           <dt>플레이스명</dt><dd>${s.storeName}</dd>
           <dt>순위키워드</dt><dd>${s.rankKeyword}</dd>
