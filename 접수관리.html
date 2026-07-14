@@ -1800,11 +1800,12 @@ window.toggleProdPanel = function(e) {
         <td style="${ell};font-weight:700" title="${escProd(r.group)}">${escProd(r.group)}</td>
         <td style="${ell}" title="${escProd(r.keyword)}">${escProd(r.keyword||'-')}</td>
         <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.mid)}">${escProd(r.mid||'-')}</td>
-        <td style="${ell}" title="${escProd(r.memo)}">${escProd(r.memo||'-')}</td>
+        <td style="padding:2px 4px"><input type="text" value="${escProd(r.memo)}" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:4px;padding:3px 5px;font-size:12px;font-family:inherit;background:#fff;color:inherit"></td>
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
       r._statusTd = statusTd;
+      tr.querySelector('input').addEventListener('input', e => { r.memo = e.target.value; });
     });
     tbl.appendChild(tbody);
     block.appendChild(tbl);
