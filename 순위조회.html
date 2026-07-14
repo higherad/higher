@@ -114,13 +114,13 @@
 </style>
 
 <div class="rk-tab-nav">
-  <button class="rk-tab" id="rk-tab-change" onclick="rkTab('change',this)">5일</button>
-  <button class="rk-tab active" onclick="rkTab('all',this)">전체</button>
+  <button class="rk-tab active" id="rk-tab-change" onclick="rkTab('change',this)">5일</button>
+  <button class="rk-tab" onclick="rkTab('all',this)">전체</button>
   <button class="rk-tab"        onclick="rkTab('single',this)">검색</button>
 </div>
 
 <!-- 전체 탭 -->
-<div id="rk-all">
+<div id="rk-all" style="display:none">
   <div class="agency-filter" id="rk-agency-filter"></div>
   <div class="tbl-wrap">
     <table id="rk-tbl">
@@ -165,7 +165,7 @@
 </div>
 
 <!-- 변동 탭 -->
-<div id="rk-change" style="display:none">
+<div id="rk-change">
   <div class="rk-change-controls">
     <select id="rk-change-branch" class="rk-select" onchange="rkRenderChange()">
       <option value="all">전체 영업점 보기</option>
@@ -541,6 +541,9 @@
       </div>
     `;
   }
+
+  /* 메뉴 진입 시 기본 탭: 5일 */
+  loadChangeData();
 
 })();
 </script>
