@@ -595,6 +595,17 @@
           ${mGroupCell}
         </tr>`;
       });
+
+      // 실시간 탭 · '단독' 그룹 하단에 유입플 제외 총합 행 추가 (검증용)
+      if(!kw && mode==='realtime' && g.name==='단독'){
+        const ypSum=(groupSums.find(x=>x.name==='유입플')||{}).gSum||0;
+        const exTotal=total.sum-ypSum;
+        tbody+=`<tr style="background:#fef3c7">
+          <td colspan="8" style="text-align:right;font-weight:700;padding:9px 13px;color:#92400e;border-top:2px solid #f59e0b;border-bottom:2px solid #f59e0b">총합 (유입플 제외)</td>
+          <td style="font-weight:800;text-align:center;color:#92400e;border-top:2px solid #f59e0b;border-bottom:2px solid #f59e0b;white-space:nowrap">${fmt(exTotal)}</td>
+          ${md?`<td style="border-top:2px solid #f59e0b;border-bottom:2px solid #f59e0b"></td><td style="border-top:2px solid #f59e0b;border-bottom:2px solid #f59e0b"></td>`:''}
+        </tr>`;
+      }
     });
 
     if(kw&&!visible) return `<div class="ac-no-result">🔍 "<b>${keyword}</b>" 검색 결과가 없습니다.</div>`;
