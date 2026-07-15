@@ -2213,6 +2213,7 @@ window.toggleProdPanel = function(e) {
     p.rows.forEach(r => {
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
       const kwOver = kwCount > 50;
+      const targetLow = (r.일목표||0) < 10;
       const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
       statusTd.style.cssText = 'text-align:center;white-space:nowrap';
@@ -2223,7 +2224,7 @@ window.toggleProdPanel = function(e) {
         <td style="${ell}" title="${escProd(r.업체URL||'')}"><a href="${escProd(r.업체URL||'')}" target="_blank" style="color:var(--info);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escProd(r.업체URL||'-')}</a></td>
         <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.PID번호||r.업체PID번호||'')}">${escProd(r.PID번호||r.업체PID번호||'-')}</td>
         <td style="${ell}" title="${escProd(r.순위키워드||'')}">${escProd(r.순위키워드||'-')}</td>
-        <td style="text-align:right;white-space:nowrap">${(r.일목표||0).toLocaleString()}</td>
+        <td style="text-align:right;white-space:nowrap">${targetLow ? `<span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;white-space:nowrap">${(r.일목표||0).toLocaleString()} ⚠️</span>` : (r.일목표||0).toLocaleString()}</td>
         <td style="text-align:center;white-space:nowrap">${r.일수||0}</td>
         <td style="white-space:nowrap">${escProd(r.예약일||'-')}</td>
         <td title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwOver?'#fee2e2':'#eff6ff'};color:${kwOver?'#dc2626':'#1d4ed8'};border:1px solid ${kwOver?'#fca5a5':'#bfdbfe'};white-space:nowrap">${kwCount}개${kwOver?' ⚠️':''}</span></td>
