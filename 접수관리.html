@@ -1456,10 +1456,10 @@ window.toggleProdPanel = function(e) {
     const prodHtml = p => {
       const locked = FIXED_PROD_SHARED_IDS.has(p.id) && !isAdmin;
       return `
-      <div class="ps-item${p.active?' active':''}" id="psi-${p.id}" onclick="openProdModal('${p.id}')">
+      <div class="ps-item${p.active?' active':''}" id="psi-${p.id}"${locked ? ` style="cursor:not-allowed;" title="관리자만 변경할 수 있습니다"` : ''} onclick="openProdModal('${p.id}')">
         <div class="ps-dot" style="background:${p.color};border-color:rgba(0,0,0,.1);"></div>
         <span class="ps-name" style="color:${p.color}">${escProd(prodDisplayName(p))}</span>
-        <button class="ps-tog ${p.active?'on':'off'}"${locked ? ` style="opacity:.5;cursor:not-allowed;" title="관리자만 변경할 수 있습니다"` : ''} onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
+        <button class="ps-tog ${p.active?'on':'off'}"${locked ? ` style="opacity:.5;cursor:not-allowed;"` : ''} onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
       </div>`;
     };
     const normalProds = [], fixedProds = [];
@@ -1504,6 +1504,10 @@ window.toggleProdPanel = function(e) {
 
   window.openProdModal = function(id) {
     const p = prods.find(x => x.id === id); if (!p) return;
+    if (FIXED_PROD_SHARED_IDS.has(id) && HA.getCurrentUser()?.role !== 'admin') {
+      alert('유입플/분할 설정은 관리자만 변경할 수 있습니다.');
+      return;
+    }
     _prodModalId = id;
     document.getElementById('prod-modal-dot').style.background  = p.color;
     document.getElementById('prod-modal-title').textContent     = `${prodDisplayName(p)} 설정`;
@@ -1662,6 +1666,10 @@ window.toggleProdPanel = function(e) {
   };
   window.saveProdModal = function() {
     const p = prods.find(x => x.id === _prodModalId); if(!p) return;
+    if (FIXED_PROD_SHARED_IDS.has(p.id) && HA.getCurrentUser()?.role !== 'admin') {
+      alert('유입플/분할 설정은 관리자만 변경할 수 있습니다.');
+      return;
+    }
     p.name = document.getElementById('pm-name').value.trim() || p.name;
     p.ver  = document.getElementById('pm-ver').value.trim();
     if (!p.fixedAlloc) {
