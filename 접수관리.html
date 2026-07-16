@@ -1260,6 +1260,13 @@ window.toggleProdPanel = function(e) {
         // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다 — 예: 분할(yupfl2)
         const loadedIds = new Set(prods.map(p => p.id));
         DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
+        // 유입플/분할은 on/off를 계정별 저장값으로 판단하지 않는다 — 기본값(꺼짐)에서 시작해
+        // 아래 loadSharedFixedProdSettings()가 전역 공유값으로만 켜지도록 강제한다.
+        FIXED_PROD_SHARED_IDS.forEach(id => {
+          const p = prods.find(x => x.id === id);
+          const dp = DEFAULT_PRODS.find(x => x.id === id);
+          if (p && dp) p.active = dp.active;
+        });
       }
       if (groupsSnap.exists()) {
         const loaded = groupsSnap.val();
@@ -1283,18 +1290,31 @@ window.toggleProdPanel = function(e) {
   // 유입플/분할은 "이 캠페인 상세에 어떤 입력칸이 보이느냐"를 결정하므로 계정마다 달라지면 안 됨 —
   // 상품 유형 설정은 원래 계정별(ha/prodSettings/{uid})이지만, 이 둘만 전역 공유로 덮어쓴다.
   const FIXED_PROD_SHARED_IDS = new Set(['yupfl', 'yupfl2']);
+  function applySharedFixedProdSettings(data) {
+    data = data || {};
+    FIXED_PROD_SHARED_IDS.forEach(id => {
+      const shared = data[id]; if (!shared) return;
+      const p = prods.find(x => x.id === id); if (!p) return;
+      p.active = !!shared.active;
+      if (shared.fixedPct !== undefined) p.fixedPct = shared.fixedPct;
+      p.missionRules = Array.isArray(shared.missionRules) ? shared.missionRules : [];
+    });
+  }
+  // 최초 1회는 await로 기다렸다가 렌더링하고, 이후에는 다른 계정이 저장할 때마다
+  // 새로고침 없이도 즉시 반영되도록 실시간 구독을 유지한다.
   async function loadSharedFixedProdSettings() {
     try {
-      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const snap = await get(ref(getDatabase(), 'ha/sharedFixedProds'));
-      if (!snap.exists()) return;
-      const data = snap.val() || {};
-      FIXED_PROD_SHARED_IDS.forEach(id => {
-        const shared = data[id]; if (!shared) return;
-        const p = prods.find(x => x.id === id); if (!p) return;
-        if (shared.active !== undefined) p.active = !!shared.active;
-        if (shared.fixedPct !== undefined) p.fixedPct = shared.fixedPct;
-        if (Array.isArray(shared.missionRules)) p.missionRules = shared.missionRules;
+      const { getDatabase, ref, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      await new Promise((resolve) => {
+        let first = true;
+        onValue(ref(getDatabase(), 'ha/sharedFixedProds'), (snap) => {
+          applySharedFixedProdSettings(snap.val());
+          if (first) { first = false; resolve(); }
+          else renderPS();
+        }, (e) => {
+          console.error('sharedFixedProds 구독 오류:', e);
+          if (first) { first = false; resolve(); }
+        });
       });
     } catch(e) { console.error('sharedFixedProds 로드 오류:', e); }
   }
