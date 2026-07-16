@@ -370,6 +370,9 @@ window.toggleProdPanel = function(e) {
     expired:  '<span class="status-badge s-expired">종료</span>',
   };
 
+  const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const sanitizeFbKey = s => s.replace(/[.#$[\]/]/g, '_');
+
   // ── 비즈핏 직접 접수 ─────────────────────────────────────────
   const BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
   const BIZFIT_DOMAIN = 'http://higherad.co.kr';
@@ -534,7 +537,7 @@ window.toggleProdPanel = function(e) {
         if (!_allFilterLabels(cached).includes(gradeFilter)) return false;
       }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
-      const slotDate = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
+      const slotDate = s.createdAt ? ymd(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
       if (HA.getCurrentUser()?.role === 'guest') {
         if (!s.createdAt || new Date(s.createdAt).getMonth() + 1 !== 6) return false;
@@ -586,7 +589,7 @@ window.toggleProdPanel = function(e) {
       _slotsLoaded = true;
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-      const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+      const todayStr = ymd(new Date());
       const toExpire = allSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
       );
@@ -617,16 +620,7 @@ window.toggleProdPanel = function(e) {
         <tr>
           <td><input type="checkbox" class="row-check" data-key="${s._key}"></td>
           <td style="color:var(--text2)">${all.length - start - i}</td>
-          <td style="color:var(--text2)">${
-            (() => {
-              if (!s.createdAt) return '-';
-              const d = new Date(s.createdAt);
-              const yyyy = d.getFullYear();
-              const mo = String(d.getMonth()+1).padStart(2,'0');
-              const dd = String(d.getDate()).padStart(2,'0');
-              return `${yyyy}-${mo}-${dd}`;
-            })()
-          }</td>
+          <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
           <td>${['pending','accepted','active'].includes(s.status)
@@ -705,15 +699,22 @@ window.toggleProdPanel = function(e) {
     return [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
   }
 
-  // ── 승인 ─────────────────────────────────────────────────
-  window.approveOne = async function(key) {
-    await HA.approveSlot(key);
+  function updateLocalSlot(key, updates) {
     const idx = allSlots.findIndex(x => x._key === key);
-    if (idx !== -1) allSlots[idx].status = 'active';
+    if (idx !== -1) Object.assign(allSlots[idx], updates);
+  }
+  function closeOverlayAndRefresh() {
     const overlay = document.querySelector('.modal-overlay');
     if (overlay) overlay.remove();
     _detailOpen = false;
     renderReceipts(false);
+  }
+
+  // ── 승인 ─────────────────────────────────────────────────
+  window.approveOne = async function(key) {
+    await HA.approveSlot(key);
+    updateLocalSlot(key, { status: 'active' });
+    closeOverlayAndRefresh();
   };
 
   /* window.bulkApprove = async function() {
@@ -730,15 +731,12 @@ window.toggleProdPanel = function(e) {
   // ── 접수 처리 ─────────────────────────────────────────────
   window.acceptOne = async function(key) {
     await HA.updateSlot(key, { status: 'accepted' });
-    const idx = allSlots.findIndex(x => x._key === key);
-    if (idx !== -1) allSlots[idx].status = 'accepted';
-    const overlay = document.querySelector('.modal-overlay');
-    if (overlay) overlay.remove();
-    _detailOpen = false;
-    renderReceipts(false);
+    updateLocalSlot(key, { status: 'accepted' });
+    closeOverlayAndRefresh();
   };
 
-  window.acceptFromDetail = async function(key) {
+  // 상세 팝업의 키워드 입력칸(검색/유입플/분할) 값이 바뀐 경우에만 저장 — acceptFromDetail/closeDetailModal 공용
+  async function saveDetailFields(key) {
     const input = document.getElementById('detail-keyword-input');
     const kw = input ? input.value.trim() : null;
     const yupflInput = document.getElementById('detail-yupfl-keyword-input');
@@ -746,23 +744,23 @@ window.toggleProdPanel = function(e) {
     const s = allSlots.find(x => x._key === key);
     if (kw !== null && kw !== (s.searchKeyword||'')) {
       await HA.updateSlot(key, { searchKeyword: kw });
-      const idx = allSlots.findIndex(x => x._key === key);
-      if (idx !== -1) allSlots[idx].searchKeyword = kw;
+      updateLocalSlot(key, { searchKeyword: kw });
     }
     if (yupflKw !== null && yupflKw !== (s.yupflKeyword||'')) {
       await HA.updateSlot(key, { yupflKeyword: yupflKw });
-      const idx = allSlots.findIndex(x => x._key === key);
-      if (idx !== -1) allSlots[idx].yupflKeyword = yupflKw;
+      updateLocalSlot(key, { yupflKeyword: yupflKw });
     }
     const splitKeywords = collectSplitKeywords();
     if (splitKeywords && JSON.stringify(splitKeywords) !== JSON.stringify(s.splitKeywords || {})) {
       await HA.updateSlot(key, { splitKeywords });
-      const idx = allSlots.findIndex(x => x._key === key);
-      if (idx !== -1) allSlots[idx].splitKeywords = splitKeywords;
+      updateLocalSlot(key, { splitKeywords });
     }
+  }
+
+  window.acceptFromDetail = async function(key) {
+    await saveDetailFields(key);
     await HA.updateSlot(key, { status: 'accepted' });
-    const idx2 = allSlots.findIndex(x => x._key === key);
-    if (idx2 !== -1) allSlots[idx2].status = 'accepted';
+    updateLocalSlot(key, { status: 'accepted' });
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
     _detailOpen = false;
@@ -774,12 +772,8 @@ window.toggleProdPanel = function(e) {
     const labelMap = { pending: '대기', accepted: '접수', active: '승인' };
     if (!confirm(`상태를 "${labelMap[newStatus]}"(으)로 변경하시겠습니까?`)) return;
     await HA.updateSlot(key, { status: newStatus });
-    const idx = allSlots.findIndex(x => x._key === key);
-    if (idx !== -1) allSlots[idx].status = newStatus;
-    const overlay = document.querySelector('.modal-overlay');
-    if (overlay) overlay.remove();
-    _detailOpen = false;
-    renderReceipts(false);
+    updateLocalSlot(key, { status: newStatus });
+    closeOverlayAndRefresh();
   };
 
   // ── 상세 보기 ─────────────────────────────────────────────
@@ -902,16 +896,21 @@ window.toggleProdPanel = function(e) {
     return obj;
   }
 
+  // ha/grades/{mid} 스냅샷 조회 — fetchSheetKeywordByMid/fetchYoupflKeywordByMid 공용
+  async function fetchGradeSnapshotVal(mid) {
+    const safeMid = sanitizeFbKey(mid);
+    const { getDatabase, ref, get } = await import(
+      'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
+    );
+    const snap = await get(ref(getDatabase(), `ha/grades/${safeMid}`));
+    return snap.exists() ? snap.val() : undefined;
+  }
+
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──
   async function fetchSheetKeywordByMid(mid) {
     try {
-      const safeMid = mid.replace(/[.#$[\]/]/g, '_');
-      const { getDatabase, ref, get } = await import(
-        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-      );
-      const snap = await get(ref(getDatabase(), `ha/grades/${safeMid}`));
-      if (!snap.exists()) return [];
-      const data   = snap.val();
+      const data = await fetchGradeSnapshotVal(mid);
+      if (data === undefined) return [];
       const findKw = parseGradeEntries(data).map(g => g.findKw).find(kw => kw && kw.trim());
       return findKw ? [findKw] : [];
     } catch (e) {
@@ -931,13 +930,8 @@ window.toggleProdPanel = function(e) {
   // ── Firebase에서 MID로 현재 유입플 작업키워드 조회 (grade_sync.js의 yupflKw) — 미션 번호별로 분류 ──
   async function fetchYoupflKeywordByMid(mid) {
     try {
-      const safeMid = mid.replace(/[.#$[\]/]/g, '_');
-      const { getDatabase, ref, get } = await import(
-        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-      );
-      const snap = await get(ref(getDatabase(), `ha/grades/${safeMid}`));
-      if (!snap.exists()) return [];
-      const data = snap.val();
+      const data = await fetchGradeSnapshotVal(mid);
+      if (data === undefined) return [];
       const entries = [];
       parseGradeEntries(data).forEach(g => {
         // grade_sync.js가 미션별로 키워드를 분리해서 올려주면 그걸 우선 사용 (missionKeywords)
@@ -1035,7 +1029,7 @@ window.toggleProdPanel = function(e) {
           const kwStr  = s.searchKeyword || '';
           const kwCount = kwStr.split(',').map(k => k.trim()).filter(k => k).length;
           const safeKw = kwStr.replace(/'/g, "\\'");
-          const dateStr = s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
+          const dateStr = s.createdAt ? ymd(new Date(s.createdAt)) : '';
           return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
               <div style="display:flex;align-items:center;gap:6px;">
@@ -1127,27 +1121,7 @@ window.toggleProdPanel = function(e) {
 
   // 닫기 시 키워드 자동저장
   window.closeDetailModal = async function(key) {
-    const input = document.getElementById('detail-keyword-input');
-    const kw = input ? input.value.trim() : null;
-    const yupflInput = document.getElementById('detail-yupfl-keyword-input');
-    const yupflKw = yupflInput ? yupflInput.value.trim() : null;
-    const s = allSlots.find(x => x._key === key);
-    if (kw !== null && kw !== (s.searchKeyword||'')) {
-      await HA.updateSlot(key, { searchKeyword: kw });
-      const idx = allSlots.findIndex(x => x._key === key);
-      if (idx !== -1) allSlots[idx].searchKeyword = kw;
-    }
-    if (yupflKw !== null && yupflKw !== (s.yupflKeyword||'')) {
-      await HA.updateSlot(key, { yupflKeyword: yupflKw });
-      const idx = allSlots.findIndex(x => x._key === key);
-      if (idx !== -1) allSlots[idx].yupflKeyword = yupflKw;
-    }
-    const splitKeywords = collectSplitKeywords();
-    if (splitKeywords && JSON.stringify(splitKeywords) !== JSON.stringify(s.splitKeywords || {})) {
-      await HA.updateSlot(key, { splitKeywords });
-      const idx = allSlots.findIndex(x => x._key === key);
-      if (idx !== -1) allSlots[idx].splitKeywords = splitKeywords;
-    }
+    await saveDetailFields(key);
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
     _detailOpen = false;
@@ -1192,8 +1166,7 @@ window.toggleProdPanel = function(e) {
       memo:          document.getElementById('e-memo').value,
     };
     await HA.updateSlot(key, updates);
-    const idx = allSlots.findIndex(x => x._key === key);
-    if (idx !== -1) Object.assign(allSlots[idx], updates);
+    updateLocalSlot(key, updates);
     document.querySelector('.modal-overlay').remove();
     renderReceipts(false);
   };
@@ -1613,6 +1586,13 @@ window.toggleProdPanel = function(e) {
     wrap.insertAdjacentHTML('beforeend', (cur && cur.splitProduct) ? splitRuleRowHtml(null) : missionRuleRowHtml(null));
     updateProdModalNotes();
   };
+  // 일반 상품 키워드/일목표 배분 입력칸 합계 — updateProdModalNotes/saveProdModal 공용
+  function sumProdModalInputs(actives, prefix) {
+    return Math.round(actives.reduce((s,q) => {
+      const el = document.getElementById(`${prefix}${q.id}`);
+      return s + (el ? parseFloat(el.value) || 0 : 0);
+    }, 0) * 10) / 10;
+  }
   window.updateProdModalNotes = function() {
     const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
     if (!cur) return;
@@ -1646,8 +1626,7 @@ window.toggleProdPanel = function(e) {
       return;
     }
     const actives = ap().filter(q => !q.fixedAlloc);
-    const sumInputs = prefix => Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`${prefix}${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
-    const kwR = sumInputs('pm-kwpct-'), ratR = sumInputs('pm-ratio-');
+    const kwR = sumProdModalInputs(actives, 'pm-kwpct-'), ratR = sumProdModalInputs(actives, 'pm-ratio-');
     const kwNote = document.getElementById('pm-kw-note');
     const ratNote = document.getElementById('pm-ratio-note');
     if(kwNote)  { kwNote.textContent=`합계: ${kwR}`;   kwNote.className='ratio-note '+(kwR===10||kwR===0?'ok':'ng'); }
@@ -1668,8 +1647,7 @@ window.toggleProdPanel = function(e) {
     if (!p.fixedAlloc) {
       const actives = ap().filter(q => !q.fixedAlloc);
       if(actives.length) {
-        const sumInputs = prefix => Math.round(actives.reduce((s,q)=>{ const el=document.getElementById(`${prefix}${q.id}`); return s+(el?parseFloat(el.value)||0:0); },0)*10)/10;
-        const kwR = sumInputs('pm-kwpct-'), ratR = sumInputs('pm-ratio-');
+        const kwR = sumProdModalInputs(actives, 'pm-kwpct-'), ratR = sumProdModalInputs(actives, 'pm-ratio-');
         if(kwR!==10 && kwR!==0){ alert(`키워드 배분 합계는 10 또는 모두 0이어야 합니다. (현재: ${kwR})`); return; }
         if(ratR!==10){ alert(`일 목표 배분 합계는 10이어야 합니다. (현재: ${ratR})`); return; }
         actives.forEach(q => {
@@ -1966,7 +1944,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 엑셀 다운로드 (접수 리스트) ────────────────────────────
   window.downloadExcelList = function() {
-    const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
+    const checkedKeys = getCheckedKeys();
     const filtered = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
     if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
 
@@ -1975,7 +1953,7 @@ window.toggleProdPanel = function(e) {
       const wb = XLSX.utils.book_new();
       const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드','유입플키워드'];
       const rows = filtered.map(s => [
-        s.createdAt ? (() => { const d = new Date(s.createdAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
+        s.createdAt ? ymd(new Date(s.createdAt)) : '',
         s.agencyId||'', s.storeName||'', s.url||'', s.mid||'',
         s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', s.searchKeyword||'', s.yupflKeyword||'',
       ]);
@@ -1999,7 +1977,7 @@ window.toggleProdPanel = function(e) {
   // 프론트(SheetJS)가 만든 xlsx를 그대로 프록시로 릴레이한다.
   // openpyxl 등 서버에서 새로 생성한 xlsx는 adlog.kr이 거부하는 것이 실측으로 확인됨.
   window.submitAdlog = function() {
-    const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
+    const checkedKeys = getCheckedKeys();
     const keySet = new Set(checkedKeys);
     // 체크박스로 직접 선택한 경우 — 승인(active) 상태도 예외적으로 허용 (재등록 목적)
     const target = checkedKeys.length
@@ -2169,7 +2147,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 엑셀 다운로드 (대행사별 · 3시트) ────────────────────────
   window.downloadExcel = function() {
-    const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
+    const checkedKeys = getCheckedKeys();
     const target = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
     if (!target.length) { alert('다운로드할 데이터가 없습니다.'); return; }
     if (!ap().length)   { alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.'); return; }
@@ -2217,10 +2195,9 @@ window.toggleProdPanel = function(e) {
 
   // ── 비즈핏 직접 접수 ────────────────────────────────────────
   async function fetchBizfitAccount(agencyId) {
-    const safe = s => s.replace(/[.#$[\]/]/g,'_');
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const snap = await get(ref(getDatabase(), `ha/bizfit_charge/${safe(agencyId)}`));
+      const snap = await get(ref(getDatabase(), `ha/bizfit_charge/${sanitizeFbKey(agencyId)}`));
       return snap.exists() ? snap.val() : null;
     } catch { return null; }
   }
@@ -2311,7 +2288,7 @@ window.toggleProdPanel = function(e) {
   }
 
   window.submitDirect = function() {
-    const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
+    const checkedKeys = getCheckedKeys();
     const keySet = new Set(checkedKeys);
     const base   = checkedKeys.length ? allSlots.filter(s => keySet.has(s._key)) : filteredAll;
     const target = base.filter(s => s.status === 'accepted');
@@ -2497,7 +2474,6 @@ window.toggleProdPanel = function(e) {
       <th style="width:76px;text-align:center">상태</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
-    p.gradeRowEls = new Map();
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     p.rows.forEach(r => {
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
@@ -2521,8 +2497,6 @@ window.toggleProdPanel = function(e) {
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
       r._statusTd = statusTd;
-      if (!p.gradeRowEls.has(r.상품등급명)) p.gradeRowEls.set(r.상품등급명, []);
-      p.gradeRowEls.get(r.상품등급명).push(statusTd);
     });
     tbl.appendChild(tbody); wrap.appendChild(tbl); block.appendChild(wrap);
 
@@ -2741,13 +2715,6 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  function setGradeStatus(p, gradeName, html) {
-    (p.gradeRowEls.get(gradeName) || []).forEach(td => td.innerHTML = html);
-  }
-  function setAllStatus(p, html) {
-    p.gradeRowEls.forEach((_, name) => setGradeStatus(p, name, html));
-  }
-
   async function executeSubmit(plan, overlay, gate=null) {
     const applyBtn = overlay.querySelector('#submit-apply-btn');
     const closeBtn = overlay.querySelector('#submit-close-btn');
@@ -2941,8 +2908,6 @@ window.toggleProdPanel = function(e) {
     // 유입플 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 유입플도 마저 접수할 수 있어야 함
     if (youpflBtn) youpflBtn.disabled = false;
   }
-
-  function byGradeCount(rows, name) { return rows.filter(r => r.상품등급명 === name).length; }
 
   // 최초 로드
   renderReceipts(false);
