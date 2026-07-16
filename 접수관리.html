@@ -1388,6 +1388,11 @@ window.toggleProdPanel = function(e) {
   window.toggleProd = function(id) {
     const p = prods.find(x => x.id === id); if (!p) return;
     p.active = !p.active;
+    // 유입플과 분할은 같이 켤 수 없음 — 한쪽을 켜면 다른 쪽은 자동으로 꺼짐
+    if (p.active && (id === 'yupfl' || id === 'yupfl2')) {
+      const other = prods.find(x => x.id === (id === 'yupfl' ? 'yupfl2' : 'yupfl'));
+      if (other) other.active = false;
+    }
     rebalanceProdActive('ratio'); rebalanceProdActive('kwPct');
     if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
     renderPS();
