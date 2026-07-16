@@ -1260,13 +1260,6 @@ window.toggleProdPanel = function(e) {
         // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다 — 예: 분할(yupfl2)
         const loadedIds = new Set(prods.map(p => p.id));
         DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
-        // 유입플/분할은 on/off를 계정별 저장값으로 판단하지 않는다 — 기본값(꺼짐)에서 시작해
-        // 아래 loadSharedFixedProdSettings()가 전역 공유값으로만 켜지도록 강제한다.
-        FIXED_PROD_SHARED_IDS.forEach(id => {
-          const p = prods.find(x => x.id === id);
-          const dp = DEFAULT_PRODS.find(x => x.id === id);
-          if (p && dp) p.active = dp.active;
-        });
       }
       if (groupsSnap.exists()) {
         const loaded = groupsSnap.val();
