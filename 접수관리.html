@@ -1452,12 +1452,16 @@ window.toggleProdPanel = function(e) {
 
   function renderPS() {
     renderProdGroups();
-    const prodHtml = p => `
+    const isAdmin = HA.getCurrentUser()?.role === 'admin';
+    const prodHtml = p => {
+      const locked = FIXED_PROD_SHARED_IDS.has(p.id) && !isAdmin;
+      return `
       <div class="ps-item${p.active?' active':''}" id="psi-${p.id}" onclick="openProdModal('${p.id}')">
         <div class="ps-dot" style="background:${p.color};border-color:rgba(0,0,0,.1);"></div>
         <span class="ps-name" style="color:${p.color}">${escProd(prodDisplayName(p))}</span>
-        <button class="ps-tog ${p.active?'on':'off'}" onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
+        <button class="ps-tog ${p.active?'on':'off'}"${locked ? ` style="opacity:.5;cursor:not-allowed;" title="관리자만 변경할 수 있습니다"` : ''} onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
       </div>`;
+    };
     const normalProds = [], fixedProds = [];
     for (const p of prods) (FIXED_PROD_IDS.has(p.id) ? fixedProds : normalProds).push(p);
     document.getElementById('psWrapNormal').innerHTML = normalProds.map(prodHtml).join('');
@@ -1473,6 +1477,10 @@ window.toggleProdPanel = function(e) {
 
   window.toggleProd = function(id) {
     const p = prods.find(x => x.id === id); if (!p) return;
+    if (FIXED_PROD_SHARED_IDS.has(id) && HA.getCurrentUser()?.role !== 'admin') {
+      alert('유입플/분할 on/off는 관리자만 변경할 수 있습니다.');
+      return;
+    }
     p.active = !p.active;
     // 유입플과 분할은 같이 켤 수 없음 — 한쪽을 켜면 다른 쪽은 자동으로 꺼짐
     if (p.active && (id === 'yupfl' || id === 'yupfl2')) {
