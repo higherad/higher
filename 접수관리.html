@@ -905,6 +905,14 @@ window.toggleProdPanel = function(e) {
     }
   }
 
+  // 미션 번호마다 고정된 색을 배정 — 같은 번호는 항상 같은 색
+  const MISSION_BADGE_COLORS = ['#1d4ed8','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#4d7c0f'];
+  function missionBadgeColor(mission) {
+    const n = parseInt(mission, 10);
+    if (!Number.isFinite(n)) return '#64748b';
+    return MISSION_BADGE_COLORS[((n % MISSION_BADGE_COLORS.length) + MISSION_BADGE_COLORS.length) % MISSION_BADGE_COLORS.length];
+  }
+
   // ── Firebase에서 MID로 현재 유입플 작업키워드 조회 (grade_sync.js의 yupflKw) — 미션 번호별로 분류 ──
   async function fetchYoupflKeywordByMid(mid) {
     try {
@@ -1061,8 +1069,9 @@ window.toggleProdPanel = function(e) {
         ${entries.map(e => {
           const safeKw = e.keyword.replace(/'/g, "\\'");
           const badge  = e.mission ? `미션:${e.mission}` : '미션 미지정';
+          const badgeColor = missionBadgeColor(e.mission);
           return `<div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:#1d4ed8;color:#fff;white-space:nowrap;flex-shrink:0;">${badge}</span>
+            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${badgeColor};color:#fff;white-space:nowrap;flex-shrink:0;">${badge}</span>
             <div style="flex:1;overflow:hidden;white-space:nowrap;font-size:12px;color:#1d4ed8;font-weight:500;background:#dbeafe;padding:4px 8px;border-radius:5px;user-select:all;">${e.keyword}</div>
             <button onclick="(function(){var el=document.getElementById('detail-yupfl-keyword-input');el.value='${safeKw}';})()"
               style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
