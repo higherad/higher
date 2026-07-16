@@ -1444,16 +1444,22 @@ window.toggleProdPanel = function(e) {
     document.getElementById('prod-modal-bg').classList.add('show');
   };
   function missionRuleRowHtml(rule) {
+    const divider = `<span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>`;
     return `<div class="mission-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <span style="font-size:11px;color:var(--text2);white-space:nowrap;">키워드</span>
       <input type="number" min="1" step="1" class="mr-kw" value="${rule?.kw ?? ''}"
         style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
       <span style="font-size:11px;color:var(--text2);white-space:nowrap;">개</span>
-      <span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>
+      ${divider}
       <span style="font-size:11px;color:var(--text2);white-space:nowrap;">미션</span>
       <input type="number" min="0" step="1" class="mr-mission" value="${rule?.mission ?? ''}"
         style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
       <span style="font-size:11px;color:var(--text2);white-space:nowrap;">번</span>
+      ${divider}
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">고정 배분</span>
+      <input type="number" min="0" max="100" step="1" class="mr-fixedpct" value="${rule?.fixedPct ?? ''}"
+        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">%</span>
       <button type="button" onclick="this.closest('.mission-rule-row').remove()" title="규칙 삭제"
         style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-left:auto;">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
@@ -1525,12 +1531,13 @@ window.toggleProdPanel = function(e) {
       const seenKw = new Set();
       const rules = [];
       for (const row of ruleRows) {
-        const kw = parseInt(row.querySelector('.mr-kw')?.value, 10);
-        const mission = parseInt(row.querySelector('.mr-mission')?.value, 10);
-        if (!Number.isFinite(kw) || kw <= 0 || !Number.isFinite(mission) || mission < 0) continue;
+        const kw        = parseInt(row.querySelector('.mr-kw')?.value, 10);
+        const mission    = parseInt(row.querySelector('.mr-mission')?.value, 10);
+        const rowFixedPct = parseFloat(row.querySelector('.mr-fixedpct')?.value);
+        if (!Number.isFinite(kw) || kw <= 0 || !Number.isFinite(mission) || mission < 0 || !Number.isFinite(rowFixedPct) || rowFixedPct < 0 || rowFixedPct > 100) continue;
         if (seenKw.has(kw)) { alert(`키워드 ${kw}개에 대한 규칙이 중복되었습니다.`); return; }
         seenKw.add(kw);
-        rules.push({ kw, mission });
+        rules.push({ kw, mission, fixedPct: rowFixedPct });
       }
       if (!rules.length) {
         alert('키워드 배분 규칙을 최소 1개 이상 입력해야 합니다.');
@@ -1559,12 +1566,18 @@ window.toggleProdPanel = function(e) {
 
   function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
 
-  // 유입플 키워드 개수에 매칭되는 규칙(미션 번호)을 찾음 — 자동 배정용, 매칭 없으면 null
+  // 유입플 키워드 개수에 매칭되는 규칙을 찾음 — 매칭 없으면 null (이 경우 통합 고정 배분을 사용)
   function yupflRuleFor(yupfl, workKw) {
     const rules = Array.isArray(yupfl?.missionRules) ? yupfl.missionRules : [];
     const kw = (workKw||'').trim();
     const kwCount = kw ? kw.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
     return rules.find(r => r.kw === kwCount) || null;
+  }
+
+  // 규칙에 매칭되면 규칙별 고정 배분 %, 매칭 안 되면 통합 고정 배분 %
+  function yupflPctFor(yupfl, workKw) {
+    const rule = yupflRuleFor(yupfl, workKw);
+    return rule ? rule.fixedPct : yupfl?.fixedPct;
   }
 
   function lrm(items, total) {
@@ -1579,11 +1592,11 @@ window.toggleProdPanel = function(e) {
     return items.reduce((m, p, i) => (m[p.id] = floors[i], m), {});
   }
 
-  function allocate(asgn, target) {
+  function allocate(asgn, target, workKw) {
     if (!asgn.length) return {};
     const yupfl = asgn.find(p => p.fixedAlloc);
     if (yupfl) {
-      const yAmt = Math.min(yupflAlloc(target, yupfl.fixedPct), target);
+      const yAmt = Math.min(yupflAlloc(target, yupflPctFor(yupfl, workKw)), target);
       return { [yupfl.id]: yAmt, ...lrm(asgn.filter(p => !p.fixedAlloc), Math.max(0, target - yAmt)) };
     }
     return lrm(asgn, target);
@@ -1658,7 +1671,7 @@ window.toggleProdPanel = function(e) {
     });
     f.forEach((r, ri) => {
       const rowIdx = 4 + ri;
-      const alloc  = allocate(AP.slice(), r.dailyTarget||0);
+      const alloc  = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword);
       const kwCount = r.searchKeyword ? r.searchKeyword.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
       const base = [r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',r.days||0,null,r.dailyTarget||0,AP.length,r.searchKeyword||'',kwCount];
       const pv   = AP.map(p => alloc[p.id] ?? '');
@@ -1686,7 +1699,7 @@ window.toggleProdPanel = function(e) {
     const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표',daysColLabel,'예약일','검색키워드'];
     headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':'1F2937'}); });
     let curRow = 1;
-    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0)]));
+    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword)]));
     pList.forEach(prod => {
       f.forEach(r => {
         const alloc   = allocBySlot.get(r);
@@ -1710,7 +1723,7 @@ window.toggleProdPanel = function(e) {
 
   function buildYoupflSheet(wb, f, sheetName) {
     const yupfl = ap().find(p => p.fixedAlloc);
-    if (!yupfl || !yupfl.fixedPct) return;
+    if (!yupfl) return;
     const ws = {};
     const headers = ['순위키워드', '작업키워드', '플레이스ID', '작업타수', '신청일수', '미션', '익일시작'];
     headers.forEach((h, ci) => {
@@ -1719,10 +1732,10 @@ window.toggleProdPanel = function(e) {
     const today = new Date(); today.setHours(0,0,0,0);
     let curRow = 1;
     f.forEach(r => {
-      const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, yupfl.fixedPct), r.dailyTarget||0);
-      if (yAmt <= 0) return;
       const workKw = (r.yupflKeyword||'').trim();
       const rule = yupflRuleFor(yupfl, workKw);
+      const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, rule ? rule.fixedPct : yupfl.fixedPct), r.dailyTarget||0);
+      if (yAmt <= 0) return;
       const start  = r.startDate ? new Date(r.startDate) : today;
       start.setHours(0,0,0,0);
       const ikil = Math.max(0, Math.round((start - today) / 86400000));
@@ -2019,7 +2032,7 @@ window.toggleProdPanel = function(e) {
     const normalProds = AP.filter(p => !FIXED_PROD_IDS.has(p.id));
     const rows = [];
     slots.forEach(r => {
-      const alloc = allocate(AP.slice(), r.dailyTarget||0);
+      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword);
       normalProds.forEach(prod => {
         const pp = alloc[prod.id] ?? 0;
         if (pp <= 0) return;
@@ -2047,10 +2060,10 @@ window.toggleProdPanel = function(e) {
     const yupfl = ap().find(p => p.fixedAlloc);
     if (!yupfl) return [];
     return slots.map(s => {
-      const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, yupfl.fixedPct), s.dailyTarget||0);
-      if (yAmt <= 0) return null;
       const workKw = (s.yupflKeyword||'').trim();
       const rule   = yupflRuleFor(yupfl, workKw);
+      const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, rule ? rule.fixedPct : yupfl.fixedPct), s.dailyTarget||0);
+      if (yAmt <= 0) return null;
       return {
         _slotKey:  s._key,
         _fixedSubmitted: !!s.fixedSubmitted,
