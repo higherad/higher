@@ -754,6 +754,12 @@ window.toggleProdPanel = function(e) {
       const idx = allSlots.findIndex(x => x._key === key);
       if (idx !== -1) allSlots[idx].yupflKeyword = yupflKw;
     }
+    const splitKeywords = collectSplitKeywords();
+    if (splitKeywords && JSON.stringify(splitKeywords) !== JSON.stringify(s.splitKeywords || {})) {
+      await HA.updateSlot(key, { splitKeywords });
+      const idx = allSlots.findIndex(x => x._key === key);
+      if (idx !== -1) allSlots[idx].splitKeywords = splitKeywords;
+    }
     await HA.updateSlot(key, { status: 'accepted' });
     const idx2 = allSlots.findIndex(x => x._key === key);
     if (idx2 !== -1) allSlots[idx2].status = 'accepted';
@@ -808,6 +814,10 @@ window.toggleProdPanel = function(e) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
+    const yupflProd  = prods.find(p => p.id === 'yupfl');
+    const splitProd  = prods.find(p => p.id === 'yupfl2');
+    const yupflShown = !!yupflProd?.active;
+
     overlay.innerHTML = `
       <div class="modal-box">
         <div class="modal-title">캠페인 상세 정보</div>
@@ -835,6 +845,7 @@ window.toggleProdPanel = function(e) {
           </dt>
           <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)"></dd>
           <dd id="mid-history-area" style="display:none;margin-top:8px;"></dd>
+          ${yupflShown ? `
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
             <span>유입플 키워드</span>
             ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleYupflMidHistory('${s.mid}')" id="yupfl-hist-btn"
@@ -843,7 +854,8 @@ window.toggleProdPanel = function(e) {
             </button>` : ''}
           </dt>
           <dd><input type="text" class="detail-kw-input" id="detail-yupfl-keyword-input" value="${s.yupflKeyword||''}" placeholder="유입플 키워드를 입력해주세요"></dd>
-          <dd id="yupfl-history-area" style="display:none;margin-top:8px;"></dd>
+          <dd id="yupfl-history-area" style="display:none;margin-top:8px;"></dd>` : ''}
+          ${splitKeywordFieldsHtml(s, splitProd)}
         </dl>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
@@ -855,6 +867,25 @@ window.toggleProdPanel = function(e) {
     // 잠금 확인 + 쓰기 백그라운드 — 예열된 연결로 빠르게 완료
     // 충돌이면 modal 닫고 알림, 아니면 잠금 쓰기
   };
+
+  // 분할 상품이 켜져있고 미션이 등록돼 있으면, 미션 개수만큼 "분할 키워드" 입력칸을 만든다
+  function splitKeywordFieldsHtml(s, splitProd) {
+    if (!splitProd?.active) return '';
+    const rules = Array.isArray(splitProd.missionRules) ? splitProd.missionRules : [];
+    if (!rules.length) return '';
+    const sk = s.splitKeywords || {};
+    return rules.map(r => `
+          <dt style="margin-top:10px;"><span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc;">미션:${r.mission}</span>&nbsp; 분할 키워드</dt>
+          <dd><input type="text" class="detail-kw-input detail-split-kw-input" data-mission="${r.mission}" value="${(sk[r.mission]||'').toString().replace(/"/g,'&quot;')}" placeholder="분할 키워드를 입력해주세요"></dd>`).join('');
+  }
+
+  function collectSplitKeywords() {
+    const els = [...document.querySelectorAll('.detail-split-kw-input')];
+    if (!els.length) return null;
+    const obj = {};
+    els.forEach(el => { obj[el.dataset.mission] = el.value.trim(); });
+    return obj;
+  }
 
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──
   async function fetchSheetKeywordByMid(mid) {
@@ -1068,6 +1099,12 @@ window.toggleProdPanel = function(e) {
       const idx = allSlots.findIndex(x => x._key === key);
       if (idx !== -1) allSlots[idx].yupflKeyword = yupflKw;
     }
+    const splitKeywords = collectSplitKeywords();
+    if (splitKeywords && JSON.stringify(splitKeywords) !== JSON.stringify(s.splitKeywords || {})) {
+      await HA.updateSlot(key, { splitKeywords });
+      const idx = allSlots.findIndex(x => x._key === key);
+      if (idx !== -1) allSlots[idx].splitKeywords = splitKeywords;
+    }
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
     _detailOpen = false;
@@ -1133,9 +1170,10 @@ window.toggleProdPanel = function(e) {
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'charlie',name:'찰리',  color:'#f43f5e', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, autoBalance:false},
     {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, fixedPct:30, autoBalance:false, missionRules:[]},
+    {id:'yupfl2', name:'분할',   color:'#06b6d4', active:false, ratio:0, kwPct:0, fixedAlloc:true, splitProduct:true, autoBalance:false, missionRules:[]},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
-  const FIXED_PROD_IDS = new Set(['charlie', 'yupfl']);
+  const FIXED_PROD_IDS = new Set(['charlie', 'yupfl', 'yupfl2']);
   const ap = () => prods.filter(p => p.active);
 
   let prodGroups = [];
@@ -1155,7 +1193,7 @@ window.toggleProdPanel = function(e) {
   async function loadProdSettings() {
     const path = getProdSettingsPath();
     if (!path) return;
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
@@ -1370,6 +1408,7 @@ window.toggleProdPanel = function(e) {
     if (kwWrap) kwWrap.style.display = p.fixedAlloc ? 'none' : '';
 
     const isFixed = !!p.fixedAlloc;
+    const isSplit = !!p.splitProduct;
     const actives = isFixed ? [] : ap().filter(q => !q.fixedAlloc);
     const makeGrid = (items, field, prefix) => items.map(q => `
           <div class="ratio-item">
@@ -1380,29 +1419,40 @@ window.toggleProdPanel = function(e) {
 
     if (!isFixed) document.getElementById('pm-kw-grid').innerHTML = makeGrid(actives, 'kwPct', 'pm-kwpct-');
 
-    document.getElementById('pm-ratio-grid').innerHTML = isFixed
-      ? `<div class="ratio-item" style="grid-column:1/-1;">
-          <span class="ri-name" style="color:${p.color}">통합 고정 배분</span>
-          <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
-          <span style="font-size:12px;color:var(--text2);">%</span>
-        </div>
-        <div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
+    document.getElementById('pm-ratio-grid').innerHTML = isSplit
+      ? `<div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
-            <span class="ri-name" style="color:${p.color}">키워드 배분 규칙</span>
-            <button type="button" onclick="addMissionRuleRow()" title="규칙 추가"
+            <span class="ri-name" style="color:${p.color}">미션 설정</span>
+            <button type="button" onclick="addMissionRuleRow()" title="미션 추가"
               style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
             </button>
           </div>
           <div id="pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>`
-      : makeGrid(actives, 'ratio', 'pm-ratio-');
+      : isFixed
+        ? `<div class="ratio-item" style="grid-column:1/-1;">
+            <span class="ri-name" style="color:${p.color}">통합 고정 배분</span>
+            <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
+            <span style="font-size:12px;color:var(--text2);">%</span>
+          </div>
+          <div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span class="ri-name" style="color:${p.color}">키워드 배분 규칙</span>
+              <button type="button" onclick="addMissionRuleRow()" title="규칙 추가"
+                style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
+              </button>
+            </div>
+            <div id="pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
+          </div>`
+        : makeGrid(actives, 'ratio', 'pm-ratio-');
 
     if (isFixed) {
       const rulesWrap = document.getElementById('pm-mission-rules');
       if (rulesWrap) {
         const rules = (Array.isArray(p.missionRules) && p.missionRules.length) ? p.missionRules : [null];
-        rulesWrap.innerHTML = rules.map(missionRuleRowHtml).join('');
+        rulesWrap.innerHTML = rules.map(isSplit ? splitRuleRowHtml : missionRuleRowHtml).join('');
       }
     }
 
@@ -1432,14 +1482,46 @@ window.toggleProdPanel = function(e) {
       </button>
     </div>`;
   }
+  function splitRuleRowHtml(rule) {
+    const divider = `<span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>`;
+    return `<div class="split-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">미션</span>
+      <input type="number" min="0" step="1" class="sr-mission" value="${rule?.mission ?? ''}"
+        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">번</span>
+      ${divider}
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">고정 배분</span>
+      <input type="number" min="0" max="100" step="1" class="sr-fixedpct" value="${rule?.fixedPct ?? ''}" oninput="updateProdModalNotes()"
+        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">%</span>
+      <button type="button" onclick="this.closest('.split-rule-row').remove();updateProdModalNotes();" title="미션 삭제"
+        style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-left:auto;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>`;
+  }
   window.addMissionRuleRow = function() {
     const wrap = document.getElementById('pm-mission-rules');
     if (!wrap) return;
-    wrap.insertAdjacentHTML('beforeend', missionRuleRowHtml(null));
+    const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
+    wrap.insertAdjacentHTML('beforeend', (cur && cur.splitProduct) ? splitRuleRowHtml(null) : missionRuleRowHtml(null));
+    updateProdModalNotes();
   };
   window.updateProdModalNotes = function() {
     const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
     if (!cur) return;
+    if (cur.splitProduct) {
+      const kwNote = document.getElementById('pm-kw-note');
+      const ratNote = document.getElementById('pm-ratio-note');
+      if (kwNote) kwNote.textContent = '';
+      if (ratNote) {
+        const pctEls = [...document.querySelectorAll('#pm-mission-rules .sr-fixedpct')];
+        const sum = Math.round(pctEls.reduce((s,el)=> s + (parseFloat(el.value)||0), 0)*10)/10;
+        ratNote.textContent = `고정 배분 합계: ${sum}%`;
+        ratNote.className = 'ratio-note ' + (sum > 100 ? 'ng' : '');
+      }
+      return;
+    }
     if (cur.fixedAlloc) {
       const kwNote = document.getElementById('pm-kw-note');
       const ratNote = document.getElementById('pm-ratio-note');
@@ -1486,6 +1568,23 @@ window.toggleProdPanel = function(e) {
           if(ratEl) q.ratio = Math.round((parseFloat(ratEl.value)||0)*10)/10;
         });
       }
+    } else if (p.splitProduct) {
+      const ruleRows = [...document.querySelectorAll('#pm-mission-rules .split-rule-row')];
+      const seenMission = new Set();
+      const rules = [];
+      for (const row of ruleRows) {
+        const mission     = parseInt(row.querySelector('.sr-mission')?.value, 10);
+        const rowFixedPct = parseFloat(row.querySelector('.sr-fixedpct')?.value);
+        if (!Number.isFinite(mission) || mission < 0 || !Number.isFinite(rowFixedPct) || rowFixedPct < 0 || rowFixedPct > 100) continue;
+        if (seenMission.has(mission)) { alert(`미션 ${mission}번이 중복되었습니다.`); return; }
+        seenMission.add(mission);
+        rules.push({ mission, fixedPct: rowFixedPct });
+      }
+      if (!rules.length) {
+        alert('미션을 최소 1개 이상 입력해야 합니다.');
+        return;
+      }
+      p.missionRules = rules;
     } else {
       const fixedPctEl = document.getElementById('pm-fixedpct');
       if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
@@ -1558,12 +1657,30 @@ window.toggleProdPanel = function(e) {
     return items.reduce((m, p, i) => (m[p.id] = floors[i], m), {});
   }
 
-  function allocate(asgn, target, workKw) {
+  // 유입플/분할처럼 fixedAlloc인 상품이 여러 개면 각자 몫을 먼저 떼고, 남은 걸 일반 상품끼리 비율로 나눈다.
+  // 분할은 단일 workKw가 아니라 미션별 splitKeywords를 쓰므로 미션별 합계를 그 상품의 몫으로 친다.
+  function allocate(asgn, target, workKw, splitKeywords) {
     if (!asgn.length) return {};
-    const yupfl = asgn.find(p => p.fixedAlloc);
-    if (yupfl) {
-      const yAmt = Math.min(yupflAlloc(target, yupflPctFor(yupfl, workKw)), target);
-      return { [yupfl.id]: yAmt, ...lrm(asgn.filter(p => !p.fixedAlloc), Math.max(0, target - yAmt)) };
+    const fixedProds = asgn.filter(p => p.fixedAlloc);
+    if (fixedProds.length) {
+      const result = {};
+      let used = 0;
+      fixedProds.forEach(p => {
+        let amt;
+        if (p.splitProduct) {
+          const rules = Array.isArray(p.missionRules) ? p.missionRules : [];
+          amt = rules.reduce((s, rule) => {
+            const kw = ((splitKeywords||{})[rule.mission] || '').trim();
+            return kw ? s + yupflAlloc(target, rule.fixedPct) : s;
+          }, 0);
+        } else {
+          amt = yupflAlloc(target, yupflPctFor(p, workKw));
+        }
+        amt = Math.max(0, Math.min(amt, target - used));
+        result[p.id] = amt;
+        used += amt;
+      });
+      return { ...result, ...lrm(asgn.filter(p => !p.fixedAlloc), Math.max(0, target - used)) };
     }
     return lrm(asgn, target);
   }
@@ -1637,7 +1754,7 @@ window.toggleProdPanel = function(e) {
     });
     f.forEach((r, ri) => {
       const rowIdx = 4 + ri;
-      const alloc  = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword);
+      const alloc  = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
       const kwCount = r.searchKeyword ? r.searchKeyword.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
       const base = [r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',r.days||0,null,r.dailyTarget||0,AP.length,r.searchKeyword||'',kwCount];
       const pv   = AP.map(p => alloc[p.id] ?? '');
@@ -1665,7 +1782,7 @@ window.toggleProdPanel = function(e) {
     const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표',daysColLabel,'예약일','검색키워드'];
     headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':'1F2937'}); });
     let curRow = 1;
-    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword)]));
+    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords)]));
     pList.forEach(prod => {
       f.forEach(r => {
         const alloc   = allocBySlot.get(r);
@@ -1687,9 +1804,8 @@ window.toggleProdPanel = function(e) {
     window.XLSX.utils.book_append_sheet(wb, ws, label);
   }
 
-  function buildYoupflSheet(wb, f, sheetName) {
-    const yupfl = ap().find(p => p.fixedAlloc);
-    if (!yupfl) return;
+  function buildYoupflSheet(wb, f, prod, sheetName) {
+    if (!prod) return;
     const ws = {};
     const headers = ['순위키워드', '작업키워드', '플레이스ID', '작업타수', '신청일수', '미션', '익일시작'];
     headers.forEach((h, ci) => {
@@ -1697,24 +1813,37 @@ window.toggleProdPanel = function(e) {
     });
     const today = new Date(); today.setHours(0,0,0,0);
     let curRow = 1;
-    f.forEach(r => {
-      const workKw = (r.yupflKeyword||'').trim();
-      const rule = yupflRuleFor(yupfl, workKw);
-      const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, rule ? rule.fixedPct : yupfl.fixedPct), r.dailyTarget||0);
-      if (yAmt <= 0) return;
-      const start  = r.startDate ? new Date(r.startDate) : today;
-      start.setHours(0,0,0,0);
-      const ikil = Math.max(0, Math.round((start - today) / 86400000));
-      const row  = [r.rankKeyword||'', workKw, r.mid||'', yAmt, r.days||0, rule ? rule.mission : 0, ikil];
-      row.forEach((v, ci) => {
-        sc(ws, curRow, ci, v, { align: ci <= 2 ? 'left' : 'center' });
-      });
+    const writeRow = (rankKw, workKw, mid, yAmt, days, mission, startDate) => {
+      const start = startDate ? new Date(startDate) : today; start.setHours(0,0,0,0);
+      const ikil  = Math.max(0, Math.round((start - today) / 86400000));
+      const row   = [rankKw||'', workKw, mid||'', yAmt, days||0, mission||0, ikil];
+      row.forEach((v, ci) => { sc(ws, curRow, ci, v, { align: ci <= 2 ? 'left' : 'center' }); });
       curRow++;
-    });
+    };
+    if (prod.splitProduct) {
+      const rules = Array.isArray(prod.missionRules) ? prod.missionRules : [];
+      f.forEach(r => {
+        rules.forEach(rule => {
+          const workKw = ((r.splitKeywords || {})[rule.mission] || '').trim();
+          if (!workKw) return;
+          const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, rule.fixedPct), r.dailyTarget||0);
+          if (yAmt <= 0) return;
+          writeRow(r.rankKeyword, workKw, r.mid, yAmt, r.days, rule.mission, r.startDate);
+        });
+      });
+    } else {
+      f.forEach(r => {
+        const workKw = (r.yupflKeyword||'').trim();
+        const rule = yupflRuleFor(prod, workKw);
+        const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, rule ? rule.fixedPct : prod.fixedPct), r.dailyTarget||0);
+        if (yAmt <= 0) return;
+        writeRow(r.rankKeyword, workKw, r.mid, yAmt, r.days, rule ? rule.mission : 0, r.startDate);
+      });
+    }
     if (curRow < 2) curRow = 2;
     ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:6}});
     ws['!cols'] = [{wch:18},{wch:40},{wch:14},{wch:8},{wch:8},{wch:8},{wch:8}];
-    window.XLSX.utils.book_append_sheet(wb, ws, sheetName || '유입플');
+    window.XLSX.utils.book_append_sheet(wb, ws, sheetName || prod.name || '유입플');
   }
 
   function setProg(show, pct, lbl) {
@@ -1950,7 +2079,7 @@ window.toggleProdPanel = function(e) {
             buildJusuSheet(wb, f);
             buildJumuSheet_(wb, f, '일반', p => !FIXED_PROD_IDS.has(p.id));
             ap().filter(p => FIXED_PROD_IDS.has(p.id)).forEach(prod => {
-              if (prod.fixedAlloc) buildYoupflSheet(wb, f, prod.name);
+              if (prod.fixedAlloc) buildYoupflSheet(wb, f, prod, prod.name);
               else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id);
             });
             window.XLSX.writeFile(wb, realAg ? `${realAg}-주문서.xlsx` : `주문서-${shortD()}.xlsx`);
@@ -1998,7 +2127,7 @@ window.toggleProdPanel = function(e) {
     const normalProds = AP.filter(p => !FIXED_PROD_IDS.has(p.id));
     const rows = [];
     slots.forEach(r => {
-      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword);
+      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
       normalProds.forEach(prod => {
         const pp = alloc[prod.id] ?? 0;
         if (pp <= 0) return;
@@ -2022,31 +2151,52 @@ window.toggleProdPanel = function(e) {
     return rows;
   }
 
+  // 유입플/분할 두 상품을 모두 훑어서 슬롯 하나당 최대 두 종류(유입플 1줄 + 분할 미션별 N줄)의 접수 행을 만든다.
+  // _slotKey는 슬롯 식별(승인/완료 판정용), _rowKey는 화면·제출 단위 식별(슬롯당 여러 행이 나올 수 있어 별도로 둠)
   function buildYoupflRows(slots) {
-    const yupfl = ap().find(p => p.fixedAlloc);
-    if (!yupfl) return [];
-    return slots.map(s => {
-      const workKw = (s.yupflKeyword||'').trim();
-      const rule   = yupflRuleFor(yupfl, workKw);
-      const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, rule ? rule.fixedPct : yupfl.fixedPct), s.dailyTarget||0);
-      if (yAmt <= 0) return null;
-      return {
-        _slotKey:  s._key,
-        _fixedSubmitted: !!s.fixedSubmitted,
-        agencyId:  s.agencyId||'(대행사 미지정)',
-        userId:    s.userId||'',
-        // 슬롯 저장 단가 우선, 없으면 현재 회원 단가로 폴백 (정산관리와 동일한 규칙)
-        unitPrice: (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null,
-        storeName: s.storeName||'',
-        rankKw:    s.rankKeyword||'',
-        workKw,
-        placeId:   s.mid||'',
-        target:    yAmt,
-        days:      s.days||0,
-        startDate: s.startDate||'',
-        autoMission: rule ? rule.mission : null,
-      };
-    }).filter(Boolean);
+    const yupfl = ap().find(p => p.id === 'yupfl' && p.fixedAlloc);
+    const split = ap().find(p => p.id === 'yupfl2' && p.splitProduct);
+    if (!yupfl && !split) return [];
+    const rows = [];
+    slots.forEach(s => {
+      const agencyId  = s.agencyId||'(대행사 미지정)';
+      // 슬롯 저장 단가 우선, 없으면 현재 회원 단가로 폴백 (정산관리와 동일한 규칙)
+      const unitPrice = (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null;
+
+      if (yupfl) {
+        const workKw = (s.yupflKeyword||'').trim();
+        const rule   = yupflRuleFor(yupfl, workKw);
+        const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, rule ? rule.fixedPct : yupfl.fixedPct), s.dailyTarget||0);
+        if (yAmt > 0) {
+          rows.push({
+            _slotKey: s._key, _rowKey: s._key, _prodId: 'yupfl', _prodLabel: yupfl.name, _prodColor: yupfl.color,
+            _fixedSubmitted: !!s.fixedSubmitted,
+            agencyId, userId: s.userId||'', unitPrice,
+            storeName: s.storeName||'', rankKw: s.rankKeyword||'',
+            workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
+            autoMission: rule ? rule.mission : null,
+          });
+        }
+      }
+
+      if (split && Array.isArray(split.missionRules)) {
+        split.missionRules.forEach(rule => {
+          const workKw = ((s.splitKeywords || {})[rule.mission] || '').trim();
+          if (!workKw) return;
+          const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, rule.fixedPct), s.dailyTarget||0);
+          if (yAmt <= 0) return;
+          rows.push({
+            _slotKey: s._key, _rowKey: `${s._key}__${rule.mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
+            _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[rule.mission]),
+            agencyId, userId: s.userId||'', unitPrice,
+            storeName: s.storeName||'', rankKw: s.rankKeyword||'',
+            workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
+            autoMission: rule.mission,
+          });
+        });
+      }
+    });
+    return rows;
   }
 
   window.submitDirect = function() {
@@ -2120,7 +2270,15 @@ window.toggleProdPanel = function(e) {
     const normalAlreadyDone = new Set(
       [...normalRowsBySlot.entries()].filter(([, rs]) => rs.every(r => r._normalSubmitted)).map(([k]) => k)
     );
-    const fixedAlreadyDone  = new Set(target.filter(s => s.fixedSubmitted).map(s => s._key));
+    // 유입플/분할 각각 여러 행이 나올 수 있어, 슬롯에 걸린 모든 행이 완료된 경우에만 "이미 완료"로 취급
+    const fixedRowsBySlot = new Map();
+    yupflRows.forEach(r => {
+      if (!fixedRowsBySlot.has(r._slotKey)) fixedRowsBySlot.set(r._slotKey, []);
+      fixedRowsBySlot.get(r._slotKey).push(r);
+    });
+    const fixedAlreadyDone = new Set(
+      [...fixedRowsBySlot.entries()].filter(([, rs]) => rs.every(r => r._fixedSubmitted)).map(([k]) => k)
+    );
     const gate = (hasNormal && hasFixed) ? {
       normalKeys: normalAlreadyDone.size ? normalAlreadyDone : null,
       fixedKeys:  fixedAlreadyDone.size ? fixedAlreadyDone : null,
@@ -2285,15 +2443,16 @@ window.toggleProdPanel = function(e) {
     tbl.className = 'ag-table';
     tbl.style.cssText = 'table-layout:fixed;width:100%';
     tbl.innerHTML = `<thead><tr>
-      <th style="width:180px">업체명</th>
-      <th style="width:100px">순위키워드</th>
-      <th style="width:68px;text-align:center">작업키워드</th>
-      <th style="width:110px">플레이스ID</th>
-      <th style="width:72px;text-align:right">작업타수</th>
-      <th style="width:44px;text-align:center">일수</th>
-      <th style="width:84px">시작일</th>
-      <th style="width:64px;text-align:center">미션</th>
-      <th style="width:76px;text-align:center">상태</th>
+      <th style="width:64px;text-align:center">상품</th>
+      <th style="width:160px">업체명</th>
+      <th style="width:90px">순위키워드</th>
+      <th style="width:60px;text-align:center">작업키워드</th>
+      <th style="width:100px">플레이스ID</th>
+      <th style="width:64px;text-align:right">작업타수</th>
+      <th style="width:40px;text-align:center">일수</th>
+      <th style="width:80px">시작일</th>
+      <th style="width:60px;text-align:center">미션</th>
+      <th style="width:70px;text-align:center">상태</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
     rows.forEach(r => {
@@ -2305,11 +2464,12 @@ window.toggleProdPanel = function(e) {
       const hasAutoMission = r.autoMission !== null && r.autoMission !== undefined;
       const missionTd = document.createElement('td');
       missionTd.style.cssText = 'text-align:center;white-space:nowrap';
-      missionTd.innerHTML = `<input type="number" min="0" class="ag-mission-input" data-key="${escProd(r._slotKey||'')}"
+      missionTd.innerHTML = `<input type="number" min="0" class="ag-mission-input" data-key="${escProd(r._rowKey||'')}"
         value="${hasAutoMission ? r.autoMission : ''}" ${r._fixedSubmitted?'disabled':''}
         ${hasAutoMission ? `title="키워드 ${kwCount}개 규칙으로 자동 배정된 값입니다. 직접 수정할 수 있습니다."` : ''}
         style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;outline:none;background:white;">`;
       tr.innerHTML = `
+        <td style="text-align:center;white-space:nowrap"><span style="font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;background:${r._prodColor||'#94a3b8'}1a;color:${r._prodColor||'#64748b'};border:1px solid ${r._prodColor||'#94a3b8'}55;">${escProd(r._prodLabel||'')}</span></td>
         <td style="${ell}" title="${escProd(r.storeName)}">${escProd(r.storeName||'-')}</td>
         <td style="${ell}" title="${escProd(r.rankKw)}">${escProd(r.rankKw||'-')}</td>
         <td style="text-align:center" title="${escProd(r.workKw||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap">${kwCount}개</span></td>
@@ -2334,6 +2494,16 @@ window.toggleProdPanel = function(e) {
     const closeBtn = overlay.querySelector('#youpfl-close-btn');
     const subEl    = overlay.querySelector('#youpfl-sub');
 
+    // 슬롯 하나가 여러 행(유입플 1개 + 분할 미션별 N개)으로 나뉠 수 있어, "슬롯 완료"는
+    // 그 슬롯에서 나온 행이 전부(이미완료 또는 이번에 성공) 끝났을 때만 인정한다.
+    const rowsBySlot = new Map();
+    rows.forEach(r => {
+      if (!rowsBySlot.has(r._slotKey)) rowsBySlot.set(r._slotKey, []);
+      rowsBySlot.get(r._slotKey).push(r);
+    });
+    const slotDone = (slotKey, succeededRowKeys) =>
+      (rowsBySlot.get(slotKey) || []).every(r => r._fixedSubmitted || succeededRowKeys.has(r._rowKey));
+
     // 이전에 이미 접수 완료된 행(일반만 남아 모달을 닫았다가 재오픈한 경우)은 재제출하지 않음
     const alreadyRows = rows.filter(r => r._fixedSubmitted);
     const pendingRows = rows.filter(r => !r._fixedSubmitted);
@@ -2351,11 +2521,11 @@ window.toggleProdPanel = function(e) {
       return;
     }
 
-    // 유효성 검사 — 유입플 키워드 미입력
+    // 유효성 검사 — 키워드 미입력
     pendingRows.forEach(r => {
       if (!r.workKw) {
         r._kwFail = true;
-        if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="유입플 키워드 미입력">❌ 키워드 미입력</span>';
+        if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="키워드 미입력">❌ 키워드 미입력</span>';
       }
     });
     const validRows = pendingRows.filter(r => !r._kwFail);
@@ -2364,7 +2534,7 @@ window.toggleProdPanel = function(e) {
       subEl.innerHTML = '<span style="color:var(--danger);font-weight:600;">전체 유효성 검사 실패 (키워드 미입력)</span>';
       applyBtn.disabled = true; applyBtn.textContent = '❌ 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
       if (gate) {
-        gate.fixedKeys = new Set(alreadyRows.map(r => r._slotKey).filter(Boolean));
+        gate.fixedKeys = new Set([...rowsBySlot.keys()].filter(k => slotDone(k, new Set())));
         await gate.tryApprove();
       }
       closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
@@ -2373,13 +2543,13 @@ window.toggleProdPanel = function(e) {
 
     const missionByKey = new Map();
     for (const r of validRows) {
-      const el = overlay.querySelector(`.ag-mission-input[data-key="${CSS.escape(r._slotKey||'')}"]`);
+      const el = overlay.querySelector(`.ag-mission-input[data-key="${CSS.escape(r._rowKey||'')}"]`);
       const val = el?.value;
       if (val === '' || val === null || val === undefined) {
-        alert(`"${r.storeName||r._slotKey}" 항목의 미션 번호를 지정해주세요.`);
+        alert(`"${r.storeName||r._rowKey}" 항목의 미션 번호를 지정해주세요.`);
         return;
       }
-      missionByKey.set(r._slotKey, Math.max(0, parseInt(val, 10) || 0));
+      missionByKey.set(r._rowKey, Math.max(0, parseInt(val, 10) || 0));
     }
 
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 업로드 중...'; applyBtn.style.background = '#6b7280';
@@ -2397,7 +2567,7 @@ window.toggleProdPanel = function(e) {
     let result;
     try {
       result = await callBizfitProxy('/youpfl-upload', {
-        rows: validRows.map(r => ({ rankKw: r.rankKw, workKw: r.workKw, placeId: r.placeId, target: r.target, days: r.days, mission: missionByKey.get(r._slotKey), ikil: calcIkil(r.startDate) })),
+        rows: validRows.map(r => ({ rankKw: r.rankKw, workKw: r.workKw, placeId: r.placeId, target: r.target, days: r.days, mission: missionByKey.get(r._rowKey), ikil: calcIkil(r.startDate) })),
       });
     } catch(e) {
       result = { success: false, message: '서버 호출 실패: ' + e.message };
@@ -2406,20 +2576,39 @@ window.toggleProdPanel = function(e) {
     if (result.success) {
       validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
       subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ ${escProd(result.message||'업로드 완료')}</span>`;
+
       const slotMap = new Map(allSlots.map(s => [s._key, s]));
-      const pendingSlotKeys = validRows.map(r => r._slotKey).filter(Boolean);
-      const allDoneSlotKeys = rows.filter(r => !r._kwFail).map(r => r._slotKey).filter(Boolean); // already + 이번에 성공한 것 전부
+      const succeededRowKeys = new Set(validRows.map(r => r._rowKey));
+
+      // 이번에 성공한 유입플 행 → 슬롯에 fixedSubmitted 저장
+      const yupflDoneSlots = [...new Set(validRows.filter(r => r._prodId === 'yupfl').map(r => r._slotKey))];
+      await Promise.all(yupflDoneSlots.map(k => HA.updateSlot(k, { fixedSubmitted: true })));
+      yupflDoneSlots.forEach(k => { const s = slotMap.get(k); if (s) s.fixedSubmitted = true; });
+
+      // 이번에 성공한 분할 행 → 슬롯별로 splitFixedSubmitted[미션]을 병합 저장
+      const splitDoneBySlot = new Map();
+      validRows.filter(r => r._prodId === 'yupfl2').forEach(r => {
+        const mission = r._rowKey.split('__')[1];
+        if (!splitDoneBySlot.has(r._slotKey)) splitDoneBySlot.set(r._slotKey, []);
+        splitDoneBySlot.get(r._slotKey).push(mission);
+      });
+      await Promise.all([...splitDoneBySlot.entries()].map(async ([slotKey, missions]) => {
+        const s = slotMap.get(slotKey);
+        const merged = { ...(s?.splitFixedSubmitted || {}) };
+        missions.forEach(m => { merged[m] = true; });
+        await HA.updateSlot(slotKey, { splitFixedSubmitted: merged });
+        if (s) s.splitFixedSubmitted = merged;
+      }));
+
+      // 슬롯 완료 판정 — 그 슬롯에서 나온 모든 행(유입플+분할)이 이미완료 또는 이번에 성공했는지
+      const allDoneSlotKeys = [...rowsBySlot.keys()].filter(k => slotDone(k, succeededRowKeys));
+
       if (gate) {
         gate.fixedKeys = new Set(allDoneSlotKeys);
-        if (pendingSlotKeys.length) {
-          // 일반이 아직 안 끝났으면 여기서 바로 승인 전환 안 됨 — 재접수 시 이번에 새로 성공한 것만 스킵되도록 임시 플래그 저장
-          await Promise.all(pendingSlotKeys.map(k => HA.updateSlot(k, { fixedSubmitted: true })));
-          pendingSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.fixedSubmitted = true; });
-        }
         await gate.tryApprove();
       } else {
-        await Promise.all(pendingSlotKeys.map(k => HA.approveSlot(k)));
-        pendingSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+        await Promise.all(allDoneSlotKeys.map(k => HA.approveSlot(k)));
+        allDoneSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
       }
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       window.bizfitSubmitting = false;
@@ -2434,7 +2623,7 @@ window.toggleProdPanel = function(e) {
       if (normalBtn) normalBtn.disabled = false;
       // 이미 완료된 것만이라도 게이트에 반영 (새로 실패한 것은 제외)
       if (gate) {
-        gate.fixedKeys = new Set(alreadyRows.map(r => r._slotKey).filter(Boolean));
+        gate.fixedKeys = new Set([...rowsBySlot.keys()].filter(k => slotDone(k, new Set())));
         await gate.tryApprove();
       }
       closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
