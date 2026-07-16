@@ -1223,6 +1223,9 @@ window.toggleProdPanel = function(e) {
           if (!Array.isArray(p.missionRules)) p.missionRules = [];
           if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
         });
+        // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다 — 예: 분할(yupfl2)
+        const loadedIds = new Set(prods.map(p => p.id));
+        DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
       }
       if (groupsSnap.exists()) {
         const loaded = groupsSnap.val();
