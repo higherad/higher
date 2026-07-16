@@ -300,7 +300,7 @@
           <input type="text" id="pm-ver" placeholder="ver.5.0/3.2" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;outline:none;width:100%;" />
         </div>
       </div>
-      <div class="pmf">
+      <div class="pmf" id="pm-kw-wrap">
         <label>키워드 배분</label>
         <div class="ratio-grid" id="pm-kw-grid"></div>
         <div class="ratio-note" id="pm-kw-note"></div>
@@ -1166,7 +1166,7 @@ window.toggleProdPanel = function(e) {
     {id:'p7',     name:'X7',    color:'#ec4899', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'charlie',name:'찰리',  color:'#f43f5e', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, autoBalance:false},
-    {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0, fixedAlloc:true, kwLimit:5, fixedPct:30, autoBalance:false, missionRules:[]},
+    {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, fixedPct:30, autoBalance:false, missionRules:[]},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
   const FIXED_PROD_IDS = new Set(['charlie', 'yupfl']);
@@ -1190,7 +1190,7 @@ window.toggleProdPanel = function(e) {
     const path = getProdSettingsPath();
     if (!path) return;
     const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance}]));
-    const fixedDefaults = new Map(prods.map(p => [p.id, {kwLimit:p.kwLimit,fixedPct:p.fixedPct}]));
+    const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
@@ -1206,10 +1206,7 @@ window.toggleProdPanel = function(e) {
         prods.forEach(p => {
           const f = staticFlags.get(p.id); if(f) Object.assign(p, f);
           const fd = fixedDefaults.get(p.id);
-          if (fd) {
-            if (p.kwLimit === undefined)  p.kwLimit  = fd.kwLimit;
-            if (p.fixedPct === undefined) p.fixedPct = fd.fixedPct;
-          }
+          if (fd && p.fixedPct === undefined) p.fixedPct = fd.fixedPct;
           if (!Array.isArray(p.missionRules)) p.missionRules = [];
           if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
         });
@@ -1403,6 +1400,8 @@ window.toggleProdPanel = function(e) {
     if (delBtn) delBtn.style.display = FIXED_PROD_IDS.has(id) ? 'none' : '';
     const verWrap = document.getElementById('pm-ver-wrap');
     if (verWrap) verWrap.style.display = p.fixedAlloc ? 'none' : '';
+    const kwWrap = document.getElementById('pm-kw-wrap');
+    if (kwWrap) kwWrap.style.display = p.fixedAlloc ? 'none' : '';
 
     const isFixed = !!p.fixedAlloc;
     const actives = isFixed ? [] : ap().filter(q => !q.fixedAlloc);
@@ -1413,21 +1412,21 @@ window.toggleProdPanel = function(e) {
             <input type="number" step="any" min="0" max="10" value="${q[field] ?? 0}" id="${prefix}${q.id}" oninput="updateProdModalNotes()" />
           </div>`).join('');
 
-    document.getElementById('pm-kw-grid').innerHTML = isFixed
-      ? `<div class="ratio-item" style="grid-column:1/-1;">
-          <span class="ri-name" style="color:${p.color}">검색키워드</span>
-          <span style="font-size:12px;color:var(--text2);white-space:nowrap;">고정 배분</span>
-          <input type="number" step="1" min="1" value="${p.kwLimit ?? 5}" id="pm-kwlimit" />
-          <span style="font-size:12px;color:var(--text2);">개</span>
-        </div>`
-      : makeGrid(actives, 'kwPct', 'pm-kwpct-');
+    if (!isFixed) document.getElementById('pm-kw-grid').innerHTML = makeGrid(actives, 'kwPct', 'pm-kwpct-');
 
     document.getElementById('pm-ratio-grid').innerHTML = isFixed
-      ? `<div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
+      ? `<div class="ratio-item" style="grid-column:1/-1;">
+          <span class="ri-name" style="color:${p.color}">통합 고정 배분</span>
+          <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
+          <span style="font-size:12px;color:var(--text2);">%</span>
+        </div>
+        <div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <span class="ri-name" style="color:${p.color}">키워드 배분 규칙</span>
             <button type="button" onclick="addMissionRuleRow()" title="규칙 추가"
-              style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;line-height:1;">+</button>
+              style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
+            </button>
           </div>
           <div id="pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>`
@@ -1445,21 +1444,20 @@ window.toggleProdPanel = function(e) {
     document.getElementById('prod-modal-bg').classList.add('show');
   };
   function missionRuleRowHtml(rule) {
-    return `<div class="mission-rule-row" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+    return `<div class="mission-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <span style="font-size:11px;color:var(--text2);white-space:nowrap;">키워드</span>
       <input type="number" min="1" step="1" class="mr-kw" value="${rule?.kw ?? ''}"
         style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">개ㅣ</span>
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">개</span>
+      <span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>
       <span style="font-size:11px;color:var(--text2);white-space:nowrap;">미션</span>
       <input type="number" min="0" step="1" class="mr-mission" value="${rule?.mission ?? ''}"
         style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">번ㅣ</span>
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">고정 배분</span>
-      <input type="number" min="0" max="100" step="1" class="mr-fixedpct" value="${rule?.fixedPct ?? ''}" oninput="updateProdModalNotes()"
-        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">%</span>
-      <button type="button" onclick="this.closest('.mission-rule-row').remove(); updateProdModalNotes();" title="규칙 삭제"
-        style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;margin-left:auto;">✕</button>
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">번</span>
+      <button type="button" onclick="this.closest('.mission-rule-row').remove()" title="규칙 삭제"
+        style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-left:auto;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
     </div>`;
   }
   window.addMissionRuleRow = function() {
@@ -1475,10 +1473,15 @@ window.toggleProdPanel = function(e) {
       const ratNote = document.getElementById('pm-ratio-note');
       if (kwNote) kwNote.textContent = '';
       if (ratNote) {
-        const pctEls = [...document.querySelectorAll('#pm-mission-rules .mr-fixedpct')];
-        const sum = Math.round(pctEls.reduce((s,el)=> s + (parseFloat(el.value)||0), 0)*10)/10;
-        ratNote.textContent = `고정 배분 합계: ${sum}%`;
-        ratNote.className = 'ratio-note ' + (sum <= 100 ? 'ok' : 'ng');
+        const pctEl = document.getElementById('pm-fixedpct');
+        const pctVal = pctEl ? parseFloat(pctEl.value) : NaN;
+        if (pctVal === 100) {
+          ratNote.textContent = '⚠️ 100%로 설정하면 일반 상품은 배분되지 않습니다';
+          ratNote.className = 'ratio-note ng';
+        } else {
+          ratNote.textContent = '';
+          ratNote.className = 'ratio-note';
+        }
       }
       return;
     }
@@ -1512,29 +1515,25 @@ window.toggleProdPanel = function(e) {
         });
       }
     } else {
-      const kwLimitEl  = document.getElementById('pm-kwlimit');
-      if (kwLimitEl)  p.kwLimit  = Math.max(1, parseInt(kwLimitEl.value, 10) || 1);
+      const fixedPctEl = document.getElementById('pm-fixedpct');
+      if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
+        alert('통합 고정 배분은 100%를 초과할 수 없습니다.');
+        return;
+      }
+      if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
       const ruleRows = [...document.querySelectorAll('#pm-mission-rules .mission-rule-row')];
       const seenKw = new Set();
       const rules = [];
-      let sumPct = 0;
       for (const row of ruleRows) {
-        const kw        = parseInt(row.querySelector('.mr-kw')?.value, 10);
-        const mission    = parseInt(row.querySelector('.mr-mission')?.value, 10);
-        const fixedPct   = parseFloat(row.querySelector('.mr-fixedpct')?.value);
-        if (!Number.isFinite(kw) || kw <= 0 || !Number.isFinite(mission) || mission < 0 || !Number.isFinite(fixedPct) || fixedPct < 0) continue;
+        const kw = parseInt(row.querySelector('.mr-kw')?.value, 10);
+        const mission = parseInt(row.querySelector('.mr-mission')?.value, 10);
+        if (!Number.isFinite(kw) || kw <= 0 || !Number.isFinite(mission) || mission < 0) continue;
         if (seenKw.has(kw)) { alert(`키워드 ${kw}개에 대한 규칙이 중복되었습니다.`); return; }
         seenKw.add(kw);
-        sumPct += fixedPct;
-        rules.push({ kw, mission, fixedPct });
+        rules.push({ kw, mission });
       }
       if (!rules.length) {
         alert('키워드 배분 규칙을 최소 1개 이상 입력해야 합니다.');
-        return;
-      }
-      sumPct = Math.round(sumPct*10)/10;
-      if (sumPct > 100) {
-        alert(`고정 배분 합계는 100%를 초과할 수 없습니다. (현재: ${sumPct}%)`);
         return;
       }
       p.missionRules = rules;
@@ -1558,9 +1557,9 @@ window.toggleProdPanel = function(e) {
 
   // ── 분배 로직 ─────────────────────────────────────────────────
 
-  function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 0) / 100)); }
+  function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
 
-  // 유입플 키워드 개수에 매칭되는 규칙(고정 배분 %)을 찾음 — 매칭 규칙이 없으면 0%
+  // 유입플 키워드 개수에 매칭되는 규칙(미션 번호)을 찾음 — 자동 배정용, 매칭 없으면 null
   function yupflRuleFor(yupfl, workKw) {
     const rules = Array.isArray(yupfl?.missionRules) ? yupfl.missionRules : [];
     const kw = (workKw||'').trim();
@@ -1580,12 +1579,11 @@ window.toggleProdPanel = function(e) {
     return items.reduce((m, p, i) => (m[p.id] = floors[i], m), {});
   }
 
-  function allocate(asgn, target, workKw) {
+  function allocate(asgn, target) {
     if (!asgn.length) return {};
     const yupfl = asgn.find(p => p.fixedAlloc);
     if (yupfl) {
-      const rule = yupflRuleFor(yupfl, workKw);
-      const yAmt = Math.min(yupflAlloc(target, rule?.fixedPct), target);
+      const yAmt = Math.min(yupflAlloc(target, yupfl.fixedPct), target);
       return { [yupfl.id]: yAmt, ...lrm(asgn.filter(p => !p.fixedAlloc), Math.max(0, target - yAmt)) };
     }
     return lrm(asgn, target);
@@ -1595,7 +1593,6 @@ window.toggleProdPanel = function(e) {
     if (!keywords) return '';
     const parts = keywords.split(',').map(k => k.trim()).filter(k => k);
     if (!parts.length) return '';
-    if (prod.kwLimit) return parts.slice(0, prod.kwLimit).join(',');
     const activeOthers = ap().filter(p => !p.fixedAlloc);
     const totalPct = activeOthers.reduce((s, p) => s + (p.kwPct || 0), 0);
     if (totalPct === 0) return parts.join(',');
@@ -1661,7 +1658,7 @@ window.toggleProdPanel = function(e) {
     });
     f.forEach((r, ri) => {
       const rowIdx = 4 + ri;
-      const alloc  = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword);
+      const alloc  = allocate(AP.slice(), r.dailyTarget||0);
       const kwCount = r.searchKeyword ? r.searchKeyword.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
       const base = [r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',r.days||0,null,r.dailyTarget||0,AP.length,r.searchKeyword||'',kwCount];
       const pv   = AP.map(p => alloc[p.id] ?? '');
@@ -1689,7 +1686,7 @@ window.toggleProdPanel = function(e) {
     const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표',daysColLabel,'예약일','검색키워드'];
     headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':'1F2937'}); });
     let curRow = 1;
-    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword)]));
+    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0)]));
     pList.forEach(prod => {
       f.forEach(r => {
         const alloc   = allocBySlot.get(r);
@@ -1713,7 +1710,7 @@ window.toggleProdPanel = function(e) {
 
   function buildYoupflSheet(wb, f, sheetName) {
     const yupfl = ap().find(p => p.fixedAlloc);
-    if (!yupfl || !Array.isArray(yupfl.missionRules) || !yupfl.missionRules.length) return;
+    if (!yupfl || !yupfl.fixedPct) return;
     const ws = {};
     const headers = ['순위키워드', '작업키워드', '플레이스ID', '작업타수', '신청일수', '미션', '익일시작'];
     headers.forEach((h, ci) => {
@@ -1722,15 +1719,14 @@ window.toggleProdPanel = function(e) {
     const today = new Date(); today.setHours(0,0,0,0);
     let curRow = 1;
     f.forEach(r => {
+      const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, yupfl.fixedPct), r.dailyTarget||0);
+      if (yAmt <= 0) return;
       const workKw = (r.yupflKeyword||'').trim();
       const rule = yupflRuleFor(yupfl, workKw);
-      if (!rule) return;
-      const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, rule.fixedPct), r.dailyTarget||0);
-      if (yAmt <= 0) return;
       const start  = r.startDate ? new Date(r.startDate) : today;
       start.setHours(0,0,0,0);
       const ikil = Math.max(0, Math.round((start - today) / 86400000));
-      const row  = [r.rankKeyword||'', workKw, r.mid||'', yAmt, r.days||0, rule.mission, ikil];
+      const row  = [r.rankKeyword||'', workKw, r.mid||'', yAmt, r.days||0, rule ? rule.mission : 0, ikil];
       row.forEach((v, ci) => {
         sc(ws, curRow, ci, v, { align: ci <= 2 ? 'left' : 'center' });
       });
@@ -2023,7 +2019,7 @@ window.toggleProdPanel = function(e) {
     const normalProds = AP.filter(p => !FIXED_PROD_IDS.has(p.id));
     const rows = [];
     slots.forEach(r => {
-      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword);
+      const alloc = allocate(AP.slice(), r.dailyTarget||0);
       normalProds.forEach(prod => {
         const pp = alloc[prod.id] ?? 0;
         if (pp <= 0) return;
@@ -2051,11 +2047,10 @@ window.toggleProdPanel = function(e) {
     const yupfl = ap().find(p => p.fixedAlloc);
     if (!yupfl) return [];
     return slots.map(s => {
+      const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, yupfl.fixedPct), s.dailyTarget||0);
+      if (yAmt <= 0) return null;
       const workKw = (s.yupflKeyword||'').trim();
       const rule   = yupflRuleFor(yupfl, workKw);
-      if (!rule) return null;
-      const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, rule.fixedPct), s.dailyTarget||0);
-      if (yAmt <= 0) return null;
       return {
         _slotKey:  s._key,
         _fixedSubmitted: !!s.fixedSubmitted,
@@ -2070,7 +2065,7 @@ window.toggleProdPanel = function(e) {
         target:    yAmt,
         days:      s.days||0,
         startDate: s.startDate||'',
-        autoMission: rule.mission,
+        autoMission: rule ? rule.mission : null,
       };
     }).filter(Boolean);
   }
