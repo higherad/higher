@@ -940,6 +940,15 @@ window.toggleProdPanel = function(e) {
       const data = snap.val();
       const entries = [];
       parseGradeEntries(data).forEach(g => {
+        // grade_sync.js가 미션별로 키워드를 분리해서 올려주면 그걸 우선 사용 (missionKeywords)
+        if (g.missionKeywords && typeof g.missionKeywords === 'object') {
+          Object.entries(g.missionKeywords).forEach(([mission, kw]) => {
+            const trimmedKw = (kw || '').trim();
+            if (trimmedKw) entries.push({ mission: mission.replace(/[^0-9]/g, '') || mission, keyword: trimmedKw });
+          });
+          return;
+        }
+        // 구버전 데이터(미션별 분리 없이 전부 합쳐진 yupflKw/mission) — 하위 호환
         const kw = (g.yupflKw || '').trim();
         if (!kw) return;
         const missions = (g.mission || '').split(',').map(m => m.trim()).filter(Boolean);
