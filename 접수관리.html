@@ -1279,6 +1279,35 @@ window.toggleProdPanel = function(e) {
       else remove(ref(db, path + '/groups')).catch(()=>{});
     }).catch(()=>{});
   }
+
+  // 유입플/분할은 "이 캠페인 상세에 어떤 입력칸이 보이느냐"를 결정하므로 계정마다 달라지면 안 됨 —
+  // 상품 유형 설정은 원래 계정별(ha/prodSettings/{uid})이지만, 이 둘만 전역 공유로 덮어쓴다.
+  const FIXED_PROD_SHARED_IDS = new Set(['yupfl', 'yupfl2']);
+  async function loadSharedFixedProdSettings() {
+    try {
+      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const snap = await get(ref(getDatabase(), 'ha/sharedFixedProds'));
+      if (!snap.exists()) return;
+      const data = snap.val() || {};
+      FIXED_PROD_SHARED_IDS.forEach(id => {
+        const shared = data[id]; if (!shared) return;
+        const p = prods.find(x => x.id === id); if (!p) return;
+        if (shared.active !== undefined) p.active = !!shared.active;
+        if (shared.fixedPct !== undefined) p.fixedPct = shared.fixedPct;
+        if (Array.isArray(shared.missionRules)) p.missionRules = shared.missionRules;
+      });
+    } catch(e) { console.error('sharedFixedProds 로드 오류:', e); }
+  }
+  function saveSharedFixedProdSettings() {
+    const data = {};
+    FIXED_PROD_SHARED_IDS.forEach(id => {
+      const p = prods.find(x => x.id === id); if (!p) return;
+      data[id] = { active: !!p.active, fixedPct: p.fixedPct, missionRules: p.missionRules || [] };
+    });
+    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set }) => {
+      set(ref(getDatabase(), 'ha/sharedFixedProds'), data).catch(()=>{});
+    }).catch(()=>{});
+  }
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
   function deactivateProdGroup() {
@@ -1432,6 +1461,7 @@ window.toggleProdPanel = function(e) {
     }
     rebalanceProdActive('ratio'); rebalanceProdActive('kwPct');
     if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
+    if (FIXED_PROD_SHARED_IDS.has(id)) saveSharedFixedProdSettings();
     renderPS();
   };
   function rebalanceProdActive(field) {
@@ -1664,6 +1694,7 @@ window.toggleProdPanel = function(e) {
     prodGroups.forEach(g => { const gs=g.state.find(s=>s.id===p.id); if(gs){gs.name=p.name;gs.ver=p.ver;} });
     window.closeProdModal();
     if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
+    if (FIXED_PROD_SHARED_IDS.has(p.id)) saveSharedFixedProdSettings();
     renderPS();
   };
   window.deleteProdModal = function() {
@@ -2888,6 +2919,7 @@ window.toggleProdPanel = function(e) {
   renderReceipts(false);
   (async () => {
     await loadProdSettings();
+    await loadSharedFixedProdSettings();
     if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
     saveProdDefault();
     renderPS();
