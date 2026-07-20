@@ -684,6 +684,10 @@ function getDefaultUsers() {
   return [];
 }
 
+// 페이지 코드가 Firebase SDK를 직접 import해서 쓰는 경우(예: 접수관리.html의 상품 설정)를 위해
+// 인증 복원 대기 Promise를 노출 — get/set/onValue 호출 전에 await HA.authReady로 레이스 방지
+HA.authReady = authReady;
+
 // 전역 노출
 window.HA = HA;
 

@@ -1214,6 +1214,7 @@ window.toggleProdPanel = function(e) {
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      await window.HA.authReady; // 새로고침 직후 인증 복원 전 호출 시 permission denied 방지
       const db = getDatabase();
       const [prodsSnap, groupsSnap] = await Promise.all([
         get(ref(db, path + '/prods')),
@@ -1245,12 +1246,12 @@ window.toggleProdPanel = function(e) {
     if (!path) return;
     const snapGroups = JSON.parse(JSON.stringify(prodGroups));
     const snapProds  = JSON.parse(JSON.stringify(prods));
-    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set, remove }) => {
+    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set, remove }) => window.HA.authReady.then(() => {
       const db = getDatabase();
       set(ref(db, path + '/prods'), snapProds).catch(()=>{});
       if (snapGroups.length > 0) set(ref(db, path + '/groups'), snapGroups).catch(()=>{});
       else remove(ref(db, path + '/groups')).catch(()=>{});
-    }).catch(()=>{});
+    })).catch(()=>{});
   }
 
   // 유입플/분할은 "이 캠페인 상세에 어떤 입력칸이 보이느냐"를 결정하므로 계정마다 달라지면 안 됨 —
@@ -1271,6 +1272,7 @@ window.toggleProdPanel = function(e) {
   async function loadSharedFixedProdSettings() {
     try {
       const { getDatabase, ref, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      await window.HA.authReady; // 새로고침 직후 인증 복원 전 구독 시 permission denied로 조용히 실패하는 것 방지
       await new Promise((resolve) => {
         let first = true;
         onValue(ref(getDatabase(), 'ha/sharedFixedProds'), (snap) => {
@@ -1290,9 +1292,9 @@ window.toggleProdPanel = function(e) {
       const p = prods.find(x => x.id === id); if (!p) return;
       data[id] = { active: !!p.active, fixedPct: p.fixedPct, missionRules: p.missionRules || [] };
     });
-    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set }) => {
+    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set }) => window.HA.authReady.then(() => {
       set(ref(getDatabase(), 'ha/sharedFixedProds'), data).catch(()=>{});
-    }).catch(()=>{});
+    })).catch(()=>{});
   }
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
