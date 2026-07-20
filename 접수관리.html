@@ -1290,11 +1290,14 @@ window.toggleProdPanel = function(e) {
     const data = {};
     FIXED_PROD_SHARED_IDS.forEach(id => {
       const p = prods.find(x => x.id === id); if (!p) return;
-      data[id] = { active: !!p.active, fixedPct: p.fixedPct, missionRules: p.missionRules || [] };
+      data[id] = { active: !!p.active, missionRules: p.missionRules || [] };
+      // yupfl2(분할)는 fixedPct 필드가 없음(missionRules의 규칙별 fixedPct만 사용) —
+      // undefined를 그대로 넣으면 Firebase set()이 동기적으로 throw해서 저장이 통째로 조용히 실패함
+      if (p.fixedPct !== undefined) data[id].fixedPct = p.fixedPct;
     });
     import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set }) => window.HA.authReady.then(() => {
-      set(ref(getDatabase(), 'ha/sharedFixedProds'), data).catch(()=>{});
-    })).catch(()=>{});
+      set(ref(getDatabase(), 'ha/sharedFixedProds'), data).catch(e => console.error('sharedFixedProds 저장 오류:', e));
+    })).catch(e => console.error('sharedFixedProds 저장 오류:', e));
   }
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
