@@ -1545,7 +1545,9 @@ window.toggleProdPanel = function(e) {
   // 스테프도 유입플/분할 모달을 열어 현재 배분값을 볼 수는 있게 하되, 입력칸·추가/삭제 버튼·저장 버튼을 잠가 실제 변경은 막음
   function lockProdModal(readOnly) {
     document.querySelectorAll('.prod-modal-body input').forEach(el => { el.disabled = readOnly; });
-    document.querySelectorAll('.prod-modal-body button').forEach(el => { el.style.display = readOnly ? 'none' : ''; });
+    // 이 안의 button은 전부 아이콘 중앙정렬용 display:flex 인라인 스타일을 갖고 있으므로 ''로 지우면
+    // display:flex가 통째로 사라져 아이콘이 위로 치우쳐 보임 — 'flex'로 명시 복원해야 함
+    document.querySelectorAll('.prod-modal-body button').forEach(el => { el.style.display = readOnly ? 'none' : 'flex'; });
     const saveBtn = document.querySelector('.pm-btn-save');
     if (saveBtn) saveBtn.style.display = readOnly ? 'none' : '';
   }
