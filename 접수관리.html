@@ -1196,6 +1196,7 @@ window.toggleProdPanel = function(e) {
   let activeProdGroupId = null;
   let defaultProdsState = null;
   let _prodModalId = null;
+  let _prodModalReadOnly = false;
 
   // 기본 상품(p1~yupfl)이 사용하는 색상은 제외하고, 신규 추가 상품 전용 풀만 사용
   const PROD_COLORS = ['#06b6d4','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6',
@@ -1427,7 +1428,7 @@ window.toggleProdPanel = function(e) {
     const prodHtml = p => {
       const locked = FIXED_PROD_SHARED_IDS.has(p.id) && !isAdmin;
       return `
-      <div class="ps-item${p.active?' active':''}" id="psi-${p.id}"${locked ? ` style="cursor:not-allowed;" title="관리자만 변경할 수 있습니다"` : ''} onclick="openProdModal('${p.id}')">
+      <div class="ps-item${p.active?' active':''}" id="psi-${p.id}"${locked ? ` title="관리자만 on/off·배분값을 변경할 수 있습니다 (클릭하면 현재 배분값 확인 가능)"` : ''} onclick="openProdModal('${p.id}')">
         <div class="ps-dot" style="background:${p.color};border-color:rgba(0,0,0,.1);"></div>
         <span class="ps-name" style="color:${p.color}">${escProd(prodDisplayName(p))}</span>
         <button class="ps-tog ${p.active?'on':'off'}"${locked ? ` style="opacity:.5;cursor:not-allowed;"` : ''} onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
@@ -1475,13 +1476,10 @@ window.toggleProdPanel = function(e) {
 
   window.openProdModal = function(id) {
     const p = prods.find(x => x.id === id); if (!p) return;
-    if (FIXED_PROD_SHARED_IDS.has(id) && HA.getCurrentUser()?.role !== 'admin') {
-      alert('유입플/분할 설정은 관리자만 변경할 수 있습니다.');
-      return;
-    }
+    _prodModalReadOnly = FIXED_PROD_SHARED_IDS.has(id) && HA.getCurrentUser()?.role !== 'admin';
     _prodModalId = id;
     document.getElementById('prod-modal-dot').style.background  = p.color;
-    document.getElementById('prod-modal-title').textContent     = `${prodDisplayName(p)} 설정`;
+    document.getElementById('prod-modal-title').textContent     = `${prodDisplayName(p)} 설정${_prodModalReadOnly ? ' (읽기 전용)' : ''}`;
     document.getElementById('pm-name').value = p.name;
     document.getElementById('pm-ver').value  = p.ver || '';
     const delBtn = document.getElementById('pm-del-btn');
@@ -1541,8 +1539,16 @@ window.toggleProdPanel = function(e) {
     }
 
     updateProdModalNotes();
+    lockProdModal(_prodModalReadOnly);
     document.getElementById('prod-modal-bg').classList.add('show');
   };
+  // 스테프도 유입플/분할 모달을 열어 현재 배분값을 볼 수는 있게 하되, 입력칸·추가/삭제 버튼·저장 버튼을 잠가 실제 변경은 막음
+  function lockProdModal(readOnly) {
+    document.querySelectorAll('.prod-modal-body input').forEach(el => { el.disabled = readOnly; });
+    document.querySelectorAll('.prod-modal-body button').forEach(el => { el.style.display = readOnly ? 'none' : ''; });
+    const saveBtn = document.querySelector('.pm-btn-save');
+    if (saveBtn) saveBtn.style.display = readOnly ? 'none' : '';
+  }
   function missionRuleRowHtml(rule) {
     const divider = `<span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>`;
     return `<div class="mission-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -1585,6 +1591,7 @@ window.toggleProdPanel = function(e) {
     </div>`;
   }
   window.addMissionRuleRow = function() {
+    if (_prodModalReadOnly) return;
     const wrap = document.getElementById('pm-mission-rules');
     if (!wrap) return;
     const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
@@ -1640,6 +1647,7 @@ window.toggleProdPanel = function(e) {
   window.closeProdModal = function() {
     document.getElementById('prod-modal-bg').classList.remove('show');
     _prodModalId = null;
+    _prodModalReadOnly = false;
   };
   window.saveProdModal = function() {
     const p = prods.find(x => x.id === _prodModalId); if(!p) return;
