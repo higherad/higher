@@ -845,7 +845,7 @@ window.toggleProdPanel = function(e) {
               유입플 키워드
               <span id="yupfl-kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.yupflKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
             </span>
-            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleYupflMidHistory('${s.mid}')" id="yupfl-hist-btn"
+            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleYupflMidHistory('${s.mid}','detail-yupfl-keyword-input','yupfl-kw-count-badge')" id="yupfl-hist-btn"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
@@ -866,26 +866,33 @@ window.toggleProdPanel = function(e) {
   };
 
   // 분할 상품이 켜져있고 미션이 등록돼 있으면, 미션 개수만큼 "분할 키워드" 입력칸을 만든다.
-  // 유입플과 분할은 동시에 켤 수 없으므로, 첫 번째 입력칸에 "이전 키워드 보기"를 그대로 재사용해서 붙인다.
+  // 각 입력칸마다 독립된 "이전 키워드 보기" 버튼/영역을 가지며, 거기서 "적용"을 누르면 항상
+  // 그 입력칸으로 들어간다(미션 번호로 자동 매칭하지 않음).
   function splitKeywordFieldsHtml(s, splitProd) {
     if (!splitProd?.active) return '';
     const rules = Array.isArray(splitProd.missionRules) ? splitProd.missionRules : [];
     if (!rules.length) return '';
     const sk = s.splitKeywords || {};
     const showHistBtn = s.mid && HA.getCurrentUser()?.role !== 'guest';
-    return rules.map((r, i) => `
+    return rules.map(r => {
+      const inputId = `split-kw-input-${r.mission}`;
+      const badgeId = `split-kw-count-${r.mission}`;
+      const areaId  = `yupfl-history-area-split-${r.mission}`;
+      const btnId   = `yupfl-hist-btn-split-${r.mission}`;
+      return `
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
             <span style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;background:${missionBadgeColor(r.mission)};color:#fff;">미션:${r.mission}</span> 분할 키워드
-              <span id="split-kw-count-${r.mission}" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${((sk[r.mission]||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length)}개</span>
+              <span id="${badgeId}" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${((sk[r.mission]||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length)}개</span>
             </span>
-            ${(i === 0 && showHistBtn) ? `<button onclick="toggleYupflMidHistory('${s.mid}')" id="yupfl-hist-btn"
+            ${showHistBtn ? `<button onclick="toggleYupflMidHistory('${s.mid}','${inputId}','${badgeId}','-split-${r.mission}')" id="${btnId}"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
           </dt>
-          <dd><input type="text" class="detail-kw-input detail-split-kw-input" data-mission="${r.mission}" value="${(sk[r.mission]||'').toString().replace(/"/g,'&quot;')}" placeholder="분할 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'split-kw-count-${r.mission}')"></dd>
-          ${i === 0 ? `<dd id="yupfl-history-area" style="display:none;margin-top:8px;"></dd>` : ''}`).join('');
+          <dd><input type="text" class="detail-kw-input detail-split-kw-input" id="${inputId}" data-mission="${r.mission}" value="${(sk[r.mission]||'').toString().replace(/"/g,'&quot;')}" placeholder="분할 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'${badgeId}')"></dd>
+          <dd id="${areaId}" style="display:none;margin-top:8px;"></dd>`;
+    }).join('');
   }
 
   function collectSplitKeywords() {
@@ -1051,9 +1058,12 @@ window.toggleProdPanel = function(e) {
   };
 
   // ── MID 유입플 작업키워드 (Firebase 유입플 실시간 시트, 미션 번호별) ──
-  window.toggleYupflMidHistory = async function(mid) {
-    const area = document.getElementById('yupfl-history-area');
-    const btn  = document.getElementById('yupfl-hist-btn');
+  // targetInputId/badgeId: "적용" 클릭 시 채워질 입력칸·배지 — 항상 이 버튼이 속한 입력칸으로 직접 들어감(미션 자동매칭 없음)
+  // suffix: 유입플(단일)은 생략, 분할은 입력칸마다 독립된 영역을 쓰도록 미션별로 다르게 지정
+  window.toggleYupflMidHistory = async function(mid, targetInputId, badgeId, suffix) {
+    suffix = suffix || '';
+    const area = document.getElementById('yupfl-history-area' + suffix);
+    const btn  = document.getElementById('yupfl-hist-btn' + suffix);
     if (!area) return;
 
     if (area.style.display !== 'none') {
@@ -1093,7 +1103,7 @@ window.toggleProdPanel = function(e) {
             <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${badgeColor};color:#fff;white-space:nowrap;flex-shrink:0;">${badge}</span>
             <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#dbeafe;color:#1d4ed8;white-space:nowrap;flex-shrink:0;">${kwCount}개</span>
             <div style="flex:1;overflow:hidden;white-space:nowrap;font-size:12px;color:#1d4ed8;font-weight:500;background:#dbeafe;padding:4px 8px;border-radius:5px;user-select:all;">${e.keyword}</div>
-            <button onclick="(function(){var el=document.querySelector('.detail-split-kw-input[data-mission=&quot;${e.mission}&quot;]')||document.getElementById('detail-yupfl-keyword-input')||document.querySelector('.detail-split-kw-input');if(el){el.value='${safeKw}';var bid=el.id==='detail-yupfl-keyword-input'?'yupfl-kw-count-badge':('split-kw-count-'+el.dataset.mission);updateDetailKwBadge(el,bid);}})()"
+            <button onclick="(function(){var el=document.getElementById('${targetInputId}');if(el){el.value='${safeKw}';updateDetailKwBadge(el,'${badgeId}');}})()"
               style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
               적용
             </button>
