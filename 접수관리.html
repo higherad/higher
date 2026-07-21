@@ -2502,7 +2502,7 @@ window.toggleProdPanel = function(e) {
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     p.rows.forEach(r => {
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-      const kwOver = kwCount > 50;
+      const kwOver = kwCount > 50 || kwCount === 0;
       const targetLow = (r.일목표||0) < 10;
       const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
