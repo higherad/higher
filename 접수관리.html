@@ -1001,7 +1001,7 @@ window.toggleProdPanel = function(e) {
       fetchCrossAppSlots('kimpro/slots', mid),
     ]);
     const history = [
-      ...allSlots.filter(s => s.mid === mid && s._key !== currentKey && s.searchKeyword),
+      ...allSlots.filter(s => s.mid === mid && s.searchKeyword),
       ...crossAppSlots.filter(s => s.searchKeyword),
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
