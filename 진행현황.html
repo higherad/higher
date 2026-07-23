@@ -405,7 +405,12 @@
   window.openEditSlot = key => {
     const s = allSlots.find(x => x._key === key) || {};
     slotModal(s, '캠페인 정보 수정', async () => {
-      await HA.updateSlot(key, getFormData());
+      const data = getFormData();
+      // 종료된 캠페인의 종료일을 오늘 이후로 늘리면 다시 진행중으로 복귀
+      if (s.status === 'expired' && data.endDate && data.endDate >= todayYMD()) {
+        data.status = 'active';
+      }
+      await HA.updateSlot(key, data);
       document.querySelector('.modal-overlay').remove();
       renderSlots(false);
     });
