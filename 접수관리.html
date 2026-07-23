@@ -1000,10 +1000,19 @@ window.toggleProdPanel = function(e) {
       fetchSheetKeywordByMid(mid),
       fetchCrossAppSlots('kimpro/slots', mid),
     ]);
+    // kimpro 승인 시 ha/slots→kimpro/slots로 동일 내용이 복사되므로, 같은 키워드+접수일이면 중복으로 간주해 제거
+    const seen = new Set();
     const history = [
       ...allSlots.filter(s => s.mid === mid && s.searchKeyword),
       ...crossAppSlots.filter(s => s.searchKeyword),
-    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    ]
+      .filter(s => {
+        const dedupKey = s.searchKeyword + '|' + s.createdAt;
+        if (seen.has(dedupKey)) return false;
+        seen.add(dedupKey);
+        return true;
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     let html = '';
 
