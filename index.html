@@ -588,14 +588,15 @@
       else result.outside++;
     };
 
-    const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+    const { getDatabase, ref, get, query, orderByKey, limitToLast } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
     const db = getDatabase();
 
     const [dataArr, allDoneSnap, changeJson] = await Promise.all([
       Promise.all(running.map(async s => {
         const safeMid = s.mid.replace(/[.#$[\]/]/g, '_');
         try {
-          const snap = await get(ref(db, `ha/ranks/${safeMid}`));
+          // 최신 날짜 1건만 필요 (아래에서 latestDate만 사용) — 전체 히스토리 다운로드 방지
+          const snap = await get(query(ref(db, `ha/ranks/${safeMid}`), orderByKey(), limitToLast(1)));
           return snap.exists() ? snap.val() : null;
         } catch { return null; }
       })),
