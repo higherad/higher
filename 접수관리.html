@@ -2528,7 +2528,8 @@ window.toggleProdPanel = function(e) {
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     p.rows.forEach(r => {
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-      const kwOver = kwCount > 50 || kwCount === 0;
+      const kwTrim = kwCount > 50;
+      const kwEmpty = kwCount === 0;
       const targetLow = (r.일목표||0) < 10;
       const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
@@ -2543,7 +2544,7 @@ window.toggleProdPanel = function(e) {
         <td style="text-align:right;white-space:nowrap">${targetLow ? `<span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;white-space:nowrap">${(r.일목표||0).toLocaleString()} ⚠️</span>` : (r.일목표||0).toLocaleString()}</td>
         <td style="text-align:center;white-space:nowrap">${r.일수||0}</td>
         <td style="white-space:nowrap">${escProd(r.예약일||'-')}</td>
-        <td title="${escProd(r.검색키워드||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwOver?'#fee2e2':'#eff6ff'};color:${kwOver?'#dc2626':'#1d4ed8'};border:1px solid ${kwOver?'#fca5a5':'#bfdbfe'};white-space:nowrap">${kwCount}개${kwOver?' ⚠️':''}</span></td>
+        <td title="${escProd(r.검색키워드||'')}${kwTrim?' (접수 시 앞 50개만 사용)':''}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwEmpty?'#fee2e2':(kwTrim?'#fef3c7':'#eff6ff')};color:${kwEmpty?'#dc2626':(kwTrim?'#b45309':'#1d4ed8')};border:1px solid ${kwEmpty?'#fca5a5':(kwTrim?'#fde68a':'#bfdbfe')};white-space:nowrap">${kwCount}개${kwEmpty?' ⚠️':(kwTrim?' ✂️50':'')}</span></td>
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
@@ -2817,14 +2818,14 @@ window.toggleProdPanel = function(e) {
 
       pendingRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--info);">⏳</span>'; });
 
-      // 유효성 검사 — 키워드 50개 초과 / 일목표 10 미만
+      // 유효성 검사 — 키워드 50개 초과 시 앞 50개만 남기고 자동으로 잘라서 접수 / 일목표 10 미만
       pendingRows.forEach(r => {
+        const kwList = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k);
+        if (kwList.length > 50) {
+          r.검색키워드 = kwList.slice(0, 50).join(',');
+        }
         const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-        if (kwCount > 50) {
-          r._kwFail = true;
-          if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="검색키워드 50개 초과">❌ 키워드 초과</span>';
-          failTotal++;
-        } else if (kwCount === 0) {
+        if (kwCount === 0) {
           r._kwFail = true;
           if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="검색키워드 미입력">❌ 키워드 미입력</span>';
           failTotal++;
