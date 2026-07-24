@@ -59,24 +59,6 @@ const PATHS = {
   kimproSlots:     'kimpro/slots',
 };
 
-async function sendTelegram(message) {
-  try {
-    await auth.authStateReady();
-    const user = auth.currentUser;
-    if (!user) return;
-    const idToken = await user.getIdToken();
-    await fetch(`${CLOUD_RUN}/notify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-      body: JSON.stringify({ message }),
-    });
-  } catch (e) {
-    console.warn('텔레그램 알림 실패:', e);
-  }
-}
-
-// (배치 큐 제거 — 개별/엑셀 알림을 호출부에서 각각 처리)
-
 // ── 유틸: Firebase 스냅샷 → 배열 변환 ───────────────────────
 function snapToArray(snapshot) {
   if (!snapshot.exists()) return [];
@@ -179,66 +161,6 @@ const HA = {
     return result;
   },
 
-  // ── 개별접수 텔레그램 알림 ───────────────────────────────
-  async notifySingle(slot) {
-    const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    // 슬롯 저장 단가 우선, 없으면 유저 DB 조회
-    let unitPrice = (slot.unitPrice != null && slot.unitPrice > 0) ? slot.unitPrice : 0;
-    if (!unitPrice) {
-      try {
-        const uSnap = await get(ref(db, PATHS.users));
-        const users = snapToArray(uSnap);
-        const u = users.find(u => u.username === slot.userId);
-        unitPrice = u ? (u.unitPrice || 0) : 0;
-      } catch(e) {}
-    }
-    const totalTarget = (slot.dailyTarget || 0) * (slot.days || 0);
-    const amount      = totalTarget * unitPrice;
-    const amountVat   = Math.round(amount * 1.1);
-    await sendTelegram(
-`📥 <b>새 캠페인 접수 (개별)</b>
-━━━━━━━━━━━━━━━━
-• 대행사: ${slot.agencyId}
-• 캠페인 수: 1건
-• 전체 목표: ${totalTarget.toLocaleString()}개
-• 단가: ${unitPrice.toLocaleString()}원
-• 금액: ${amount.toLocaleString()}원(VAT 별도)
-• 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)
-⏰ 접수시간: ${now}
-━━━━━━━━━━━━━━━━
-👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
-    );
-  },
-
-  // ── 엑셀 일괄접수 텔레그램 알림 ─────────────────────────
-  async notifyExcelBatch(slots) {
-    if (!slots.length) return;
-    const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    // 슬롯별 저장 단가 우선 사용
-    const agencyId    = slots[0].agencyId || '-';
-    const totalTarget = slots.reduce((sum, s) => sum + (s.dailyTarget || 0) * (s.days || 0), 0);
-    const amount      = slots.reduce((sum, s) => {
-      const p = (s.unitPrice != null && s.unitPrice > 0) ? s.unitPrice : 0;
-      return sum + (s.dailyTarget || 0) * (s.days || 0) * p;
-    }, 0);
-    const unitPrice   = slots[0].unitPrice || 0; // 표시용
-    const amountVat   = Math.round(amount * 1.1);
-
-    await sendTelegram(
-`📊 <b>새 캠페인 접수 (엑셀)</b>
-━━━━━━━━━━━━━━━━
-• 대행사: ${agencyId}
-• 캠페인 수: ${slots.length}건
-• 전체 목표: ${totalTarget.toLocaleString()}개
-• 단가: ${unitPrice.toLocaleString()}원
-• 금액: ${amount.toLocaleString()}원(VAT 별도)
-• 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)
-⏰ 접수시간: ${now}
-━━━━━━━━━━━━━━━━
-👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
-    );
-  },
-
   async updateSlot(key, patch) {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
     dispatch('ha:slots:updated');
@@ -305,10 +227,6 @@ const HA = {
 
   async approveSlot(key) {
     await this.updateSlot(key, { status: 'active' });
-  },
-
-  async rejectSlot(key, reason = '') {
-    await this.updateSlot(key, { status: 'rejected', rejectReason: reason });
   },
 
   // ════════════════════════════════════════════════════════
@@ -642,18 +560,6 @@ const HA = {
 
   async saveAdClassifyGroups(groups) {
     await set(ref(db, `${PATHS.adClassify}/groups`), groups);
-  },
-
-  async saveAdClassifyResult(result) {
-    // 최신 결과 저장
-    await set(ref(db, `${PATHS.adClassify}/result`), result);
-    // 일별 이력 저장 (yyMMdd 키)
-    const now = new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Seoul'}));
-    const yy  = String(now.getFullYear()).slice(2);
-    const mm  = String(now.getMonth()+1).padStart(2,'0');
-    const dd  = String(now.getDate()).padStart(2,'0');
-    const dateKey = yy+mm+dd;
-    await set(ref(db, `${PATHS.adClassify}/daily/${dateKey}`), result);
   },
 
   async getAdClassifyDaily() {

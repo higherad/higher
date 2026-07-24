@@ -93,15 +93,6 @@
   async function fbSaveGroups(g){
     if(window.HA&&window.HA.saveAdClassifyGroups) await window.HA.saveAdClassifyGroups(g);
   }
-  async function fbSaveResult(result){
-    setStatus('저장 중...');
-    try{
-      if(window.HA&&window.HA.saveAdClassifyResult){
-        await window.HA.saveAdClassifyResult(result);
-        setStatus('✅ 서버에 저장됨 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
-      } else { setStatus('⚠️ ha-store 미연결'); }
-    }catch(e){ setStatus('❌ 저장 실패: '+e.message); }
-  }
   async function fbLoad(){
     if(window.HA&&window.HA.getAdClassify) return await window.HA.getAdClassify()||{};
     return {};
