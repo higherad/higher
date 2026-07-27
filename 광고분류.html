@@ -156,7 +156,7 @@
       name:g.name,
       stores:(g.stores||[]).map(sName=>{
         const key=norm(sName);
-        let ns=0,np=0,nps=0,na=0,vm=0;
+        let ns=0,np=0,nps=0,na=0,vm=0,kko=0;
         acData.forEach(r=>{
           if(r.storeN!==key)return;
           const t=r.typeN;
@@ -165,8 +165,9 @@
           else if(t.startsWith('np저장'))nps+=r.goal;
           else if(t.startsWith('n자동완성'))na+=r.goal;
           else if(t.startsWith('방문미션'))vm+=r.goal;
+          else if(t.startsWith('kko상품찜'))kko+=r.goal;
         });
-        return{name:sName.replace(/주식회사|\(주\)/g,'').trim(),raw:sName,ns,np,nps,na,vm,sum:ns+np+nps+na+vm};
+        return{name:sName.replace(/주식회사|\(주\)/g,'').trim(),raw:sName,ns,np,nps,na,vm,kko,sum:ns+np+nps+na+vm+kko};
       }),
     })).map(g=>({...g,stores:g.stores.filter(r=>r.sum>0),gSum:g.stores.filter(r=>r.sum>0).reduce((a,r)=>a+r.sum,0)}));
     const total=computeTotal(groupSums);
@@ -177,7 +178,7 @@
   function injectYoupfl(result, total){
     let yg=result.groupSums.find(g=>g.name==='유입플');
     if(!yg){ yg={name:'유입플',stores:[],gSum:0}; result.groupSums.push(yg); }
-    yg.stores=[{name:'유입플 플레이스',raw:'유입플',ns:0,np:total,nps:0,na:0,vm:0,sum:total}];
+    yg.stores=[{name:'유입플 플레이스',raw:'유입플',ns:0,np:total,nps:0,na:0,vm:0,kko:0,sum:total}];
     yg.gSum=total;
     result.total=computeTotal(result.groupSums);
     return result;
@@ -287,14 +288,14 @@
       return;
     }
 
-    const tot={ns:0,np:0,nps:0,na:0,vm:0,yp:0,sum:0};
+    const tot={ns:0,np:0,nps:0,na:0,vm:0,kko:0,yp:0,sum:0};
     const rows=keys.map(k=>{
       const day=daily[k];
       const t=(day&&day.total)||{};
       const yp=getYoupflSum(day);
       const np=(t.np||0)-yp;
       tot.ns+=t.ns||0; tot.np+=np; tot.nps+=t.nps||0;
-      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.yp+=yp; tot.sum+=t.sum||0;
+      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.kko+=t.kko||0; tot.yp+=yp; tot.sum+=t.sum||0;
       const dd=k.slice(4,6);
       return `<tr class="ac-date-row">
         <td class="ac-date-label">${yyMM.slice(2)}.${dd}</td>
@@ -303,6 +304,7 @@
         <td>${fmt(t.nps)}</td>
         <td>${fmt(t.na)}</td>
         <td>${fmt(t.vm)}</td>
+        <td>${fmt(t.kko)}</td>
         <td>${fmt(yp)}</td>
         <td class="ac-date-total">${fmt(t.sum)}</td>
       </tr>`;
@@ -317,6 +319,7 @@
       <td style="${td1}">${fmt(tot.nps)}</td>
       <td style="${td1}">${fmt(tot.na)}</td>
       <td style="${td1}">${fmt(tot.vm)}</td>
+      <td style="${td1}">${fmt(tot.kko)}</td>
       <td style="${td1}">${fmt(tot.yp)}</td>
       <td style="${td0}">${fmt(tot.sum)}</td>
     </tr>`;
@@ -328,6 +331,7 @@
       nps:n?Math.round(tot.nps/n):0,
       na:n?Math.round(tot.na/n):0,
       vm:n?Math.round(tot.vm/n):0,
+      kko:n?Math.round(tot.kko/n):0,
       yp:n?Math.round(tot.yp/n):0,
       sum:n?Math.round(tot.sum/n):0
     };
@@ -340,6 +344,7 @@
       <td style="${tdA1}">${fmt(avg.nps)}</td>
       <td style="${tdA1}">${fmt(avg.na)}</td>
       <td style="${tdA1}">${fmt(avg.vm)}</td>
+      <td style="${tdA1}">${fmt(avg.kko)}</td>
       <td style="${tdA1}">${fmt(avg.yp)}</td>
       <td style="${tdA0}">${fmt(avg.sum)}</td>
     </tr>`;
@@ -365,7 +370,7 @@
         <thead><tr>
           <th>날짜</th>
           <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
-          <th>N자동완성</th><th>방문미션</th><th>유입플</th><th>총합계</th>
+          <th>N자동완성</th><th>방문미션</th><th>KKO상품찜</th><th>유입플</th><th>총합계</th>
         </tr></thead>
         <tbody>${rows}${totalRow}${avgRow}</tbody>
       </table>
@@ -433,11 +438,11 @@
         stores: (g.stores || []).map(sName => ({
           name: sName.replace(/주식회사|\(주\)/g,'').trim(),
           raw: sName,
-          ns:0, np:0, nps:0, na:0, vm:0, sum:0
+          ns:0, np:0, nps:0, na:0, vm:0, kko:0, sum:0
         })),
         gSum: 0
       })),
-      total: {ns:0, np:0, nps:0, na:0, vm:0, sum:0}
+      total: {ns:0, np:0, nps:0, na:0, vm:0, kko:0, sum:0}
     };
 
     // 저장된 일별 데이터를 순회하며 raw 또는 name으로 매칭해 누적
@@ -451,11 +456,11 @@
         dg.stores.forEach(dr=>{
           let bs=bg.stores.find(s=>s.raw===dr.raw||s.name===dr.name);
           if(!bs){
-            bs={name:dr.name,raw:dr.raw||dr.name,ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+            bs={name:dr.name,raw:dr.raw||dr.name,ns:0,np:0,nps:0,na:0,vm:0,kko:0,sum:0};
             bg.stores.push(bs);
           }
           bs.ns+=dr.ns||0; bs.np+=dr.np||0; bs.nps+=dr.nps||0;
-          bs.na+=dr.na||0; bs.vm+=dr.vm||0; bs.sum+=dr.sum||0;
+          bs.na+=dr.na||0; bs.vm+=dr.vm||0; bs.kko+=dr.kko||0; bs.sum+=dr.sum||0;
         });
       });
     });
@@ -580,6 +585,7 @@
           <td style="${topB}${botB}">${fmt(r.nps)}</td>
           <td style="${topB}${botB}">${fmt(r.na)}</td>
           <td style="${topB}${botB}">${fmt(r.vm)}</td>
+          <td style="${topB}${botB}">${fmt(r.kko)}</td>
           <td style="${topB}${botB}font-weight:700">${fmt(r.sum)}</td>
           ${totalCell}
           ${mStoreCell}
@@ -599,6 +605,7 @@
           <td style="${eb2}">${fmt(exTotal.nps)}</td>
           <td style="${eb2}">${fmt(exTotal.na)}</td>
           <td style="${eb2}">${fmt(exTotal.vm)}</td>
+          <td style="${eb2}">${fmt(exTotal.kko)}</td>
           <td style="${eb}">${fmt(exTotal.sum)}</td>
           <td style="${eb2}"></td>
           ${md?`<td style="${eb2}"></td><td style="${eb2}"></td>`:''}
@@ -618,6 +625,7 @@
         <td style="${td1}">${fmt(total.nps)}</td>
         <td style="${td1}">${fmt(total.na)}</td>
         <td style="${td1}">${fmt(total.vm)}</td>
+        <td style="${td1}">${fmt(total.kko)}</td>
         <td style="${td0}">${fmt(total.sum)}</td>
         <td style="${td1}"></td>
         ${md?`<td style="background:#0f172a;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a;border-left:3px solid #475569">${fmt(mTotal)}</td><td style="background:#0f172a;color:#fff;padding:11px 13px;border-top:2px solid #0f172a"></td>`:''}
@@ -653,7 +661,7 @@
           <thead><tr>
             <th>구분</th><th>업체명</th>
             <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
-            <th>N자동완성</th><th>방문미션</th><th>합계</th><th>총합계</th>
+            <th>N자동완성</th><th>방문미션</th><th>KKO상품찜</th><th>합계</th><th>총합계</th>
             ${mColHeaders}
           </tr></thead>
           <tbody>${tbody}</tbody>
@@ -688,11 +696,11 @@
   /* ── CSV 내보내기 ── */
   function makeCSV(r){
     const{groupSums,total}=r;
-    let csv='\uFEFF구분,업체명,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,합계,총합계\n';
+    let csv='\uFEFF구분,업체명,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,KKO상품찜,합계,총합계\n';
     groupSums.forEach(g=>(g.stores||[]).forEach((s,i)=>{
-      csv+=`${i===0?g.name:''},${s.name},${s.ns||''},${s.np||''},${s.nps||''},${s.na||''},${s.vm||''},${s.sum||''},${i===0?g.gSum:''}\n`;
+      csv+=`${i===0?g.name:''},${s.name},${s.ns||''},${s.np||''},${s.nps||''},${s.na||''},${s.vm||''},${s.kko||''},${s.sum||''},${i===0?g.gSum:''}\n`;
     }));
-    csv+=`,총합,${total.ns||''},${total.np||''},${total.nps||''},${total.na||''},${total.vm||''},${total.sum||''}\n`;
+    csv+=`,총합,${total.ns||''},${total.np||''},${total.nps||''},${total.na||''},${total.vm||''},${total.kko||''},${total.sum||''}\n`;
     return csv;
   }
   window.acExport=function(){ dlCSV(makeCSV(window._acDailyResult),'광고분류_전일_'); };
@@ -702,19 +710,19 @@
     const daily=window._acDailyAll||{};
     const yyMM=window._acSelectedMonth||'';
     const keys=Object.keys(daily).filter(k=>k.startsWith(yyMM)).sort().reverse();
-    let csv='\uFEFF날짜,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,유입플,총합계\n';
-    let tot={ns:0,np:0,nps:0,na:0,vm:0,yp:0,sum:0};
+    let csv='\uFEFF날짜,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,KKO상품찜,유입플,총합계\n';
+    let tot={ns:0,np:0,nps:0,na:0,vm:0,kko:0,yp:0,sum:0};
     keys.forEach(k=>{
       const day=daily[k];
       const t=(day&&day.total)||{};
       const yp=getYoupflSum(day);
       const np=(t.np||0)-yp;
       const mm=k.slice(2,4), dd=k.slice(4,6);
-      csv+=`${mm}.${dd},${t.ns||''},${np||''},${t.nps||''},${t.na||''},${t.vm||''},${yp||''},${t.sum||''}\n`;
+      csv+=`${mm}.${dd},${t.ns||''},${np||''},${t.nps||''},${t.na||''},${t.vm||''},${t.kko||''},${yp||''},${t.sum||''}\n`;
       tot.ns+=t.ns||0; tot.np+=np; tot.nps+=t.nps||0;
-      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.yp+=yp; tot.sum+=t.sum||0;
+      tot.na+=t.na||0; tot.vm+=t.vm||0; tot.kko+=t.kko||0; tot.yp+=yp; tot.sum+=t.sum||0;
     });
-    csv+=`총합,${tot.ns||''},${tot.np||''},${tot.nps||''},${tot.na||''},${tot.vm||''},${tot.yp||''},${tot.sum||''}\n`;
+    csv+=`총합,${tot.ns||''},${tot.np||''},${tot.nps||''},${tot.na||''},${tot.vm||''},${tot.kko||''},${tot.yp||''},${tot.sum||''}\n`;
     dlCSV(csv,'광고분류_날짜별_');
   };
   function dlCSV(csv,prefix){
@@ -862,9 +870,9 @@
     else showRealtimePrompt();
   }
   function computeTotal(groupSums){
-    const t={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+    const t={ns:0,np:0,nps:0,na:0,vm:0,kko:0,sum:0};
     groupSums.forEach(g=>(g.stores||[]).forEach(s=>{
-      t.ns+=s.ns||0;t.np+=s.np||0;t.nps+=s.nps||0;t.na+=s.na||0;t.vm+=s.vm||0;t.sum+=s.sum||0;
+      t.ns+=s.ns||0;t.np+=s.np||0;t.nps+=s.nps||0;t.na+=s.na||0;t.vm+=s.vm||0;t.kko+=s.kko||0;t.sum+=s.sum||0;
     }));
     return t;
   }
