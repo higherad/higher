@@ -1018,10 +1018,16 @@ window.toggleProdPanel = function(e) {
       fetchSheetKeywordByMid(mid),
       fetchCrossAppSlots('kimpro/slots', mid),
     ]);
+    // kimpro 쪽 슬롯은 상세→변경 시 keywordHistory 배열에 이전 키워드를 따로 남기므로,
+    // 현재 searchKeyword뿐 아니라 그 변경 이력까지 함께 펼쳐서 합쳐야 kimpro 화면과 개수가 일치한다
+    const crossAppChangeHistory = crossAppSlots
+      .flatMap(s => s.keywordHistory || [])
+      .map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
     // kimpro 승인 시 ha/slots→kimpro/slots로 동일 내용이 복사되므로 날짜 단위로 중복 제거
     const history = dedupHistoryByDay([
       ...localKeywordHistory(mid),
       ...crossAppSlots.filter(s => s.searchKeyword),
+      ...crossAppChangeHistory,
     ]).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     let html = '';
