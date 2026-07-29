@@ -978,6 +978,24 @@ window.toggleProdPanel = function(e) {
     }
   }
 
+  // ── MID 키워드 히스토리 공통 헬퍼 ──────────────────────────
+  // 같은 키워드+접수'일자'(시각 제외)면 중복으로 간주해 제거 (히스토리 모달/엑셀 다운로드 공용)
+  function dedupHistoryByDay(list) {
+    const seen = new Set();
+    return list.filter(s => s.searchKeyword).filter(s => {
+      const dayStr = s.createdAt ? ymd(new Date(s.createdAt)) : '';
+      const dedupKey = s.searchKeyword + '|' + dayStr;
+      if (seen.has(dedupKey)) return false;
+      seen.add(dedupKey);
+      return true;
+    });
+  }
+  // 자체 DB(allSlots)만으로 구성하는 키워드 히스토리 — 같은 MID의 다른 슬롯 접수 키워드를 날짜순 반환
+  function localKeywordHistory(mid) {
+    return dedupHistoryByDay(allSlots.filter(s => s.mid === mid && s.searchKeyword))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
   // ── MID 이전 키워드 히스토리 ──────────────────────────────
   window.toggleMidHistory = async function(mid, currentKey) {
     const area = document.getElementById('mid-history-area');
@@ -1000,19 +1018,11 @@ window.toggleProdPanel = function(e) {
       fetchSheetKeywordByMid(mid),
       fetchCrossAppSlots('kimpro/slots', mid),
     ]);
-    // kimpro 승인 시 ha/slots→kimpro/slots로 동일 내용이 복사되므로, 같은 키워드+접수일이면 중복으로 간주해 제거
-    const seen = new Set();
-    const history = [
-      ...allSlots.filter(s => s.mid === mid && s.searchKeyword),
+    // kimpro 승인 시 ha/slots→kimpro/slots로 동일 내용이 복사되므로 날짜 단위로 중복 제거
+    const history = dedupHistoryByDay([
+      ...localKeywordHistory(mid),
       ...crossAppSlots.filter(s => s.searchKeyword),
-    ]
-      .filter(s => {
-        const dedupKey = s.searchKeyword + '|' + s.createdAt;
-        if (seen.has(dedupKey)) return false;
-        seen.add(dedupKey);
-        return true;
-      })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    ]).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     let html = '';
 
@@ -2011,6 +2021,24 @@ window.toggleProdPanel = function(e) {
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
       ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20},{wch:20}];
       XLSX.utils.book_append_sheet(wb, ws, '접수');
+
+      // MID별 키워드 히스토리(자체 DB, 날짜별) 시트 — 같은 MID는 한 번만 조회
+      const histHeader = ['MID','업체명','날짜','키워드'];
+      const histRows = [];
+      const seenMid = new Set();
+      filtered.forEach(s => {
+        if (!s.mid || seenMid.has(s.mid)) return;
+        seenMid.add(s.mid);
+        localKeywordHistory(s.mid).forEach(h => {
+          histRows.push([s.mid, s.storeName || '', h.createdAt ? ymd(new Date(h.createdAt)) : '', h.searchKeyword]);
+        });
+      });
+      if (histRows.length) {
+        const histWs = XLSX.utils.aoa_to_sheet([histHeader, ...histRows]);
+        histWs['!cols'] = [{wch:14},{wch:22},{wch:12},{wch:40}];
+        XLSX.utils.book_append_sheet(wb, histWs, '키워드 히스토리');
+      }
+
       const today = new Date();
       const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
       XLSX.writeFile(wb, `접수_${dateStr}.xlsx`);
