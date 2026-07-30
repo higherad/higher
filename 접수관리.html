@@ -990,9 +990,15 @@ window.toggleProdPanel = function(e) {
       return true;
     });
   }
+  // kimpro 쪽 강제종료 시 자동 생성되는 재접수 슬롯은 원본과 키워드가 동일한 채로 createdAt만
+  // 새로 찍히므로, 생성순으로 정렬해 직전 슬롯과 키워드가 같으면 실제 변경이 아니라고 보고 뺀다.
+  function dropUnchangedConsecutive(list) {
+    const sorted = [...list].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    return sorted.filter((s, i) => i === 0 || s.searchKeyword !== sorted[i - 1].searchKeyword);
+  }
   // 자체 DB(allSlots)만으로 구성하는 키워드 히스토리 — 같은 MID의 다른 슬롯 접수 키워드를 날짜순 반환
   function localKeywordHistory(mid) {
-    return dedupHistoryByDay(allSlots.filter(s => s.mid === mid && s.searchKeyword))
+    return dedupHistoryByDay(dropUnchangedConsecutive(allSlots.filter(s => s.mid === mid && s.searchKeyword)))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
   // 자체 DB 히스토리 + kimpro(reception.html) 쪽 히스토리(kimpro/slots, keywordHistory 변경 이력 포함)까지
@@ -1007,7 +1013,7 @@ window.toggleProdPanel = function(e) {
     // kimpro 승인 시 ha/slots→kimpro/slots로 동일 내용이 복사되므로 날짜 단위로 중복 제거
     return dedupHistoryByDay([
       ...localKeywordHistory(mid),
-      ...crossAppSlots.filter(s => s.searchKeyword),
+      ...dropUnchangedConsecutive(crossAppSlots.filter(s => s.searchKeyword)),
       ...crossAppChangeHistory,
     ]).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
