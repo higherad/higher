@@ -2337,9 +2337,19 @@ window.toggleProdPanel = function(e) {
   function buildNormalRows(slots) {
     const AP = ap();
     const normalProds = AP.filter(p => !FIXED_PROD_IDS.has(p.id));
+    const deductProd = AP.find(p => p.deductOnly);
     const rows = [];
+    let deductTarget = 0, deductAmount = 0;
     slots.forEach(r => {
       const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      if (deductProd) {
+        const dAmt = alloc[deductProd.id] || 0;
+        if (dAmt > 0) {
+          const unitPrice = (r.unitPrice!=null && r.unitPrice>0) ? r.unitPrice : (userPriceMap.get(r.userId) || 0);
+          deductTarget += dAmt * (r.days||0);
+          deductAmount += dAmt * (r.days||0) * unitPrice;
+        }
+      }
       normalProds.forEach(prod => {
         const pp = alloc[prod.id] ?? 0;
         if (pp <= 0) return;
@@ -2360,7 +2370,7 @@ window.toggleProdPanel = function(e) {
         });
       });
     });
-    return rows;
+    return { rows, deductTarget, deductAmount };
   }
 
   // 유입플/분할 두 상품을 모두 훑어서 슬롯 하나당 최대 두 종류(유입플 1줄 + 분할 미션별 N줄)의 접수 행을 만든다.
@@ -2434,7 +2444,7 @@ window.toggleProdPanel = function(e) {
     const agencies   = getAgencies(target);
     const normalPlan = agencies.map(ag => ({
       agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
-      rows: buildNormalRows(slotsByAgency(target, ag)),
+      ...buildNormalRows(slotsByAgency(target, ag)),
     }));
     const yupflRows  = buildYoupflRows(target);
     const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
@@ -2581,9 +2591,10 @@ window.toggleProdPanel = function(e) {
     }
 
     const totalTarget = p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+    const deductNote = p.deductTarget ? ` · 차감 ${p.deductTarget.toLocaleString()} (${(p.deductAmount||0).toLocaleString()}원)` : '';
     const hd = document.createElement('div');
     hd.className = 'agency-hd';
-    hd.innerHTML = `<div><div class="aname">${escProd(p.agency)}</div><div class="ameta">총 ${p.rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}</div></div>`;
+    hd.innerHTML = `<div><div class="aname">${escProd(p.agency)}</div><div class="ameta">총 ${p.rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}${deductNote}</div></div>`;
     block.appendChild(hd);
 
     const wrap = document.createElement('div'); wrap.style.width = '100%';
