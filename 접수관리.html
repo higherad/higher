@@ -1300,6 +1300,12 @@ window.toggleProdPanel = function(e) {
         // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다 — 예: 분할(yupfl2)
         const loadedIds = new Set(prods.map(p => p.id));
         DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
+        // 고정 그룹(찰리/차감/유입플/분할) 노출 순서는 계정에 저장된 옛 순서와 무관하게 항상
+        // DEFAULT_PRODS 기준(차감→유입플→분할→찰리)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
+        const fixedRank = new Map(DEFAULT_PRODS.filter(dp => FIXED_PROD_IDS.has(dp.id)).map((dp, i) => [dp.id, i]));
+        const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
+        let fi = 0;
+        prods = prods.map(p => fixedRank.has(p.id) ? fixedSorted[fi++] : p);
       }
       if (groupsSnap.exists()) {
         const loaded = groupsSnap.val();
