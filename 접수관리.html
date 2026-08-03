@@ -1248,12 +1248,13 @@ window.toggleProdPanel = function(e) {
     {id:'p6',     name:'X6',    color:'#84cc16', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p7',     name:'X7',    color:'#ec4899', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
-    {id:'charlie',name:'찰리',  color:'#f43f5e', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, autoBalance:false},
+    {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
     {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, fixedPct:30, autoBalance:false, missionRules:[]},
     {id:'yupfl2', name:'분할',   color:'#06b6d4', active:false, ratio:0, kwPct:0, fixedAlloc:true, splitProduct:true, autoBalance:false, missionRules:[]},
+    {id:'charlie',name:'찰리',  color:'#f43f5e', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, autoBalance:false},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
-  const FIXED_PROD_IDS = new Set(['charlie', 'yupfl', 'yupfl2']);
+  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2']);
   const ap = () => prods.filter(p => p.active);
 
   let prodGroups = [];
@@ -1274,7 +1275,7 @@ window.toggleProdPanel = function(e) {
   async function loadProdSettings() {
     const path = getProdSettingsPath();
     if (!path) return;
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
@@ -1555,6 +1556,7 @@ window.toggleProdPanel = function(e) {
 
     const isFixed = !!p.fixedAlloc;
     const isSplit = !!p.splitProduct;
+    const isDeduct = !!p.deductOnly;
     const actives = isFixed ? [] : ap().filter(q => !q.fixedAlloc);
     const makeGrid = (items, field, prefix) => items.map(q => `
           <div class="ratio-item">
@@ -1565,36 +1567,42 @@ window.toggleProdPanel = function(e) {
 
     if (!isFixed) document.getElementById('pm-kw-grid').innerHTML = makeGrid(actives, 'kwPct', 'pm-kwpct-');
 
-    document.getElementById('pm-ratio-grid').innerHTML = isSplit
-      ? `<div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <span class="ri-name" style="color:${p.color}">미션 설정</span>
-            <button type="button" onclick="addMissionRuleRow()" title="미션 추가"
-              style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
-            </button>
-          </div>
-          <div id="pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
+    document.getElementById('pm-ratio-grid').innerHTML = isDeduct
+      ? `<div class="ratio-item" style="grid-column:1/-1;">
+          <span class="ri-name" style="color:${p.color}">차감 비율</span>
+          <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 10}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
+          <span style="font-size:12px;color:var(--text2);">%</span>
         </div>`
-      : isFixed
-        ? `<div class="ratio-item" style="grid-column:1/-1;">
-            <span class="ri-name" style="color:${p.color}">통합 고정 배분</span>
-            <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
-            <span style="font-size:12px;color:var(--text2);">%</span>
-          </div>
-          <div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
+      : isSplit
+        ? `<div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
             <div style="display:flex;align-items:center;justify-content:space-between;">
-              <span class="ri-name" style="color:${p.color}">키워드 배분 규칙</span>
-              <button type="button" onclick="addMissionRuleRow()" title="규칙 추가"
+              <span class="ri-name" style="color:${p.color}">미션 설정</span>
+              <button type="button" onclick="addMissionRuleRow()" title="미션 추가"
                 style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
               </button>
             </div>
             <div id="pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
           </div>`
-        : makeGrid(actives, 'ratio', 'pm-ratio-');
+        : isFixed
+          ? `<div class="ratio-item" style="grid-column:1/-1;">
+              <span class="ri-name" style="color:${p.color}">통합 고정 배분</span>
+              <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
+              <span style="font-size:12px;color:var(--text2);">%</span>
+            </div>
+            <div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span class="ri-name" style="color:${p.color}">키워드 배분 규칙</span>
+                <button type="button" onclick="addMissionRuleRow()" title="규칙 추가"
+                  style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
+                </button>
+              </div>
+              <div id="pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
+            </div>`
+          : makeGrid(actives, 'ratio', 'pm-ratio-');
 
-    if (isFixed) {
+    if (isFixed && !isDeduct) {
       const rulesWrap = document.getElementById('pm-mission-rules');
       if (rulesWrap) {
         const rules = (Array.isArray(p.missionRules) && p.missionRules.length) ? p.missionRules : [null];
@@ -1752,6 +1760,13 @@ window.toggleProdPanel = function(e) {
         return;
       }
       p.missionRules = rules;
+    } else if (p.deductOnly) {
+      const fixedPctEl = document.getElementById('pm-fixedpct');
+      if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
+        alert('차감 비율은 100%를 초과할 수 없습니다.');
+        return;
+      }
+      if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
     } else {
       const fixedPctEl = document.getElementById('pm-fixedpct');
       if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
@@ -1831,24 +1846,28 @@ window.toggleProdPanel = function(e) {
     if (!asgn.length) return {};
     const fixedProds = asgn.filter(p => p.fixedAlloc);
     if (fixedProds.length) {
+      // 차감은 배열 순서와 무관하게 최우선 적용 — 이후 항목(유입플/분할)의 %는 차감하고 남은 수량을 기준으로 계산한다
+      const ordered = [...fixedProds.filter(p => p.deductOnly), ...fixedProds.filter(p => !p.deductOnly)];
       const result = {};
-      let used = 0;
-      fixedProds.forEach(p => {
+      let remaining = target;
+      ordered.forEach(p => {
         let amt;
-        if (p.splitProduct) {
+        if (p.deductOnly) {
+          amt = yupflAlloc(remaining, p.fixedPct);
+        } else if (p.splitProduct) {
           const rules = Array.isArray(p.missionRules) ? p.missionRules : [];
           amt = rules.reduce((s, rule) => {
             const kw = ((splitKeywords||{})[rule.mission] || '').trim();
-            return kw ? s + yupflAlloc(target, rule.fixedPct) : s;
+            return kw ? s + yupflAlloc(remaining, rule.fixedPct) : s;
           }, 0);
         } else {
-          amt = yupflAlloc(target, yupflPctFor(p, workKw));
+          amt = yupflAlloc(remaining, yupflPctFor(p, workKw));
         }
-        amt = Math.max(0, Math.min(amt, target - used));
+        amt = Math.max(0, Math.min(amt, remaining));
         result[p.id] = amt;
-        used += amt;
+        remaining -= amt;
       });
-      return { ...result, ...lrm(asgn.filter(p => !p.fixedAlloc), Math.max(0, target - used)) };
+      return { ...result, ...lrm(asgn.filter(p => !p.fixedAlloc), Math.max(0, remaining)) };
     }
     return lrm(asgn, target);
   }
@@ -2266,7 +2285,7 @@ window.toggleProdPanel = function(e) {
             const wb = window.XLSX.utils.book_new();
             buildJusuSheet(wb, f);
             buildJumuSheet_(wb, f, '일반', p => !FIXED_PROD_IDS.has(p.id));
-            ap().filter(p => FIXED_PROD_IDS.has(p.id)).forEach(prod => {
+            ap().filter(p => FIXED_PROD_IDS.has(p.id) && !p.deductOnly).forEach(prod => {
               if (prod.fixedAlloc) buildYoupflSheet(wb, f, prod, prod.name);
               else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id);
             });
@@ -2344,16 +2363,20 @@ window.toggleProdPanel = function(e) {
     const yupfl = ap().find(p => p.id === 'yupfl' && p.fixedAlloc);
     const split = ap().find(p => p.id === 'yupfl2' && p.splitProduct);
     if (!yupfl && !split) return [];
+    const deduct = ap().find(p => p.deductOnly);
     const rows = [];
     slots.forEach(s => {
       const agencyId  = s.agencyId||'(대행사 미지정)';
       // 슬롯 저장 단가 우선, 없으면 현재 회원 단가로 폴백 (정산관리와 동일한 규칙)
       const unitPrice = (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null;
+      // 차감이 활성화되어 있으면 최우선 적용된 뒤 남은 수량을 유입플/분할 %의 기준으로 쓴다
+      const base = s.dailyTarget||0;
+      const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
 
       if (yupfl) {
         const workKw = (s.yupflKeyword||'').trim();
         const rule   = yupflRuleFor(yupfl, workKw);
-        const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, rule ? rule.fixedPct : yupfl.fixedPct), s.dailyTarget||0);
+        const yAmt = Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
         if (yAmt > 0) {
           rows.push({
             _slotKey: s._key, _rowKey: s._key, _prodId: 'yupfl', _prodLabel: yupfl.name, _prodColor: yupfl.color,
@@ -2370,7 +2393,7 @@ window.toggleProdPanel = function(e) {
         split.missionRules.forEach(rule => {
           const workKw = ((s.splitKeywords || {})[rule.mission] || '').trim();
           if (!workKw) return;
-          const yAmt = Math.min(yupflAlloc(s.dailyTarget||0, rule.fixedPct), s.dailyTarget||0);
+          const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
           if (yAmt <= 0) return;
           rows.push({
             _slotKey: s._key, _rowKey: `${s._key}__${rule.mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
@@ -2393,7 +2416,7 @@ window.toggleProdPanel = function(e) {
     const target = base.filter(s => s.status === 'accepted');
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재접수 불필요)'); return; }
     const hasNormal = ap().some(p => !FIXED_PROD_IDS.has(p.id));
-    const hasFixed  = ap().some(p => p.fixedAlloc);
+    const hasFixed  = ap().some(p => p.fixedAlloc && !p.deductOnly);
     if (!hasNormal && !hasFixed) {
       alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
