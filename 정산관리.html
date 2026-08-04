@@ -27,6 +27,8 @@
   .unpaid-badge { background:rgba(239,68,68,.1); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
   .btn-refund   { background:rgba(239,68,68,.1); color:var(--danger); padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; margin-right:4px; }
   .action-btn  { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+  .btn-toggle { transition: box-shadow .15s ease, transform .15s ease; }
+  .btn-toggle:active { transform: translateY(1px) !important; box-shadow: inset 0 2px 4px rgba(0,0,0,.28) !important; }
   .btn-confirm { background:var(--accent); color:#fff; }
   .empty-row td { height:200px; text-align:center; color:var(--muted); font-size:13px; }
   .pagination { display:flex;justify-content:center;gap:5px;margin-top:16px; }
@@ -567,10 +569,10 @@
         <td style="white-space:nowrap;">
           <div style="display:flex;gap:4px;justify-content:center;align-items:center;">
             <button class="btn-refund" onclick="setRefund(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">환불</button>
-            <button class="action-btn" style="${isCharged?'background:#f1f5f9;color:var(--text2)':'background:var(--info);color:#fff'}"
-              onclick="chargeConfirm(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${isCharged?'충전취소':'충전확인'}</button>
-            <button class="action-btn" style="${allP?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
-              onclick="bulkRow(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${allP?'입금취소':'입금확인'}</button>
+            <button class="action-btn btn-toggle" style="${isCharged?'background:#f1f5f9;color:var(--text2);box-shadow:inset 0 2px 4px rgba(0,0,0,.15);':'background:var(--info);color:#fff;box-shadow:0 2px 0 rgba(0,0,0,.15);'}"
+              onclick="chargeConfirm(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">충전</button>
+            <button class="action-btn btn-toggle" style="${allP?'background:#f1f5f9;color:var(--text2);box-shadow:inset 0 2px 4px rgba(0,0,0,.15);':'background:var(--accent);color:#fff;box-shadow:0 2px 0 rgba(0,0,0,.15);'}"
+              onclick="bulkRow(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">입금</button>
             <button class="action-btn" style="background:${memo?'rgba(239,68,68,.12)':'#f1f5f9'};color:${memo?'var(--danger)':'var(--text2)'};border:1.5px solid ${memo?'var(--danger)':'var(--border)'};"
               onclick="openMemoPopup('${snapKey}',decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">메모</button>
           </div>
