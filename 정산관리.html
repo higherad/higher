@@ -171,6 +171,11 @@
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
   // 슬롯 저장 단가 우선, 없거나 0이면 현재 유저 단가 (기존 데이터 호환)
   function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!==''&&s.unitPrice>0)?s.unitPrice:getPrice(s.userId);}
+  const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // decodeURIComponent(...)로 onclick 홑따옴표 JS 문자열에 넣는 값 전용 — encodeURIComponent는
+  // 홑따옴표(')를 인코딩하지 않으므로 agencyId/userId에 '가 있으면 그대로 살아남아 JS 문자열을
+  // 탈출할 수 있다. %27로 추가 치환해 막는다(decodeURIComponent가 다시 '로 정확히 복원함).
+  const encAttr = v => encodeURIComponent(v).replace(/'/g,'%27');
   function slotAmount(s){return (s.dailyTarget||0)*(s.days||0)*getSlotPrice(s);}
 
   // 분 단위 키
@@ -528,9 +533,9 @@
       const pc     = g.slots.filter(s=>paidSet.has(s._key)).length;
       const allP   = pc===g.slots.length;
       const badge  = allP?'<span class="paid-badge">정산완료</span>':'<span class="unpaid-badge">미정산</span>';
-      const ea     = encodeURIComponent(g.agencyId);
-      const eu     = encodeURIComponent(g.userId);
-      const et     = encodeURIComponent(g.timeKey);
+      const ea     = encAttr(g.agencyId);
+      const eu     = encAttr(g.userId);
+      const et     = encAttr(g.timeKey);
       const memo = savedSnap?.memo || '';
       const chargeConfirmedByName = savedSnap?.chargeConfirmedByName || '';
       const chargeConfirmedAt = savedSnap?.chargeConfirmedAt ? new Date(savedSnap.chargeConfirmedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
@@ -547,8 +552,8 @@
       return `<tr>
         <td><input type="checkbox" class="settle-chk" data-snapkey="${snapKey}" ${selectedSnapKeys.has(snapKey)?'checked':''} onchange="onSettleChkChange(this)"></td>
         <td style="color:var(--text2);font-size:11px">${fmtDatetime(repTime)}</td>
-        <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${g.agencyId}</span></td>
-        <td>${g.userId}</td>
+        <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${escProd(g.agencyId)}</span></td>
+        <td>${escProd(g.userId)}</td>
         <td>${useSnap ? (savedSnap.slotCount||g.slots.length) : g.slots.length}건</td>
         <td><strong>${tot.toLocaleString()}</strong></td>
         <td style="color:var(--text2)">${pDisplay}원</td>
@@ -620,7 +625,7 @@
     modal.innerHTML=`
       <div style="background:#fff;border-radius:16px;padding:28px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
         <div style="font-size:15px;font-weight:700;margin-bottom:6px;">환불 금액 입력</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">${agencyId} · ${timeKey}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">${escProd(agencyId)} · ${escProd(timeKey)}</div>
         <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:12px;color:var(--text2);">현재 환불 금액</span>
           <span style="font-weight:700;color:var(--danger);">${current.toLocaleString()}원</span>
@@ -671,10 +676,10 @@
     modal.innerHTML=`
       <div style="background:#fff;border-radius:16px;padding:28px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
         <div style="font-size:15px;font-weight:700;margin-bottom:4px;">메모</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">${agencyId} · ${userId}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">${escProd(agencyId)} · ${escProd(userId)}</div>
         <textarea id="memo-input" rows="4" placeholder="메모를 입력해주세요."
           style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box;"
-        >${currentMemo}</textarea>
+        >${escProd(currentMemo)}</textarea>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
           <button onclick="this.closest('[style*=fixed]').remove()"
             style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;">취소</button>
@@ -848,8 +853,8 @@
     const ov=document.createElement('div');
     ov.className='sp-overlay';
     ov.innerHTML=`<div class="sp-box">
-      <div class="sp-title">${agencyId}</div>
-      <div class="sp-sub">유저ID: ${userId} · 단가: ${p.toLocaleString()}원/개${userMemo ? ` · <span style="color:var(--danger);font-weight:600">${userMemo}</span>` : ''}</div>
+      <div class="sp-title">${escProd(agencyId)}</div>
+      <div class="sp-sub">유저ID: ${escProd(userId)} · 단가: ${p.toLocaleString()}원/개${userMemo ? ` · <span style="color:var(--danger);font-weight:600">${escProd(userMemo)}</span>` : ''}</div>
       <div class="sp-cards">
         <div class="sp-card c-green"><div class="sp-card-label">총 정산 금액(VAT 별도)</div><div class="sp-card-value" style="color:var(--accent)">${netTotA.toLocaleString()}원</div></div>
         <div class="sp-card c-blue"><div class="sp-card-label">총 입금액(VAT 포함)</div><div class="sp-card-value" style="color:var(--info)">${Math.round(netTotA*1.1).toLocaleString()}원</div></div>
@@ -1029,7 +1034,7 @@
 
       const hd=document.createElement('div');
       hd.className='agency-hd';
-      hd.innerHTML=`<div><div class="aname">${agency}</div><div class="ameta">총 ${totalCamp}건 · 전체 목표 ${Math.round(totalG).toLocaleString()}건</div></div><button class="agency-copy-btn">📋 복사</button>`;
+      hd.innerHTML=`<div><div class="aname">${escProd(agency)}</div><div class="ameta">총 ${totalCamp}건 · 전체 목표 ${Math.round(totalG).toLocaleString()}건</div></div><button class="agency-copy-btn">📋 복사</button>`;
       block.appendChild(hd);
 
       const wrap=document.createElement('div');
@@ -1040,14 +1045,14 @@
       const tbody=document.createElement('tbody');
       list.forEach(r=>{
         const tr=document.createElement('tr');
-        tr.innerHTML=`<td>${r.date}</td><td>${r.userId}</td><td style="text-align:right">${r.campaigns.toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.totalGoal).toLocaleString()}</b></td><td style="text-align:right">${Math.round(r.unitPrice).toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.amount).toLocaleString()}</b></td><td style="text-align:right;color:var(--info);font-weight:700">${Math.round(r.deposit).toLocaleString()}</td><td style="text-align:right${r.refund?';color:#dc2626;font-weight:700':''}">${r.refund?Math.round(r.refund).toLocaleString():'-'}</td><td><span class="badge ${r.status==='정산완료'?'badge-done':'badge-pend'}">${r.status}</span></td>`;
+        tr.innerHTML=`<td>${escProd(r.date)}</td><td>${escProd(r.userId)}</td><td style="text-align:right">${r.campaigns.toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.totalGoal).toLocaleString()}</b></td><td style="text-align:right">${Math.round(r.unitPrice).toLocaleString()}</td><td style="text-align:right"><b>${Math.round(r.amount).toLocaleString()}</b></td><td style="text-align:right;color:var(--info);font-weight:700">${Math.round(r.deposit).toLocaleString()}</td><td style="text-align:right${r.refund?';color:#dc2626;font-weight:700':''}">${r.refund?Math.round(r.refund).toLocaleString():'-'}</td><td><span class="badge ${r.status==='정산완료'?'badge-done':'badge-pend'}">${r.status}</span></td>`;
         tbody.appendChild(tr);
       });
       tbl.appendChild(tbody);wrap.appendChild(tbl);block.appendChild(wrap);
 
       const ft=document.createElement('div');
       ft.className='agency-ft';
-      ft.innerHTML=`<div class="totals"><span>정산 합계 <b>${Math.round(totalAmt).toLocaleString()}원</b></span><span>입금 합계 <b>${Math.round(totalDep).toLocaleString()}원</b></span>${totalRefund?`<span style="color:#dc2626">환불 <b>${Math.round(totalRefund).toLocaleString()}원</b></span>`:''}</div><div class="charge-status-cell" data-agency="${agency}" data-amount="${Math.round(totalAmt)}"></div>`;
+      ft.innerHTML=`<div class="totals"><span>정산 합계 <b>${Math.round(totalAmt).toLocaleString()}원</b></span><span>입금 합계 <b>${Math.round(totalDep).toLocaleString()}원</b></span>${totalRefund?`<span style="color:#dc2626">환불 <b>${Math.round(totalRefund).toLocaleString()}원</b></span>`:''}</div><div class="charge-status-cell" data-agency="${escProd(agency)}" data-amount="${Math.round(totalAmt)}"></div>`;
       block.dataset.rows=JSON.stringify(list.map(r=>({timeKey:r.date,agencyId:r.agency,userId:r.userId})));
       block.appendChild(ft);
       container.appendChild(block);

@@ -635,15 +635,15 @@ window.toggleProdPanel = function(e) {
           <td><input type="checkbox" class="row-check" data-key="${s._key}"></td>
           <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
-          <td style="font-weight:600">${s.agencyId||'-'}</td>
-          <td>${s.userId||'-'}</td>
+          <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
+          <td>${escProd(s.userId||'-')}</td>
           <td>${['pending','accepted','active'].includes(s.status)
             ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>`
             : `<span style="color:#cbd5e1">-</span>`
           }</td>
-          <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : (s.storeName||'-')}</td>
-          <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
-          <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${s.rankKeyword}</a>` : '-'}</td>
+          <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}</td>
+          <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
+          <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${escProd(s.rankKeyword)}</a>` : '-'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
@@ -832,27 +832,27 @@ window.toggleProdPanel = function(e) {
         <div class="modal-title">캠페인 상세 정보</div>
         <dl class="slot-detail">
           <dt>상품등급</dt><dd>${_renderGradeBadgesHtml(GRADE_CACHE.get(s.mid))}</dd>
-          <dt>대행사</dt><dd>${s.agencyId} / ${s.userId}</dd>
-          <dt>플레이스명</dt><dd>${s.storeName}</dd>
-          <dt>순위키워드</dt><dd>${s.rankKeyword}</dd>
-          <dt>URL</dt><dd style="word-break:break-all;font-size:12px">${s.url||'-'}</dd>
-          <dt>MID</dt><dd>${s.mid||'-'}</dd>
+          <dt>대행사</dt><dd>${escProd(s.agencyId)} / ${escProd(s.userId)}</dd>
+          <dt>플레이스명</dt><dd>${escProd(s.storeName)}</dd>
+          <dt>순위키워드</dt><dd>${escProd(s.rankKeyword)}</dd>
+          <dt>URL</dt><dd style="word-break:break-all;font-size:12px">${escProd(s.url||'-')}</dd>
+          <dt>MID</dt><dd>${escProd(s.mid||'-')}</dd>
           <dt>일 목표</dt><dd>${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</dd>
           <dt>일 수</dt><dd>${s.days||'-'}</dd>
-          <dt>기간</dt><dd>${s.startDate} ~ ${s.endDate}</dd>
+          <dt>기간</dt><dd>${escProd(s.startDate)} ~ ${escProd(s.endDate)}</dd>
           <dt>상태</dt><dd>${stMap[s.status]||s.status}</dd>
-          <dt>메모</dt><dd>${s.memo||'-'}</dd>
+          <dt>메모</dt><dd>${escProd(s.memo||'-')}</dd>
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
             <span style="display:flex;align-items:center;gap:6px;">
               검색키워드
               <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
             </span>
-            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleMidHistory('${s.mid}','${key}')" id="mid-hist-btn"
+            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
           </dt>
-          <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)"></dd>
+          <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)"></dd>
           <dd id="mid-history-area" style="display:none;margin-top:8px;"></dd>
           ${yupflShown ? `
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
@@ -860,12 +860,12 @@ window.toggleProdPanel = function(e) {
               유입플 키워드
               <span id="yupfl-kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.yupflKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
             </span>
-            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleYupflMidHistory('${s.mid}','detail-yupfl-keyword-input','yupfl-kw-count-badge')" id="yupfl-hist-btn"
+            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleYupflMidHistory('${escJsAttr(s.mid)}','detail-yupfl-keyword-input','yupfl-kw-count-badge')" id="yupfl-hist-btn"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
           </dt>
-          <dd><input type="text" class="detail-kw-input" id="detail-yupfl-keyword-input" value="${s.yupflKeyword||''}" placeholder="유입플 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'yupfl-kw-count-badge')"></dd>
+          <dd><input type="text" class="detail-kw-input" id="detail-yupfl-keyword-input" value="${escProd(s.yupflKeyword||'')}" placeholder="유입플 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'yupfl-kw-count-badge')"></dd>
           <dd id="yupfl-history-area" style="display:none;margin-top:8px;"></dd>` : ''}
           ${splitKeywordFieldsHtml(s, splitProd)}
         </dl>
@@ -900,12 +900,12 @@ window.toggleProdPanel = function(e) {
               <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;background:${missionBadgeColor(r.mission)};color:#fff;">미션:${r.mission}</span> 분할 키워드
               <span id="${badgeId}" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${((sk[r.mission]||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length)}개</span>
             </span>
-            ${showHistBtn ? `<button onclick="toggleYupflMidHistory('${s.mid}','${inputId}','${badgeId}','-split-${r.mission}')" id="${btnId}"
+            ${showHistBtn ? `<button onclick="toggleYupflMidHistory('${escJsAttr(s.mid)}','${inputId}','${badgeId}','-split-${r.mission}')" id="${btnId}"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
           </dt>
-          <dd><input type="text" class="detail-kw-input detail-split-kw-input" id="${inputId}" data-mission="${r.mission}" value="${(sk[r.mission]||'').toString().replace(/"/g,'&quot;')}" placeholder="분할 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'${badgeId}')"></dd>
+          <dd><input type="text" class="detail-kw-input detail-split-kw-input" id="${inputId}" data-mission="${r.mission}" value="${escProd(sk[r.mission]||'')}" placeholder="분할 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'${badgeId}')"></dd>
           <dd id="${areaId}" style="display:none;margin-top:8px;"></dd>`;
     }).join('');
   }
@@ -1214,16 +1214,16 @@ window.toggleProdPanel = function(e) {
     overlay.innerHTML = `
       <div class="modal-box">
         <div class="modal-title">캠페인 정보 수정</div>
-        <div class="modal-field"><label>플레이스명</label><input id="e-storeName" value="${s.storeName||''}"></div>
+        <div class="modal-field"><label>플레이스명</label><input id="e-storeName" value="${escProd(s.storeName||'')}"></div>
         <div class="modal-row">
-          <div class="modal-field"><label>시작일</label><input type="date" id="e-startDate" value="${s.startDate||''}"></div>
-          <div class="modal-field"><label>종료일</label><input type="date" id="e-endDate" value="${s.endDate||''}"></div>
+          <div class="modal-field"><label>시작일</label><input type="date" id="e-startDate" value="${escProd(s.startDate||'')}"></div>
+          <div class="modal-field"><label>종료일</label><input type="date" id="e-endDate" value="${escProd(s.endDate||'')}"></div>
         </div>
-        <div class="modal-field"><label>순위키워드</label><input id="e-rankKeyword" value="${s.rankKeyword||''}"></div>
-        <div class="modal-field"><label>검색키워드</label><input id="e-searchKeyword" value="${s.searchKeyword||''}"></div>
-        <div class="modal-field"><label>URL</label><input id="e-url" value="${s.url||''}"></div>
-        <div class="modal-field"><label>MID</label><input id="e-mid" value="${s.mid||''}"></div>
-        <div class="modal-field"><label>메모</label><textarea id="e-memo">${s.memo||''}</textarea></div>
+        <div class="modal-field"><label>순위키워드</label><input id="e-rankKeyword" value="${escProd(s.rankKeyword||'')}"></div>
+        <div class="modal-field"><label>검색키워드</label><input id="e-searchKeyword" value="${escProd(s.searchKeyword||'')}"></div>
+        <div class="modal-field"><label>URL</label><input id="e-url" value="${escProd(s.url||'')}"></div>
+        <div class="modal-field"><label>MID</label><input id="e-mid" value="${escProd(s.mid||'')}"></div>
+        <div class="modal-field"><label>메모</label><textarea id="e-memo">${escProd(s.memo||'')}</textarea></div>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">취소</button>
           <button class="btn-save" onclick="saveEdit('${key}')">저장</button>
@@ -1252,6 +1252,11 @@ window.toggleProdPanel = function(e) {
   // ── 상품 유형 설정 ────────────────────────────────────────────
 
   const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // onclick="fn('${v}')"처럼 홑따옴표 JS 문자열 안에 값을 넣을 때 전용 — HTML 속성 이스케이프만으론
+  // 홑따옴표가 그대로 살아남아 JS 문자열을 탈출할 수 있어(escProd는 큰따옴표만 방어), JS 문자열
+  // 이스케이프까지 먼저 적용한 뒤 속성 이스케이프를 씌운다.
+  const escJsAttr = v => String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   const DEFAULT_PRODS = [
     {id:'p1',     name:'블랙',  color:'#3b82f6', active:true,  ver:'ver.5.0/3.2', ratio:5, kwPct:5},
