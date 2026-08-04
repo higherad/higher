@@ -788,7 +788,7 @@
   window.openAgencyPopup=function(agencyId,userId){
 
     const byMonth={}, byDay={};
-    let totA=0, totTgt=0, totalRefund=0;
+    let totA=0, totTgt=0, totalRefund=0, totalDeduct=0;
 
     // ── 과거 날짜: 스냅샷 기준 집계 ──
     Object.entries(snapshotMap)
@@ -800,11 +800,12 @@
         const ref = v.refund||0;
         const net = grossAmt - ref;
         const tgt = v.totalTarget||0;
-        totA += net; totTgt += tgt; totalRefund += ref;
-        if(!byMonth[month]) byMonth[month]={count:0,tgt:0,net:0};
-        byMonth[month].count += v.slotCount||1; byMonth[month].tgt += tgt; byMonth[month].net += net;
-        if(!byDay[date]) byDay[date]={count:0,tgt:0,net:0};
-        byDay[date].count += v.slotCount||1; byDay[date].tgt += tgt; byDay[date].net += net;
+        const ded = v.deductAmt||0;
+        totA += net; totTgt += tgt; totalRefund += ref; totalDeduct += ded;
+        if(!byMonth[month]) byMonth[month]={count:0,tgt:0,net:0,ded:0};
+        byMonth[month].count += v.slotCount||1; byMonth[month].tgt += tgt; byMonth[month].net += net; byMonth[month].ded += ded;
+        if(!byDay[date]) byDay[date]={count:0,tgt:0,net:0,ded:0};
+        byDay[date].count += v.slotCount||1; byDay[date].tgt += tgt; byDay[date].net += net; byDay[date].ded += ded;
       });
 
     // ── 오늘 날짜: 스냅샷 무시, allSlots 실시간 전체 집계 ──
@@ -827,16 +828,17 @@
         todayGroups[t].push(s);
       });
       const month = todayStr.slice(0,7);
-      if (!byMonth[month]) byMonth[month] = {count:0,tgt:0,net:0};
-      if (!byDay[todayStr]) byDay[todayStr] = {count:0,tgt:0,net:0};
+      if (!byMonth[month]) byMonth[month] = {count:0,tgt:0,net:0,ded:0};
+      if (!byDay[todayStr]) byDay[todayStr] = {count:0,tgt:0,net:0,ded:0};
       Object.entries(todayGroups).forEach(([t, grpSlots]) => {
         const amt = grpSlots.reduce((a,s)=>a+slotAmount(s),0);
         const tgt = grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
         const ref = getRefund(t, agencyId, userId);
+        const ded = grpSlots.reduce((a,s)=>a+(s.deductAmount||0),0);
         const net = amt - ref;
-        totA += net; totTgt += tgt; totalRefund += ref;
-        byMonth[month].count += grpSlots.length; byMonth[month].tgt += tgt; byMonth[month].net += net;
-        byDay[todayStr].count += grpSlots.length; byDay[todayStr].tgt += tgt; byDay[todayStr].net += net;
+        totA += net; totTgt += tgt; totalRefund += ref; totalDeduct += ded;
+        byMonth[month].count += grpSlots.length; byMonth[month].tgt += tgt; byMonth[month].net += net; byMonth[month].ded += ded;
+        byDay[todayStr].count += grpSlots.length; byDay[todayStr].tgt += tgt; byDay[todayStr].net += net; byDay[todayStr].ded += ded;
       });
     }
 
@@ -846,7 +848,7 @@
 
     const mRows=Object.keys(byMonth).sort().reverse().map(m=>{
       const mv=byMonth[m];
-      return `<tr><td style="font-weight:600">${m}</td><td>${mv.count}건</td><td>${mv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${mv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(mv.net*1.1).toLocaleString()}원</td></tr>`;
+      return `<tr><td style="font-weight:600">${m}</td><td>${mv.count}건</td><td>${mv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${mv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(mv.net*1.1).toLocaleString()}원</td>${isAdmin?`<td style="font-weight:700;color:#f87171">${mv.ded.toLocaleString()}원</td>`:''}</tr>`;
     }).join('');
     const sortedAgDays = Object.keys(byDay).sort().reverse();
     const AG_DAY_PER = 12;
@@ -861,12 +863,13 @@
         <div class="sp-card c-blue"><div class="sp-card-label">총 입금액(VAT 포함)</div><div class="sp-card-value" style="color:var(--info)">${Math.round(netTotA*1.1).toLocaleString()}원</div></div>
         <div class="sp-card c-green"><div class="sp-card-label">총 목표 합산</div><div class="sp-card-value" style="color:var(--accent)">${totTgt.toLocaleString()}<small style="font-size:13px;font-weight:400;color:var(--muted)"> 개</small></div></div>
         <div class="sp-card c-red"><div class="sp-card-label">환불 금액</div><div class="sp-card-value" style="color:var(--danger)">${totalRefund.toLocaleString()}원</div></div>
+        ${isAdmin?`<div class="sp-card c-red"><div class="sp-card-label">차감 금액(VAT 별도)</div><div class="sp-card-value" style="color:#f87171">${totalDeduct.toLocaleString()}원</div></div>`:''}
       </div>
       <div class="sp-section">월별 합산</div>
-      <table class="sp-tbl"><thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
-        <tbody>${mRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
+      <table class="sp-tbl"><thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>차감액(VAT 별도)</th>':''}</tr></thead>
+        <tbody>${mRows||`<tr><td colspan="${isAdmin?6:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`}</tbody></table>
       <div class="sp-section">일별 합산</div>
-      <table class="sp-tbl"><thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
+      <table class="sp-tbl"><thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody id="ag-day-tbody"></tbody></table>
       <div id="ag-day-pg" class="pagination" style="margin-top:12px;"></div>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
@@ -879,8 +882,8 @@
       const total = Math.ceil(sortedAgDays.length / AG_DAY_PER) || 1;
       const slice = sortedAgDays.slice((agCurPg-1)*AG_DAY_PER, agCurPg*AG_DAY_PER);
       ov.querySelector('#ag-day-tbody').innerHTML = slice.length
-        ? slice.map(d => { const dv=byDay[d]; return `<tr><td>${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.net*1.1).toLocaleString()}원</td></tr>`; }).join('')
-        : '<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>';
+        ? slice.map(d => { const dv=byDay[d]; return `<tr><td>${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.net.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.net*1.1).toLocaleString()}원</td>${isAdmin?`<td style="font-weight:700;color:#f87171">${dv.ded.toLocaleString()}원</td>`:''}</tr>`; }).join('')
+        : `<tr><td colspan="${isAdmin?6:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`;
       const pgDiv = ov.querySelector('#ag-day-pg');
       if (total <= 1) { pgDiv.innerHTML=''; return; }
       let ph=`<button class="pg-btn" data-pg="1">&laquo;</button><button class="pg-btn" data-pg="${Math.max(1,agCurPg-1)}">&lsaquo;</button>`;
