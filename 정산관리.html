@@ -128,7 +128,7 @@
       <tr>
         <th><input type="checkbox" id="settle-chk-all" title="전체선택" onchange="toggleAllSettle(this)"></th>
         <th>접수일시</th><th>대행사</th><th>유저ID</th><th>캠페인 수</th>
-        <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
+        <th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th id="th-deduct" style="display:none">차감 금액</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="settle-body">
@@ -160,6 +160,8 @@
   let filteredRows=[];
   const selectedSnapKeys=new Set();
   const todayStr=(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const isAdmin=HA.getCurrentUser?.()?.role==='admin';
+  document.getElementById('th-deduct')?.style.setProperty('display', isAdmin ? '' : 'none');
 
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
   function getRefund(timeKey,agencyId,userId){return refundMap[refundKey(timeKey,agencyId,userId)]||0;}
@@ -198,7 +200,8 @@
     const pDisplay = prices.length > 1 ? `${Math.min(...prices).toLocaleString()}~${Math.max(...prices).toLocaleString()}` : prices[0].toLocaleString();
     const tot = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
     const amt = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
-    return {p, pDisplay, tot, amt};
+    const ded = g.slots.reduce((a,s)=>a+(s.deductAmount||0),0);
+    return {p, pDisplay, tot, amt, ded};
   }
 
   // 분 단위 + 대행사 + 유저ID 그룹핑
@@ -486,11 +489,11 @@
       const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
       const existing=snapshotMap[sk];
       if(existing) continue; // 이미 저장됨
-      const {tot:t,amt:a}=calcGroup(g);
+      const {tot:t,amt:a,ded:d}=calcGroup(g);
       if(!a) continue; // 금액 없으면 스킵
       const r=getRefund(g.timeKey,g.agencyId,g.userId);
       const snap={timeKey:g.timeKey,agencyId:g.agencyId,userId:g.userId,
-        slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,
+        slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,deductAmt:d,
         unitPrice:getSlotPrice(g.slots[0])};
       await HA.saveSettleSnapshot(sk,snap,false); // 최초 1회만 저장
       snapshotMap[sk]=snap;
@@ -517,11 +520,12 @@
       const groupDate=g.timeKey.slice(0,10);
       // 과거 날짜는 스냅샷, 오늘은 실시간
       const useSnap = groupDate < todayStr && savedSnap;
-      const {p, pDisplay, tot, amt} = useSnap ? {
+      const {p, pDisplay, tot, amt, ded} = useSnap ? {
         p: savedSnap.unitPrice||getSlotPrice(g.slots[0]),
         pDisplay: (savedSnap.unitPrice||getSlotPrice(g.slots[0])).toLocaleString(),
         tot: savedSnap.totalTarget||0,
         amt: savedSnap.amount+(savedSnap.refund||0),
+        ded: savedSnap.deductAmt||0,
       } : calcGroup(g);
       const refund = useSnap ? (savedSnap.refund||0) : getRefund(g.timeKey,g.agencyId,g.userId);
       const netAmt = amt-refund;
@@ -554,6 +558,7 @@
         <td><strong>${tot.toLocaleString()}</strong></td>
         <td style="color:var(--text2)">${pDisplay}원</td>
         <td style="font-weight:700;color:var(--accent)">${netAmt.toLocaleString()}원</td>
+        ${isAdmin?`<td style="color:var(--danger)">${ded>0?ded.toLocaleString()+'원':'-'}</td>`:''}
         <td style="font-weight:700;color:var(--info)">${netVat.toLocaleString()}원</td>
         <td style="color:var(--danger);font-weight:700">${refund>0?refund.toLocaleString()+'원':'-'}</td>
         <td>${badge}</td>
@@ -694,8 +699,9 @@
         const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
         const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
         const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
         const refund=getRefund(timeKey,agencyId,userId);
-        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,unitPrice:getSlotPrice(slots[0]),memo:val};
+        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,unitPrice:getSlotPrice(slots[0]),memo:val};
         await HA.saveSettleSnapshot(snapKey,newSnap,true);
         snapshotMap[snapKey]=newSnap;
       }
@@ -721,8 +727,9 @@
         const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
         const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
         const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
         const refund=getRefund(timeKey,agencyId,userId);
-        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,unitPrice:getSlotPrice(slots[0]),...updates};
+        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,unitPrice:getSlotPrice(slots[0]),...updates};
         await HA.saveSettleSnapshot(snapKey,newSnap,true);
         snapshotMap[snapKey]=newSnap;
       }
@@ -751,10 +758,11 @@
       const p=getPrice(userId);
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
       const refund=getRefund(timeKey,agencyId,userId);
       // 기존 스냅샷 보존(충전 담당자 등) 후 입금 필드만 덮어쓰기
       const existing=snapshotMap[snapKey]||{};
-      const snap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,unitPrice:p,refund,agencyId,userId,timeKey,
+      const snap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,deductAmt:ded,unitPrice:p,refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
       await HA.saveSettleSnapshot(snapKey,snap,true);
       snapshotMap[snapKey]=snap;
@@ -963,9 +971,10 @@
       const userId=slots[0].userId||'-';
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
       const refund=getRefund(timeKey,agencyId,userId);
       const existing=snapshotMap[snapKey]||{};
-      const newSnap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,unitPrice:getSlotPrice(slots[0]),refund,agencyId,userId,timeKey,
+      const newSnap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,deductAmt:ded,unitPrice:getSlotPrice(slots[0]),refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
       await HA.saveSettleSnapshot(snapKey,newSnap,true);
       snapshotMap[snapKey]=newSnap;

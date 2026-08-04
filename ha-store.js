@@ -225,8 +225,8 @@ const HA = {
     dispatch('ha:slots:updated');
   },
 
-  async approveSlot(key) {
-    await this.updateSlot(key, { status: 'active' });
+  async approveSlot(key, extra = {}) {
+    await this.updateSlot(key, { status: 'active', ...extra });
   },
 
   // ════════════════════════════════════════════════════════

@@ -713,8 +713,9 @@ window.toggleProdPanel = function(e) {
 
   // ── 승인 ─────────────────────────────────────────────────
   window.approveOne = async function(key) {
-    await HA.approveSlot(key);
-    updateLocalSlot(key, { status: 'active' });
+    const extra = deductFieldsFor(allSlots.find(s => s._key === key));
+    await HA.approveSlot(key, extra);
+    updateLocalSlot(key, { status: 'active', ...extra });
     closeOverlayAndRefresh();
   };
 
@@ -1820,6 +1821,17 @@ window.toggleProdPanel = function(e) {
 
   function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
 
+  // 승인 시점에 차감 비율로 배분되는 수량/금액을 스냅샷으로 남겨 정산관리에서 조회 가능하게 함
+  function deductFieldsFor(slot) {
+    if (!slot) return {};
+    const dp = ap().find(p => p.deductOnly);
+    if (!dp) return {};
+    const dTarget = yupflAlloc(slot.dailyTarget||0, dp.fixedPct);
+    if (dTarget <= 0) return {};
+    const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
+    return { deductTarget: dTarget, deductAmount: dTarget * (slot.days||0) * unitPrice };
+  }
+
   // 유입플 키워드 개수에 매칭되는 규칙을 찾음 — 매칭 없으면 null (이 경우 통합 고정 배분을 사용)
   function yupflRuleFor(yupfl, workKw) {
     const rules = Array.isArray(yupfl?.missionRules) ? yupfl.missionRules : [];
@@ -2514,7 +2526,7 @@ window.toggleProdPanel = function(e) {
         const keys = [...this.normalKeys].filter(k => this.fixedKeys.has(k));
         if (keys.length) {
           // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
-          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active' })));
+          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', ...deductFieldsFor(this.slotMap.get(k)) })));
           keys.forEach(k => {
             const s = this.slotMap.get(k);
             if (s) s.status = 'active';
@@ -2832,7 +2844,7 @@ window.toggleProdPanel = function(e) {
         gate.fixedKeys = new Set(allDoneSlotKeys);
         await gate.tryApprove();
       } else {
-        await Promise.all(allDoneSlotKeys.map(k => HA.approveSlot(k)));
+        await Promise.all(allDoneSlotKeys.map(k => HA.approveSlot(k, deductFieldsFor(slotMap.get(k)))));
         allDoneSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
       }
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
@@ -2887,7 +2899,7 @@ window.toggleProdPanel = function(e) {
         if (gate) {
           okSlots.forEach(k => approvedKeys.add(k));
         } else {
-          await Promise.all(okSlots.map(k => HA.approveSlot(k)));
+          await Promise.all(okSlots.map(k => HA.approveSlot(k, deductFieldsFor(slotMap.get(k)))));
           okSlots.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
         }
       }
