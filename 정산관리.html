@@ -110,10 +110,10 @@
     <option value="uncharged">미충전</option>
   </select>
   <div style="display:flex;align-items:center;gap:4px;">
-    📅 <input type="date" id="sf-from" onchange="renderSettle()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
+    📅 <input type="date" id="sf-from" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
     <span style="color:var(--text2);font-size:12px;">~</span>
-    <input type="date" id="sf-to" onchange="renderSettle()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
-    <button id="sf-date-clear" onclick="clearSettleDate()" style="margin-left:2px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
+    <input type="date" id="sf-to" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
+    <button id="sf-date-clear" onclick="clearSettleDate()" style="display:none;margin-left:2px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="sf-kw" placeholder="대행사/아이디 검색" style="width:180px;" onkeydown="if(event.key==='Enter') renderSettle()">
@@ -251,9 +251,16 @@
     });
   }
 
+  window.onSettleDateChange = function() {
+    const has = document.getElementById('sf-from').value || document.getElementById('sf-to').value;
+    document.getElementById('sf-date-clear').style.display = has ? 'inline' : 'none';
+    renderSettle();
+  };
+
   window.clearSettleDate = function() {
     document.getElementById('sf-from').value = '';
     document.getElementById('sf-to').value = '';
+    document.getElementById('sf-date-clear').style.display = 'none';
     renderSettle();
   };
 
@@ -262,6 +269,7 @@
     document.getElementById('sf-kw').value = '';
     document.getElementById('sf-from').value = '';
     document.getElementById('sf-to').value = '';
+    document.getElementById('sf-date-clear').style.display = 'none';
     renderSettle();
   };
 
