@@ -160,7 +160,10 @@
   let filteredRows=[];
   const selectedSnapKeys=new Set();
   const todayStr=(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-  const isAdmin=HA.getCurrentUser?.()?.role==='admin';
+  // 차감 금액 컬럼 노출 대상 — admin 롤 + kimpro/higherad1 (개별 요청으로 추가, staff 롤 전체는 아님)
+  const DEDUCT_VIEW_USERS=new Set(['kimpro','higherad1']);
+  const _cu=HA.getCurrentUser?.();
+  const isAdmin=_cu?.role==='admin'||DEDUCT_VIEW_USERS.has(_cu?.username);
   document.getElementById('th-deduct')?.style.setProperty('display', isAdmin ? '' : 'none');
 
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
