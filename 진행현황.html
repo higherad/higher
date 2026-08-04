@@ -116,6 +116,7 @@
   let page = 1;
   const PER = 20;
   let allSlots = [];
+  let _slotsCacheLoaded = false;
 
   const stLabel = {
     active:  '<span class="status-badge s-active">진행</span>',
@@ -168,21 +169,24 @@
   }
 
   // ── Firebase에서 데이터 불러와서 렌더 ──────────────────────
-  window.renderSlots = async function(resetPage = true) {
+  window.renderSlots = async function(resetPage = true, forceReload = false) {
     if (resetPage) page = 1;
-    document.getElementById('slots-body').innerHTML =
-      '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-
-    allSlots = await HA.getSlots();
-
-    // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
     const todayStr = todayYMD();
-    const toExpire = allSlots.filter(s =>
-      s.status === 'active' && s.endDate && s.endDate < todayStr
-    );
-    if (toExpire.length) {
-      await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
-      toExpire.forEach(s => { s.status = 'expired'; });
+    if (!_slotsCacheLoaded || forceReload) {
+      document.getElementById('slots-body').innerHTML =
+        '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+
+      allSlots = await HA.getSlots();
+
+      // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
+      const toExpire = allSlots.filter(s =>
+        s.status === 'active' && s.endDate && s.endDate < todayStr
+      );
+      if (toExpire.length) {
+        await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
+        toExpire.forEach(s => { s.status = 'expired'; });
+      }
+      _slotsCacheLoaded = true;
     }
     if (!document.getElementById('slots-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
@@ -259,13 +263,13 @@
     if(!keys.length) return alert('선택된 항목이 없습니다.');
     if(!confirm(`${keys.length}건을 삭제하시겠습니까?`)) return;
     await Promise.all(keys.map(k => HA.deleteSlot(k)));
-    renderSlots(false);
+    renderSlots(false, true);
   };
 
   window.delSlot = async key => {
     if(!confirm('삭제하시겠습니까?')) return;
     await HA.deleteSlot(key);
-    renderSlots(false);
+    renderSlots(false, true);
   };
 
   const STATUS_KO = { active:'진행중', expired:'종료' };
@@ -412,7 +416,7 @@
       }
       await HA.updateSlot(key, data);
       document.querySelector('.modal-overlay').remove();
-      renderSlots(false);
+      renderSlots(false, true);
     });
   };
 
@@ -422,7 +426,7 @@
       const slot = await HA.addSlot(data);
       await HA.updateSlot(slot._key, { status: data.status });
       document.querySelector('.modal-overlay').remove();
-      renderSlots(false);
+      renderSlots(false, true);
     });
   };
 
@@ -538,7 +542,7 @@
     if (!confirm('이 캠페인을 복구하시겠습니까?')) return;
     await HA.restoreSlot(key);
     await _renderTrashContent();
-    renderSlots(false);
+    renderSlots(false, true);
   };
 
   window.permanentDeleteFromTrash = async function(key) {

@@ -154,6 +154,7 @@
 <script>
 (function(){
   let sPage=1; const PER=20;
+  let _settleLoaded=false;
   let allSlots=[],allUsers=[],paidSet=new Set(),refundMap={};
   let snapshotMap={};
   let filteredRows=[];
@@ -170,6 +171,7 @@
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
   // 슬롯 저장 단가 우선, 없거나 0이면 현재 유저 단가 (기존 데이터 호환)
   function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!==''&&s.unitPrice>0)?s.unitPrice:getPrice(s.userId);}
+  function slotAmount(s){return (s.dailyTarget||0)*(s.days||0)*getSlotPrice(s);}
 
   // 분 단위 키
   function getMinuteKey(isoStr){
@@ -201,7 +203,7 @@
     const p   = prices.length === 1 ? prices[0] : prices[0];
     const pDisplay = prices.length > 1 ? `${Math.min(...prices).toLocaleString()}~${Math.max(...prices).toLocaleString()}` : prices[0].toLocaleString();
     const tot = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-    const amt = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+    const amt = g.slots.reduce((a,s)=>a+slotAmount(s),0);
     const ded = g.slots.reduce((a,s)=>a+(s.deductAmount||0),0);
     return {p, pDisplay, tot, amt, ded};
   }
@@ -272,7 +274,7 @@
       const sDate=`${yyyy}-${mo}-${dd}`;
       return sDate === todayStr;
     });
-    const dA = todayBase.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+    const dA = todayBase.reduce((a,s)=>a+slotAmount(s),0);
     // 오늘 환불 차감
     const todayRefund = Object.entries(refundMap||{}).reduce((a,[k,v])=>{
       return k.split('__')[0].slice(0,10) === todayStr ? a+(v||0) : a;
@@ -335,7 +337,7 @@
       return sDate === todayStr;
     });
     if (todaySlots.length && todayStr.slice(0,7) === curYM) {
-      const todayAmt = todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const todayAmt = todaySlots.reduce((a,s)=>a+slotAmount(s),0);
       const todayRef = Object.entries(refundMap||{}).reduce((a,[k,v])=>k.split('__')[0].slice(0,10)===todayStr?a+(v||0):a,0);
       byDay[todayStr] = { count: todaySlots.length, tgt: todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0), amt: todayAmt-todayRef };
     }
@@ -418,7 +420,7 @@
     });
     if (todaySlots.length) {
       const m = todayStr.slice(0,7);
-      const todayAmt = todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const todayAmt = todaySlots.reduce((a,s)=>a+slotAmount(s),0);
       const todayRef = Object.entries(refundMap||{}).reduce((a,[k,v])=>k.split('__')[0].slice(0,10)===todayStr?a+(v||0):a,0);
       if (!byMonth[m]) byMonth[m] = { count:0, tgt:0, amt:0 };
       byMonth[m].count += todaySlots.length;
@@ -458,14 +460,17 @@
     ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
   };
 
-  window.renderSettle=async function(resetPage = true){
+  window.renderSettle=async function(resetPage = true, forceReload = false){
     if (resetPage) { sPage = 1; }
     selectedSnapKeys.clear(); updateExportBtn();
-    document.getElementById('settle-body').innerHTML='<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-    [allSlots,allUsers,paidSet]=await Promise.all([HA.getSlots(),HA.getUsers(),HA.getPaidSet()]);
-    try { refundMap = (await HA.getRefunds()) || {}; } catch(e) { refundMap={}; }
-    snapshotMap={};
-    try { snapshotMap = await HA.getAllSettleSnapshots(); } catch(e) { snapshotMap={}; }
+    if (!_settleLoaded || forceReload) {
+      document.getElementById('settle-body').innerHTML='<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      [allSlots,allUsers,paidSet]=await Promise.all([HA.getSlots(),HA.getUsers(),HA.getPaidSet()]);
+      try { refundMap = (await HA.getRefunds()) || {}; } catch(e) { refundMap={}; }
+      snapshotMap={};
+      try { snapshotMap = await HA.getAllSettleSnapshots(); } catch(e) { snapshotMap={}; }
+      _settleLoaded = true;
+    }
     if (!document.getElementById('settle-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
     renderSummary();
@@ -688,7 +693,7 @@
       } else {
         const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
         const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-        const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
         const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
         const refund=getRefund(timeKey,agencyId,userId);
         const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,unitPrice:getSlotPrice(slots[0]),memo:val};
@@ -716,7 +721,7 @@
       } else {
         const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
         const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-        const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
         const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
         const refund=getRefund(timeKey,agencyId,userId);
         const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,unitPrice:getSlotPrice(slots[0]),...updates};
@@ -747,7 +752,7 @@
       const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
       const p=getPrice(userId);
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
       const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
       const refund=getRefund(timeKey,agencyId,userId);
       // 기존 스냅샷 보존(충전 담당자 등) 후 입금 필드만 덮어쓰기
@@ -770,6 +775,7 @@
       }
     }
     await Promise.all(keys.map(k=>HA.setPaid(k,nowPaid)));
+    keys.forEach(k=>{ if(nowPaid) paidSet.add(k); else paidSet.delete(k); });
     renderSettle(false);
   };
 
@@ -818,7 +824,7 @@
       if (!byMonth[month]) byMonth[month] = {count:0,tgt:0,net:0};
       if (!byDay[todayStr]) byDay[todayStr] = {count:0,tgt:0,net:0};
       Object.entries(todayGroups).forEach(([t, grpSlots]) => {
-        const amt = grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const amt = grpSlots.reduce((a,s)=>a+slotAmount(s),0);
         const tgt = grpSlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
         const ref = getRefund(t, agencyId, userId);
         const net = amt - ref;
@@ -913,7 +919,7 @@
         const gDate=g.timeKey.slice(0,10);
         const useSnap=gDate<todayStr&&savedSnap;
         const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-        const grossAmt=useSnap?(savedSnap.amount+(savedSnap.refund||0)):g.slots.reduce((ac,s)=>ac+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+        const grossAmt=useSnap?(savedSnap.amount+(savedSnap.refund||0)):g.slots.reduce((ac,s)=>ac+slotAmount(s),0);
         const refund=useSnap?(savedSnap.refund||0):getRefund(g.timeKey,g.agencyId,g.userId);
         const netAmt=grossAmt-refund;
         const p=useSnap?(savedSnap.unitPrice||getSlotPrice(g.slots[0])):getSlotPrice(g.slots[0]);
@@ -961,7 +967,7 @@
       const agencyId=slots[0].agencyId||'-';
       const userId=slots[0].userId||'-';
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const amt=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
       const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
       const refund=getRefund(timeKey,agencyId,userId);
       const existing=snapshotMap[snapKey]||{};
@@ -970,6 +976,7 @@
       await HA.saveSettleSnapshot(snapKey,newSnap,true);
       snapshotMap[snapKey]=newSnap;
       await Promise.all(slotKeys.map(k=>HA.setPaid(k,true)));
+      slotKeys.forEach(k=>paidSet.add(k));
     }
     renderSettle(false);
   };
@@ -996,7 +1003,7 @@
       const groupDate=g.timeKey.slice(0,10);
       const useSnap=groupDate<todayStr&&savedSnap;
       const tot=useSnap?(savedSnap.totalTarget||0):g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-      const grossAmt=useSnap?(savedSnap.amount+(savedSnap.refund||0)):g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*getSlotPrice(s),0);
+      const grossAmt=useSnap?(savedSnap.amount+(savedSnap.refund||0)):g.slots.reduce((a,s)=>a+slotAmount(s),0);
       const refund=useSnap?(savedSnap.refund||0):getRefund(g.timeKey,g.agencyId,g.userId);
       const netAmt=grossAmt-refund;
       const uPrice=useSnap?(savedSnap.unitPrice||getSlotPrice(g.slots[0])):getSlotPrice(g.slots[0]);
