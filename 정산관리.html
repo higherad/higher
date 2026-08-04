@@ -288,11 +288,6 @@
     const todayNet = dA - todayRefund;
     const totalA = pastTotal + todayNet;
     const dS = todayBase;
-    const pastDeduct = snapVals
-      .filter(v => v.timeKey && v.timeKey.slice(0,10) < todayStr)
-      .reduce((a,v) => a + (v.deductAmt||0), 0);
-    const todayDeduct = todayBase.reduce((a,s)=>a+(s.deductAmount||0),0);
-    const totalDeduct = pastDeduct + todayDeduct;
     document.getElementById('settle-summary').innerHTML=`
       <div class="sum-card month clickable" onclick="openMonthPopup()">
         <div class="sc-label">총 매출액(VAT 별도)</div>
@@ -313,12 +308,7 @@
         <div class="sc-label">당일 입금액</div>
         <div class="sc-value">${Math.round(dA*1.1).toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
         <div class="sc-sub">VAT 10% 포함</div>
-      </div>
-      ${isAdmin?`<div class="sum-card today">
-        <div class="sc-label" style="color:#f87171">차감 금액(VAT 별도)</div>
-        <div class="sc-value" style="color:#f87171">${totalDeduct.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
-        <div class="sc-sub">전체 누적</div>
-      </div>`:''}`;
+      </div>`;
   }
 
   window.openMonthPopup = function() {
