@@ -288,6 +288,11 @@
     const todayNet = dA - todayRefund;
     const totalA = pastTotal + todayNet;
     const dS = todayBase;
+    const pastDeduct = snapVals
+      .filter(v => v.timeKey && v.timeKey.slice(0,10) < todayStr)
+      .reduce((a,v) => a + (v.deductAmt||0), 0);
+    const todayDeduct = todayBase.reduce((a,s)=>a+(s.deductAmount||0),0);
+    const totalDeduct = pastDeduct + todayDeduct;
     document.getElementById('settle-summary').innerHTML=`
       <div class="sum-card month clickable" onclick="openMonthPopup()">
         <div class="sc-label">총 매출액(VAT 별도)</div>
@@ -308,7 +313,12 @@
         <div class="sc-label">당일 입금액</div>
         <div class="sc-value">${Math.round(dA*1.1).toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
         <div class="sc-sub">VAT 10% 포함</div>
-      </div>`;
+      </div>
+      ${isAdmin?`<div class="sum-card today">
+        <div class="sc-label" style="color:#f87171">차감 금액(VAT 별도)</div>
+        <div class="sc-value" style="color:#f87171">${totalDeduct.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-sub">전체 누적</div>
+      </div>`:''}`;
   }
 
   window.openMonthPopup = function() {
@@ -326,10 +336,11 @@
       if (!v.timeKey) return;
       const d = v.timeKey.slice(0,10);
       if (d.slice(0,7) !== curYM || d >= todayStr) return;
-      if (!byDay[d]) byDay[d] = { count:0, tgt:0, amt:0 };
+      if (!byDay[d]) byDay[d] = { count:0, tgt:0, amt:0, ded:0 };
       byDay[d].count += v.slotCount||1;
       byDay[d].tgt += v.totalTarget||0;
       byDay[d].amt += v.amount||0;
+      byDay[d].ded += v.deductAmt||0;
     });
 
     // 오늘 실시간
@@ -345,10 +356,12 @@
     if (todaySlots.length && todayStr.slice(0,7) === curYM) {
       const todayAmt = todaySlots.reduce((a,s)=>a+slotAmount(s),0);
       const todayRef = Object.entries(refundMap||{}).reduce((a,[k,v])=>k.split('__')[0].slice(0,10)===todayStr?a+(v||0):a,0);
-      byDay[todayStr] = { count: todaySlots.length, tgt: todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0), amt: todayAmt-todayRef };
+      const todayDed = todaySlots.reduce((a,s)=>a+(s.deductAmount||0),0);
+      byDay[todayStr] = { count: todaySlots.length, tgt: todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0), amt: todayAmt-todayRef, ded: todayDed };
     }
 
     const monthTotal = Object.values(byDay).reduce((a,v)=>a+(v.amt||0),0);
+    const monthDeduct = Object.values(byDay).reduce((a,v)=>a+(v.ded||0),0);
 
     const sortedDays = Object.keys(byDay).sort().reverse();
     const DAY_PER = 12;
@@ -361,10 +374,11 @@
       <div class="sp-cards">
         <div class="sp-card c-green"><div class="sp-card-label">${monthLabel} 매출액(VAT 별도)</div><div class="sp-card-value" style="color:var(--accent)">${monthTotal.toLocaleString()}원</div></div>
         <div class="sp-card c-blue"><div class="sp-card-label">${monthLabel} 입금액(VAT 포함)</div><div class="sp-card-value" style="color:var(--info)">${Math.round(monthTotal*1.1).toLocaleString()}원</div></div>
+        ${isAdmin?`<div class="sp-card c-red"><div class="sp-card-label">${monthLabel} 차감 금액(VAT 별도)</div><div class="sp-card-value" style="color:#f87171">${monthDeduct.toLocaleString()}원</div></div>`:''}
       </div>
       <div class="sp-section">일자별 합산</div>
       <table class="sp-tbl">
-        <thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
+        <thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody id="mp-day-tbody"></tbody>
       </table>
       <div id="mp-day-pg" class="pagination" style="margin-top:12px;"></div>
@@ -378,8 +392,8 @@
       const total = Math.ceil(sortedDays.length / DAY_PER) || 1;
       const slice = sortedDays.slice((mpCurPg-1)*DAY_PER, mpCurPg*DAY_PER);
       ov.querySelector('#mp-day-tbody').innerHTML = slice.length
-        ? slice.map(d => { const dv=byDay[d]; return `<tr><td style="font-weight:600">${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.amt.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.amt*1.1).toLocaleString()}원</td></tr>`; }).join('')
-        : '<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>';
+        ? slice.map(d => { const dv=byDay[d]; return `<tr><td style="font-weight:600">${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.amt.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.amt*1.1).toLocaleString()}원</td>${isAdmin?`<td style="font-weight:700;color:#f87171">${(dv.ded||0).toLocaleString()}원</td>`:''}</tr>`; }).join('')
+        : `<tr><td colspan="${isAdmin?6:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`;
       const pgDiv = ov.querySelector('#mp-day-pg');
       if (total <= 1) { pgDiv.innerHTML=''; return; }
       let ph=`<button class="pg-btn" data-pg="1">&laquo;</button><button class="pg-btn" data-pg="${Math.max(1,mpCurPg-1)}">&lsaquo;</button>`;
@@ -408,10 +422,11 @@
       const d = v.timeKey.slice(0,10);
       if (d >= todayStr) return;
       const m = d.slice(0,7);
-      if (!byMonth[m]) byMonth[m] = { count:0, tgt:0, amt:0 };
+      if (!byMonth[m]) byMonth[m] = { count:0, tgt:0, amt:0, ded:0 };
       byMonth[m].count += v.slotCount||1;
       byMonth[m].tgt += v.totalTarget||0;
       byMonth[m].amt += v.amount||0;
+      byMonth[m].ded += v.deductAmt||0;
     });
 
     // 오늘 실시간
@@ -428,22 +443,26 @@
       const m = todayStr.slice(0,7);
       const todayAmt = todaySlots.reduce((a,s)=>a+slotAmount(s),0);
       const todayRef = Object.entries(refundMap||{}).reduce((a,[k,v])=>k.split('__')[0].slice(0,10)===todayStr?a+(v||0):a,0);
-      if (!byMonth[m]) byMonth[m] = { count:0, tgt:0, amt:0 };
+      const todayDed = todaySlots.reduce((a,s)=>a+(s.deductAmount||0),0);
+      if (!byMonth[m]) byMonth[m] = { count:0, tgt:0, amt:0, ded:0 };
       byMonth[m].count += todaySlots.length;
       byMonth[m].tgt += todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       byMonth[m].amt += todayAmt - todayRef;
+      byMonth[m].ded += todayDed;
     }
 
-    let grandTotal = 0;
+    let grandTotal = 0, grandDeduct = 0;
     const mRows = Object.keys(byMonth).sort().reverse().map(m => {
       const mv = byMonth[m];
       grandTotal += mv.amt;
+      grandDeduct += mv.ded||0;
       return `<tr>
         <td style="font-weight:600">${m}</td>
         <td>${mv.count}건</td>
         <td>${mv.tgt.toLocaleString()}</td>
         <td style="font-weight:700;color:var(--accent)">${mv.amt.toLocaleString()}원</td>
         <td style="font-weight:700;color:var(--info)">${Math.round(mv.amt*1.1).toLocaleString()}원</td>
+        ${isAdmin?`<td style="font-weight:700;color:#f87171">${(mv.ded||0).toLocaleString()}원</td>`:''}
       </tr>`;
     }).join('');
     const ov = document.createElement('div');
@@ -454,11 +473,12 @@
       <div class="sp-cards">
         <div class="sp-card c-green"><div class="sp-card-label">총 매출액(VAT 별도)</div><div class="sp-card-value" style="color:var(--accent)">${grandTotal.toLocaleString()}원</div></div>
         <div class="sp-card c-blue"><div class="sp-card-label">총 입금액(VAT 포함)</div><div class="sp-card-value" style="color:var(--info)">${Math.round(grandTotal*1.1).toLocaleString()}원</div></div>
+        ${isAdmin?`<div class="sp-card c-red"><div class="sp-card-label">총 차감 금액(VAT 별도)</div><div class="sp-card-value" style="color:#f87171">${grandDeduct.toLocaleString()}원</div></div>`:''}
       </div>
       <div class="sp-section">월별 합산</div>
       <table class="sp-tbl">
-        <thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
-        <tbody>${mRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody>
+        <thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>차감액(VAT 별도)</th>':''}</tr></thead>
+        <tbody>${mRows||`<tr><td colspan="${isAdmin?6:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`}</tbody>
       </table>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
     </div>`;
