@@ -641,7 +641,7 @@ window.toggleProdPanel = function(e) {
             ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>`
             : `<span style="color:#cbd5e1">-</span>`
           }</td>
-          <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}</td>
+          <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="color:#7c3aed;font-size:11px;margin-left:4px;" title="애드로그 등록 완료">✓</span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${escProd(s.rankKeyword)}</a>` : '-'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
@@ -2248,6 +2248,7 @@ window.toggleProdPanel = function(e) {
 
       let totalCount = 0, totalRegistered = 0, hadFailure = false;
       const failMessages = [];
+      const succeededSlotKeys = [];
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
@@ -2265,7 +2266,7 @@ window.toggleProdPanel = function(e) {
         }
 
         if (result.success) {
-          chunk.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+          chunk.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; if (r._slotKey) succeededSlotKeys.push(r._slotKey); });
           totalCount      += (result.total ?? chunk.length);
           totalRegistered += (result.registered ?? chunk.length);
         } else {
@@ -2273,6 +2274,13 @@ window.toggleProdPanel = function(e) {
           failMessages.push(result.message || '알 수 없는 오류');
           chunk.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
         }
+      }
+
+      if (succeededSlotKeys.length) {
+        // 목록에 배지 표시용 — 성공한 슬롯만 표시
+        await Promise.all(succeededSlotKeys.map(k => HA.updateSlot(k, { adlogSubmitted: true })));
+        succeededSlotKeys.forEach(k => { const s = allSlots.find(x => x._key === k); if (s) s.adlogSubmitted = true; });
+        renderReceipts(false);
       }
 
       if (!hadFailure) {
