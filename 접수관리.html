@@ -726,7 +726,8 @@ window.toggleProdPanel = function(e) {
 
   // ── 승인 ─────────────────────────────────────────────────
   window.approveOne = async function(key) {
-    const extra = deductFieldsFor(allSlots.find(s => s._key === key));
+    const targetSlot = allSlots.find(s => s._key === key);
+    const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
     await HA.approveSlot(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
     closeOverlayAndRefresh();
@@ -1864,6 +1865,36 @@ window.toggleProdPanel = function(e) {
     return rule ? rule.fixedPct : yupfl?.fixedPct;
   }
 
+  // 승인 시점에 유입플/분할로 배분되는 수량/금액을 스냅샷으로 남겨 정산관리에서 조회 가능하게 함.
+  // buildYoupflRows()와 동일한 배분 규칙(차감 이후 남은 수량 기준 + 미션 규칙 매칭)을 슬롯 1건에 대해 계산.
+  // 유입플과 분할은 동시 진행이 불가능하므로 하나의 필드(yupflAmount)로 합산해서 저장한다.
+  function yupflFieldsFor(slot) {
+    if (!slot) return {};
+    const yupfl = ap().find(p => p.id === 'yupfl' && p.fixedAlloc);
+    const split = ap().find(p => p.id === 'yupfl2' && p.splitProduct);
+    if (!yupfl && !split) return {};
+    const deduct = ap().find(p => p.deductOnly);
+    const base = slot.dailyTarget||0;
+    const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
+
+    let target = 0;
+    if (yupfl) {
+      const workKw = (slot.yupflKeyword||'').trim();
+      const rule   = yupflRuleFor(yupfl, workKw);
+      target += Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
+    }
+    if (split && Array.isArray(split.missionRules)) {
+      split.missionRules.forEach(rule => {
+        const workKw = ((slot.splitKeywords || {})[rule.mission] || '').trim();
+        if (!workKw) return;
+        target += Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
+      });
+    }
+    if (target <= 0) return {};
+    const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
+    return { yupflTarget: target, yupflAmount: target * (slot.days||0) * unitPrice };
+  }
+
   function lrm(items, total) {
     if (!items.length) return {};
     const totalW = items.reduce((s, p) => s + p.ratio, 0) || 1;
@@ -2552,7 +2583,7 @@ window.toggleProdPanel = function(e) {
         const keys = [...this.normalKeys].filter(k => this.fixedKeys.has(k));
         if (keys.length) {
           // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
-          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', ...deductFieldsFor(this.slotMap.get(k)) })));
+          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', ...deductFieldsFor(this.slotMap.get(k)), ...yupflFieldsFor(this.slotMap.get(k)) })));
           keys.forEach(k => {
             const s = this.slotMap.get(k);
             if (s) s.status = 'active';
@@ -2870,7 +2901,7 @@ window.toggleProdPanel = function(e) {
         gate.fixedKeys = new Set(allDoneSlotKeys);
         await gate.tryApprove();
       } else {
-        await Promise.all(allDoneSlotKeys.map(k => HA.approveSlot(k, deductFieldsFor(slotMap.get(k)))));
+        await Promise.all(allDoneSlotKeys.map(k => HA.approveSlot(k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) })));
         allDoneSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
       }
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
@@ -2925,7 +2956,7 @@ window.toggleProdPanel = function(e) {
         if (gate) {
           okSlots.forEach(k => approvedKeys.add(k));
         } else {
-          await Promise.all(okSlots.map(k => HA.approveSlot(k, deductFieldsFor(slotMap.get(k)))));
+          await Promise.all(okSlots.map(k => HA.approveSlot(k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) })));
           okSlots.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
         }
       }
