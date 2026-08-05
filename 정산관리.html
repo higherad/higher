@@ -499,23 +499,28 @@
 
     renderSummary();
 
-    // 과거 날짜 그룹 스냅샷 저장 (오늘 이전만, 담당자 정보 없는 그룹만)
-    const allRows=groupByTimeAgency(allSlots.filter(s=>s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending'));
-    for(const g of allRows){
-      const groupDate=g.timeKey.slice(0,10);
-      if(groupDate>=todayStr) continue; // 오늘은 실시간
-      const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
-      const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
-      const existing=snapshotMap[sk];
-      if(existing) continue; // 이미 저장됨
-      const {tot:t,amt:a,ded:d}=calcGroup(g);
-      if(!a) continue; // 금액 없으면 스킵
-      const r=getRefund(g.timeKey,g.agencyId,g.userId);
-      const snap={timeKey:g.timeKey,agencyId:g.agencyId,userId:g.userId,
-        slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,deductAmt:d,
-        unitPrice:getSlotPrice(g.slots[0])};
-      await HA.saveSettleSnapshot(sk,snap,false); // 최초 1회만 저장
-      snapshotMap[sk]=snap;
+    // 과거 날짜 그룹 스냅샷 저장 (오늘 이전만, 아직 저장 안 된 그룹만)
+    // 먼저 캐시된 allSlots로 "새로 얼려야 할 그룹"이 있는지만 싸게 확인 — 없으면 조회 자체를 스킵해서
+    // 매 렌더(검색/필터/페이지 이동)마다 전체 slots를 다시 받는 비용을 피한다.
+    const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
+    const findNewGroups = (slots) => groupByTimeAgency(slots.filter(s=>s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending'))
+      .filter(g => g.timeKey.slice(0,10) < todayStr && !snapshotMap[`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`]);
+    if (findNewGroups(allSlots).length) {
+      // 캐시된 allSlots/refundMap은 탭을 오래 열어둔 세션에서 승인/환불 전 상태로 낡아있을 수 있어,
+      // 한 번 저장하면 영구 고정되는 스냅샷을 실제로 얼릴 때만 새로 조회해서 그 순간의 정확한 값을 쓴다.
+      const [freshSlots, freshRefundMap] = await Promise.all([HA.getSlots(), HA.getRefunds().catch(()=>({}))]);
+      const freshRefund = (timeKey,agencyId,userId) => (freshRefundMap||{})[refundKey(timeKey,agencyId,userId)]||0;
+      for (const g of findNewGroups(freshSlots)) {
+        const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
+        const {tot:t,amt:a,ded:d}=calcGroup(g);
+        if(!a) continue; // 금액 없으면 스킵
+        const r=freshRefund(g.timeKey,g.agencyId,g.userId);
+        const snap={timeKey:g.timeKey,agencyId:g.agencyId,userId:g.userId,
+          slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,deductAmt:d,
+          unitPrice:getSlotPrice(g.slots[0])};
+        await HA.saveSettleSnapshot(sk,snap,false); // 최초 1회만 저장
+        snapshotMap[sk]=snap;
+      }
     }
     if (!document.getElementById('settle-page')) return; // 스냅샷 저장 중 다른 메뉴로 이동한 경우 렌더 중단
 
