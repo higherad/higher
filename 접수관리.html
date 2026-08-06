@@ -377,6 +377,9 @@ window.toggleProdPanel = function(e) {
   const BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
   const BIZFIT_DOMAIN = 'http://higherad.co.kr';
   const BIZFIT_TAB    = '99'; // 전체 — 대행사별 단독/랜덤/통합 구분 정보가 없어 기본값 사용
+  // 찰리는 일반 상품과 달리 "NP 위치저장"(adrole=100) 메뉴로 접수해야 한다 — 계정에 NP트래픽(211 등)이
+  // 함께 설정돼 있으면 등급명이 겹쳐서(가격은 다름) 자동탐색으론 구분이 안 되므로 adrole을 강제 지정.
+  const CHARLIE_ADROLE = '100';
   const BIZFIT_CHARGE_FB = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/bizfit_charge';
 
   // ── 등급 배지 ────────────────────────────────────────────────
@@ -1271,7 +1274,7 @@ window.toggleProdPanel = function(e) {
     {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
     {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, fixedPct:30, autoBalance:false, missionRules:[]},
     {id:'yupfl2', name:'분할',   color:'#06b6d4', active:false, ratio:0, kwPct:0, fixedAlloc:true, splitProduct:true, autoBalance:false, missionRules:[]},
-    {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, autoBalance:false},
+    {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true, lockedVer:true},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
   const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2']);
@@ -1295,7 +1298,7 @@ window.toggleProdPanel = function(e) {
   async function loadProdSettings() {
     const path = getProdSettingsPath();
     if (!path) return;
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,lockedVer:p.lockedVer}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
@@ -1576,7 +1579,7 @@ window.toggleProdPanel = function(e) {
     const delBtn = document.getElementById('pm-del-btn');
     if (delBtn) delBtn.style.display = FIXED_PROD_IDS.has(id) ? 'none' : '';
     const verWrap = document.getElementById('pm-ver-wrap');
-    if (verWrap) verWrap.style.display = p.fixedAlloc ? 'none' : '';
+    if (verWrap) verWrap.style.display = (p.fixedAlloc || p.lockedVer) ? 'none' : '';
     const kwWrap = document.getElementById('pm-kw-wrap');
     if (kwWrap) kwWrap.style.display = p.fixedAlloc ? 'none' : '';
 
@@ -2403,9 +2406,11 @@ window.toggleProdPanel = function(e) {
   }
 
   // buildJumuSheet_('일반', ...)와 동일한 배분 로직 — 엑셀 셀 쓰기 대신 등록 페이로드 행을 만듦
-  function buildNormalRows(slots) {
+  // prodFilter 생략 시 일반 상품(FIXED_PROD_IDS 제외) 전체. 찰리는 등급/가격 체계가 다른
+  // 별도 메뉴(NP 위치저장)로 접수해야 해서 prodFilter로 charlie만 뽑아 별도 호출한다.
+  function buildNormalRows(slots, prodFilter) {
     const AP = ap();
-    const normalProds = AP.filter(p => !FIXED_PROD_IDS.has(p.id));
+    const normalProds = AP.filter(prodFilter || (p => !FIXED_PROD_IDS.has(p.id)));
     const deductProd = AP.find(p => p.deductOnly);
     const rows = [];
     let deductTarget = 0, deductAmount = 0;
@@ -2500,9 +2505,10 @@ window.toggleProdPanel = function(e) {
     const base   = checkedKeys.length ? allSlots.filter(s => keySet.has(s._key)) : filteredAll;
     const target = base.filter(s => s.status === 'accepted');
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재접수 불필요)'); return; }
-    const hasNormal = ap().some(p => !FIXED_PROD_IDS.has(p.id));
-    const hasFixed  = ap().some(p => p.fixedAlloc && !p.deductOnly);
-    if (!hasNormal && !hasFixed) {
+    const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
+    const hasFixed   = ap().some(p => p.fixedAlloc && !p.deductOnly);
+    const hasCharlie = ap().some(p => p.id === 'charlie');
+    if (!hasNormal && !hasFixed && !hasCharlie) {
       alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
     }
@@ -2515,10 +2521,17 @@ window.toggleProdPanel = function(e) {
       agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
       ...buildNormalRows(slotsByAgency(target, ag)),
     }));
+    // 찰리는 등급/가격 체계가 일반 상품(NP트래픽)과 다른 별도 메뉴(NP 위치저장)로 접수해야 하므로
+    // 같은 상품등급명이 겹쳐도(가격은 다름) 절대 같은 grade-info 호출에 섞이지 않게 완전히 분리한다.
+    const charliePlan = agencies.map(ag => ({
+      agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
+      ...buildNormalRows(slotsByAgency(target, ag), p => p.id === 'charlie'),
+    }));
     const yupflRows  = buildYoupflRows(target);
     const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
     const hasFixed   = yupflRows.length > 0;
-    const defaultTab = hasNormal ? 'normal' : 'fixed';
+    const hasCharlie = charliePlan.some(p => p.rows.length > 0);
+    const defaultTab = hasNormal ? 'normal' : (hasFixed ? 'fixed' : 'charlie');
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -2532,6 +2545,8 @@ window.toggleProdPanel = function(e) {
             onclick="switchSubmitTab('normal')"${!hasNormal?' disabled':''}>일반</button>
           <button id="stab-fixed" class="submit-tab${defaultTab==='fixed'?' active':''}"
             onclick="switchSubmitTab('fixed')"${!hasFixed?' disabled':''}>유입플</button>
+          <button id="stab-charlie" class="submit-tab${defaultTab==='charlie'?' active':''}"
+            onclick="switchSubmitTab('charlie')"${!hasCharlie?' disabled':''}>찰리</button>
         </div>
         <div id="stab-panel-normal" style="display:${defaultTab==='normal'?'block':'none'}">
           <div style="font-size:12px;margin-bottom:14px;" id="submit-sub"></div>
@@ -2549,38 +2564,47 @@ window.toggleProdPanel = function(e) {
             <button id="youpfl-apply-btn" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
           </div>
         </div>
+        <div id="stab-panel-charlie" style="display:${defaultTab==='charlie'?'block':'none'}">
+          <div style="font-size:12px;margin-bottom:14px;" id="csub-sub"></div>
+          <div id="csub-body"></div>
+          <div class="modal-footer">
+            <button class="btn-cancel" id="csub-close-btn">닫기</button>
+            <button id="csub-apply-btn" style="background:#d946ef;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
+          </div>
+        </div>
       </div>`;
     document.body.appendChild(overlay);
 
-    // 일반+고정 동시 활성 시 양쪽 모두 완료해야 승인으로 전환하는 게이트
-    // 모달을 닫았다가 재오픈한 경우 — 이전 세션에서 이미 완료된 쪽은 이번 세션에서 그 탭 버튼을
+    // 일반/유입플/찰리 중 2개 이상 동시 활성 시 전부 완료해야 승인으로 전환하는 게이트
+    // 모달을 닫았다가 재오픈한 경우 — 이전 세션에서 이미 완료된 탭은 이번 세션에서 그 탭 버튼을
     // 다시 누르지 않아도(이미 완료(기존)로 표시되므로) 알 수 있도록 저장된 플래그로 미리 채워둠
-    // 일반은 상품별로 개별 완료 여부가 갈리므로, 슬롯에 걸린 모든 상품행이 완료된 경우에만 "이미 완료"로 취급
-    const normalRowsBySlot = new Map();
-    normalPlan.forEach(pl => pl.rows.forEach(r => {
-      if (!r._slotKey) return;
-      if (!normalRowsBySlot.has(r._slotKey)) normalRowsBySlot.set(r._slotKey, []);
-      normalRowsBySlot.get(r._slotKey).push(r);
-    }));
-    const normalAlreadyDone = new Set(
-      [...normalRowsBySlot.entries()].filter(([, rs]) => rs.every(r => r._normalSubmitted)).map(([k]) => k)
+    // 일반/찰리는 상품별로 개별 완료 여부가 갈리므로, 슬롯에 걸린 모든 상품행이 완료된 경우에만 "이미 완료"로 취급
+    const rowsBySlotOf = rows => {
+      const m = new Map();
+      rows.forEach(r => { if (!r._slotKey) return; if (!m.has(r._slotKey)) m.set(r._slotKey, []); m.get(r._slotKey).push(r); });
+      return m;
+    };
+    const alreadyDoneOf = (rowsBySlot, doneField) => new Set(
+      [...rowsBySlot.entries()].filter(([, rs]) => rs.every(r => r[doneField])).map(([k]) => k)
     );
-    // 유입플/분할 각각 여러 행이 나올 수 있어, 슬롯에 걸린 모든 행이 완료된 경우에만 "이미 완료"로 취급
-    const fixedRowsBySlot = new Map();
-    yupflRows.forEach(r => {
-      if (!fixedRowsBySlot.has(r._slotKey)) fixedRowsBySlot.set(r._slotKey, []);
-      fixedRowsBySlot.get(r._slotKey).push(r);
-    });
-    const fixedAlreadyDone = new Set(
-      [...fixedRowsBySlot.entries()].filter(([, rs]) => rs.every(r => r._fixedSubmitted)).map(([k]) => k)
-    );
-    const gate = (hasNormal && hasFixed) ? {
-      normalKeys: normalAlreadyDone.size ? normalAlreadyDone : null,
-      fixedKeys:  fixedAlreadyDone.size ? fixedAlreadyDone : null,
+    const normalAlreadyDone  = alreadyDoneOf(rowsBySlotOf(normalPlan.flatMap(p => p.rows)), '_normalSubmitted');
+    const charlieAlreadyDone = alreadyDoneOf(rowsBySlotOf(charliePlan.flatMap(p => p.rows)), '_normalSubmitted');
+    const fixedAlreadyDone   = alreadyDoneOf(rowsBySlotOf(yupflRows), '_fixedSubmitted');
+
+    const activeLegs = [];
+    if (hasNormal)  activeLegs.push('normalKeys');
+    if (hasFixed)   activeLegs.push('fixedKeys');
+    if (hasCharlie) activeLegs.push('charlieKeys');
+    const gate = (activeLegs.length > 1) ? {
+      legs: activeLegs,
+      normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
+      fixedKeys:   fixedAlreadyDone.size   ? fixedAlreadyDone   : null,
+      charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
       slotMap: new Map(allSlots.map(s => [s._key, s])),
       async tryApprove() {
-        if (this.normalKeys === null || this.fixedKeys === null) return;
-        const keys = [...this.normalKeys].filter(k => this.fixedKeys.has(k));
+        if (this.legs.some(l => this[l] === null)) return;
+        const [primary, ...rest] = this.legs;
+        const keys = [...this[primary]].filter(k => rest.every(l => this[l].has(k)));
         if (keys.length) {
           // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
           await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', ...deductFieldsFor(this.slotMap.get(k)), ...yupflFieldsFor(this.slotMap.get(k)) })));
@@ -2592,7 +2616,7 @@ window.toggleProdPanel = function(e) {
         renderReceipts(false);
       }
     } : null;
-    // 재오픈 시점에 이미 양쪽 다 완료돼 있는 슬롯이 있으면(비정상 상태 복구) 즉시 반영
+    // 재오픈 시점에 이미 관련 탭이 전부 완료돼 있는 슬롯이 있으면(비정상 상태 복구) 즉시 반영
     if (gate) gate.tryApprove();
 
     // 일반 탭 구성
@@ -2612,7 +2636,7 @@ window.toggleProdPanel = function(e) {
       if (allActive) {
         applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       } else {
-        applyBtn.onclick = () => executeSubmit(normalPlan, overlay, gate);
+        applyBtn.onclick = () => executeSubmit(normalPlan, overlay, gate, 'normalKeys');
       }
     }
 
@@ -2632,13 +2656,40 @@ window.toggleProdPanel = function(e) {
       overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
       overlay.querySelector('#youpfl-apply-btn').disabled = true;
     }
+
+    // 찰리 탭 구성 — NP 위치저장(adrole=100) 전용, 일반 탭과 동일한 표/제출 로직을 재사용하되
+    // grade-info/register 호출에 adrole을 강제 지정해 NP트래픽 등급과 절대 섞이지 않게 한다.
+    const csubBodyEl = overlay.querySelector('#csub-body');
+    if (hasCharlie) {
+      let totalStores = 0, totalTarget = 0;
+      charliePlan.forEach(p => {
+        const block = buildSubmitAgencyBlock(p, '찰리');
+        csubBodyEl.appendChild(block);
+        totalStores += new Set(p.rows.map(r => r.업체명)).size;
+        totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+      });
+      overlay.querySelector('#csub-sub').innerHTML =
+        `<span style="color:var(--muted)">대행사 ${charliePlan.length}곳 · 찰리 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+      const applyBtn = overlay.querySelector('#csub-apply-btn');
+      const allActive = target.every(s => s.status === 'active');
+      if (allActive) {
+        applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+      } else {
+        applyBtn.onclick = () => executeSubmit(charliePlan, overlay, gate, 'charlieKeys', CHARLIE_ADROLE);
+      }
+    } else {
+      overlay.querySelector('#csub-sub').textContent = '찰리 배분 대상 슬롯이 없습니다.';
+      overlay.querySelector('#csub-apply-btn').disabled = true;
+    }
+
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#youpfl-close-btn').onclick = () => overlay.remove();
+    overlay.querySelector('#csub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.addEventListener('click', e => { if (e.target === overlay && !window.bizfitSubmitting) overlay.remove(); });
   }
 
   window.switchSubmitTab = function(tab) {
-    ['normal','fixed'].forEach(k => {
+    ['normal','fixed','charlie'].forEach(k => {
       const panel = document.getElementById(`stab-panel-${k}`);
       const btn   = document.getElementById(`stab-${k}`);
       if (panel) panel.style.display = k === tab ? 'block' : 'none';
@@ -2648,14 +2699,14 @@ window.toggleProdPanel = function(e) {
 
   // 대행사 1곳에 대한 미리보기 블록 — 충전 신청 팝업(정산관리)과 동일한 agency-block/ag-table 스타일.
   // 행 = (업체명, 등급) 쌍. 상태칸은 접수 신청 전까지 '-'
-  function buildSubmitAgencyBlock(p) {
+  function buildSubmitAgencyBlock(p, label='일반 상품') {
     const block = document.createElement('div');
     block.className = 'agency-block';
 
     if (!p.rows.length) {
       block.style.borderColor = '#fca5a5';
       block.innerHTML = `<div style="padding:12px 16px;font-weight:700;color:var(--danger);">${escProd(p.agency)}</div>
-        <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ 일반 상품 배분 결과가 없습니다 (목표 0).</div>`;
+        <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ ${escProd(label)} 배분 결과가 없습니다 (목표 0).</div>`;
       return block;
     }
 
@@ -2850,7 +2901,9 @@ window.toggleProdPanel = function(e) {
     closeBtn.disabled = true;
     window.bizfitSubmitting = true;
     const normalBtn = overlay.querySelector('#submit-apply-btn');
+    const csubBtn   = overlay.querySelector('#csub-apply-btn');
     if (normalBtn) normalBtn.disabled = true;
+    if (csubBtn)   csubBtn.disabled   = true;
 
     function calcIkil(startDate) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -2907,14 +2960,16 @@ window.toggleProdPanel = function(e) {
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       window.bizfitSubmitting = false;
       closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
-      // 일반 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 일반도 마저 접수할 수 있어야 함
+      // 일반/찰리 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
       if (normalBtn) normalBtn.disabled = false;
+      if (csubBtn)   csubBtn.disabled   = false;
     } else {
       validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
       subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'업로드 실패')}</span>`;
       applyBtn.textContent = '❌ 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
       window.bizfitSubmitting = false;
       if (normalBtn) normalBtn.disabled = false;
+      if (csubBtn)   csubBtn.disabled   = false;
       // 이미 완료된 것만이라도 게이트에 반영 (새로 실패한 것은 제외)
       if (gate) {
         gate.fixedKeys = new Set([...rowsBySlot.keys()].filter(k => slotDone(k, new Set())));
@@ -2924,14 +2979,24 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  async function executeSubmit(plan, overlay, gate=null) {
-    const applyBtn = overlay.querySelector('#submit-apply-btn');
-    const closeBtn = overlay.querySelector('#submit-close-btn');
+  // legKey: 게이트에 결과를 기록할 필드 ('normalKeys' | 'charlieKeys') — 일반/찰리 두 탭이 이 함수를 공유한다.
+  // adrole: 지정 시 grade-info/register를 해당 adrole(예: 찰리='100')로만 조회 — 계정에 여러 adrole이
+  // 함께 설정돼 있어도(등급명이 겹칠 수 있음) 원하는 메뉴로만 정확히 접수되게 한다.
+  async function executeSubmit(plan, overlay, gate=null, legKey='normalKeys', adrole=null) {
+    const btnPrefix = legKey === 'charlieKeys' ? 'csub' : 'submit';
+    // NP위치저장(adrole=100)은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본 폴백 버전과
+    // 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
+    const charlieVer = legKey === 'charlieKeys' ? ap().find(p => p.id === 'charlie')?.ver : undefined;
+    const applyBtn = overlay.querySelector(`#${btnPrefix}-apply-btn`);
+    const closeBtn = overlay.querySelector(`#${btnPrefix}-close-btn`);
     window.bizfitSubmitting = true;
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
     const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
     if (youpflBtn) youpflBtn.disabled = true;
+    // 슬롯 상태를 동시에 건드릴 수 있는 다른 탭(일반↔찰리)도 진행 중엔 잠가둔다
+    const otherBtn = overlay.querySelector(`#${btnPrefix === 'csub' ? 'submit' : 'csub'}-apply-btn`);
+    if (otherBtn) otherBtn.disabled = true;
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
     const approvedKeys = gate ? new Set() : null;
@@ -3012,7 +3077,7 @@ window.toggleProdPanel = function(e) {
 
       let gi;
       try {
-        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, ...rest}) => rest) });
+        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, adrole: adrole || undefined, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, ...rest}) => rest) });
       } catch(e) { gi = { success:false, message: '서버 호출 실패: '+e.message }; }
 
       if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
@@ -3036,7 +3101,7 @@ window.toggleProdPanel = function(e) {
           result = await callBizfitProxy('/register', {
             domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw,
             tab: g.actualTab || BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType,
-            rowData: payloadRows,
+            version: charlieVer, rowData: payloadRows,
           });
         } catch(e) { result = { success:false, message: e.message }; }
         if (result.success) {
@@ -3104,7 +3169,7 @@ window.toggleProdPanel = function(e) {
     if (gate) {
       // 상품별 완료 기록(normalDoneProducts)은 processAgency에서 이미 개별 저장됨 —
       // 여기서는 슬롯 전체(모든 활성 상품)가 완료된 키만 게이트에 반영
-      gate.normalKeys = approvedKeys;
+      gate[legKey] = approvedKeys;
       await gate.tryApprove();
     }
 
@@ -3114,8 +3179,9 @@ window.toggleProdPanel = function(e) {
     applyBtn.style.cursor = 'default';
     closeBtn.disabled = false;
     closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
-    // 유입플 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 유입플도 마저 접수할 수 있어야 함
+    // 유입플/다른 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
     if (youpflBtn) youpflBtn.disabled = false;
+    if (otherBtn)  otherBtn.disabled  = false;
   }
 
   // 최초 로드
