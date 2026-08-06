@@ -1329,6 +1329,16 @@ window.toggleProdPanel = function(e) {
         const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
         let fi = 0;
         prods = prods.map(p => fixedRank.has(p.id) ? fixedSorted[fi++] : p);
+        // 자동배분 대상(autoBalance!==false)인데 활성 상태끼리 ratio/kwPct 합이 10이 아니면 재배분 —
+        // 과거 버그(예: 찰리의 autoBalance:false)로 특정 상품 비율이 0으로 저장된 채 남아있던 계정을
+        // 수동으로 상품을 껐다 켜지 않아도 자동으로 복구시킨다.
+        const balanced = prods.filter(p => p.active && p.autoBalance !== false);
+        if (balanced.length) {
+          const ratioSum = Math.round(balanced.reduce((s,p)=>s+(p.ratio||0),0)*10)/10;
+          const kwSum    = Math.round(balanced.reduce((s,p)=>s+(p.kwPct||0),0)*10)/10;
+          if (ratioSum !== 10) rebalanceProdActive('ratio');
+          if (kwSum !== 10) rebalanceProdActive('kwPct');
+        }
       }
       if (groupsSnap.exists()) {
         const loaded = groupsSnap.val();
@@ -2663,10 +2673,10 @@ window.toggleProdPanel = function(e) {
     if (hasCharlie) {
       let totalStores = 0, totalTarget = 0;
       charliePlan.forEach(p => {
-        const block = buildSubmitAgencyBlock(p, '찰리');
+        const block = buildSubmitAgencyBlock(p, '찰리', true);
         csubBodyEl.appendChild(block);
         totalStores += new Set(p.rows.map(r => r.업체명)).size;
-        totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+        totalTarget += p.rows.reduce((a,r)=>a+(r.일수||0), 0);
       });
       overlay.querySelector('#csub-sub').innerHTML =
         `<span style="color:var(--muted)">대행사 ${charliePlan.length}곳 · 찰리 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
@@ -2699,7 +2709,9 @@ window.toggleProdPanel = function(e) {
 
   // 대행사 1곳에 대한 미리보기 블록 — 충전 신청 팝업(정산관리)과 동일한 agency-block/ag-table 스타일.
   // 행 = (업체명, 등급) 쌍. 상태칸은 접수 신청 전까지 '-'
-  function buildSubmitAgencyBlock(p, label='일반 상품') {
+  // daysMultiplied: 찰리처럼 "일수" 칸에 실제 일수 대신 일목표×일수(전체목표)를 넣는 상품이면 true —
+  // 헤더 라벨과 목표 합계 계산식을 "일수" 대신 "전체목표" 그대로 쓰도록 바꿔야 함(이중곱 방지)
+  function buildSubmitAgencyBlock(p, label='일반 상품', daysMultiplied=false) {
     const block = document.createElement('div');
     block.className = 'agency-block';
 
@@ -2710,7 +2722,9 @@ window.toggleProdPanel = function(e) {
       return block;
     }
 
-    const totalTarget = p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+    const totalTarget = daysMultiplied
+      ? p.rows.reduce((a,r)=>a+(r.일수||0), 0)
+      : p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
     const deductNote = p.deductTarget ? ` · 차감 ${p.deductTarget.toLocaleString()} (${(p.deductAmount||0).toLocaleString()}원)` : '';
     const hd = document.createElement('div');
     hd.className = 'agency-hd';
@@ -2727,7 +2741,7 @@ window.toggleProdPanel = function(e) {
       <th style="width:100px">MID</th>
       <th style="width:96px">순위키워드</th>
       <th style="width:62px;text-align:right">일목표</th>
-      <th style="width:44px;text-align:center">일수</th>
+      <th style="width:44px;text-align:center">${daysMultiplied ? '전체목표' : '일수'}</th>
       <th style="width:84px">예약일</th>
       <th style="width:64px;text-align:center">검색키워드</th>
       <th style="width:76px;text-align:center">상태</th>
