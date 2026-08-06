@@ -1587,9 +1587,10 @@ window.toggleProdPanel = function(e) {
     const nameEl = document.getElementById('pm-name');
     nameEl.value = p.name;
     // 고정 상품(차감/유입플/분할/찰리)은 이름이 로직·등급명 매칭(찰리)에 쓰이므로 수정 불가
-    nameEl.readOnly = FIXED_PROD_IDS.has(id);
-    nameEl.style.background = FIXED_PROD_IDS.has(id) ? 'var(--bg2,#f1f5f9)' : '';
-    nameEl.style.color      = FIXED_PROD_IDS.has(id) ? 'var(--text2)' : '';
+    const nameLocked = FIXED_PROD_IDS.has(id);
+    nameEl.readOnly = nameLocked;
+    nameEl.style.background = nameLocked ? 'var(--bg2,#f1f5f9)' : '';
+    nameEl.style.color      = nameLocked ? 'var(--text2)' : '';
     document.getElementById('pm-ver').value  = p.ver || '';
     const delBtn = document.getElementById('pm-del-btn');
     if (delBtn) delBtn.style.display = FIXED_PROD_IDS.has(id) ? 'none' : '';
@@ -2423,9 +2424,9 @@ window.toggleProdPanel = function(e) {
   // buildJumuSheet_('일반', ...)와 동일한 배분 로직 — 엑셀 셀 쓰기 대신 등록 페이로드 행을 만듦
   // prodFilter 생략 시 일반 상품(FIXED_PROD_IDS 제외) 전체. 찰리는 등급/가격 체계가 다른
   // 별도 메뉴(NP 위치저장)로 접수해야 해서 prodFilter로 charlie만 뽑아 별도 호출한다.
-  function buildNormalRows(slots, prodFilter) {
+  function buildNormalRows(slots, prodFilter = p => !FIXED_PROD_IDS.has(p.id)) {
     const AP = ap();
-    const normalProds = AP.filter(prodFilter || (p => !FIXED_PROD_IDS.has(p.id)));
+    const normalProds = AP.filter(prodFilter);
     const deductProd = AP.find(p => p.deductOnly);
     const rows = [];
     let deductTarget = 0, deductAmount = 0;
@@ -2460,6 +2461,14 @@ window.toggleProdPanel = function(e) {
       });
     });
     return { rows, deductTarget, deductAmount };
+  }
+
+  // daysMultiplied 상품(찰리)은 "일수" 칸에 실제 일수 대신 일목표×일수(전체목표)가 들어있으므로
+  // 그 값을 그대로 합산, 아니면 일목표×일수로 계산 — buildSubmitAgencyBlock과 탭 요약에서 공유
+  function daysMultipliedSum(rows, daysMultiplied) {
+    return daysMultiplied
+      ? rows.reduce((a,r)=>a+(r.일수||0), 0)
+      : rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
   }
 
   // 유입플/분할 두 상품을 모두 훑어서 슬롯 하나당 최대 두 종류(유입플 1줄 + 분할 미션별 N줄)의 접수 행을 만든다.
@@ -2529,6 +2538,27 @@ window.toggleProdPanel = function(e) {
     }
     openSubmitModal(target);
   };
+
+  // 일반/찰리 탭 공용 — 대행사별 블록 렌더 + 요약 문구 + 접수 신청 버튼 와이어링.
+  // emptyMsg 생략 시(일반 탭) 대상 없을 때 아무것도 안 함 — 탭 버튼 자체가 disabled라 도달 불가.
+  function wireSubmitTab({ has, plan, bodyEl, subEl, applyBtn, label, daysMultiplied=false, target, emptyMsg, onSubmit }) {
+    if (!has) {
+      if (emptyMsg) { subEl.textContent = emptyMsg; applyBtn.disabled = true; }
+      return;
+    }
+    let totalStores = 0, totalTarget = 0;
+    plan.forEach(p => {
+      bodyEl.appendChild(buildSubmitAgencyBlock(p, label, daysMultiplied));
+      totalStores += new Set(p.rows.map(r => r.업체명)).size;
+      totalTarget += daysMultipliedSum(p.rows, daysMultiplied);
+    });
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${plan.length}곳 · ${label} ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+    if (target.every(s => s.status === 'active')) {
+      applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+    } else {
+      applyBtn.onclick = onSubmit;
+    }
+  }
 
   function openSubmitModal(target) {
     const agencies   = getAgencies(target);
@@ -2635,25 +2665,14 @@ window.toggleProdPanel = function(e) {
     if (gate) gate.tryApprove();
 
     // 일반 탭 구성
-    if (hasNormal) {
-      const bodyEl = overlay.querySelector('#submit-body');
-      let totalStores = 0, totalTarget = 0;
-      normalPlan.forEach(p => {
-        const block = buildSubmitAgencyBlock(p);
-        bodyEl.appendChild(block);
-        totalStores += new Set(p.rows.map(r => r.업체명)).size;
-        totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
-      });
-      overlay.querySelector('#submit-sub').innerHTML =
-        `<span style="color:var(--muted)">대행사 ${normalPlan.length}곳 · 일반 상품 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
-      const applyBtn = overlay.querySelector('#submit-apply-btn');
-      const allActive = target.every(s => s.status === 'active');
-      if (allActive) {
-        applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
-      } else {
-        applyBtn.onclick = () => executeSubmit(normalPlan, overlay, gate, 'normalKeys');
-      }
-    }
+    wireSubmitTab({
+      has: hasNormal, plan: normalPlan, target,
+      bodyEl: overlay.querySelector('#submit-body'),
+      subEl:  overlay.querySelector('#submit-sub'),
+      applyBtn: overlay.querySelector('#submit-apply-btn'),
+      label: '일반 상품',
+      onSubmit: () => executeSubmit(normalPlan, overlay, gate, 'normalKeys'),
+    });
 
     // 고정 탭 구성
     const youpflBodyEl = overlay.querySelector('#youpfl-body');
@@ -2674,28 +2693,15 @@ window.toggleProdPanel = function(e) {
 
     // 찰리 탭 구성 — NP 위치저장(adrole=100) 전용, 일반 탭과 동일한 표/제출 로직을 재사용하되
     // grade-info/register 호출에 adrole을 강제 지정해 NP트래픽 등급과 절대 섞이지 않게 한다.
-    const csubBodyEl = overlay.querySelector('#csub-body');
-    if (hasCharlie) {
-      let totalStores = 0, totalTarget = 0;
-      charliePlan.forEach(p => {
-        const block = buildSubmitAgencyBlock(p, '찰리', true);
-        csubBodyEl.appendChild(block);
-        totalStores += new Set(p.rows.map(r => r.업체명)).size;
-        totalTarget += p.rows.reduce((a,r)=>a+(r.일수||0), 0);
-      });
-      overlay.querySelector('#csub-sub').innerHTML =
-        `<span style="color:var(--muted)">대행사 ${charliePlan.length}곳 · 찰리 ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
-      const applyBtn = overlay.querySelector('#csub-apply-btn');
-      const allActive = target.every(s => s.status === 'active');
-      if (allActive) {
-        applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
-      } else {
-        applyBtn.onclick = () => executeSubmit(charliePlan, overlay, gate, 'charlieKeys', CHARLIE_ADROLE);
-      }
-    } else {
-      overlay.querySelector('#csub-sub').textContent = '찰리 배분 대상 슬롯이 없습니다.';
-      overlay.querySelector('#csub-apply-btn').disabled = true;
-    }
+    wireSubmitTab({
+      has: hasCharlie, plan: charliePlan, target,
+      bodyEl: overlay.querySelector('#csub-body'),
+      subEl:  overlay.querySelector('#csub-sub'),
+      applyBtn: overlay.querySelector('#csub-apply-btn'),
+      label: '찰리', daysMultiplied: true,
+      emptyMsg: '찰리 배분 대상 슬롯이 없습니다.',
+      onSubmit: () => executeSubmit(charliePlan, overlay, gate, 'charlieKeys', CHARLIE_ADROLE),
+    });
 
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#youpfl-close-btn').onclick = () => overlay.remove();
@@ -2727,9 +2733,7 @@ window.toggleProdPanel = function(e) {
       return block;
     }
 
-    const totalTarget = daysMultiplied
-      ? p.rows.reduce((a,r)=>a+(r.일수||0), 0)
-      : p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
+    const totalTarget = daysMultipliedSum(p.rows, daysMultiplied);
     const deductNote = p.deductTarget ? ` · 차감 ${p.deductTarget.toLocaleString()} (${(p.deductAmount||0).toLocaleString()}원)` : '';
     const hd = document.createElement('div');
     hd.className = 'agency-hd';
@@ -3002,10 +3006,11 @@ window.toggleProdPanel = function(e) {
   // adrole: 지정 시 grade-info/register를 해당 adrole(예: 찰리='100')로만 조회 — 계정에 여러 adrole이
   // 함께 설정돼 있어도(등급명이 겹칠 수 있음) 원하는 메뉴로만 정확히 접수되게 한다.
   async function executeSubmit(plan, overlay, gate=null, legKey='normalKeys', adrole=null) {
-    const btnPrefix = legKey === 'charlieKeys' ? 'csub' : 'submit';
+    const isCharlie = legKey === 'charlieKeys';
+    const btnPrefix = isCharlie ? 'csub' : 'submit';
     // NP위치저장(adrole=100)은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본 폴백 버전과
     // 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
-    const charlieVer = legKey === 'charlieKeys' ? ap().find(p => p.id === 'charlie')?.ver : undefined;
+    const charlieVer = isCharlie ? ap().find(p => p.id === 'charlie')?.ver : undefined;
     const applyBtn = overlay.querySelector(`#${btnPrefix}-apply-btn`);
     const closeBtn = overlay.querySelector(`#${btnPrefix}-close-btn`);
     window.bizfitSubmitting = true;
@@ -3014,7 +3019,7 @@ window.toggleProdPanel = function(e) {
     const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
     if (youpflBtn) youpflBtn.disabled = true;
     // 슬롯 상태를 동시에 건드릴 수 있는 다른 탭(일반↔찰리)도 진행 중엔 잠가둔다
-    const otherBtn = overlay.querySelector(`#${btnPrefix === 'csub' ? 'submit' : 'csub'}-apply-btn`);
+    const otherBtn = overlay.querySelector(`#${isCharlie ? 'submit' : 'csub'}-apply-btn`);
     if (otherBtn) otherBtn.disabled = true;
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
