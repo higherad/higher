@@ -1584,7 +1584,12 @@ window.toggleProdPanel = function(e) {
     _prodModalId = id;
     document.getElementById('prod-modal-dot').style.background  = p.color;
     document.getElementById('prod-modal-title').textContent     = `${prodDisplayName(p)} 설정${_prodModalReadOnly ? ' (읽기 전용)' : ''}`;
-    document.getElementById('pm-name').value = p.name;
+    const nameEl = document.getElementById('pm-name');
+    nameEl.value = p.name;
+    // 고정 상품(차감/유입플/분할/찰리)은 이름이 로직·등급명 매칭(찰리)에 쓰이므로 수정 불가
+    nameEl.readOnly = FIXED_PROD_IDS.has(id);
+    nameEl.style.background = FIXED_PROD_IDS.has(id) ? 'var(--bg2,#f1f5f9)' : '';
+    nameEl.style.color      = FIXED_PROD_IDS.has(id) ? 'var(--text2)' : '';
     document.getElementById('pm-ver').value  = p.ver || '';
     const delBtn = document.getElementById('pm-del-btn');
     if (delBtn) delBtn.style.display = FIXED_PROD_IDS.has(id) ? 'none' : '';
