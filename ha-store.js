@@ -125,7 +125,7 @@ const HA = {
   async getSlots() {
     const snapshot = await get(ref(db, PATHS.slots));
     return snapToArray(snapshot).sort((a, b) =>
-      new Date(b.createdAt) - new Date(a.createdAt)
+      new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     );
   },
 
@@ -464,7 +464,7 @@ const HA = {
   onSlotsChange(callback) {
     return onValue(ref(db, PATHS.slots), snapshot => {
       const slots = snapToArray(snapshot).sort((a, b) =>
-        new Date(b.createdAt) - new Date(a.createdAt)
+        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
       );
       callback(slots);
     });
@@ -514,7 +514,7 @@ const HA = {
 
     const unsubSlots = onValue(ref(db, PATHS.slots), snap => {
       latestSlots = snapToArray(snap).sort((a, b) =>
-        new Date(b.createdAt) - new Date(a.createdAt)
+        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
       );
       notify();
     });
