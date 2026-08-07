@@ -236,6 +236,7 @@
 </div>
 
 <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px;">
+  <button class="action-btn" id="reaccept-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="openReacceptModal()">🔁 재접수</button>
   <button class="action-btn" id="dl-single-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcelList()">📥 엑셀 다운로드</button>
   <!-- <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button> -->
 </div>
@@ -2176,6 +2177,132 @@ window.toggleProdPanel = function(e) {
       document.head.appendChild(s);
     }
   };
+
+  // ── 대기 슬롯 히스토리 재접수 (같은 MID의 최근 N일 키워드 히스토리로 자동 접수) ──
+  window.openReacceptModal = function() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box" style="width:min(96vw,440px);">
+        <div class="modal-title">🔁 대기 히스토리 재접수</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">대기(pending) 슬롯 중 같은 MID의 키워드 히스토리(자체+kimpro 연동)가 아래 기간 이내에 있는 건만 검색키워드를 채우고 접수 처리합니다.</div>
+        <div class="pmf" style="margin-bottom:12px;">
+          <label>히스토리 검색 일자 (일)</label>
+          <input type="number" id="reaccept-days" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
+        </div>
+        <div class="pmf" style="margin-bottom:4px;">
+          <label>유입플 키워드</label>
+          <input type="text" id="reaccept-yupfl" value="1,2,3,4,5" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
+        </div>
+        <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
+        <div class="modal-footer">
+          <button class="btn-cancel" id="reaccept-close-btn">닫기</button>
+          <button id="reaccept-run-btn" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">실행</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#reaccept-close-btn').onclick = () => { if (!window.reacceptRunning) overlay.remove(); };
+    overlay.addEventListener('click', e => { if (e.target === overlay && !window.reacceptRunning) overlay.remove(); });
+    overlay.querySelector('#reaccept-run-btn').onclick = () => runReaccept(overlay);
+  };
+
+  async function runReaccept(overlay) {
+    const runBtn   = overlay.querySelector('#reaccept-run-btn');
+    const closeBtn = overlay.querySelector('#reaccept-close-btn');
+    const resultEl = overlay.querySelector('#reaccept-result');
+    const days = Math.max(1, parseInt(overlay.querySelector('#reaccept-days').value, 10) || 7);
+    const yupflKw = overlay.querySelector('#reaccept-yupfl').value.trim() || '1,2,3,4,5';
+
+    const pending = allSlots.filter(s => s.status === 'pending' && s.mid);
+    if (!pending.length) { resultEl.innerHTML = '<span style="color:var(--muted)">대기 상태인 슬롯이 없습니다.</span>'; return; }
+
+    runBtn.disabled = true; runBtn.textContent = '⏳ 히스토리 조회 중...';
+    closeBtn.disabled = true;
+    window.reacceptRunning = true;
+    resultEl.innerHTML = '';
+
+    // 같은 MID는 한 번만 조회 (엑셀 다운로드의 키워드 히스토리 시트와 동일 방식)
+    const uniqueMids = [...new Set(pending.map(s => s.mid))];
+    const histMap = new Map();
+    await Promise.all(uniqueMids.map(async mid => { histMap.set(mid, await fullKeywordHistory(mid)); }));
+
+    const cutoffDay = ymd(new Date(Date.now() - days * 24 * 3600 * 1000)); // 달력 기준 N일 전(포함)
+    const rows = pending.map(s => {
+      const hist = histMap.get(s.mid) || [];
+      const top = hist[0];
+      const matched = !!(top && top.createdAt && ymd(new Date(top.createdAt)) >= cutoffDay);
+      return { slot: s, matched, matchKeyword: matched ? top.searchKeyword : '', matchDate: top ? top.createdAt : '', histCount: hist.length };
+    });
+    const matched = rows.filter(r => r.matched);
+
+    if (!matched.length) {
+      resultEl.innerHTML = `<span style="color:var(--muted)">대기 ${pending.length}건 중 최근 ${days}일 이내 히스토리가 있는 건이 없습니다.</span>`;
+      runBtn.disabled = false; runBtn.textContent = '실행';
+      closeBtn.disabled = false;
+      window.reacceptRunning = false;
+      return;
+    }
+
+    if (!confirm(`대기 ${pending.length}건 중 ${matched.length}건이 매칭되었습니다.\n검색키워드를 채우고 접수 처리하시겠습니까?`)) {
+      runBtn.disabled = false; runBtn.textContent = '실행';
+      closeBtn.disabled = false;
+      window.reacceptRunning = false;
+      return;
+    }
+
+    runBtn.textContent = `⏳ 접수 처리 중... (0/${matched.length})`;
+    let done = 0;
+    for (const r of matched) {
+      const updates = { searchKeyword: r.matchKeyword, yupflKeyword: yupflKw, status: 'accepted' };
+      await HA.updateSlot(r.slot._key, updates);
+      updateLocalSlot(r.slot._key, updates);
+      done++;
+      runBtn.textContent = `⏳ 접수 처리 중... (${done}/${matched.length})`;
+    }
+    renderReceipts(false);
+
+    await exportReacceptExcel(rows, days);
+
+    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 대기 ${pending.length}건 중 ${matched.length}건 접수 처리 완료 (엑셀 다운로드됨)</span>`;
+    runBtn.textContent = '✅ 완료'; runBtn.disabled = true;
+    closeBtn.disabled = false;
+    window.reacceptRunning = false;
+  }
+
+  async function exportReacceptExcel(rows, days) {
+    async function build() {
+      const XLSX = window.XLSX;
+      const header = ['접수일시','대행사','담당자ID','업체명','MID','순위키워드','처리결과','검색키워드','유입플키워드','히스토리날짜','히스토리건수'];
+      const aoa = rows.map(r => {
+        const s = r.slot;
+        return [
+          s.createdAt ? ymd(new Date(s.createdAt)) : '',
+          s.agencyId||'', s.userId||'', s.storeName||'', s.mid||'', s.rankKeyword||'',
+          r.matched ? '접수완료' : '대기유지',
+          r.matched ? r.matchKeyword : (s.searchKeyword||''),
+          r.matched ? s.yupflKeyword||'' : '',
+          r.matchDate ? ymd(new Date(r.matchDate)) : '',
+          r.histCount,
+        ];
+      });
+      const ws = XLSX.utils.aoa_to_sheet([header, ...aoa]);
+      ws['!cols'] = [{wch:12},{wch:16},{wch:10},{wch:22},{wch:14},{wch:16},{wch:10},{wch:60},{wch:14},{wch:12},{wch:10}];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '대기처리결과');
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+      XLSX.writeFile(wb, `대기접수처리_${days}일_${dateStr}.xlsx`);
+    }
+    if (window.XLSX) { await build(); } else {
+      await new Promise(resolve => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+      });
+      await build();
+    }
+  }
 
   // ── 애드로그 대량등록 접수 (그룹/키워드/URL/메모) ────────────
   // 프론트(SheetJS)가 만든 xlsx를 그대로 프록시로 릴레이한다.
