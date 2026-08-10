@@ -1915,6 +1915,18 @@ window.toggleProdPanel = function(e) {
     }
   }
 
+  // 슬롯 여러 건을 한 번에 승인 확정(active) + 비즈핏 캐시차감 트리거 — 멀티레그 게이트 완료/
+  // 일반·찰리 단일완료/유입플 단일완료 3곳에서 동일하게 씀.
+  async function approveSlotsWithBizfit(keys, slotMap) {
+    const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
+    await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
+    keys.forEach(k => {
+      const s = slotMap.get(k);
+      if (s) s.status = 'active';
+      settleBizfitCash(s, fieldsByKey.get(k));
+    });
+  }
+
   function lrm(items, total) {
     if (!items.length) return {};
     const totalW = items.reduce((s, p) => s + p.ratio, 0) || 1;
@@ -2221,12 +2233,11 @@ window.toggleProdPanel = function(e) {
     const runBtn   = overlay.querySelector('#reaccept-run-btn');
     const closeBtn = overlay.querySelector('#reaccept-close-btn');
     const resultEl = overlay.querySelector('#reaccept-result');
-    const daysNum = parseInt(overlay.querySelector('#reaccept-days').value, 10);
-    if (!Number.isInteger(daysNum) || daysNum < 1) {
+    const days = parseInt(overlay.querySelector('#reaccept-days').value, 10);
+    if (!Number.isInteger(days) || days < 1) {
       alert('히스토리 검색 일자를 1 이상의 숫자로 입력해주세요.');
       return;
     }
-    const days = daysNum;
     const yupflKw = overlay.querySelector('#reaccept-yupfl').value.trim();
     const targetStatus = overlay.querySelector('input[name="reaccept-status"]:checked').value;
     const targetLabel = targetStatus === 'pending' ? '대기' : '접수';
@@ -2758,16 +2769,8 @@ window.toggleProdPanel = function(e) {
         if (this.legs.some(l => this[l] === null)) return;
         const [primary, ...rest] = this.legs;
         const keys = [...this[primary]].filter(k => rest.every(l => this[l].has(k)));
-        if (keys.length) {
-          // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
-          const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(this.slotMap.get(k)), ...yupflFieldsFor(this.slotMap.get(k)) }]));
-          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', ...fieldsByKey.get(k) })));
-          keys.forEach(k => {
-            const s = this.slotMap.get(k);
-            if (s) s.status = 'active';
-            settleBizfitCash(s, fieldsByKey.get(k));
-          });
-        }
+        // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
+        if (keys.length) await approveSlotsWithBizfit(keys, this.slotMap);
         renderReceipts(false);
       }
     } : null;
@@ -3087,9 +3090,7 @@ window.toggleProdPanel = function(e) {
         gate.fixedKeys = new Set(allDoneSlotKeys);
         await gate.tryApprove();
       } else {
-        const fieldsByKey = new Map(allDoneSlotKeys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
-        await Promise.all(allDoneSlotKeys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
-        allDoneSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; settleBizfitCash(s, fieldsByKey.get(k)); });
+        await approveSlotsWithBizfit(allDoneSlotKeys, slotMap);
       }
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       window.bizfitSubmitting = false;
@@ -3156,9 +3157,7 @@ window.toggleProdPanel = function(e) {
         if (gate) {
           okSlots.forEach(k => approvedKeys.add(k));
         } else {
-          const fieldsByKey = new Map(okSlots.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
-          await Promise.all(okSlots.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
-          okSlots.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; settleBizfitCash(s, fieldsByKey.get(k)); });
+          await approveSlotsWithBizfit(okSlots, slotMap);
         }
       }
 
