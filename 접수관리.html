@@ -363,6 +363,7 @@ window.toggleProdPanel = function(e) {
   let _slotsLoaded = false;
   let _detailOpen  = false;
   const userPriceMap = new Map(); // userId -> 단가(원/개), 유입플 접수 모달 금액 표시용
+  const userBizfitUidMap = new Map(); // userId -> 비즈핏 파트너 어드민 uid(이메일), 승인 시 캐시 자동차감용
 
   const stMap = {
     pending:  '<span class="status-badge s-pending">대기</span>',
@@ -772,6 +773,7 @@ window.toggleProdPanel = function(e) {
     const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
     await HA.approveSlot(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
+    settleBizfitCash(targetSlot, extra);
     closeOverlayAndRefresh();
   };
 
@@ -1878,6 +1880,35 @@ window.toggleProdPanel = function(e) {
     return { yupflTarget: target, yupflAmount: target * (slot.days||0) * unitPrice };
   }
 
+  // 슬롯이 active로 확정되는 모든 지점(승인/게이트완료)에서 공통으로 호출 — deductAmount/yupflAmount는
+  // 이미 계산된 값(deductFieldsFor/yupflFieldsFor 결과)을 그대로 받는다(여기서 재계산하면 이중 계산이라
+  // approve에 실제로 반영된 값과 어긋날 수 있음). 어느 레그(일반/찰리/유입플)가 트리거했는지 직접
+  // 추적하는 대신, 계산된 금액이 어느 쪽에서 나왔는지로 메모를 판단한다 — 4곳 호출부 전부에 그대로
+  // 재사용 가능(일반/찰리 → 차감, 유입플 → 유입플, 둘 다 계산되면 차감+유입플).
+  // 매핑 안 된 대행사(userBizfitUidMap에 없음)는 조용히 스킵 — 나중에 개별로 매핑 추가하면 됨.
+  // 실패해도 접수 자체(승인 처리)는 이미 끝난 뒤라 여기서 던지지 않고 콘솔에만 남긴다.
+  async function settleBizfitCash(slot, fields) {
+    if (!slot || slot.bizfitDeducted) return;
+    const bizfitUid = userBizfitUidMap.get(slot.userId);
+    if (!bizfitUid) return;
+    const ded = fields.deductAmount || 0;
+    const yup = fields.yupflAmount || 0;
+    const amount = ded + yup;
+    if (amount <= 0) return;
+    const memo = [ded > 0 ? '차감' : '', yup > 0 ? '유입플' : ''].filter(Boolean).join('+');
+    try {
+      const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount, memo });
+      if (res && res.success) {
+        await HA.updateSlot(slot._key, { bizfitDeducted: true });
+        updateLocalSlot(slot._key, { bizfitDeducted: true });
+      } else {
+        console.error('비즈핏 캐시 차감 실패:', slot._key, bizfitUid, amount, res && res.message);
+      }
+    } catch (e) {
+      console.error('비즈핏 캐시 차감 오류:', slot._key, bizfitUid, amount, e);
+    }
+  }
+
   function lrm(items, total) {
     if (!items.length) return {};
     const totalW = items.reduce((s, p) => s + p.ratio, 0) || 1;
@@ -2723,10 +2754,12 @@ window.toggleProdPanel = function(e) {
         const keys = [...this[primary]].filter(k => rest.every(l => this[l].has(k)));
         if (keys.length) {
           // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
-          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', ...deductFieldsFor(this.slotMap.get(k)), ...yupflFieldsFor(this.slotMap.get(k)) })));
+          const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(this.slotMap.get(k)), ...yupflFieldsFor(this.slotMap.get(k)) }]));
+          await Promise.all(keys.map(k => HA.updateSlot(k, { status: 'active', ...fieldsByKey.get(k) })));
           keys.forEach(k => {
             const s = this.slotMap.get(k);
             if (s) s.status = 'active';
+            settleBizfitCash(s, fieldsByKey.get(k));
           });
         }
         renderReceipts(false);
@@ -3048,8 +3081,9 @@ window.toggleProdPanel = function(e) {
         gate.fixedKeys = new Set(allDoneSlotKeys);
         await gate.tryApprove();
       } else {
-        await Promise.all(allDoneSlotKeys.map(k => HA.approveSlot(k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) })));
-        allDoneSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+        const fieldsByKey = new Map(allDoneSlotKeys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
+        await Promise.all(allDoneSlotKeys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
+        allDoneSlotKeys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; settleBizfitCash(s, fieldsByKey.get(k)); });
       }
       applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
       window.bizfitSubmitting = false;
@@ -3116,8 +3150,9 @@ window.toggleProdPanel = function(e) {
         if (gate) {
           okSlots.forEach(k => approvedKeys.add(k));
         } else {
-          await Promise.all(okSlots.map(k => HA.approveSlot(k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) })));
-          okSlots.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+          const fieldsByKey = new Map(okSlots.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
+          await Promise.all(okSlots.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
+          okSlots.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; settleBizfitCash(s, fieldsByKey.get(k)); });
         }
       }
 
@@ -3290,7 +3325,10 @@ window.toggleProdPanel = function(e) {
 
   // 유입플 접수 모달 금액 표시용 — 회원 단가 미리 로드
   HA.getUsers().then(users => {
-    users.forEach(u => userPriceMap.set(u.username, u.unitPrice || 0));
+    users.forEach(u => {
+      userPriceMap.set(u.username, u.unitPrice || 0);
+      if (u.bizfitUid) userBizfitUidMap.set(u.username, u.bizfitUid);
+    });
   }).catch(() => {});
 
   // Firebase SDK 미리 로드 — 첫 상세 클릭 딜레이 제거
