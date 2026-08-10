@@ -2184,7 +2184,12 @@ window.toggleProdPanel = function(e) {
     const runBtn   = overlay.querySelector('#reaccept-run-btn');
     const closeBtn = overlay.querySelector('#reaccept-close-btn');
     const resultEl = overlay.querySelector('#reaccept-result');
-    const days = Math.max(1, parseInt(overlay.querySelector('#reaccept-days').value, 10) || 7);
+    const daysNum = parseInt(overlay.querySelector('#reaccept-days').value, 10);
+    if (!Number.isInteger(daysNum) || daysNum < 1) {
+      alert('히스토리 검색 일자를 1 이상의 숫자로 입력해주세요.');
+      return;
+    }
+    const days = daysNum;
     const yupflKw = overlay.querySelector('#reaccept-yupfl').value.trim();
     const targetStatus = overlay.querySelector('input[name="reaccept-status"]:checked').value;
     const targetLabel = targetStatus === 'pending' ? '대기' : '접수';
