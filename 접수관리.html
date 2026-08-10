@@ -1901,6 +1901,12 @@ window.toggleProdPanel = function(e) {
       if (res && res.success) {
         await HA.updateSlot(slot._key, { bizfitDeducted: true });
         updateLocalSlot(slot._key, { bizfitDeducted: true });
+        // 차감 자체와 별개 작업 — 실패해도 차감은 이미 끝났으니 여기서 막지 않고 콘솔에만 남긴다.
+        // 대상 대행사(agencyId)의 가장 최근 입금완료 건에 "[환불] 유입플 세팅 금액 : N원/M원"
+        // 메모를 누적 기록 — 같은 충전 건에 여러 승인이 걸리면 서버가 알아서 합산한다.
+        callBizfitProxy('/bizfit-charge-memo', { company: slot.agencyId, yupflAmount: yup, deductAmount: ded })
+          .then(mres => { if (!mres || !mres.success) console.error('비즈핏 충전 메모 실패:', slot._key, slot.agencyId, mres && mres.message); })
+          .catch(e => console.error('비즈핏 충전 메모 오류:', slot._key, slot.agencyId, e));
       } else {
         console.error('비즈핏 캐시 차감 실패:', slot._key, bizfitUid, amount, res && res.message);
       }
