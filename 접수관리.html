@@ -1953,9 +1953,8 @@ window.toggleProdPanel = function(e) {
     if (!targets.length) return;
     const amount = deductAmount + yupflAmount;
     if (amount <= 0) return;
-    const memo = [deductAmount > 0 ? '차감' : '', yupflAmount > 0 ? '유입플' : ''].filter(Boolean).join('+');
     try {
-      const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount, memo });
+      const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount });
       if (res && res.success) {
         await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeducted: true })));
         targets.forEach(s => updateLocalSlot(s._key, { bizfitDeducted: true }));
