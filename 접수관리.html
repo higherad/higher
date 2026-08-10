@@ -1021,21 +1021,6 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  // ── kimpro(reception.html)의 kimpro/slots 등, 다른 화면 쪽 DB에서 같은 MID 슬롯을 조회 ──
-  // (같은 Firebase 프로젝트를 공유하므로 경로만 다르게 조회 — "이전 키워드 보기" 히스토리를 양쪽에서 동일하게 보이게 함)
-  async function fetchCrossAppSlots(path, mid) {
-    try {
-      const { getDatabase, ref, query, orderByChild, equalTo, get } = await import(
-        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-      );
-      const snap = await get(query(ref(getDatabase(), path), orderByChild('mid'), equalTo(mid)));
-      return snap.exists() ? Object.values(snap.val()) : [];
-    } catch (e) {
-      console.error('연동 히스토리 조회 오류:', e);
-      return [];
-    }
-  }
-
   // ── MID 키워드 히스토리 공통 헬퍼 ──────────────────────────
   // 같은 키워드+접수'일자'(시각 제외)면 중복으로 간주해 제거 (히스토리 모달/엑셀 다운로드 공용)
   function dedupHistoryByDay(list) {
@@ -1062,7 +1047,7 @@ window.toggleProdPanel = function(e) {
   // 자체 DB 히스토리 + kimpro(reception.html) 쪽 히스토리(kimpro/slots, keywordHistory 변경 이력 포함)까지
   // 합친 전체 키워드 히스토리 (히스토리 모달/엑셀 다운로드 공용)
   async function fullKeywordHistory(mid) {
-    const crossAppSlots = await fetchCrossAppSlots('kimpro/slots', mid);
+    const crossAppSlots = await HA.getKimproSlotsByMid(mid);
     // kimpro 쪽 슬롯은 상세→변경 시 keywordHistory 배열에 이전 키워드를 따로 남기므로,
     // 현재 searchKeyword뿐 아니라 그 변경 이력까지 함께 펼쳐서 합쳐야 kimpro 화면과 개수가 일치한다
     const crossAppChangeHistory = crossAppSlots

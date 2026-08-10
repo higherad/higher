@@ -5,7 +5,7 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-import { getDatabase, ref, query, orderByKey, startAfter,
+import { getDatabase, ref, query, orderByKey, orderByChild, equalTo, startAfter,
   set as _set, get as _get, push as _push, update as _update, remove as _remove, onValue as _onValue,
   onChildAdded, onChildChanged, onChildRemoved }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
@@ -208,6 +208,21 @@ const HA = {
     const offChanged = onChildChanged(base,   snap => onChanged && onChanged({ ...snap.val(), _key: snap.key }));
     const offRemoved = onChildRemoved(base,   snap => onRemoved && onRemoved(snap.key));
     return () => { offAdded(); offChanged(); offRemoved(); };
+  },
+
+  // kimpro(reception.html) 쪽 kimpro/slots에서 같은 MID 슬롯 조회 — MID 키워드 히스토리를
+  // 양쪽 합쳐서 보여주는 용도(접수관리.html fullKeywordHistory). kimpro RTDB 규칙이 kimpro-access
+  // 계정만 허용해서 higher 기본 세션(db)으로는 읽기도 permission denied — kimproDb(위쪽 미러링
+  // 전용 인증)로 읽어야 함.
+  async getKimproSlotsByMid(mid) {
+    try {
+      await ensureKimproAuth();
+      const snap = await _get(query(ref(kimproDb, PATHS.kimproSlots), orderByChild('mid'), equalTo(mid)));
+      return snapToArray(snap);
+    } catch (e) {
+      console.error('kimpro/slots 조회 오류:', e);
+      return [];
+    }
   },
 
   async addSlot(data) {
