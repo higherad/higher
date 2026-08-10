@@ -1285,7 +1285,6 @@ window.toggleProdPanel = function(e) {
   let activeProdGroupId = null;
   let defaultProdsState = null;
   let _prodModalId = null;
-  let _prodModalReadOnly = false;
 
   // 기본 상품(p1~yupfl)이 사용하는 색상은 제외하고, 신규 추가 상품 전용 풀만 사용
   const PROD_COLORS = ['#06b6d4','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6',
@@ -1301,8 +1300,42 @@ window.toggleProdPanel = function(e) {
     const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
+    // 최초 로드와 실시간 구독 콜백이 공유하는 처리 로직 — 원본 데이터를 받아 prods/prodGroups를 갱신
+    const applyProdsData = (loaded) => {
+      const arr = Array.isArray(loaded) ? loaded : Object.values(loaded);
+      prods = arr;
+      prods.forEach(p => {
+        const f = staticFlags.get(p.id); if(f) Object.assign(p, f);
+        const fd = fixedDefaults.get(p.id);
+        if (fd && p.fixedPct === undefined) p.fixedPct = fd.fixedPct;
+        if (!Array.isArray(p.missionRules)) p.missionRules = [];
+        if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
+      });
+      // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다 — 예: 분할(yupfl2)
+      const loadedIds = new Set(prods.map(p => p.id));
+      DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
+      // 고정 그룹(찰리/차감/유입플/분할) 노출 순서는 저장된 옛 순서와 무관하게 항상
+      // DEFAULT_PRODS 기준(차감→유입플→분할→찰리)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
+      const fixedRank = new Map(DEFAULT_PRODS.filter(dp => FIXED_PROD_IDS.has(dp.id)).map((dp, i) => [dp.id, i]));
+      const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
+      let fi = 0;
+      prods = prods.map(p => fixedRank.has(p.id) ? fixedSorted[fi++] : p);
+      // 자동배분 대상(autoBalance!==false)인데 활성 상태끼리 ratio/kwPct 합이 10이 아니면 재배분 —
+      // 과거 버그(예: 찰리의 autoBalance:false)로 특정 상품 비율이 0으로 저장된 채 남아있던 계정을
+      // 수동으로 상품을 껐다 켜지 않아도 자동으로 복구시킨다.
+      const balanced = prods.filter(p => p.active && p.autoBalance !== false);
+      if (balanced.length) {
+        const ratioSum = Math.round(balanced.reduce((s,p)=>s+(p.ratio||0),0)*10)/10;
+        const kwSum    = Math.round(balanced.reduce((s,p)=>s+(p.kwPct||0),0)*10)/10;
+        if (ratioSum !== 10) rebalanceProdActive('ratio');
+        if (kwSum !== 10) rebalanceProdActive('kwPct');
+      }
+    };
+    const applyGroupsData = (loaded) => {
+      prodGroups = loaded ? (Array.isArray(loaded) ? loaded : Object.values(loaded)) : [];
+    };
     try {
-      const { getDatabase, ref, get, set, remove } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const { getDatabase, ref, get, set, remove, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
       await window.HA.authReady; // 새로고침 직후 인증 복원 전 호출 시 permission denied 방지
       const db = getDatabase();
       let [prodsSnap, groupsSnap] = await Promise.all([
@@ -1330,41 +1363,26 @@ window.toggleProdPanel = function(e) {
           }
         }
       }
-      if (prodsSnap.exists()) {
-        const loaded = prodsSnap.val();
-        const arr = Array.isArray(loaded) ? loaded : Object.values(loaded);
-        prods = arr;
-        prods.forEach(p => {
-          const f = staticFlags.get(p.id); if(f) Object.assign(p, f);
-          const fd = fixedDefaults.get(p.id);
-          if (fd && p.fixedPct === undefined) p.fixedPct = fd.fixedPct;
-          if (!Array.isArray(p.missionRules)) p.missionRules = [];
-          if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
-        });
-        // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다 — 예: 분할(yupfl2)
-        const loadedIds = new Set(prods.map(p => p.id));
-        DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
-        // 고정 그룹(찰리/차감/유입플/분할) 노출 순서는 계정에 저장된 옛 순서와 무관하게 항상
-        // DEFAULT_PRODS 기준(차감→유입플→분할→찰리)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
-        const fixedRank = new Map(DEFAULT_PRODS.filter(dp => FIXED_PROD_IDS.has(dp.id)).map((dp, i) => [dp.id, i]));
-        const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
-        let fi = 0;
-        prods = prods.map(p => fixedRank.has(p.id) ? fixedSorted[fi++] : p);
-        // 자동배분 대상(autoBalance!==false)인데 활성 상태끼리 ratio/kwPct 합이 10이 아니면 재배분 —
-        // 과거 버그(예: 찰리의 autoBalance:false)로 특정 상품 비율이 0으로 저장된 채 남아있던 계정을
-        // 수동으로 상품을 껐다 켜지 않아도 자동으로 복구시킨다.
-        const balanced = prods.filter(p => p.active && p.autoBalance !== false);
-        if (balanced.length) {
-          const ratioSum = Math.round(balanced.reduce((s,p)=>s+(p.ratio||0),0)*10)/10;
-          const kwSum    = Math.round(balanced.reduce((s,p)=>s+(p.kwPct||0),0)*10)/10;
-          if (ratioSum !== 10) rebalanceProdActive('ratio');
-          if (kwSum !== 10) rebalanceProdActive('kwPct');
-        }
-      }
-      if (groupsSnap.exists()) {
-        const loaded = groupsSnap.val();
-        prodGroups = Array.isArray(loaded) ? loaded : Object.values(loaded);
-      }
+      if (prodsSnap.exists()) applyProdsData(prodsSnap.val());
+      if (groupsSnap.exists()) applyGroupsData(groupsSnap.val());
+
+      // 실시간 반영 — 다른 세션에서 상품 유형 설정을 바꾸면 새로고침 없이 즉시 반영.
+      // onValue는 구독 즉시 현재값으로 한 번 불리는데 그건 위에서 이미 처리한 초기값과 같으므로 건너뛴다.
+      let firstProdsTick = true;
+      onValue(ref(db, path + '/prods'), (snap) => {
+        if (firstProdsTick) { firstProdsTick = false; return; }
+        if (!snap.exists()) return;
+        applyProdsData(snap.val());
+        if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
+        renderPS();
+      }, (e) => console.error('prodSettings 구독 오류:', e));
+      let firstGroupsTick = true;
+      onValue(ref(db, path + '/groups'), (snap) => {
+        if (firstGroupsTick) { firstGroupsTick = false; return; }
+        applyGroupsData(snap.exists() ? snap.val() : null);
+        if (!document.getElementById('receipt-page')) return;
+        renderPS();
+      }, (e) => console.error('prodSettings 구독 오류:', e));
     } catch(e) { console.error('loadProdSettings 오류:', e); }
   }
   function saveProdSettings() {
@@ -1379,10 +1397,6 @@ window.toggleProdPanel = function(e) {
     })).catch(()=>{});
   }
 
-  // 유입플/분할은 "이 캠페인 상세에 어떤 입력칸이 보이느냐"를 결정하므로 실수로 깨지기 쉬워
-  // 관리자만 on/off·배분값을 바꿀 수 있게 잠근다. (저장은 나머지 상품과 동일하게 saveProdSettings()가
-  // 전 계정 공용 경로에 쓰므로 이 Set은 이제 순수 편집 권한 판정용)
-  const FIXED_PROD_SHARED_IDS = new Set(['yupfl', 'yupfl2']);
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
   function deactivateProdGroup() {
@@ -1507,16 +1521,12 @@ window.toggleProdPanel = function(e) {
 
   function renderPS() {
     renderProdGroups();
-    const isAdmin = HA.getCurrentUser()?.role === 'admin';
-    const prodHtml = p => {
-      const locked = FIXED_PROD_SHARED_IDS.has(p.id) && !isAdmin;
-      return `
-      <div class="ps-item${p.active?' active':''}" id="psi-${p.id}"${locked ? ` title="관리자만 on/off·배분값을 변경할 수 있습니다 (클릭하면 현재 배분값 확인 가능)"` : ''} onclick="openProdModal('${p.id}')">
+    const prodHtml = p => `
+      <div class="ps-item${p.active?' active':''}" id="psi-${p.id}" onclick="openProdModal('${p.id}')">
         <div class="ps-dot" style="background:${p.color};border-color:rgba(0,0,0,.1);"></div>
         <span class="ps-name" style="color:${p.color}">${escProd(prodDisplayName(p))}</span>
-        <button class="ps-tog ${p.active?'on':'off'}"${locked ? ` style="opacity:.5;cursor:not-allowed;"` : ''} onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
+        <button class="ps-tog ${p.active?'on':'off'}" onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
       </div>`;
-    };
     const normalProds = [], fixedProds = [];
     for (const p of prods) (FIXED_PROD_IDS.has(p.id) ? fixedProds : normalProds).push(p);
     document.getElementById('psWrapNormal').innerHTML = normalProds.map(prodHtml).join('');
@@ -1532,10 +1542,6 @@ window.toggleProdPanel = function(e) {
 
   window.toggleProd = function(id) {
     const p = prods.find(x => x.id === id); if (!p) return;
-    if (FIXED_PROD_SHARED_IDS.has(id) && HA.getCurrentUser()?.role !== 'admin') {
-      alert('유입플/분할 on/off는 관리자만 변경할 수 있습니다.');
-      return;
-    }
     p.active = !p.active;
     // 유입플과 분할은 같이 켤 수 없음 — 한쪽을 켜면 다른 쪽은 자동으로 꺼짐
     if (p.active && (id === 'yupfl' || id === 'yupfl2')) {
@@ -1558,10 +1564,9 @@ window.toggleProdPanel = function(e) {
 
   window.openProdModal = function(id) {
     const p = prods.find(x => x.id === id); if (!p) return;
-    _prodModalReadOnly = FIXED_PROD_SHARED_IDS.has(id) && HA.getCurrentUser()?.role !== 'admin';
     _prodModalId = id;
     document.getElementById('prod-modal-dot').style.background  = p.color;
-    document.getElementById('prod-modal-title').textContent     = `${prodDisplayName(p)} 설정${_prodModalReadOnly ? ' (읽기 전용)' : ''}`;
+    document.getElementById('prod-modal-title').textContent     = `${prodDisplayName(p)} 설정`;
     const nameEl = document.getElementById('pm-name');
     nameEl.value = p.name;
     // 고정 상품(차감/유입플/분할/찰리)은 이름이 로직·등급명 매칭(찰리)에 쓰이므로 수정 불가
@@ -1634,18 +1639,8 @@ window.toggleProdPanel = function(e) {
     }
 
     updateProdModalNotes();
-    lockProdModal(_prodModalReadOnly);
     document.getElementById('prod-modal-bg').classList.add('show');
   };
-  // 스테프도 유입플/분할 모달을 열어 현재 배분값을 볼 수는 있게 하되, 입력칸·추가/삭제 버튼·저장 버튼을 잠가 실제 변경은 막음
-  function lockProdModal(readOnly) {
-    document.querySelectorAll('.prod-modal-body input').forEach(el => { el.disabled = readOnly; });
-    // 이 안의 button은 전부 아이콘 중앙정렬용 display:flex 인라인 스타일을 갖고 있으므로 ''로 지우면
-    // display:flex가 통째로 사라져 아이콘이 위로 치우쳐 보임 — 'flex'로 명시 복원해야 함
-    document.querySelectorAll('.prod-modal-body button').forEach(el => { el.style.display = readOnly ? 'none' : 'flex'; });
-    const saveBtn = document.querySelector('.pm-btn-save');
-    if (saveBtn) saveBtn.style.display = readOnly ? 'none' : '';
-  }
   function missionRuleRowHtml(rule) {
     const divider = `<span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>`;
     return `<div class="mission-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -1688,7 +1683,6 @@ window.toggleProdPanel = function(e) {
     </div>`;
   }
   window.addMissionRuleRow = function() {
-    if (_prodModalReadOnly) return;
     const wrap = document.getElementById('pm-mission-rules');
     if (!wrap) return;
     const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
@@ -1744,14 +1738,9 @@ window.toggleProdPanel = function(e) {
   window.closeProdModal = function() {
     document.getElementById('prod-modal-bg').classList.remove('show');
     _prodModalId = null;
-    _prodModalReadOnly = false;
   };
   window.saveProdModal = function() {
     const p = prods.find(x => x.id === _prodModalId); if(!p) return;
-    if (FIXED_PROD_SHARED_IDS.has(p.id) && HA.getCurrentUser()?.role !== 'admin') {
-      alert('유입플/분할 설정은 관리자만 변경할 수 있습니다.');
-      return;
-    }
     p.name = document.getElementById('pm-name').value.trim() || p.name;
     p.ver  = document.getElementById('pm-ver').value.trim();
     if (!p.fixedAlloc) {
