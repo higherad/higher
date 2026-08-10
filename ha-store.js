@@ -478,13 +478,35 @@ const HA = {
   // 실시간 리스너 (어드민 접수관리 배지 등에 사용)
   // ════════════════════════════════════════════════════════
 
+  // getSlots() 1회 + subscribeSlots() child 이벤트로 배열을 계속 최신 상태로 유지 —
+  // 콜백엔 지금까지와 동일하게 "현재 전체 슬롯 배열"을 넘겨줘서 호출부(index.html) 수정 불필요.
+  // 예전엔 이 배지 하나 때문에 ha/slots value 리스너로 슬롯 하나 바뀔 때마다 전체(5.8MB+)가
+  // 재전송됐음 — index.html은 로그인~로그아웃까지 계속 떠 있는 SPA 셸이라 실사용 트래픽에서
+  // Firebase 다운로드 비용의 상당 부분을 차지했을 가능성이 큼.
   onSlotsChange(callback) {
-    return onValue(ref(db, PATHS.slots), snapshot => {
-      const slots = snapToArray(snapshot).sort((a, b) =>
-        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-      );
-      callback(slots);
-    });
+    let slots = [];
+    let cancelled = false, unsub = null, notifyPending = false;
+    const notify = () => {
+      if (notifyPending) return;
+      notifyPending = true;
+      setTimeout(() => {
+        notifyPending = false;
+        if (!cancelled) callback([...slots].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+      }, 300);
+    };
+    (async () => {
+      slots = await this.getSlots();
+      if (cancelled) return;
+      callback(slots); // 최초 스냅샷은 기존 value 리스너와 동일하게 즉시 전달
+      const afterKey = slots.reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
+      unsub = await this.subscribeSlots(afterKey, {
+        onAdded(slot)   { if (!slots.some(s => s._key === slot._key)) { slots.push(slot); notify(); } },
+        onChanged(slot) { const i = slots.findIndex(s => s._key === slot._key); if (i === -1) slots.push(slot); else slots[i] = slot; notify(); },
+        onRemoved(key)  { const i = slots.findIndex(s => s._key === key); if (i !== -1) slots.splice(i, 1); notify(); },
+      });
+      if (cancelled) unsub();
+    })();
+    return () => { cancelled = true; if (unsub) unsub(); };
   },
 
   // 회원 실시간 리스너 (회원관리 배지용)
@@ -496,10 +518,15 @@ const HA = {
 
   // 정산 실시간 리스너 — slots + paid_slots 를 함께 구독해
   // 정산관리 페이지와 동일하게 (접수일+대행사+유저ID) 단위로 묶은 뒤
-  // 그룹 전체가 미정산인 행의 개수를 콜백으로 전달
+  // 그룹 전체가 미정산인 행의 개수를 콜백으로 전달.
+  // slots 쪽은 onSlotsChange와 동일하게 getSlots() 1회 + subscribeSlots() child 이벤트로 유지
+  // (예전엔 ha/slots value 리스너라 슬롯 하나만 바뀌어도 전체 재전송됐음). paid_slots는
+  // 121KB 수준으로 훨씬 작고, 키가 push 순서가 아니라 슬롯 _key를 그대로 쓰는 구조라
+  // startAfter 같은 "이후 것만" 필터가 안 통해 child 전환의 이득이 작음 — value 리스너 유지.
   onSettlementsChange(callback) {
     let latestSlots = [];
     let latestPaid  = new Set();
+    let cancelled = false, unsubSlots = null;
 
     function getMinuteKey(isoStr) {
       if (!isoStr) return 'unknown';
@@ -512,36 +539,49 @@ const HA = {
       return `${yyyy}-${mo}-${dd} ${hh}:${mn}`;
     }
 
+    let notifyPending = false;
     function notify() {
-      // 정산관리.html의 groupByTimeAgency와 동일하게 분 단위 그룹핑
-      const base = latestSlots.filter(s => s.status !== 'deleted');
-      const map = {};
-      base.forEach(s => {
-        const t = getMinuteKey(s.createdAt);
-        const k = `${t}||${s.agencyId || '-'}||${s.userId || '-'}`;
-        if (!map[k]) map[k] = { slots: [] };
-        map[k].slots.push(s);
-      });
-      // 그룹 중 캠페인이 하나라도 미정산이면 미정산 행으로 카운트
-      const unpaidRows = Object.values(map).filter(g =>
-        !g.slots.every(s => latestPaid.has(s._key))
-      );
-      callback(unpaidRows.length);
+      if (notifyPending) return;
+      notifyPending = true;
+      setTimeout(() => {
+        notifyPending = false;
+        if (cancelled) return;
+        // 정산관리.html의 groupByTimeAgency와 동일하게 분 단위 그룹핑
+        const base = latestSlots.filter(s => s.status !== 'deleted');
+        const map = {};
+        base.forEach(s => {
+          const t = getMinuteKey(s.createdAt);
+          const k = `${t}||${s.agencyId || '-'}||${s.userId || '-'}`;
+          if (!map[k]) map[k] = { slots: [] };
+          map[k].slots.push(s);
+        });
+        // 그룹 중 캠페인이 하나라도 미정산이면 미정산 행으로 카운트
+        const unpaidRows = Object.values(map).filter(g =>
+          !g.slots.every(s => latestPaid.has(s._key))
+        );
+        callback(unpaidRows.length);
+      }, 300);
     }
 
-    const unsubSlots = onValue(ref(db, PATHS.slots), snap => {
-      latestSlots = snapToArray(snap).sort((a, b) =>
-        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-      );
-      notify();
-    });
+    (async () => {
+      latestSlots = await this.getSlots();
+      if (cancelled) return;
+      const afterKey = latestSlots.reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
+      unsubSlots = await this.subscribeSlots(afterKey, {
+        onAdded(slot)   { if (!latestSlots.some(s => s._key === slot._key)) { latestSlots.push(slot); notify(); } },
+        onChanged(slot) { const i = latestSlots.findIndex(s => s._key === slot._key); if (i === -1) latestSlots.push(slot); else latestSlots[i] = slot; notify(); },
+        onRemoved(key)  { const i = latestSlots.findIndex(s => s._key === key); if (i !== -1) latestSlots.splice(i, 1); notify(); },
+      });
+      if (cancelled) { unsubSlots(); return; }
+      notify(); // 최초 1회
+    })();
 
     const unsubPaid = onValue(ref(db, PATHS.paid), snap => {
       latestPaid = snap.exists() ? new Set(Object.keys(snap.val())) : new Set();
       notify();
     });
 
-    return () => { unsubSlots(); unsubPaid(); };
+    return () => { cancelled = true; if (unsubSlots) unsubSlots(); unsubPaid(); };
   },
 
   // ════════════════════════════════════════════════════════
