@@ -698,7 +698,6 @@ window.toggleProdPanel = function(e) {
   let _slotsUnsub = null;
   function attachSlotsLiveSync() {
     if (_slotsUnsub) return; // 중복 구독 방지
-    const afterKey = allSlots.reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
     let renderPending = false;
     const scheduleRerender = () => {
       if (renderPending) return;
@@ -711,7 +710,7 @@ window.toggleProdPanel = function(e) {
         renderReceipts(false);
       }, 300); // 여러 건이 짧은 시간에 몰려도 한 번만 다시 그리도록 묶음
     };
-    HA.subscribeSlots(afterKey, {
+    HA.subscribeSlots(allSlots, {
       onAdded(slot) {
         if (allSlots.some(s => s._key === slot._key)) return; // 안전장치(정상 흐름에선 중복 없음)
         allSlots.push(slot);
@@ -1386,21 +1385,17 @@ window.toggleProdPanel = function(e) {
 
       // 실시간 반영 — 다른 세션에서 상품 유형 설정을 바꾸면 새로고침 없이 즉시 반영.
       // onValue는 구독 즉시 현재값으로 한 번 불리는데 그건 위에서 이미 처리한 초기값과 같으므로 건너뛴다.
-      let firstProdsTick = true;
-      onValue(ref(db, path + '/prods'), (snap) => {
-        if (firstProdsTick) { firstProdsTick = false; return; }
-        if (!snap.exists()) return;
-        applyProdsData(snap.val());
-        if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-        renderPS();
-      }, (e) => console.error('prodSettings 구독 오류:', e));
-      let firstGroupsTick = true;
-      onValue(ref(db, path + '/groups'), (snap) => {
-        if (firstGroupsTick) { firstGroupsTick = false; return; }
-        applyGroupsData(snap.exists() ? snap.val() : null);
-        if (!document.getElementById('receipt-page')) return;
-        renderPS();
-      }, (e) => console.error('prodSettings 구독 오류:', e));
+      const subscribeProdPath = (suffix, apply) => {
+        let first = true;
+        onValue(ref(db, path + suffix), (snap) => {
+          if (first) { first = false; return; }
+          apply(snap);
+          if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
+          renderPS();
+        }, (e) => console.error('prodSettings 구독 오류:', e));
+      };
+      subscribeProdPath('/prods',  (snap) => { if (snap.exists()) applyProdsData(snap.val()); });
+      subscribeProdPath('/groups', (snap) => applyGroupsData(snap.exists() ? snap.val() : null));
     } catch(e) { console.error('loadProdSettings 오류:', e); }
   }
   function saveProdSettings() {

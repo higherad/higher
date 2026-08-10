@@ -72,6 +72,53 @@ function dispatch(event) {
   window.dispatchEvent(new CustomEvent(event));
 }
 
+// ── 실시간 슬롯 배열 공유 캐시 ────────────────────────────────
+// onSlotsChange(대기 배지)/onSettlementsChange(정산 배지)가 둘 다 "getSlots() 1회 +
+// subscribeSlots() child 이벤트로 배열 유지"가 필요함. 각자 따로 구독하면 초기 로드(ha/slots,
+// 5.8MB+)와 child 리스너 자체가 두 벌씩 돌아 index.html(로그인~로그아웃까지 떠 있는 SPA 셸)
+// 세션 내내 낭비되므로, 배열 하나만 유지하고 구독자들에게 방송(broadcast)한다.
+let _liveSlotsPromise = null; // getSlots()+subscribeSlots() 초기 셋업 — 최초 구독자가 1회만 트리거
+let _liveSlots         = [];  // 최신 배열(참조) — child 콜백이 계속 patch
+const _liveSlotsSubs   = new Set();
+let _liveSlotsNotifyPending = false;
+
+function ensureLiveSlots() {
+  if (!_liveSlotsPromise) {
+    _liveSlotsPromise = (async () => {
+      _liveSlots = await HA.getSlots();
+      await HA.subscribeSlots(_liveSlots, {
+        onAdded(slot)   { if (!_liveSlots.some(s => s._key === slot._key)) { _liveSlots.push(slot); notifyLiveSlots(); } },
+        onChanged(slot) { const i = _liveSlots.findIndex(s => s._key === slot._key); if (i === -1) _liveSlots.push(slot); else _liveSlots[i] = slot; notifyLiveSlots(); },
+        onRemoved(key)  { const i = _liveSlots.findIndex(s => s._key === key); if (i !== -1) _liveSlots.splice(i, 1); notifyLiveSlots(); },
+      });
+    })();
+  }
+  return _liveSlotsPromise;
+}
+
+function sortedLiveSlots() {
+  return [..._liveSlots].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function notifyLiveSlots() {
+  if (_liveSlotsNotifyPending) return;
+  _liveSlotsNotifyPending = true;
+  setTimeout(() => {
+    _liveSlotsNotifyPending = false;
+    const sorted = sortedLiveSlots();
+    _liveSlotsSubs.forEach(cb => cb(sorted));
+  }, 300);
+}
+
+// 구독 등록 — 최초 로드가 끝나면 즉시 1회, 이후 변경마다(디바운스되어) 호출됨. 반환값은 구독 해제 함수.
+function subscribeLiveSlots(onChange) {
+  let cancelled = false;
+  ensureLiveSlots().then(() => { if (!cancelled) onChange(sortedLiveSlots()); });
+  const wrapped = slots => { if (!cancelled) onChange(slots); };
+  _liveSlotsSubs.add(wrapped);
+  return () => { cancelled = true; _liveSlotsSubs.delete(wrapped); };
+}
+
 // ════════════════════════════════════════════════════════════
 const HA = {
 
@@ -132,12 +179,13 @@ const HA = {
 
   // 목록 실시간 반영용 — getSlots()로 이미 받은 뒤 "이후 변경분"만 구독 (child 단위 이벤트라
   // 상태 하나 바뀔 때마다 목록 전체(ha/slots 수천 건, 수 MB)가 재전송되는 걸 피함).
-  // afterKey: getSlots() 결과 중 가장 큰 push key(=가장 최근 생성) — 이보다 뒤에 생긴 것만
-  // "추가"로 취급해 기존 데이터가 child_added로 다시 통째로 리플레이되는 것도 피한다.
-  // (참고: onSlotsChange/onSettlementsChange는 목적이 달라 value 리스너로 남아있음 — 사이드바
-  // 배지용으로 이미 존재하던 코드라 여기서 건드리지 않음.)
-  async subscribeSlots(afterKey, { onAdded, onChanged, onRemoved } = {}) {
+  // currentSlots: getSlots() 결과 배열(호출부가 이미 들고 있는 것을 그대로 넘기면 됨) — 그중
+  // 가장 큰 push key(=가장 최근 생성) 이후에 생긴 것만 "추가"로 취급해, 기존 데이터가
+  // child_added로 다시 통째로 리플레이되는 것도 피한다. (호출부마다 afterKey를 직접 계산하지
+  // 않도록 이 함수 안에서 구함)
+  async subscribeSlots(currentSlots, { onAdded, onChanged, onRemoved } = {}) {
     await authReady;
+    const afterKey = (currentSlots || []).reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
     const base = ref(db, PATHS.slots);
     const addedRef = afterKey ? query(base, orderByKey(), startAfter(afterKey)) : base;
     const offAdded   = onChildAdded(addedRef, snap => onAdded   && onAdded({ ...snap.val(), _key: snap.key }));
@@ -478,35 +526,10 @@ const HA = {
   // 실시간 리스너 (어드민 접수관리 배지 등에 사용)
   // ════════════════════════════════════════════════════════
 
-  // getSlots() 1회 + subscribeSlots() child 이벤트로 배열을 계속 최신 상태로 유지 —
-  // 콜백엔 지금까지와 동일하게 "현재 전체 슬롯 배열"을 넘겨줘서 호출부(index.html) 수정 불필요.
-  // 예전엔 이 배지 하나 때문에 ha/slots value 리스너로 슬롯 하나 바뀔 때마다 전체(5.8MB+)가
-  // 재전송됐음 — index.html은 로그인~로그아웃까지 계속 떠 있는 SPA 셸이라 실사용 트래픽에서
-  // Firebase 다운로드 비용의 상당 부분을 차지했을 가능성이 큼.
+  // 공유 캐시(위쪽 subscribeLiveSlots) 구독 — 콜백엔 지금까지와 동일하게 "현재 전체 슬롯 배열"을
+  // 넘겨줘서 호출부(index.html) 수정 불필요.
   onSlotsChange(callback) {
-    let slots = [];
-    let cancelled = false, unsub = null, notifyPending = false;
-    const notify = () => {
-      if (notifyPending) return;
-      notifyPending = true;
-      setTimeout(() => {
-        notifyPending = false;
-        if (!cancelled) callback([...slots].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
-      }, 300);
-    };
-    (async () => {
-      slots = await this.getSlots();
-      if (cancelled) return;
-      callback(slots); // 최초 스냅샷은 기존 value 리스너와 동일하게 즉시 전달
-      const afterKey = slots.reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
-      unsub = await this.subscribeSlots(afterKey, {
-        onAdded(slot)   { if (!slots.some(s => s._key === slot._key)) { slots.push(slot); notify(); } },
-        onChanged(slot) { const i = slots.findIndex(s => s._key === slot._key); if (i === -1) slots.push(slot); else slots[i] = slot; notify(); },
-        onRemoved(key)  { const i = slots.findIndex(s => s._key === key); if (i !== -1) slots.splice(i, 1); notify(); },
-      });
-      if (cancelled) unsub();
-    })();
-    return () => { cancelled = true; if (unsub) unsub(); };
+    return subscribeLiveSlots(callback);
   },
 
   // 회원 실시간 리스너 (회원관리 배지용)
@@ -519,14 +542,13 @@ const HA = {
   // 정산 실시간 리스너 — slots + paid_slots 를 함께 구독해
   // 정산관리 페이지와 동일하게 (접수일+대행사+유저ID) 단위로 묶은 뒤
   // 그룹 전체가 미정산인 행의 개수를 콜백으로 전달.
-  // slots 쪽은 onSlotsChange와 동일하게 getSlots() 1회 + subscribeSlots() child 이벤트로 유지
-  // (예전엔 ha/slots value 리스너라 슬롯 하나만 바뀌어도 전체 재전송됐음). paid_slots는
-  // 121KB 수준으로 훨씬 작고, 키가 push 순서가 아니라 슬롯 _key를 그대로 쓰는 구조라
-  // startAfter 같은 "이후 것만" 필터가 안 통해 child 전환의 이득이 작음 — value 리스너 유지.
+  // slots 쪽은 onSlotsChange와 같은 공유 캐시(subscribeLiveSlots)를 구독 — 둘이 따로 구독하면
+  // getSlots() 초기 로드와 child 리스너가 두 벌씩 돌아 낭비였음. paid_slots는 121KB 수준으로
+  // 훨씬 작고, 키가 push 순서가 아니라 슬롯 _key를 그대로 쓰는 구조라 startAfter 같은
+  // "이후 것만" 필터가 안 통해 child 전환의 이득이 작음 — value 리스너 유지.
   onSettlementsChange(callback) {
     let latestSlots = [];
     let latestPaid  = new Set();
-    let cancelled = false, unsubSlots = null;
 
     function getMinuteKey(isoStr) {
       if (!isoStr) return 'unknown';
@@ -539,49 +561,30 @@ const HA = {
       return `${yyyy}-${mo}-${dd} ${hh}:${mn}`;
     }
 
-    let notifyPending = false;
     function notify() {
-      if (notifyPending) return;
-      notifyPending = true;
-      setTimeout(() => {
-        notifyPending = false;
-        if (cancelled) return;
-        // 정산관리.html의 groupByTimeAgency와 동일하게 분 단위 그룹핑
-        const base = latestSlots.filter(s => s.status !== 'deleted');
-        const map = {};
-        base.forEach(s => {
-          const t = getMinuteKey(s.createdAt);
-          const k = `${t}||${s.agencyId || '-'}||${s.userId || '-'}`;
-          if (!map[k]) map[k] = { slots: [] };
-          map[k].slots.push(s);
-        });
-        // 그룹 중 캠페인이 하나라도 미정산이면 미정산 행으로 카운트
-        const unpaidRows = Object.values(map).filter(g =>
-          !g.slots.every(s => latestPaid.has(s._key))
-        );
-        callback(unpaidRows.length);
-      }, 300);
+      // 정산관리.html의 groupByTimeAgency와 동일하게 분 단위 그룹핑
+      const base = latestSlots.filter(s => s.status !== 'deleted');
+      const map = {};
+      base.forEach(s => {
+        const t = getMinuteKey(s.createdAt);
+        const k = `${t}||${s.agencyId || '-'}||${s.userId || '-'}`;
+        if (!map[k]) map[k] = { slots: [] };
+        map[k].slots.push(s);
+      });
+      // 그룹 중 캠페인이 하나라도 미정산이면 미정산 행으로 카운트
+      const unpaidRows = Object.values(map).filter(g =>
+        !g.slots.every(s => latestPaid.has(s._key))
+      );
+      callback(unpaidRows.length);
     }
 
-    (async () => {
-      latestSlots = await this.getSlots();
-      if (cancelled) return;
-      const afterKey = latestSlots.reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
-      unsubSlots = await this.subscribeSlots(afterKey, {
-        onAdded(slot)   { if (!latestSlots.some(s => s._key === slot._key)) { latestSlots.push(slot); notify(); } },
-        onChanged(slot) { const i = latestSlots.findIndex(s => s._key === slot._key); if (i === -1) latestSlots.push(slot); else latestSlots[i] = slot; notify(); },
-        onRemoved(key)  { const i = latestSlots.findIndex(s => s._key === key); if (i !== -1) latestSlots.splice(i, 1); notify(); },
-      });
-      if (cancelled) { unsubSlots(); return; }
-      notify(); // 최초 1회
-    })();
-
+    const unsubSlots = subscribeLiveSlots(slots => { latestSlots = slots; notify(); });
     const unsubPaid = onValue(ref(db, PATHS.paid), snap => {
       latestPaid = snap.exists() ? new Set(Object.keys(snap.val())) : new Set();
       notify();
     });
 
-    return () => { cancelled = true; if (unsubSlots) unsubSlots(); unsubPaid(); };
+    return () => { unsubSlots(); unsubPaid(); };
   },
 
   // ════════════════════════════════════════════════════════
