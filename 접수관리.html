@@ -1063,6 +1063,34 @@ window.toggleProdPanel = function(e) {
     ]).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
 
+  // 자체 DB(allSlots)만으로 구성하는 유입플 키워드 히스토리 — 같은 MID의 다른 슬롯 유입플 키워드
+  // + 상세→변경으로 덮어쓴 기록(yupflKeywordHistory)을 합쳐 날짜순 반환. dedupHistoryByDay/
+  // dropUnchangedConsecutive는 searchKeyword/createdAt 필드를 보므로 같은 모양으로 매핑해서 재사용한다.
+  function localYupflKeywordHistory(mid) {
+    const sameMidSlots = allSlots.filter(s => s.mid === mid);
+    const currentHistory = dropUnchangedConsecutive(
+      sameMidSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }))
+    );
+    const changeHistory = sameMidSlots
+      .flatMap(s => s.yupflKeywordHistory || [])
+      .map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
+    return dedupHistoryByDay([...currentHistory, ...changeHistory])
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }
+  // 자체 DB 히스토리 + kimpro(reception.html) 쪽 히스토리(kimpro/slots, yupflKeywordHistory 포함)까지
+  // 합친 전체 유입플 키워드 히스토리 — 일반 검색키워드의 fullKeywordHistory와 동일한 방식
+  async function fullYupflKeywordHistory(mid) {
+    const crossAppSlots = await HA.getKimproSlotsByMid(mid);
+    const crossAppChangeHistory = crossAppSlots
+      .flatMap(s => s.yupflKeywordHistory || [])
+      .map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
+    return dedupHistoryByDay([
+      ...localYupflKeywordHistory(mid),
+      ...dropUnchangedConsecutive(crossAppSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }))),
+      ...crossAppChangeHistory,
+    ]).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }
+
   // ── MID 이전 키워드 히스토리 ──────────────────────────────
   window.toggleMidHistory = async function(mid, currentKey) {
     const area = document.getElementById('mid-history-area');
@@ -1174,7 +1202,10 @@ window.toggleProdPanel = function(e) {
     btn.textContent = '닫기';
     area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);"><div class="spinner"></div> 유입플 키워드 불러오는 중...</div>';
 
-    const entries = await fetchYoupflKeywordByMid(mid);
+    const [entries, history] = await Promise.all([
+      fetchYoupflKeywordByMid(mid),
+      fullYupflKeywordHistory(mid),
+    ]);
 
     let html = `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
       <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">LIVE</span>
@@ -1205,6 +1236,38 @@ window.toggleProdPanel = function(e) {
               style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
               적용
             </button>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    // ── 섹션 ②: 접수 이력 키워드 (자체 DB + kimpro(reception.html) 쪽, 미션 구분 없이 mid 기준) ──
+    html += `<div style="font-size:11px;font-weight:700;color:var(--text2);margin:10px 0 6px;display:flex;align-items:center;gap:5px;">
+      <span style="background:#94a3b8;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">히스토리</span>
+      접수 이력 키워드
+    </div>`;
+
+    if (!history.length) {
+      html += `<div style="font-size:11px;color:var(--muted);padding:6px 0;">이전 유입플 키워드 내역이 없습니다.</div>`;
+    } else {
+      html += `<div style="background:#f8fafc;border-radius:7px;padding:8px 12px;border:1px solid var(--border);max-height:220px;overflow-y:auto;">
+        ${history.map(h => {
+          const kwStr  = h.searchKeyword || '';
+          const kwCount = kwStr.split(',').map(k => k.trim()).filter(k => k).length;
+          const safeKw = kwStr.replace(/'/g, "\\'");
+          const dateStr = h.createdAt ? ymd(new Date(h.createdAt)) : '';
+          return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:11px;color:var(--text2);">${dateStr}</span>
+                <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCount}개</span>
+              </div>
+              <button onclick="(function(){var el=document.getElementById('${targetInputId}');if(el){el.value='${safeKw}';updateDetailKwBadge(el,'${badgeId}');}})()"
+                style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
+                적용
+              </button>
+            </div>
+            <div style="overflow:hidden;white-space:nowrap;font-size:11px;color:#475569;background:#f1f5f9;padding:4px 8px;border-radius:5px;user-select:all;">${kwStr}</div>
           </div>`;
         }).join('')}
       </div>`;
@@ -1880,51 +1943,67 @@ window.toggleProdPanel = function(e) {
     return { yupflTarget: target, yupflAmount: target * (slot.days||0) * unitPrice };
   }
 
-  // 슬롯이 active로 확정되는 모든 지점(승인/게이트완료)에서 공통으로 호출 — deductAmount/yupflAmount는
-  // 이미 계산된 값(deductFieldsFor/yupflFieldsFor 결과)을 그대로 받는다(여기서 재계산하면 이중 계산이라
-  // approve에 실제로 반영된 값과 어긋날 수 있음). 어느 레그(일반/찰리/유입플)가 트리거했는지 직접
-  // 추적하는 대신, 계산된 금액이 어느 쪽에서 나왔는지로 메모를 판단한다 — 4곳 호출부 전부에 그대로
-  // 재사용 가능(일반/찰리 → 차감, 유입플 → 유입플, 둘 다 계산되면 차감+유입플).
-  // 매핑 안 된 대행사(userBizfitUidMap에 없음)는 조용히 스킵 — 나중에 개별로 매핑 추가하면 됨.
-  // 실패해도 접수 자체(승인 처리)는 이미 끝난 뒤라 여기서 던지지 않고 콘솔에만 남긴다.
-  async function settleBizfitCash(slot, fields) {
-    if (!slot || slot.bizfitDeducted) return;
-    const bizfitUid = userBizfitUidMap.get(slot.userId);
-    if (!bizfitUid) return;
-    const ded = fields.deductAmount || 0;
-    const yup = fields.yupflAmount || 0;
-    const amount = ded + yup;
+  // 대행사(bizfitUid) 하나에 대해 여러 슬롯 분의 차감을 합쳐서 /bizfit-refund를 딱 한 번만
+  // 호출한다 — 슬롯마다 따로 부르면 비즈핏 "캐시사용내역"이 승인 건수만큼 잘게 쪼개진 줄로
+  // 남는 걸 실사용에서 확인함(9건 승인 → 9줄로 분산 기록, 2026-08-10). 매핑 안 된 대행사
+  // (userBizfitUidMap에 없음)는 조용히 스킵 — 나중에 개별로 매핑 추가하면 됨. 실패해도 접수
+  // 자체(승인 처리)는 이미 끝난 뒤라 여기서 던지지 않고 콘솔에만 남긴다.
+  async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount) {
+    const targets = slots.filter(s => s && !s.bizfitDeducted);
+    if (!targets.length) return;
+    const amount = deductAmount + yupflAmount;
     if (amount <= 0) return;
-    const memo = [ded > 0 ? '차감' : '', yup > 0 ? '유입플' : ''].filter(Boolean).join('+');
+    const memo = [deductAmount > 0 ? '차감' : '', yupflAmount > 0 ? '유입플' : ''].filter(Boolean).join('+');
     try {
       const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount, memo });
       if (res && res.success) {
-        await HA.updateSlot(slot._key, { bizfitDeducted: true });
-        updateLocalSlot(slot._key, { bizfitDeducted: true });
+        await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeducted: true })));
+        targets.forEach(s => updateLocalSlot(s._key, { bizfitDeducted: true }));
         // 차감 자체와 별개 작업 — 실패해도 차감은 이미 끝났으니 여기서 막지 않고 콘솔에만 남긴다.
         // 대상 대행사(agencyId)의 가장 최근 입금완료 건에 "[환불] 유입플 세팅 금액 : N원/M원"
-        // 메모를 누적 기록 — 같은 충전 건에 여러 승인이 걸리면 서버가 알아서 합산한다.
-        callBizfitProxy('/bizfit-charge-memo', { company: slot.agencyId, yupflAmount: yup, deductAmount: ded })
-          .then(mres => { if (!mres || !mres.success) console.error('비즈핏 충전 메모 실패:', slot._key, slot.agencyId, mres && mres.message); })
-          .catch(e => console.error('비즈핏 충전 메모 오류:', slot._key, slot.agencyId, e));
+        // 메모를 누적 기록 — 같은 충전 건에 여러 번 걸리면 서버가 알아서 합산한다.
+        const agencyId = targets[0].agencyId;
+        callBizfitProxy('/bizfit-charge-memo', { company: agencyId, yupflAmount, deductAmount })
+          .then(mres => { if (!mres || !mres.success) console.error('비즈핏 충전 메모 실패:', agencyId, mres && mres.message); })
+          .catch(e => console.error('비즈핏 충전 메모 오류:', agencyId, e));
       } else {
-        console.error('비즈핏 캐시 차감 실패:', slot._key, bizfitUid, amount, res && res.message);
+        console.error('비즈핏 캐시 차감 실패:', targets.map(s => s._key), bizfitUid, amount, res && res.message);
       }
     } catch (e) {
-      console.error('비즈핏 캐시 차감 오류:', slot._key, bizfitUid, amount, e);
+      console.error('비즈핏 캐시 차감 오류:', targets.map(s => s._key), bizfitUid, amount, e);
     }
   }
 
+  // 단건 승인(approveOne)용 — 슬롯 1개짜리 배치로 취급해 settleBizfitCashBatch를 그대로 재사용.
+  async function settleBizfitCash(slot, fields) {
+    if (!slot) return;
+    const bizfitUid = userBizfitUidMap.get(slot.userId);
+    if (!bizfitUid) return;
+    await settleBizfitCashBatch(bizfitUid, [slot], fields.deductAmount || 0, fields.yupflAmount || 0);
+  }
+
   // 슬롯 여러 건을 한 번에 승인 확정(active) + 비즈핏 캐시차감 트리거 — 멀티레그 게이트 완료/
-  // 일반·찰리 단일완료/유입플 단일완료 3곳에서 동일하게 씀.
+  // 일반·찰리 단일완료/유입플 단일완료 3곳에서 동일하게 씀. 차감은 슬롯 단위가 아니라 이 배치
+  // 안에서 대행사(bizfitUid)별로 묶어 한 번씩만 호출한다.
   async function approveSlotsWithBizfit(keys, slotMap) {
     const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
     await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
-    keys.forEach(k => {
+    keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+
+    const byUid = new Map(); // bizfitUid -> { slots, ded, yup }
+    for (const k of keys) {
       const s = slotMap.get(k);
-      if (s) s.status = 'active';
-      settleBizfitCash(s, fieldsByKey.get(k));
-    });
+      if (!s || s.bizfitDeducted) continue;
+      const bizfitUid = userBizfitUidMap.get(s.userId);
+      if (!bizfitUid) continue;
+      const fields = fieldsByKey.get(k);
+      if (!byUid.has(bizfitUid)) byUid.set(bizfitUid, { slots: [], ded: 0, yup: 0 });
+      const g = byUid.get(bizfitUid);
+      g.slots.push(s);
+      g.ded += fields.deductAmount || 0;
+      g.yup += fields.yupflAmount || 0;
+    }
+    for (const [bizfitUid, g] of byUid) settleBizfitCashBatch(bizfitUid, g.slots, g.ded, g.yup);
   }
 
   function lrm(items, total) {
