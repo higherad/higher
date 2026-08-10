@@ -1293,23 +1293,43 @@ window.toggleProdPanel = function(e) {
   let _apColor = '#06b6d4';
 
   function getProdSettingsPath() {
-    const cu = window.HA?.getCurrentUser?.();
-    return cu?.id ? `ha/prodSettings/${cu.id}` : null;
+    // 계정별이 아닌 전 계정 공용 설정 (예전엔 ha/prodSettings/{계정uid}로 계정마다 따로 저장됨)
+    return 'ha/prodSettings';
   }
   async function loadProdSettings() {
     const path = getProdSettingsPath();
-    if (!path) return;
     const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
-      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const { getDatabase, ref, get, set, remove } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
       await window.HA.authReady; // 새로고침 직후 인증 복원 전 호출 시 permission denied 방지
       const db = getDatabase();
-      const [prodsSnap, groupsSnap] = await Promise.all([
+      let [prodsSnap, groupsSnap] = await Promise.all([
         get(ref(db, path + '/prods')),
         get(ref(db, path + '/groups'))
       ]);
+      if (!prodsSnap.exists()) {
+        // 공용 설정 최초 도입: 아직 공용 경로에 값이 없으면 admin 계정의 기존(계정별) 설정을 기본값으로 승격
+        const legacyUid = 'aEhwVAhpVLMUCT5Yg3kAHVLi9Uf2'; // admin 계정 Firebase Auth uid
+        const [legacyProds, legacyGroups] = await Promise.all([
+          get(ref(db, `${path}/${legacyUid}/prods`)),
+          get(ref(db, `${path}/${legacyUid}/groups`))
+        ]);
+        if (legacyProds.exists()) {
+          await set(ref(db, path + '/prods'), legacyProds.val());
+          if (legacyGroups.exists()) await set(ref(db, path + '/groups'), legacyGroups.val());
+          prodsSnap = legacyProds;
+          groupsSnap = legacyGroups;
+          // 이관 완료 — 옛 계정별(uid) 데이터는 더 이상 안 쓰이므로 전부 정리
+          const rootSnap = await get(ref(db, path));
+          if (rootSnap.exists()) {
+            Object.keys(rootSnap.val()).forEach(k => {
+              if (k !== 'prods' && k !== 'groups') remove(ref(db, `${path}/${k}`)).catch(()=>{});
+            });
+          }
+        }
+      }
       if (prodsSnap.exists()) {
         const loaded = prodsSnap.val();
         const arr = Array.isArray(loaded) ? loaded : Object.values(loaded);
@@ -1349,7 +1369,6 @@ window.toggleProdPanel = function(e) {
   }
   function saveProdSettings() {
     const path = getProdSettingsPath();
-    if (!path) return;
     const snapGroups = JSON.parse(JSON.stringify(prodGroups));
     const snapProds  = JSON.parse(JSON.stringify(prods));
     import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set, remove }) => window.HA.authReady.then(() => {
@@ -2185,7 +2204,7 @@ window.toggleProdPanel = function(e) {
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,440px);">
         <div class="modal-title">🔁 대기 히스토리 재접수</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">대기(pending) 슬롯 중 같은 MID의 키워드 히스토리(자체+kimpro 연동)가 아래 기간 이내에 있는 건만 검색키워드를 채우고 접수 처리합니다.</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">대기 슬롯 중 같은 MID의 키워드 히스토리가 아래 기간 이내에 있는 건만 검색키워드를 채우고 접수 처리합니다.</div>
         <div class="pmf" style="margin-bottom:12px;">
           <label>히스토리 검색 일자 (일)</label>
           <input type="number" id="reaccept-days" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
