@@ -5,8 +5,9 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-import { getDatabase, ref,
-  set as _set, get as _get, push as _push, update as _update, remove as _remove, onValue as _onValue }
+import { getDatabase, ref, query, orderByKey, startAfter,
+  set as _set, get as _get, push as _push, update as _update, remove as _remove, onValue as _onValue,
+  onChildAdded, onChildChanged, onChildRemoved }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, signOut }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
@@ -127,6 +128,22 @@ const HA = {
     return snapToArray(snapshot).sort((a, b) =>
       new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     );
+  },
+
+  // 목록 실시간 반영용 — getSlots()로 이미 받은 뒤 "이후 변경분"만 구독 (child 단위 이벤트라
+  // 상태 하나 바뀔 때마다 목록 전체(ha/slots 수천 건, 수 MB)가 재전송되는 걸 피함).
+  // afterKey: getSlots() 결과 중 가장 큰 push key(=가장 최근 생성) — 이보다 뒤에 생긴 것만
+  // "추가"로 취급해 기존 데이터가 child_added로 다시 통째로 리플레이되는 것도 피한다.
+  // (참고: onSlotsChange/onSettlementsChange는 목적이 달라 value 리스너로 남아있음 — 사이드바
+  // 배지용으로 이미 존재하던 코드라 여기서 건드리지 않음.)
+  async subscribeSlots(afterKey, { onAdded, onChanged, onRemoved } = {}) {
+    await authReady;
+    const base = ref(db, PATHS.slots);
+    const addedRef = afterKey ? query(base, orderByKey(), startAfter(afterKey)) : base;
+    const offAdded   = onChildAdded(addedRef, snap => onAdded   && onAdded({ ...snap.val(), _key: snap.key }));
+    const offChanged = onChildChanged(base,   snap => onChanged && onChanged({ ...snap.val(), _key: snap.key }));
+    const offRemoved = onChildRemoved(base,   snap => onRemoved && onRemoved(snap.key));
+    return () => { offAdded(); offChanged(); offRemoved(); };
   },
 
   async addSlot(data) {

@@ -691,6 +691,45 @@ window.toggleProdPanel = function(e) {
     }
   };
 
+  // ── 접수 목록 실시간 반영 ──────────────────────────────────────
+  // getSlots()로 최초 전체를 받은 뒤, 이후 변경분만 child 단위(추가/변경/삭제)로 구독해
+  // 다른 세션에서 상태를 바꿔도 새로고침 없이 반영. value 리스너로 전체를 구독하면 슬롯
+  // 하나만 바뀌어도 목록 전체(수천 건, 수 MB)가 매번 재전송되므로 반드시 child 리스너를 써야 함.
+  let _slotsUnsub = null;
+  function attachSlotsLiveSync() {
+    if (_slotsUnsub) return; // 중복 구독 방지
+    const afterKey = allSlots.reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
+    let renderPending = false;
+    const scheduleRerender = () => {
+      if (renderPending) return;
+      renderPending = true;
+      setTimeout(() => {
+        renderPending = false;
+        if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
+        // getSlots()가 정한 정렬(createdAt 내림차순) 불변식을 유지 — getFiltered()는 자체 정렬을 안 함
+        allSlots.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        renderReceipts(false);
+      }, 300); // 여러 건이 짧은 시간에 몰려도 한 번만 다시 그리도록 묶음
+    };
+    HA.subscribeSlots(afterKey, {
+      onAdded(slot) {
+        if (allSlots.some(s => s._key === slot._key)) return; // 안전장치(정상 흐름에선 중복 없음)
+        allSlots.push(slot);
+        scheduleRerender();
+      },
+      onChanged(slot) {
+        const idx = allSlots.findIndex(s => s._key === slot._key);
+        if (idx === -1) allSlots.push(slot); else allSlots[idx] = slot;
+        scheduleRerender();
+      },
+      onRemoved(key) {
+        const idx = allSlots.findIndex(s => s._key === key);
+        if (idx !== -1) allSlots.splice(idx, 1);
+        scheduleRerender();
+      },
+    }).then(unsub => { _slotsUnsub = unsub; });
+  }
+
   function renderPagination(total) {
     const pages = Math.ceil(total/PER_PAGE) || 1;
     const pg    = document.getElementById('receipt-pagination');
@@ -3280,7 +3319,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // 최초 로드
-  renderReceipts(false);
+  renderReceipts(false).then(attachSlotsLiveSync);
   (async () => {
     await loadProdSettings();
     if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
