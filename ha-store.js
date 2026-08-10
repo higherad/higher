@@ -28,6 +28,22 @@ const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
 const auth = getAuth(app);
 
+// ── kimpro/slots 미러링 전용 계정 ────────────────────────────
+// kimpro RTDB 규칙이 kimpro-access 계정만 허용해서 higher 로그인 세션(admin/staff 등)으로는
+// kimpro/slots에 읽기·쓰기 모두 permission denied가 남 — 별도 App 인스턴스로 이 계정만 따로
+// 로그인해서 씀. 실제 미러링이 필요한 시점에만 로그인하도록 지연 처리(모든 페이지 로드마다
+// 불필요한 로그인 요청이 나가지 않게).
+const kimproMirrorApp = initializeApp(firebaseConfig, 'kimproMirror');
+const kimproDb        = getDatabase(kimproMirrorApp);
+const kimproMirrorAuth = getAuth(kimproMirrorApp);
+let _kimproAuthReady = null;
+function ensureKimproAuth() {
+  if (!_kimproAuthReady) {
+    _kimproAuthReady = signInWithEmailAndPassword(kimproMirrorAuth, 'kimpro-access@higherad.app', 'm0N7anwQIcPTIarfhWvkpBN0');
+  }
+  return _kimproAuthReady;
+}
+
 // ── 인증 상태 복원 대기 래퍼 ─────────────────────────────────
 // RTDB 규칙(auth != null)으로 인해 새로고침 직후 세션 복원 전에
 // get/onValue가 먼저 실행되면 permission denied가 발생할 수 있음.
@@ -229,20 +245,25 @@ const HA = {
   async updateSlot(key, patch) {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
     dispatch('ha:slots:updated');
-    // kimpro/slots 동기화 — 편도(kimpro 쪽 변경은 여기로 안 들어옴), 실패해도 무시
+    // kimpro/slots 동기화 — 편도(kimpro 쪽 변경은 여기로 안 들어옴).
+    // kimpro RTDB 규칙이 kimpro-access 계정만 허용하므로 반드시 kimproDb(별도 인증 세션)로 써야
+    // 함 — db(현재 로그인한 higher 계정)로 쓰면 항상 permission denied. 실패 시 최소한 콘솔에는
+    // 남김(예전엔 catch(e){}로 완전히 삼켜서 2026-08-05 kimpro 보안조치 이후 이 동기화가 깨진 걸
+    // 아무도 못 알아챘고, active 176건이 누락된 채로 방치됐었음).
     // (fire-and-forget으로 두면 호출부가 await 후 곧바로 페이지 이동/탭 종료 시 씹힐 수 있어 반드시 await)
     try {
-      const kpSnap = await get(ref(db, `${PATHS.kimproSlots}/${key}`));
+      await ensureKimproAuth();
+      const kpSnap = await get(ref(kimproDb, `${PATHS.kimproSlots}/${key}`));
       if (kpSnap.exists()) {
         if (patch.status === 'deleted') {
           // 접수관리에서 삭제(취소) — kimpro 쪽도 즉시 제거 (kimpro 자체 삭제와 동일하게 완전삭제)
-          await remove(ref(db, `${PATHS.kimproSlots}/${key}`));
+          await remove(ref(kimproDb, `${PATHS.kimproSlots}/${key}`));
         } else {
           // 이미 kimpro에 있는 슬롯 — status는 최초 승인(active) 상태로 고정, 그 외 필드만 반영
           // (접수관리에서 이후 종료/일시중단 등으로 상태가 바뀌어도 kimpro 쪽 상태는 안 건드림)
           const { status, ...rest } = patch;
           if (Object.keys(rest).length) {
-            await update(ref(db, `${PATHS.kimproSlots}/${key}`), rest);
+            await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), rest);
           }
         }
       } else if (patch.status === 'active') {
@@ -250,13 +271,13 @@ const HA = {
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
           const slot = slotSnap.val();
-          await set(ref(db, `${PATHS.kimproSlots}/${key}`), {
+          await set(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), {
             ...slot,
             searchKeyword: slot.searchKeyword || '',
           });
         }
       }
-    } catch (e) {}
+    } catch (e) { console.error('kimpro/slots 동기화 오류:', e); }
   },
 
   async deleteSlot(key) {
