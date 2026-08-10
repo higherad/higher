@@ -121,6 +121,7 @@
   const PER = 20;
   let allUsers = [];
   let allSlots = [];
+  let _slotsLoaded = false; // ha/slots(5.8MB+)는 캠페인 수 표시용이라 매번 새로 받을 필요 없음 — 1회 로드 후 재사용
 
   function getFiltered() {
     const kw     = (document.getElementById('u-kw').value||'').toLowerCase();
@@ -136,11 +137,17 @@
     return allSlots.filter(s => s.userId === username && s.status === 'active').length;
   }
 
-  window.renderUsers = async function(resetPage = true) {
+  window.renderUsers = async function(resetPage = true, forceReload = false) {
     if (resetPage) page = 1;
     document.getElementById('user-body').innerHTML =
       '<tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-    [allUsers, allSlots] = await Promise.all([HA.getUsers(), HA.getSlots()]);
+    // 회원 목록은 승인/삭제 직후 정확한 값이 필요해 매번 새로 받음(4.5KB라 저렴) — 슬롯만 캐시
+    const usersPromise = HA.getUsers();
+    if (!_slotsLoaded || forceReload) {
+      allSlots = await HA.getSlots();
+      _slotsLoaded = true;
+    }
+    allUsers = await usersPromise;
     if (!document.getElementById('user-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
     allUsers.reverse();
 

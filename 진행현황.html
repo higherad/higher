@@ -480,18 +480,22 @@
     await _renderTrashContent();
   };
 
+  // 페이지 로드 시 이미 받아둔 module 캐시(allSlots)를 그대로 씀 — 열 때/액션마다 매번
+  // HA.getSlots()(ha/slots, 5.8MB+)를 새로 받으면 낭비. 삭제/복구는 아래 각 함수가 allSlots를
+  // 직접 patch해서 이 캐시를 최신 상태로 유지함.
   async function _renderTrashContent() {
     const area = document.getElementById('trash-table-area');
     if (!area) return;
 
-    const slots = await HA.getSlots();
-    const trashed = slots.filter(s => s.status === 'deleted');
+    const trashed = allSlots.filter(s => s.status === 'deleted');
 
     // 30일 초과 항목 자동 영구삭제
     const now = Date.now();
     const expired = trashed.filter(s => s.deletedAt && now > new Date(s.deletedAt).getTime() + TRASH_DAYS * 86400000);
     if (expired.length) {
       await Promise.all(expired.map(s => HA.permanentDeleteSlot(s._key)));
+      const expiredKeys = new Set(expired.map(s => s._key));
+      allSlots = allSlots.filter(s => !expiredKeys.has(s._key));
     }
     const active = trashed.filter(s => !expired.some(e => e._key === s._key));
 
@@ -540,23 +544,27 @@
 
   window.restoreFromTrash = async function(key) {
     if (!confirm('이 캠페인을 복구하시겠습니까?')) return;
+    const slot = allSlots.find(s => s._key === key);
     await HA.restoreSlot(key);
+    if (slot) { slot.status = slot.originalStatus || 'pending'; slot.deletedAt = null; slot.originalStatus = null; }
     await _renderTrashContent();
-    renderSlots(false, true);
+    renderSlots(false); // allSlots를 이미 위에서 patch했으므로 강제 재조회 불필요
   };
 
   window.permanentDeleteFromTrash = async function(key) {
     if (!confirm('영구 삭제하면 복구가 불가능합니다.\n정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?')) return;
     await HA.permanentDeleteSlot(key);
+    allSlots = allSlots.filter(s => s._key !== key);
     await _renderTrashContent();
   };
 
   window.emptyTrash = async function() {
-    const slots = await HA.getSlots();
-    const trashed = slots.filter(s => s.status === 'deleted');
+    const trashed = allSlots.filter(s => s.status === 'deleted');
     if (!trashed.length) { alert('휴지통이 이미 비어 있습니다.'); return; }
     if (!confirm(`휴지통의 모든 항목 ${trashed.length}건을 영구 삭제합니다.\n복구할 수 없으며, 정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?`)) return;
     await Promise.all(trashed.map(s => HA.permanentDeleteSlot(s._key)));
+    const trashedKeys = new Set(trashed.map(s => s._key));
+    allSlots = allSlots.filter(s => !trashedKeys.has(s._key));
     await _renderTrashContent();
   };
 

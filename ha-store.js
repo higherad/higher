@@ -499,8 +499,9 @@ const HA = {
   // 대시보드 집계
   // ════════════════════════════════════════════════════════
 
-  async getDashboardStats() {
-    const slots = await this.getSlots();
+  // slots: 호출부가 이미 갖고 있는 getSlots() 결과 — 여기서 다시 받으면 ha/slots(5.8MB+)가
+  // 이중으로 다운로드됨(index.html의 renderDashboard가 대시보드 진입마다 같이 getSlots()도 부름).
+  getDashboardStats(slots) {
     const today  = new Date(); today.setHours(0,0,0,0);
     const in3    = new Date(today); in3.setDate(today.getDate() + 3);
 
