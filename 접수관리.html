@@ -1335,34 +1335,13 @@ window.toggleProdPanel = function(e) {
       prodGroups = loaded ? (Array.isArray(loaded) ? loaded : Object.values(loaded)) : [];
     };
     try {
-      const { getDatabase, ref, get, set, remove, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const { getDatabase, ref, get, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
       await window.HA.authReady; // 새로고침 직후 인증 복원 전 호출 시 permission denied 방지
       const db = getDatabase();
-      let [prodsSnap, groupsSnap] = await Promise.all([
+      const [prodsSnap, groupsSnap] = await Promise.all([
         get(ref(db, path + '/prods')),
         get(ref(db, path + '/groups'))
       ]);
-      if (!prodsSnap.exists()) {
-        // 공용 설정 최초 도입: 아직 공용 경로에 값이 없으면 admin 계정의 기존(계정별) 설정을 기본값으로 승격
-        const legacyUid = 'aEhwVAhpVLMUCT5Yg3kAHVLi9Uf2'; // admin 계정 Firebase Auth uid
-        const [legacyProds, legacyGroups] = await Promise.all([
-          get(ref(db, `${path}/${legacyUid}/prods`)),
-          get(ref(db, `${path}/${legacyUid}/groups`))
-        ]);
-        if (legacyProds.exists()) {
-          await set(ref(db, path + '/prods'), legacyProds.val());
-          if (legacyGroups.exists()) await set(ref(db, path + '/groups'), legacyGroups.val());
-          prodsSnap = legacyProds;
-          groupsSnap = legacyGroups;
-          // 이관 완료 — 옛 계정별(uid) 데이터는 더 이상 안 쓰이므로 전부 정리
-          const rootSnap = await get(ref(db, path));
-          if (rootSnap.exists()) {
-            Object.keys(rootSnap.val()).forEach(k => {
-              if (k !== 'prods' && k !== 'groups') remove(ref(db, `${path}/${k}`)).catch(()=>{});
-            });
-          }
-        }
-      }
       if (prodsSnap.exists()) applyProdsData(prodsSnap.val());
       if (groupsSnap.exists()) applyGroupsData(groupsSnap.val());
 
