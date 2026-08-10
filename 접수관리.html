@@ -2155,7 +2155,7 @@ window.toggleProdPanel = function(e) {
         </div>
         <div class="pmf" style="margin-bottom:4px;">
           <label>유입플 키워드</label>
-          <input type="text" id="reaccept-yupfl" value="1,2,3,4,5" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
+          <input type="text" id="reaccept-yupfl" value="" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
         <div class="modal-footer">
@@ -2174,7 +2174,7 @@ window.toggleProdPanel = function(e) {
     const closeBtn = overlay.querySelector('#reaccept-close-btn');
     const resultEl = overlay.querySelector('#reaccept-result');
     const days = Math.max(1, parseInt(overlay.querySelector('#reaccept-days').value, 10) || 7);
-    const yupflKw = overlay.querySelector('#reaccept-yupfl').value.trim() || '1,2,3,4,5';
+    const yupflKw = overlay.querySelector('#reaccept-yupfl').value.trim();
 
     const pending = allSlots.filter(s => s.status === 'pending' && s.mid);
     if (!pending.length) { resultEl.innerHTML = '<span style="color:var(--muted)">대기 상태인 슬롯이 없습니다.</span>'; return; }
