@@ -2147,8 +2147,8 @@ window.toggleProdPanel = function(e) {
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,440px);">
-        <div class="modal-title">🔁 대기 히스토리 재접수</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">대기 슬롯 중 같은 MID의 키워드 히스토리가<br>설정한 기간 이내에 있는 건만 검색키워드를 채우고<br>선택한 상태로 변경합니다.</div>
+        <div class="modal-title" style="display:flex;align-items:center;gap:6px;">🔁 대기 히스토리 재접수<span id="reaccept-help-btn" title="도움말" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text2);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer;flex-shrink:0;">i</span></div>
+        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">대기 슬롯 중 같은 MID의 키워드 히스토리가<br>설정한 기간 이내에 있는 건만 검색키워드를 채우고<br>선택한 상태로 변경합니다.</div>
         <div class="pmf" style="margin-bottom:12px;">
           <label>히스토리 검색 일자 (일)</label>
           <input type="number" id="reaccept-days" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
@@ -2174,6 +2174,10 @@ window.toggleProdPanel = function(e) {
     overlay.querySelector('#reaccept-close-btn').onclick = () => { if (!window.reacceptRunning) overlay.remove(); };
     overlay.addEventListener('click', e => { if (e.target === overlay && !window.reacceptRunning) overlay.remove(); });
     overlay.querySelector('#reaccept-run-btn').onclick = () => runReaccept(overlay);
+    overlay.querySelector('#reaccept-help-btn').onclick = () => {
+      const el = overlay.querySelector('#reaccept-help');
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    };
   };
 
   async function runReaccept(overlay) {
