@@ -2233,47 +2233,10 @@ window.toggleProdPanel = function(e) {
     }
     renderReceipts(false);
 
-    await exportReacceptExcel(rows, days);
-
-    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 대기 ${pending.length}건 중 ${matched.length}건 "${targetLabel}" 처리 완료 (엑셀 다운로드됨)</span>`;
+    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 대기 ${pending.length}건 중 ${matched.length}건 "${targetLabel}" 처리 완료</span>`;
     runBtn.textContent = '✅ 완료'; runBtn.disabled = true;
     closeBtn.disabled = false;
     window.reacceptRunning = false;
-  }
-
-  async function exportReacceptExcel(rows, days) {
-    async function build() {
-      const XLSX = window.XLSX;
-      const header = ['접수일시','대행사','담당자ID','업체명','MID','순위키워드','처리결과','검색키워드','유입플키워드','히스토리날짜','히스토리건수'];
-      const aoa = rows.map(r => {
-        const s = r.slot;
-        return [
-          s.createdAt ? ymd(new Date(s.createdAt)) : '',
-          s.agencyId||'', s.userId||'', s.storeName||'', s.mid||'', s.rankKeyword||'',
-          r.matched ? '접수완료' : '대기유지',
-          r.matched ? r.matchKeyword : (s.searchKeyword||''),
-          r.matched ? s.yupflKeyword||'' : '',
-          r.matchDate ? ymd(new Date(r.matchDate)) : '',
-          r.histCount,
-        ];
-      });
-      const ws = XLSX.utils.aoa_to_sheet([header, ...aoa]);
-      ws['!cols'] = [{wch:12},{wch:16},{wch:10},{wch:22},{wch:14},{wch:16},{wch:10},{wch:60},{wch:14},{wch:12},{wch:10}];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '대기처리결과');
-      const today = new Date();
-      const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
-      XLSX.writeFile(wb, `대기접수처리_${days}일_${dateStr}.xlsx`);
-    }
-    if (window.XLSX) { await build(); } else {
-      await new Promise(resolve => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-        s.onload = resolve;
-        document.head.appendChild(s);
-      });
-      await build();
-    }
   }
 
   // ── 애드로그 대량등록 접수 (그룹/키워드/URL/메모) ────────────
