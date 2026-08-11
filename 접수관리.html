@@ -1974,16 +1974,15 @@ window.toggleProdPanel = function(e) {
     if (!targets.length) return true;
     const amount = deductAmount + yupflAmount;
     if (amount <= 0) return true;
-    // 실제로 시도했다는 마커 — 성공/실패와 무관하게 남겨서, 목록에서 "이 기능이 생긴 뒤 시도했는데
-    // 실패한" 슬롯만 걸러낼 수 있게 한다(이 기능 이전 레거시 active 슬롯엔 이 필드 자체가 없어서
-    // bizfitDeducted 유무만으로 판정하면 오탐하던 문제, 2026-08-11). 실패해도 재시도 시 다시 세팅.
-    await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true })));
-    targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
+    // bizfitDeductAttempted(실제로 시도했다는 마커, 목록 배지가 이 기능 이전 레거시 슬롯을 오탐하지
+    // 않게 함, 2026-08-11)를 API 호출 전에 미리 써두면, 성공하는 흔한 경우에도 "시도함/아직 안 됨"
+    // 상태가 실시간 구독에 잠깐 그대로 노출돼 배지가 떴다 사라지는 깜빡임이 생김(2026-08-11 확인) —
+    // 그래서 성공 시엔 attempted+deducted를 한 번에 같이 쓰고, 실패했을 때만 attempted 단독으로 남긴다.
     try {
       const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount });
       if (res && res.success) {
-        await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeducted: true })));
-        targets.forEach(s => updateLocalSlot(s._key, { bizfitDeducted: true }));
+        await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true })));
+        targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true }));
         // 차감 자체와 별개 작업 — 실패해도 차감은 이미 끝났으니 여기서 막지 않고 콘솔에만 남긴다.
         // 대상 대행사(agencyId)의 가장 최근 입금완료 건에 "[환불] 유입플 세팅 금액 : N원/M원"
         // 메모를 누적 기록 — 같은 충전 건에 여러 번 걸리면 서버가 알아서 합산한다.
@@ -1993,9 +1992,13 @@ window.toggleProdPanel = function(e) {
           .catch(e => console.error('비즈핏 충전 메모 오류:', agencyId, e));
         return true;
       }
+      await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true })));
+      targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
       console.error('비즈핏 캐시 차감 실패:', targets.map(s => s._key), bizfitUid, amount, res && res.message);
       return false;
     } catch (e) {
+      await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true })));
+      targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
       console.error('비즈핏 캐시 차감 오류:', targets.map(s => s._key), bizfitUid, amount, e);
       return false;
     }
