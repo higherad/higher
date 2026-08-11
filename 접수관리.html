@@ -663,7 +663,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
-          <td>${stMap[s.status]||s.status}</td>
+          <td>${stMap[s.status]||s.status}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
               <button class="action-btn" style="background:#f1f5f9;color:var(--text2);" onclick="viewDetail('${s._key}')">상세</button>
@@ -1971,6 +1971,11 @@ window.toggleProdPanel = function(e) {
     if (!targets.length) return true;
     const amount = deductAmount + yupflAmount;
     if (amount <= 0) return true;
+    // 실제로 시도했다는 마커 — 성공/실패와 무관하게 남겨서, 목록에서 "이 기능이 생긴 뒤 시도했는데
+    // 실패한" 슬롯만 걸러낼 수 있게 한다(이 기능 이전 레거시 active 슬롯엔 이 필드 자체가 없어서
+    // bizfitDeducted 유무만으로 판정하면 오탐하던 문제, 2026-08-11). 실패해도 재시도 시 다시 세팅.
+    await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true })));
+    targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
     try {
       const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount });
       if (res && res.success) {
@@ -2002,6 +2007,21 @@ window.toggleProdPanel = function(e) {
     if (!bizfitUid) return true;
     return await settleBizfitCashBatch(bizfitUid, [slot], fields.deductAmount || 0, fields.yupflAmount || 0);
   }
+
+  // 승인은 됐는데(active) 차감을 실제로 시도했다가(bizfitDeductAttempted) 실패한(!bizfitDeducted)
+  // 슬롯만 걸러낸다 — bizfitDeducted 유무만 보면 이 기능 이전 레거시 active 슬롯까지 걸려서(실사용
+  // 확인, 2026-08-11) bizfitDeductAttempted를 같이 요구한다(레거시 슬롯엔 이 필드 자체가 없음).
+  function bizfitDeductPending(s) {
+    return !!(s && s.status === 'active' && s.bizfitDeductAttempted && !s.bizfitDeducted);
+  }
+
+  window.retryBizfitDeduct = async function(key, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '재시도 중...'; }
+    const slot = allSlots.find(s => s._key === key);
+    if (!slot) return;
+    await settleBizfitCash(slot, { deductAmount: slot.deductAmount || 0, yupflAmount: slot.yupflAmount || 0 });
+    renderReceipts(false);
+  };
 
   // 슬롯 여러 건을 한 번에 승인 확정(active) + 비즈핏 캐시차감 트리거 — 멀티레그 게이트 완료/
   // 일반·찰리 단일완료/유입플 단일완료 3곳에서 동일하게 씀. 차감은 슬롯 단위가 아니라 이 배치
