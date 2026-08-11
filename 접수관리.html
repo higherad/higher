@@ -364,6 +364,16 @@ window.toggleProdPanel = function(e) {
   let _detailOpen  = false;
   const userPriceMap = new Map(); // userId -> 단가(원/개), 유입플 접수 모달 금액 표시용
   const userBizfitUidMap = new Map(); // userId -> 비즈핏 파트너 어드민 uid(이메일), 승인 시 캐시 자동차감용
+  // 페이지 로드 직후(맵이 아직 비어있는 동안) 승인을 누르면 매핑 안 된 대행사와 구분 없이 조용히
+  // 스킵되던 문제(2026-08-11) — settleBizfitCash/approveSlotsWithBizfit가 uid를 읽기 전에 이 promise를
+  // await해서, 로드가 안 끝났으면 "매핑 없음"으로 오판하지 않고 로드를 기다리게 한다.
+  const userBizfitUidReady = HA.getUsers().then(users => {
+    users.forEach(u => {
+      userPriceMap.set(u.username, u.unitPrice || 0);
+      if (u.bizfitUid) userBizfitUidMap.set(u.username, u.bizfitUid);
+    });
+    renderReceipts(false); // 매핑 로드 전엔 ⚠️차감재시도 배지를 판단 못 하므로, 로드 완료 시 한 번 다시 그려준다
+  }).catch(() => {});
 
   const stMap = {
     pending:  '<span class="status-badge s-pending">대기</span>',
@@ -653,7 +663,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
-          <td>${stMap[s.status]||s.status}</td>
+          <td>${stMap[s.status]||s.status}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
               <button class="action-btn" style="background:#f1f5f9;color:var(--text2);" onclick="viewDetail('${s._key}')">상세</button>
@@ -662,7 +672,7 @@ window.toggleProdPanel = function(e) {
               ` : ''}
               ${s.status==='accepted' ? `
                 <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기</button>
-                <button class="action-btn btn-approve" onclick="approveOne('${s._key}')">승인</button>
+                <button class="action-btn btn-approve" onclick="approveOne('${s._key}', this)">승인</button>
               ` : ''}
               ${s.status==='active' ? `
                 <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기</button>
@@ -768,12 +778,16 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 승인 ─────────────────────────────────────────────────
-  window.approveOne = async function(key) {
+  // btn을 즉시 disable해 비즈핏 차감이 끝나기 전 같은 슬롯에 중복 클릭이 들어와 이중 차감되는 걸 막고,
+  // settleBizfitCash를 await해 차감+메모가 실제로 끝난 뒤에야 화면을 닫는다(그 전에 닫히면 관리자가
+  // 다른 페이지로 넘어가버려 진행 중이던 차감 요청이 취소될 수 있음, 2026-08-11).
+  window.approveOne = async function(key, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     const targetSlot = allSlots.find(s => s._key === key);
     const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
     await HA.approveSlot(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
-    settleBizfitCash(targetSlot, extra);
+    await settleBizfitCash(targetSlot, extra);
     closeOverlayAndRefresh();
   };
 
@@ -1976,10 +1990,28 @@ window.toggleProdPanel = function(e) {
   // 단건 승인(approveOne)용 — 슬롯 1개짜리 배치로 취급해 settleBizfitCashBatch를 그대로 재사용.
   async function settleBizfitCash(slot, fields) {
     if (!slot) return;
+    await userBizfitUidReady;
     const bizfitUid = userBizfitUidMap.get(slot.userId);
     if (!bizfitUid) return;
     await settleBizfitCashBatch(bizfitUid, [slot], fields.deductAmount || 0, fields.yupflAmount || 0);
   }
+
+  // 승인은 됐는데(active, 차감액>0, bizfitUid 매핑 있음) bizfitDeducted가 안 남은 슬롯 — 네트워크
+  // 오류/세션 만료 등으로 차감이 조용히 실패했을 때 목록에서 바로 보이게 하는 판정(2026-08-11).
+  // userBizfitUidReady 로드 전엔 매핑을 알 수 없어 일단 false — 로드 후 재렌더되면 다시 평가된다.
+  function bizfitDeductPending(s) {
+    if (!s || s.status !== 'active' || s.bizfitDeducted) return false;
+    if ((s.deductAmount||0) + (s.yupflAmount||0) <= 0) return false;
+    return userBizfitUidMap.has(s.userId);
+  }
+
+  window.retryBizfitDeduct = async function(key, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '재시도 중...'; }
+    const slot = allSlots.find(s => s._key === key);
+    if (!slot) return;
+    await settleBizfitCash(slot, { deductAmount: slot.deductAmount || 0, yupflAmount: slot.yupflAmount || 0 });
+    renderReceipts(false);
+  };
 
   // 슬롯 여러 건을 한 번에 승인 확정(active) + 비즈핏 캐시차감 트리거 — 멀티레그 게이트 완료/
   // 일반·찰리 단일완료/유입플 단일완료 3곳에서 동일하게 씀. 차감은 슬롯 단위가 아니라 이 배치
@@ -1989,6 +2021,7 @@ window.toggleProdPanel = function(e) {
     await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
     keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
 
+    await userBizfitUidReady;
     const byUid = new Map(); // bizfitUid -> { slots, ded, yup }
     for (const k of keys) {
       const s = slotMap.get(k);
@@ -2002,7 +2035,10 @@ window.toggleProdPanel = function(e) {
       g.ded += fields.deductAmount || 0;
       g.yup += fields.yupflAmount || 0;
     }
-    for (const [bizfitUid, g] of byUid) settleBizfitCashBatch(bizfitUid, g.slots, g.ded, g.yup);
+    // await 없이 던지면 호출부의 "await approveSlotsWithBizfit(...)"가 차감 완료 전에 끝나버려서
+    // 닫기 버튼이 너무 일찍 활성화된다(관리자가 그 틈에 페이지를 벗어나면 진행 중이던 차감 요청이
+    // 취소될 수 있음, 2026-08-11) — 전부 끝난 뒤에야 이 함수가 resolve되게 한다.
+    await Promise.all([...byUid.entries()].map(([bizfitUid, g]) => settleBizfitCashBatch(bizfitUid, g.slots, g.ded, g.yup)));
   }
 
   function lrm(items, total) {
@@ -2770,7 +2806,12 @@ window.toggleProdPanel = function(e) {
       ...buildNormalRows(slotsByAgency(target, ag), p => p.id === 'charlie'),
     }));
     const yupflRows  = buildYoupflRows(target);
-    const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
+    // hasNormal을 사이트 전체 상품 설정(ap())으로 판단하면 이 대상에 일반 상품이 하나도 없어도
+    // true가 되어(일반 상품은 거의 항상 켜져 있으므로) 불필요하게 게이트가 생기고, 일반 탭엔
+    // 제출할 행이 없어 normalKeys가 빈 Set으로 남아 교집합이 영원히 비어버림 — 유입플/찰리만
+    // 쓰는 대상이 승인·차감으로 넘어가지 못하는 문제로 이어짐(2026-08-11 발견). hasFixed/hasCharlie와
+    // 동일하게 이 대상에 실제로 제출할 행이 있는지로 판단하도록 통일.
+    const hasNormal  = normalPlan.some(p => p.rows.length > 0);
     const hasFixed   = yupflRows.length > 0;
     const hasCharlie = charliePlan.some(p => p.rows.length > 0);
     const defaultTab = hasNormal ? 'normal' : (hasFixed ? 'fixed' : 'charlie');
@@ -2817,7 +2858,12 @@ window.toggleProdPanel = function(e) {
       </div>`;
     document.body.appendChild(overlay);
 
-    // 일반/유입플/찰리 중 2개 이상 동시 활성 시 전부 완료해야 승인으로 전환하는 게이트
+    // 일반/유입플/찰리 중 2개 이상 동시 활성 시(대상 전체 기준) 승인을 조율하는 게이트.
+    // 대상은 여러 슬롯이 섞인 배치라 슬롯마다 실제로 쓰는 상품 조합이 다를 수 있음(예: 어떤 슬롯은
+    // 일반+유입플, 어떤 슬롯은 유입플만) — 그래서 "탭 전체가 다 끝나야"가 아니라 슬롯별로 "그
+    // 슬롯이 실제로 쓰는 레그들만" 다 끝나면 그 슬롯만 바로 승인한다(requiredLegsByKey로 슬롯별
+    // 필요 레그를 미리 계산). 예전엔 탭(레그) 전체 완료를 요구해서, 유입플만 쓰는 슬롯이 배치에
+    // 섞여 있으면 일반 탭엔 그 슬롯 행 자체가 없어 영원히 승인 못 되는 문제가 있었음(2026-08-11).
     // 모달을 닫았다가 재오픈한 경우 — 이전 세션에서 이미 완료된 탭은 이번 세션에서 그 탭 버튼을
     // 다시 누르지 않아도(이미 완료(기존)로 표시되므로) 알 수 있도록 저장된 플래그로 미리 채워둠
     // 일반/찰리는 상품별로 개별 완료 여부가 갈리므로, 슬롯에 걸린 모든 상품행이 완료된 경우에만 "이미 완료"로 취급
@@ -2833,20 +2879,32 @@ window.toggleProdPanel = function(e) {
     const charlieAlreadyDone = alreadyDoneOf(rowsBySlotOf(charliePlan.flatMap(p => p.rows)), '_normalSubmitted');
     const fixedAlreadyDone   = alreadyDoneOf(rowsBySlotOf(yupflRows), '_fixedSubmitted');
 
+    // 슬롯별로 실제 쓰는 레그 집합 — 3곳 rows에 그 슬롯(_slotKey)이 등장하는지로 판단
+    const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys')
+    const addRequired = (rows, leg) => rows.forEach(r => {
+      if (!r._slotKey) return;
+      if (!requiredLegsByKey.has(r._slotKey)) requiredLegsByKey.set(r._slotKey, new Set());
+      requiredLegsByKey.get(r._slotKey).add(leg);
+    });
+    addRequired(normalPlan.flatMap(p => p.rows), 'normalKeys');
+    addRequired(charliePlan.flatMap(p => p.rows), 'charlieKeys');
+    addRequired(yupflRows, 'fixedKeys');
+
     const activeLegs = [];
     if (hasNormal)  activeLegs.push('normalKeys');
     if (hasFixed)   activeLegs.push('fixedKeys');
     if (hasCharlie) activeLegs.push('charlieKeys');
     const gate = (activeLegs.length > 1) ? {
-      legs: activeLegs,
       normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
       fixedKeys:   fixedAlreadyDone.size   ? fixedAlreadyDone   : null,
       charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
       slotMap: new Map(allSlots.map(s => [s._key, s])),
+      requiredLegsByKey,
       async tryApprove() {
-        if (this.legs.some(l => this[l] === null)) return;
-        const [primary, ...rest] = this.legs;
-        const keys = [...this[primary]].filter(k => rest.every(l => this[l].has(k)));
+        const keys = [...this.requiredLegsByKey.entries()]
+          .filter(([k, req]) => this.slotMap.get(k)?.status !== 'active'
+            && [...req].every(leg => this[leg] && this[leg].has(k)))
+          .map(([k]) => k);
         // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
         if (keys.length) await approveSlotsWithBizfit(keys, this.slotMap);
         renderReceipts(false);
@@ -3405,14 +3463,6 @@ window.toggleProdPanel = function(e) {
     saveProdDefault();
     renderPS();
   })();
-
-  // 유입플 접수 모달 금액 표시용 — 회원 단가 미리 로드
-  HA.getUsers().then(users => {
-    users.forEach(u => {
-      userPriceMap.set(u.username, u.unitPrice || 0);
-      if (u.bizfitUid) userBizfitUidMap.set(u.username, u.bizfitUid);
-    });
-  }).catch(() => {});
 
   // Firebase SDK 미리 로드 — 첫 상세 클릭 딜레이 제거
   import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').catch(() => {});
