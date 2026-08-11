@@ -367,11 +367,20 @@ window.toggleProdPanel = function(e) {
   // 페이지 로드 직후(맵이 아직 비어있는 동안) 승인을 누르면 매핑 안 된 대행사와 구분 없이 조용히
   // 스킵되던 문제(2026-08-11) — settleBizfitCash/approveSlotsWithBizfit가 uid를 읽기 전에 이 promise를
   // await해서, 로드가 안 끝났으면 "매핑 없음"으로 오판하지 않고 로드를 기다리게 한다.
-  const userBizfitUidReady = HA.getUsers().then(users => {
-    users.forEach(u => {
-      userPriceMap.set(u.username, u.unitPrice || 0);
-      if (u.bizfitUid) userBizfitUidMap.set(u.username, u.bizfitUid);
-    });
+  // bizfitUid는 더 이상 별도 필드로 안 씀 — ha/bizfit_charge(BizFit 로그인 계정)의 id를 그대로 쓴다.
+  // 실제 데이터로 대조해 파트너 어드민 uid와 BizFit 로그인 id가 19개 대행사 전부 완전히 같은 값이었음을
+  // 확인함(2026-08-11) — 별도 필드를 손으로 채워 넣고 어긋날 위험을 없애기 위해 이쪽으로 통일.
+  const userBizfitUidReady = HA.getUsers().then(async users => {
+    users.forEach(u => userPriceMap.set(u.username, u.unitPrice || 0));
+    try {
+      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const snap = await get(ref(getDatabase(), 'ha/bizfit_charge'));
+      const charge = snap.exists() ? snap.val() : {};
+      users.forEach(u => {
+        const acct = charge[sanitizeFbKey(u.agencyId||'')];
+        if (acct && acct.id) userBizfitUidMap.set(u.username, acct.id);
+      });
+    } catch (e) { console.error('ha/bizfit_charge 로드 실패:', e); }
     renderReceipts(false); // 매핑 로드 전엔 ⚠️차감재시도 배지를 판단 못 하므로, 로드 완료 시 한 번 다시 그려준다
   }).catch(() => {});
 
