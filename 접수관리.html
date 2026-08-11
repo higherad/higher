@@ -2822,6 +2822,7 @@ window.toggleProdPanel = function(e) {
       <div class="modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;overflow-x:hidden;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
           <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
+          <button id="gate-deduct-btn" style="display:none;background:#0891b2;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;"></button>
         </div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
           <button id="stab-normal" class="submit-tab${defaultTab==='normal'?' active':''}"
@@ -2900,18 +2901,36 @@ window.toggleProdPanel = function(e) {
       charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
       slotMap: new Map(allSlots.map(s => [s._key, s])),
       requiredLegsByKey,
-      async tryApprove() {
-        const keys = [...this.requiredLegsByKey.entries()]
+      // 지금 당장 조건(그 슬롯이 필요로 하는 레그 전부)이 충족된 슬롯 키만 골라낸다 — 실행은 안 함(조회 전용).
+      readyKeys() {
+        return [...this.requiredLegsByKey.entries()]
           .filter(([k, req]) => this.slotMap.get(k)?.status !== 'active'
             && [...req].every(leg => this[leg] && this[leg].has(k)))
           .map(([k]) => k);
+      },
+      async tryApprove() {
+        const keys = this.readyKeys();
         // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
         if (keys.length) await approveSlotsWithBizfit(keys, this.slotMap);
         renderReceipts(false);
       }
     } : null;
-    // 재오픈 시점에 이미 관련 탭이 전부 완료돼 있는 슬롯이 있으면(비정상 상태 복구) 즉시 반영
-    if (gate) gate.tryApprove();
+    // 재오픈 시점에 이미 관련 레그가 전부 완료돼 있는 슬롯이 있어도(예: 이전 세션에 일반은 끝냈고,
+    // 그 사이 유입플 요건이 사라짐) 창을 열자마자 자동으로 캐시가 빠져나가면 안 되므로 자동 실행하지
+    // 않고, 그런 슬롯이 있을 때만 버튼을 노출해 관리자가 직접 눌러야 차감이 실행되게 한다(2026-08-11).
+    if (gate) {
+      const ready = gate.readyKeys();
+      if (ready.length) {
+        const deductBtn = overlay.querySelector('#gate-deduct-btn');
+        deductBtn.style.display = '';
+        deductBtn.textContent = `⚡ 캐시 차감 실행 (${ready.length}건)`;
+        deductBtn.onclick = async () => {
+          deductBtn.disabled = true; deductBtn.textContent = '처리 중...';
+          await gate.tryApprove();
+          deductBtn.style.display = 'none';
+        };
+      }
+    }
 
     // 일반 탭 구성
     wireSubmitTab({
