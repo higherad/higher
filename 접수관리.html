@@ -2362,7 +2362,6 @@ window.toggleProdPanel = function(e) {
       </div>`;
     document.body.appendChild(overlay);
     overlay.querySelector('#reaccept-close-btn').onclick = () => { if (!window.reacceptRunning) overlay.remove(); };
-    overlay.addEventListener('click', e => { if (e.target === overlay && !window.reacceptRunning) overlay.remove(); });
     overlay.querySelector('#reaccept-run-btn').onclick = () => runReaccept(overlay);
     overlay.querySelector('#reaccept-help-btn').onclick = () => {
       const el = overlay.querySelector('#reaccept-help');
