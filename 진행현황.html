@@ -176,7 +176,7 @@
       document.getElementById('slots-body').innerHTML =
         '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-      allSlots = await HA.getSlots();
+      allSlots = await HA.getSlotsLive();
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
       // HA.expireSlots가 status만 한 번의 multi-path 쓰기로 처리(슬롯마다 kimpro 확인 왕복하는

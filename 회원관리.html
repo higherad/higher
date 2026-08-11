@@ -144,7 +144,7 @@
     // 회원 목록은 승인/삭제 직후 정확한 값이 필요해 매번 새로 받음(4.5KB라 저렴) — 슬롯만 캐시
     const usersPromise = HA.getUsers();
     if (!_slotsLoaded || forceReload) {
-      allSlots = await HA.getSlots();
+      allSlots = await HA.getSlotsLive();
       _slotsLoaded = true;
     }
     allUsers = await usersPromise;
