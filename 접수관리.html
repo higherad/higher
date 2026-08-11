@@ -2781,7 +2781,10 @@ window.toggleProdPanel = function(e) {
       totalTarget += daysMultipliedSum(p.rows, daysMultiplied);
     });
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${plan.length}곳 · ${label} ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
-    if (target.every(s => s.status === 'active')) {
+    // 이 탭 내용이 이미 전부 제출 완료된 상태(재오픈 등)면 승인 자체는 모달이 열리며 자동으로
+    // 처리되므로, 재제출할 게 없는데도 "접수 신청"이 눌리는 상태로 남지 않게 미리 잠근다(2026-08-11).
+    const allRowsDone = plan.every(p => p.rows.every(r => r._normalSubmitted));
+    if (target.every(s => s.status === 'active') || allRowsDone) {
       applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
     } else {
       applyBtn.onclick = onSubmit;
@@ -2817,7 +2820,6 @@ window.toggleProdPanel = function(e) {
       <div class="modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;overflow-x:hidden;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
           <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
-          <button id="gate-deduct-btn" style="display:none;background:#0891b2;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;"></button>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
@@ -2941,20 +2943,25 @@ window.toggleProdPanel = function(e) {
         renderReceipts(false);
       }
     } : null;
-    // 재오픈 시점에 이미 관련 레그가 전부 완료돼 있는 슬롯이 있어도(예: 이전 세션에 일반은 끝냈고,
-    // 그 사이 유입플 요건이 사라짐) 창을 열자마자 자동으로 캐시가 빠져나가면 안 되므로 자동 실행하지
-    // 않고, 그런 슬롯이 있을 때만 버튼을 노출해 관리자가 직접 눌러야 차감이 실행되게 한다(2026-08-11).
+    // 재오픈 시점에 이미 관련 레그가 전부 완료돼 있는 슬롯이 있으면(비정상 상태 복구) 창을 열자마자
+    // 자동으로 승인+차감까지 반영한다 — 실패해도 이제 콘솔이 아니라 이 모달의 #deduct-fail-banner에
+    // 바로 뜨고 재시도 버튼도 있어서(2026-08-11), 수동 버튼으로 한 단계 더 막을 필요가 없어짐
+    // (한때 수동 버튼으로 바꿨다가 실사용 피드백으로 되돌림).
     if (gate) {
-      const ready = gate.readyKeys();
-      if (ready.length) {
-        const deductBtn = overlay.querySelector('#gate-deduct-btn');
-        deductBtn.style.display = '';
-        deductBtn.textContent = `⚡ 캐시 차감 실행 (${ready.length}건)`;
-        deductBtn.onclick = async () => {
-          deductBtn.disabled = true; deductBtn.textContent = '처리 중...';
-          await gate.tryApprove();
-          deductBtn.style.display = 'none';
-        };
+      gate.tryApprove();
+    } else if (activeLegs.length === 1) {
+      // 게이트가 없는(활성 레그 1개뿐인) 대상도 동일하게 자동 복구 — 그 레그가 이미 끝나 있는
+      // 슬롯만 즉시 승인+차감. gate.readyKeys()와 같은 계산이지만 교집합 대상 레그가 1개뿐이라
+      // 그 레그의 "이미 완료" 집합을 그대로 쓰면 된다.
+      const [onlyLeg] = activeLegs;
+      const alreadyDone = onlyLeg === 'normalKeys' ? normalAlreadyDone : onlyLeg === 'fixedKeys' ? fixedAlreadyDone : charlieAlreadyDone;
+      const slotMapAll = new Map(allSlots.map(s => [s._key, s]));
+      const readyKeys = [...alreadyDone].filter(k => slotMapAll.get(k)?.status !== 'active');
+      if (readyKeys.length) {
+        approveSlotsWithBizfit(readyKeys, slotMapAll).then(failed => {
+          if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
+          renderReceipts(false);
+        });
       }
     }
 
@@ -2979,7 +2986,13 @@ window.toggleProdPanel = function(e) {
       const totalTarget = yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
       overlay.querySelector('#youpfl-sub').innerHTML =
         `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
-      overlay.querySelector('#youpfl-apply-btn').onclick = () => executeYoupflSubmit(yupflRows, overlay, gate);
+      const youpflApplyBtn = overlay.querySelector('#youpfl-apply-btn');
+      // 일반 탭과 동일 — 유입플 내용이 이미 전부 제출 완료면 승인은 모달이 열리며 자동 처리되니 잠근다.
+      if (target.every(s => s.status === 'active') || yupflRows.every(r => r._fixedSubmitted)) {
+        youpflApplyBtn.disabled = true; youpflApplyBtn.textContent = '✅ 전체 완료'; youpflApplyBtn.style.background = '#475569'; youpflApplyBtn.style.cursor = 'default';
+      } else {
+        youpflApplyBtn.onclick = () => executeYoupflSubmit(yupflRows, overlay, gate);
+      }
     } else {
       overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
       overlay.querySelector('#youpfl-apply-btn').disabled = true;
