@@ -330,6 +330,20 @@ const HA = {
     await this.updateSlot(key, { status: 'active', ...extra });
   },
 
+  // 종료일 지난 active 캠페인을 한꺼번에 expired로 전환할 때 전용 — updateSlot을 슬롯마다 부르면
+  // 각각 ensureKimproAuth()+kimpro get() 왕복까지 붙는데, {status:'expired'} 같은 status-only
+  // patch는 updateSlot의 kimpro 분기에서도 항상 아무 것도 안 씀(kimpro에 있어도 status는 patch에서
+  // 빠지고 남는 필드가 없어 skip, 없으면 patch.status!=='active'라 skip — kimpro는 최초 승인
+  // 이후 status를 안 따라감, 위 updateSlot 참고). 그래서 그 확인 자체를 생략하고 메인 db만
+  // multi-path update 한 번으로 전부 반영한다(N개 기준 호출 수 3N → 1).
+  async expireSlots(keys) {
+    if (!keys.length) return;
+    const patch = {};
+    keys.forEach(k => { patch[`${k}/status`] = 'expired'; });
+    await update(ref(db, PATHS.slots), patch);
+    dispatch('ha:slots:updated');
+  },
+
   // ════════════════════════════════════════════════════════
   // 회원 CRUD
   // ════════════════════════════════════════════════════════

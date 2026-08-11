@@ -618,12 +618,15 @@ window.toggleProdPanel = function(e) {
       _slotsLoaded = true;
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
+      // 페이지 진입할 때마다 도는 자리라, 슬롯마다 HA.updateSlot(kimpro 확인 왕복 포함)을 따로
+      // 부르면 밀린 건이 많을 때 한꺼번에 부담이 커짐 — expireSlots가 status만 한 번의 multi-path
+      // 쓰기로 처리한다(2026-08-11).
       const todayStr = ymd(new Date());
       const toExpire = allSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
       );
       if (toExpire.length) {
-        await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
+        await HA.expireSlots(toExpire.map(s => s._key));
         toExpire.forEach(s => { s.status = 'expired'; });
       }
     }
