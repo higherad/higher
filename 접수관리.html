@@ -2036,6 +2036,35 @@ window.toggleProdPanel = function(e) {
     return results.filter(r => !r.ok).map(({ ok, ...g }) => g);
   }
 
+  // 팝업을 열었을 때(내용이 이미 다 완료된 슬롯) 승인(상태를 active로 바꾸는 RTDB 쓰기)만 자동으로
+  // 처리한다 — 이건 비즈핏 API를 안 건드리는 내부 쓰기라 자동으로 돌려도 안전. 캐시차감(외부 API,
+  // 실제 돈이 움직임)은 여기서 절대 시도하지 않고, 필요한 슬롯만 그룹으로 묶어 반환 — 호출부가
+  // 팝업 배너에 올려서 관리자가 "재시도"를 눌러야만 실제로 돈다(2026-08-11).
+  async function approveReadySlots(keys, slotMap) {
+    if (!keys.length) return [];
+    const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
+    await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
+    keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+
+    await userBizfitUidReady;
+    const byUid = new Map();
+    for (const k of keys) {
+      const s = slotMap.get(k);
+      if (!s || s.bizfitDeducted) continue;
+      const bizfitUid = userBizfitUidMap.get(s.userId);
+      if (!bizfitUid) continue;
+      const fields = fieldsByKey.get(k);
+      const amount = (fields.deductAmount || 0) + (fields.yupflAmount || 0);
+      if (amount <= 0) continue;
+      if (!byUid.has(bizfitUid)) byUid.set(bizfitUid, { bizfitUid, slots: [], ded: 0, yup: 0 });
+      const g = byUid.get(bizfitUid);
+      g.slots.push(s);
+      g.ded += fields.deductAmount || 0;
+      g.yup += fields.yupflAmount || 0;
+    }
+    return [...byUid.values()];
+  }
+
   function lrm(items, total) {
     if (!items.length) return {};
     const totalW = items.reduce((s, p) => s + p.ratio, 0) || 1;
@@ -2868,7 +2897,7 @@ window.toggleProdPanel = function(e) {
       if (!failures.length) { banner.style.display = 'none'; return; }
       const total = failures.reduce((s, g) => s + g.ded + g.yup, 0);
       banner.style.display = 'flex';
-      banner.innerHTML = `<span style="color:#b91c1c;font-weight:700;font-size:12px;">⚠️ 비즈핏 캐시차감 실패 ${failures.length}건(${total.toLocaleString()}원) — 접수는 완료됨, 재시도 필요</span>
+      banner.innerHTML = `<span style="color:#b91c1c;font-weight:700;font-size:12px;">⚠️ 비즈핏 캐시차감 필요 ${failures.length}건(${total.toLocaleString()}원) — 접수는 완료됨, 재시도 필요</span>
         <button id="deduct-retry-btn" style="background:#b91c1c;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">재시도</button>`;
       banner.querySelector('#deduct-retry-btn').onclick = async () => {
         const btn = banner.querySelector('#deduct-retry-btn');
@@ -2915,6 +2944,32 @@ window.toggleProdPanel = function(e) {
     addRequired(charliePlan.flatMap(p => p.rows), 'charlieKeys');
     addRequired(yupflRows, 'fixedKeys');
 
+    // 게이트 유무와 상관없이 쓰는 판정 — doneSets(.normalKeys/.fixedKeys/.charlieKeys 형태, 게이트
+    // 객체 자신이거나 초기 스냅샷)를 받아 슬롯이 필요로 하는 레그가 전부 들어있는지로 승인 대상을
+    // 고른다(조회 전용, 실행 안 함).
+    const slotMapAll = new Map(allSlots.map(s => [s._key, s]));
+    function readyKeysOf(doneSets) {
+      return [...requiredLegsByKey.entries()]
+        .filter(([k, req]) => slotMapAll.get(k)?.status !== 'active'
+          && [...req].every(leg => doneSets[leg] && doneSets[leg].has(k)))
+        .map(([k]) => k);
+    }
+
+    // 이미 내용이 다 완료된 슬롯은 승인(상태 전환)까지는 창을 여는 즉시 자동으로 끝낸다 — RTDB
+    // 쓰기일 뿐 비즈핏 API 호출이 아니라 안전(2026-08-11, "로그 확인해서 바로 승인으로" 원래 동작
+    // 복원). 차감(외부 API, 실제 돈이 움직임)은 자동으로 시도하지 않고 필요한 슬롯만 배너에 올려
+    // "재시도"를 눌러야만 실행된다. 탭의 "접수 신청" 버튼도 승인이 끝나는 즉시 이 안에서 잠근다
+    // (버튼은 렌더 시점 스냅샷이라 비동기로 나중에 완료돼도 자동으로 갱신되지 않기 때문).
+    function lockDoneButtons() {
+      [['#submit-apply-btn', hasNormal], ['#youpfl-apply-btn', hasFixed], ['#csub-apply-btn', hasCharlie]].forEach(([sel, has]) => {
+        if (!has) return;
+        const btn = overlay.querySelector(sel);
+        if (btn && !btn.disabled && target.every(s => s.status === 'active')) {
+          btn.disabled = true; btn.textContent = '✅ 전체 완료'; btn.style.background = '#475569'; btn.style.cursor = 'default';
+        }
+      });
+    }
+
     const activeLegs = [];
     if (hasNormal)  activeLegs.push('normalKeys');
     if (hasFixed)   activeLegs.push('fixedKeys');
@@ -2923,31 +2978,45 @@ window.toggleProdPanel = function(e) {
       normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
       fixedKeys:   fixedAlreadyDone.size   ? fixedAlreadyDone   : null,
       charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
-      slotMap: new Map(allSlots.map(s => [s._key, s])),
-      requiredLegsByKey,
-      // 지금 당장 조건(그 슬롯이 필요로 하는 레그 전부)이 충족된 슬롯 키만 골라낸다 — 실행은 안 함(조회 전용).
-      readyKeys() {
-        return [...this.requiredLegsByKey.entries()]
-          .filter(([k, req]) => this.slotMap.get(k)?.status !== 'active'
-            && [...req].every(leg => this[leg] && this[leg].has(k)))
-          .map(([k]) => k);
-      },
+      slotMap: slotMapAll,
       async tryApprove() {
-        const keys = this.readyKeys();
+        const keys = readyKeysOf(this);
         // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
         if (keys.length) {
           const failed = await approveSlotsWithBizfit(keys, this.slotMap);
           if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
         }
         renderReceipts(false);
+        lockDoneButtons();
       }
     } : null;
-    // 캐시차감(비즈핏 API 호출)은 "접수 신청"/"재시도"를 실제로 눌렀을 때만 실행한다 — 창을 여는
-    // 것만으로는 절대 돌지 않음(2026-08-11, 자동 복구를 두 번 시도했다가 최종적으로 뺌). 이미 이전
-    // 세션에 내용까지 다 끝나 있는 탭도 버튼은 그대로 눌러야 하는 상태로 남겨두고(아래 wireSubmitTab
-    // 등에서 status==='active'가 아닌 한 계속 클릭 가능), 클릭하면 재제출 없이 바로 승인·차감만
-    // 진행된다(finalizeSlotApprovals가 pendingRows 없으면 재제출을 건너뜀) — 그 클릭이 실패하면
-    // 그때 #deduct-fail-banner+재시도가 뜬다.
+
+    // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
+    // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
+    const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone });
+    if (initialReady.length) {
+      // 자동 승인이 도는 짧은 틈(HA.approveSlot 왕복) 사이 관리자가 같은 레그의 "접수 신청"을
+      // 눌러버리면 settleBizfitCashBatch가 bizfitDeducted 체크를 통과한 두 호출이 겹쳐 이중
+      // 차감될 수 있음 — 그 레그 버튼만 처리 끝날 때까지 잠깐 잠가둔다(2026-08-11).
+      const legsInvolved = new Set();
+      initialReady.forEach(k => (requiredLegsByKey.get(k) || []).forEach(leg => legsInvolved.add(leg)));
+      const btnSelByLeg = { normalKeys: '#submit-apply-btn', fixedKeys: '#youpfl-apply-btn', charlieKeys: '#csub-apply-btn' };
+      legsInvolved.forEach(leg => {
+        const btn = overlay.querySelector(btnSelByLeg[leg]);
+        if (btn && !btn.disabled) { btn.disabled = true; btn.textContent = '⏳ 처리 중...'; }
+      });
+      approveReadySlots(initialReady, slotMapAll).then(pending => {
+        if (pending.length) { overlay._deductFailures.push(...pending); overlay._renderDeductFailures(); }
+        renderReceipts(false);
+        lockDoneButtons();
+        // 위에서 잠근 버튼이 lockDoneButtons로도 "완료" 처리 안 됐다면(같은 탭에 아직 안 끝난
+        // 다른 슬롯이 남은 경우) 원래대로 눌러야 하는 상태로 복구한다.
+        legsInvolved.forEach(leg => {
+          const btn = overlay.querySelector(btnSelByLeg[leg]);
+          if (btn && btn.textContent === '⏳ 처리 중...') { btn.disabled = false; btn.textContent = '접수 신청'; }
+        });
+      });
+    }
 
     // 일반 탭 구성
     wireSubmitTab({
