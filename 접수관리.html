@@ -258,6 +258,13 @@
     <input type="date" id="filter-date-from" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="onDateChange()">
     <button id="date-clear-btn" onclick="clearDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
+  <div id="start-date-filter-wrap" style="position:relative;display:flex;align-items:center;">
+    <button id="start-date-pick-btn" onclick="document.getElementById('filter-start-date').showPicker?document.getElementById('filter-start-date').showPicker():document.getElementById('filter-start-date').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
+      📅 <span id="start-date-label">시작일 선택</span>
+    </button>
+    <input type="date" id="filter-start-date" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="onStartDateChange()">
+    <button id="start-date-clear-btn" onclick="clearStartDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
+  </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="receipt-search" placeholder="대행사/ID/플레이스명/MID (콤마 구분)" style="width:240px;" onkeydown="if(event.key==='Enter') renderReceipts()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderReceipts()">검색</button>
@@ -565,6 +572,7 @@ window.toggleProdPanel = function(e) {
     const kwTerms     = (document.getElementById('receipt-search').value||'')
       .split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
     const dateFrom    = document.getElementById('filter-date-from').value;
+    const startDateFrom = document.getElementById('filter-start-date').value;
     return allSlots.filter(s => {
       if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
@@ -577,6 +585,7 @@ window.toggleProdPanel = function(e) {
       if (kwTerms.length && !kwTerms.some(t => [s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(t)))) return false;
       const slotDate = s.createdAt ? ymd(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
+      if (startDateFrom && s.startDate !== startDateFrom) return false;
       if (HA.getCurrentUser()?.role === 'guest') {
         if (!s.createdAt || new Date(s.createdAt).getMonth() + 1 !== 6) return false;
       }
@@ -591,6 +600,10 @@ window.toggleProdPanel = function(e) {
     document.getElementById('date-label').textContent = '접수일 선택';
     document.getElementById('date-pick-btn').style.color = 'var(--text2)';
     document.getElementById('date-clear-btn').style.display = 'none';
+    document.getElementById('filter-start-date').value = '';
+    document.getElementById('start-date-label').textContent = '시작일 선택';
+    document.getElementById('start-date-pick-btn').style.color = 'var(--text2)';
+    document.getElementById('start-date-clear-btn').style.display = 'none';
     document.getElementById('receipt-search').value = '';
     renderReceipts();
   };
@@ -610,6 +623,22 @@ window.toggleProdPanel = function(e) {
     }
     renderReceipts();
   };
+  window.clearStartDateFilter = function() {
+    document.getElementById('filter-start-date').value = '';
+    document.getElementById('start-date-label').textContent = '시작일 선택';
+    document.getElementById('start-date-pick-btn').style.color = 'var(--text2)';
+    document.getElementById('start-date-clear-btn').style.display = 'none';
+    renderReceipts();
+  };
+  window.onStartDateChange = function() {
+    const val = document.getElementById('filter-start-date').value;
+    if (val) {
+      document.getElementById('start-date-label').textContent = val;
+      document.getElementById('start-date-pick-btn').style.color = 'var(--text)';
+      document.getElementById('start-date-clear-btn').style.display = 'inline';
+    }
+    renderReceipts();
+  };
 
   window.renderReceipts = async function(resetPage = true, forceReload = false) {
     if (resetPage) currentPage = 1;
@@ -617,6 +646,8 @@ window.toggleProdPanel = function(e) {
     if (HA.getCurrentUser()?.role === 'guest') {
       const dateWrap = document.getElementById('date-filter-wrap');
       if (dateWrap) dateWrap.style.display = 'none';
+      const startDateWrap = document.getElementById('start-date-filter-wrap');
+      if (startDateWrap) startDateWrap.style.display = 'none';
       document.getElementById('receipt-page')?.classList.add('guest-mode');
     }
 
