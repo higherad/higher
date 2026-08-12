@@ -2433,7 +2433,7 @@ window.toggleProdPanel = function(e) {
       const matched = kwMatched || yMatched;
       return {
         slot: s,
-        matched,
+        matched, kwMatched, yMatched,
         matchKeyword: kwMatched ? kwTop.searchKeyword : (s.searchKeyword || ''),
         matchYupfl: yMatched ? yTop.searchKeyword : '',
       };
@@ -2448,7 +2448,9 @@ window.toggleProdPanel = function(e) {
       return;
     }
 
-    if (!confirm(`대기 ${pending.length}건 중 ${matched.length}건이 매칭되었습니다.\n검색키워드/유입플 키워드를 채우고 "${targetLabel}" 상태로 변경하시겠습니까?`)) {
+    const kwCount = matched.filter(r => r.kwMatched).length;
+    const yCount = matched.filter(r => r.yMatched).length;
+    if (!confirm(`대기 ${matched.length}건\n검색키워드 ${kwCount}건\n유입플 키워드 ${yCount}건\n\n각 키워드를 채우고 "${targetLabel}" 상태로 변경하시겠습니까?`)) {
       runBtn.disabled = false; runBtn.textContent = '실행';
       closeBtn.disabled = false;
       window.reacceptRunning = false;
