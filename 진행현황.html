@@ -50,7 +50,6 @@
   .s-active   { background:rgba(16,185,129,.1); color:#059669; }
   .s-reserved { background:rgba(245,158,11,.12); color:#d97706; }
   .s-expired  { background:#f1f5f9; color:#64748b; }
-  #slots-page.guest-mode .rank-col { display:none; }
 </style>
 
 <div class="stat-bar" style="grid-template-columns:repeat(4,1fr)">
@@ -101,7 +100,7 @@
         <th><input type="checkbox" id="s-check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>대행사</th><th>유저ID</th>
         <th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>상태</th><th>액션</th><th class="rank-col">순위</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>상태</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="slots-body">
@@ -134,13 +133,9 @@
     return stLabel[s.status] || s.status;
   }
 
-  function isGuest() { return HA.getCurrentUser()?.role === 'guest'; }
-  document.getElementById('slots-page').classList.toggle('guest-mode', isGuest());
-
   function getFiltered() {
     const status  = document.getElementById('f-status').value;
     const kw      = (document.getElementById('f-kw').value||'').toLowerCase();
-    const guest   = isGuest();
     const todayStr = todayYMD();
     return allSlots.filter(s => {
       if (status === 'reserved') { if (!isReserved(s, todayStr)) return false; }
@@ -148,9 +143,6 @@
       else if (status) { if (s.status !== status) return false; }
       else { if (s.status !== 'active' && s.status !== 'expired') return false; }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
-      if (guest) {
-        if (!s.createdAt || new Date(s.createdAt).getMonth() + 1 !== 6) return false;
-      }
       return true;
     });
   }
@@ -226,7 +218,7 @@
               <button class="action-btn btn-del"  onclick="delSlot('${s._key}')">삭제</button>
             </div>
           </td>
-          <td class="rank-col">
+          <td>
             <button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup('${s._key}')">순위</button>
           </td>
         </tr>`;

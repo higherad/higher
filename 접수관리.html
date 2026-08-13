@@ -26,7 +26,6 @@
   .s-accepted  { background:rgba(59,130,246,.1);  color:#1d4ed8; }
   .s-active    { background:rgba(16,185,129,.1);  color:#059669; }
   .s-expired   { background:#f1f5f9; color:#64748b; }
-  #receipt-page.guest-mode #dl-submit-btn { display:none; }
   .action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; transition:.15s; }
   .btn-approve { background:var(--accent); color:#fff; }
   .btn-approve:hover { background:var(--accent2); }
@@ -586,9 +585,6 @@ window.toggleProdPanel = function(e) {
       const slotDate = s.createdAt ? ymd(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
       if (startDateFrom && s.startDate !== startDateFrom) return false;
-      if (HA.getCurrentUser()?.role === 'guest') {
-        if (!s.createdAt || new Date(s.createdAt).getMonth() + 1 !== 6) return false;
-      }
       return true;
     });
   }
@@ -642,14 +638,6 @@ window.toggleProdPanel = function(e) {
 
   window.renderReceipts = async function(resetPage = true, forceReload = false) {
     if (resetPage) currentPage = 1;
-
-    if (HA.getCurrentUser()?.role === 'guest') {
-      const dateWrap = document.getElementById('date-filter-wrap');
-      if (dateWrap) dateWrap.style.display = 'none';
-      const startDateWrap = document.getElementById('start-date-filter-wrap');
-      if (startDateWrap) startDateWrap.style.display = 'none';
-      document.getElementById('receipt-page')?.classList.add('guest-mode');
-    }
 
     if (!_slotsLoaded || forceReload) {
       document.getElementById('receipt-body').innerHTML =
@@ -951,7 +939,7 @@ window.toggleProdPanel = function(e) {
               검색키워드
               <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
             </span>
-            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn"
+            ${s.mid ? `<button onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
@@ -964,7 +952,7 @@ window.toggleProdPanel = function(e) {
               유입플 키워드
               <span id="yupfl-kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.yupflKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
             </span>
-            ${(s.mid && HA.getCurrentUser()?.role !== 'guest') ? `<button onclick="toggleYupflMidHistory('${escJsAttr(s.mid)}','detail-yupfl-keyword-input','yupfl-kw-count-badge')" id="yupfl-hist-btn"
+            ${s.mid ? `<button onclick="toggleYupflMidHistory('${escJsAttr(s.mid)}','detail-yupfl-keyword-input','yupfl-kw-count-badge')" id="yupfl-hist-btn"
               style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
               이전 키워드 보기
             </button>` : ''}
@@ -992,7 +980,7 @@ window.toggleProdPanel = function(e) {
     const rules = Array.isArray(splitProd.missionRules) ? splitProd.missionRules : [];
     if (!rules.length) return '';
     const sk = s.splitKeywords || {};
-    const showHistBtn = s.mid && HA.getCurrentUser()?.role !== 'guest';
+    const showHistBtn = !!s.mid;
     return rules.map(r => {
       const inputId = `split-kw-input-${r.mission}`;
       const badgeId = `split-kw-count-${r.mission}`;
@@ -1637,16 +1625,12 @@ window.toggleProdPanel = function(e) {
     renderPS();
   };
 
-  function prodDisplayName(p) {
-    return (p.id === 'yupfl' && HA.getCurrentUser()?.role === 'guest') ? '테스트' : p.name;
-  }
-
   function renderPS() {
     renderProdGroups();
     const prodHtml = p => `
       <div class="ps-item${p.active?' active':''}" id="psi-${p.id}" onclick="openProdModal('${p.id}')">
         <div class="ps-dot" style="background:${p.color};border-color:rgba(0,0,0,.1);"></div>
-        <span class="ps-name" style="color:${p.color}">${escProd(prodDisplayName(p))}</span>
+        <span class="ps-name" style="color:${p.color}">${escProd(p.name)}</span>
         <button class="ps-tog ${p.active?'on':'off'}" onclick="event.stopPropagation();toggleProd('${p.id}')"></button>
       </div>`;
     const normalProds = [], fixedProds = [];
@@ -1688,7 +1672,7 @@ window.toggleProdPanel = function(e) {
     const p = prods.find(x => x.id === id); if (!p) return;
     _prodModalId = id;
     document.getElementById('prod-modal-dot').style.background  = p.color;
-    document.getElementById('prod-modal-title').textContent     = `${prodDisplayName(p)} 설정`;
+    document.getElementById('prod-modal-title').textContent     = `${p.name} 설정`;
     const nameEl = document.getElementById('pm-name');
     nameEl.value = p.name;
     // 고정 상품(차감/유입플/분할/찰리)은 이름이 로직·등급명 매칭(찰리)에 쓰이므로 수정 불가

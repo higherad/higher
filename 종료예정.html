@@ -15,7 +15,6 @@
   .dday-urgent { background:#fff7ed; color:#c2410c; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
   .dday-soon   { background:#fefce8; color:#a16207; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
   .dday-normal { background:#f0fdf4; color:#15803d; font-weight:600; padding:2px 8px; border-radius:4px; font-size:11px; }
-  #expire-page.guest-mode .rank-col { display:none; }
   .action-btn  { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
   .btn-cancel  { padding:8px 20px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; }
   .status-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
@@ -64,7 +63,7 @@
       <tr>
         <th>번호</th><th>대행사</th><th>유저ID</th>
         <th>플레이스명</th><th>MID</th><th>순위키워드</th><th>시작일</th><th>종료일</th>
-        <th>일 목표</th><th>검색키워드</th><th>D-Day</th><th>상태</th><th class="rank-col">순위</th>
+        <th>일 목표</th><th>검색키워드</th><th>D-Day</th><th>상태</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="expire-body">
@@ -158,11 +157,6 @@
       return d >= today;
     });
 
-    if (HA.getCurrentUser()?.role === 'guest') {
-      slots = slots.filter(s => s.createdAt && new Date(s.createdAt).getMonth() + 1 === 6);
-      document.getElementById('expire-page')?.classList.add('guest-mode');
-    }
-
     if(range !== 'all') {
       const limit = new Date(today);
       limit.setDate(today.getDate()+Number(range));
@@ -203,7 +197,7 @@
         <td><span class="kw-badge">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length}개</span></td>
         <td>${hasStarted(s) ? ddayBadge(getDday(s.endDate)) : '-'}</td>
         <td>${statusBadge(s)}</td>
-        <td class="rank-col"><button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup_e('${s._key}')">순위</button></td>
+        <td><button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup_e('${s._key}')">순위</button></td>
       </tr>`).join('');
     if(window.lucide) lucide.createIcons();
   };
