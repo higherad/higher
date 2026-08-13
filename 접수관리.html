@@ -252,14 +252,14 @@
   </select>
   <div id="date-filter-wrap" style="position:relative;display:flex;align-items:center;">
     <button id="date-pick-btn" onclick="document.getElementById('filter-date-from').showPicker?document.getElementById('filter-date-from').showPicker():document.getElementById('filter-date-from').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
-      📅 <span id="date-label">접수일 선택</span>
+      📅 <span id="date-label">접수일</span>
     </button>
     <input type="date" id="filter-date-from" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="onDateChange()">
     <button id="date-clear-btn" onclick="clearDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div id="start-date-filter-wrap" style="position:relative;display:flex;align-items:center;">
     <button id="start-date-pick-btn" onclick="document.getElementById('filter-start-date').showPicker?document.getElementById('filter-start-date').showPicker():document.getElementById('filter-start-date').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
-      📅 <span id="start-date-label">시작일 선택</span>
+      📅 <span id="start-date-label">시작일</span>
     </button>
     <input type="date" id="filter-start-date" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="onStartDateChange()">
     <button id="start-date-clear-btn" onclick="clearStartDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
@@ -593,11 +593,11 @@ window.toggleProdPanel = function(e) {
     document.getElementById('filter-status').value = '';
     document.getElementById('filter-slot-type').value = '';
     document.getElementById('filter-date-from').value = '';
-    document.getElementById('date-label').textContent = '접수일 선택';
+    document.getElementById('date-label').textContent = '접수일';
     document.getElementById('date-pick-btn').style.color = 'var(--text2)';
     document.getElementById('date-clear-btn').style.display = 'none';
     document.getElementById('filter-start-date').value = '';
-    document.getElementById('start-date-label').textContent = '시작일 선택';
+    document.getElementById('start-date-label').textContent = '시작일';
     document.getElementById('start-date-pick-btn').style.color = 'var(--text2)';
     document.getElementById('start-date-clear-btn').style.display = 'none';
     document.getElementById('receipt-search').value = '';
@@ -605,7 +605,7 @@ window.toggleProdPanel = function(e) {
   };
   window.clearDateFilter = function() {
     document.getElementById('filter-date-from').value = '';
-    document.getElementById('date-label').textContent = '접수일 선택';
+    document.getElementById('date-label').textContent = '접수일';
     document.getElementById('date-pick-btn').style.color = 'var(--text2)';
     document.getElementById('date-clear-btn').style.display = 'none';
     renderReceipts();
@@ -621,7 +621,7 @@ window.toggleProdPanel = function(e) {
   };
   window.clearStartDateFilter = function() {
     document.getElementById('filter-start-date').value = '';
-    document.getElementById('start-date-label').textContent = '시작일 선택';
+    document.getElementById('start-date-label').textContent = '시작일';
     document.getElementById('start-date-pick-btn').style.color = 'var(--text2)';
     document.getElementById('start-date-clear-btn').style.display = 'none';
     renderReceipts();
