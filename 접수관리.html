@@ -2368,17 +2368,17 @@ window.toggleProdPanel = function(e) {
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,440px);">
         <div class="modal-title" style="display:flex;align-items:center;gap:6px;">🔁 대기 히스토리 재접수<span id="reaccept-help-btn" title="도움말" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text2);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer;flex-shrink:0;position:relative;top:1px;">i</span></div>
-        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">대기 슬롯 중 같은 MID의 검색키워드/유입플 키워드 히스토리가<br>각각 설정한 기간 이내에 있는 건만 해당 키워드를 채웁니다.<br><b>둘 다</b> 최근 이력이 있으면 접수로 자동 전환되고,<br>1개만 일치하면 키워드만 채우고 대기 상태로 유지됩니다. (유입플 히스토리가 없으면 일괄 적용값 사용)</div>
+        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">대기 슬롯 중 같은 MID의 검색키워드 히스토리가 설정한 기간 이내에<br>있는 건만 처리 대상입니다. 유입플은 ②를 비우면 히스토리를 안 보고<br>바로 ③ 개별값을 쓰고, 일자를 넣으면 그 기간 내 히스토리를 찾아 없을 때만<br>③으로 대체합니다. <b>검색키워드+유입플 둘 다 충족(②를 비웠으면 검색키워드만)</b>해야<br>접수로 자동 전환되고, 아니면 키워드만 채우고 대기 상태로 유지됩니다.</div>
         <div class="pmf" style="margin-bottom:12px;">
           <label>① 검색키워드 히스토리 검색 일자 (일)</label>
           <input type="number" id="reaccept-days-kw" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div class="pmf" style="margin-bottom:12px;">
-          <label>② 유입플 키워드 히스토리 검색 일자 (일)</label>
-          <input type="number" id="reaccept-days-yupfl" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
+          <label>② 유입플 키워드 히스토리 검색 일자 (일, 비우면 히스토리 확인 없이 ③ 사용)</label>
+          <input type="number" id="reaccept-days-yupfl" value="" min="1" placeholder="비우면 ③ 개별값 바로 사용" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div class="pmf" style="margin-bottom:12px;">
-          <label>③ 유입플 키워드 일괄 적용 (히스토리 없을 때)</label>
+          <label>③ 유입플 키워드 개별 설정 (② 비웠을 때 바로 사용 / 히스토리 없을 때 대체)</label>
           <input type="text" id="reaccept-yupfl" value="" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
@@ -2401,9 +2401,15 @@ window.toggleProdPanel = function(e) {
     const closeBtn = overlay.querySelector('#reaccept-close-btn');
     const resultEl = overlay.querySelector('#reaccept-result');
     const daysKw = parseInt(overlay.querySelector('#reaccept-days-kw').value, 10);
-    const daysYupfl = parseInt(overlay.querySelector('#reaccept-days-yupfl').value, 10);
-    if (!Number.isInteger(daysKw) || daysKw < 1 || !Number.isInteger(daysYupfl) || daysYupfl < 1) {
-      alert('히스토리 검색 일자를 1 이상의 숫자로 입력해주세요.');
+    if (!Number.isInteger(daysKw) || daysKw < 1) {
+      alert('검색키워드 히스토리 검색 일자를 1 이상의 숫자로 입력해주세요.');
+      return;
+    }
+    const daysYupflRaw = overlay.querySelector('#reaccept-days-yupfl').value.trim();
+    const yupflSkip = daysYupflRaw === ''; // 비우면 히스토리 확인 없이 ③ 개별값 바로 사용
+    const daysYupfl = yupflSkip ? null : parseInt(daysYupflRaw, 10);
+    if (!yupflSkip && (!Number.isInteger(daysYupfl) || daysYupfl < 1)) {
+      alert('유입플 키워드 히스토리 검색 일자를 1 이상의 숫자로 입력하거나 비워두세요.');
       return;
     }
     const yupflKw = overlay.querySelector('#reaccept-yupfl').value.trim();
@@ -2421,22 +2427,26 @@ window.toggleProdPanel = function(e) {
     const histMap = new Map();
     const yupflHistMap = new Map();
     await Promise.all(uniqueMids.map(async mid => {
-      const [kwHist, yupflHist] = await Promise.all([fullKeywordHistory(mid), fullYupflKeywordHistory(mid)]);
+      const [kwHist, yupflHist] = await Promise.all([
+        fullKeywordHistory(mid),
+        yupflSkip ? Promise.resolve([]) : fullYupflKeywordHistory(mid), // 스킵 모드면 유입플 히스토리 조회 자체를 안 함
+      ]);
       histMap.set(mid, kwHist);
       yupflHistMap.set(mid, yupflHist);
     }));
 
     // 검색키워드/유입플 각각 독립된 기간(일)으로 최근 히스토리 여부 판단
     const cutoffDayKw = ymd(new Date(Date.now() - daysKw * 24 * 3600 * 1000));
-    const cutoffDayYupfl = ymd(new Date(Date.now() - daysYupfl * 24 * 3600 * 1000));
+    const cutoffDayYupfl = yupflSkip ? null : ymd(new Date(Date.now() - daysYupfl * 24 * 3600 * 1000));
     const withinCutoff = (h, cutoffDay) => !!(h && h.createdAt && ymd(new Date(h.createdAt)) >= cutoffDay);
     const rows = pending.map(s => {
       const kwTop = (histMap.get(s.mid) || [])[0];
       const yTop  = (yupflHistMap.get(s.mid) || [])[0];
       const kwMatched = withinCutoff(kwTop, cutoffDayKw);
-      const yMatched  = withinCutoff(yTop, cutoffDayYupfl);
-      // 둘 다 최근이면 접수로 자동 전환, 1개만 일치하면 키워드만 채우고 대기 유지
-      const bothMatched = kwMatched && yMatched;
+      const yMatched  = yupflSkip ? false : withinCutoff(yTop, cutoffDayYupfl);
+      // 유입플을 스킵(②비움)했으면 개별값 사용을 그 자체로 충족된 것으로 간주 — 검색키워드만 최근이면 접수
+      const ySatisfied = yupflSkip ? true : yMatched;
+      const bothMatched = kwMatched && ySatisfied;
       return {
         slot: s,
         matched: kwMatched || yMatched, kwMatched, yMatched, bothMatched,
@@ -2448,7 +2458,7 @@ window.toggleProdPanel = function(e) {
     const matched = rows.filter(r => r.matched);
 
     if (!matched.length) {
-      resultEl.innerHTML = `<span style="color:var(--muted)">대기 ${pending.length}건 중 최근 히스토리(검색키워드 ${daysKw}일 / 유입플 ${daysYupfl}일)가 있는 건이 없습니다.</span>`;
+      resultEl.innerHTML = `<span style="color:var(--muted)">대기 ${pending.length}건 중 최근 히스토리(검색키워드 ${daysKw}일${yupflSkip ? '' : ` / 유입플 ${daysYupfl}일`})가 있는 건이 없습니다.</span>`;
       runBtn.disabled = false; runBtn.textContent = '실행';
       closeBtn.disabled = false;
       window.reacceptRunning = false;
