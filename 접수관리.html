@@ -2457,7 +2457,7 @@ window.toggleProdPanel = function(e) {
 
     const acceptCount = matched.filter(r => r.bothMatched).length;
     const keepCount = matched.length - acceptCount;
-    if (!confirm(`대기 ${matched.length}건 처리 대상\n- 접수로 전환: ${acceptCount}건 (검색키워드+유입플 둘 다 일치)\n- 키워드만 갱신(대기 유지): ${keepCount}건 (1개만 일치)\n\n진행하시겠습니까?`)) {
+    if (!confirm(`대기 ${matched.length}건 처리 대상\n- 접수 전환(접수) ${acceptCount}건\n- 키워드 갱신(대기) ${keepCount}건\n\n진행하시겠습니까?`)) {
       runBtn.disabled = false; runBtn.textContent = '실행';
       closeBtn.disabled = false;
       window.reacceptRunning = false;
