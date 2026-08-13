@@ -2368,7 +2368,7 @@ window.toggleProdPanel = function(e) {
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,440px);">
         <div class="modal-title" style="display:flex;align-items:center;gap:6px;">🔁 대기 히스토리 재접수<span id="reaccept-help-btn" title="도움말" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text2);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer;flex-shrink:0;position:relative;top:1px;">i</span></div>
-        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">대기 슬롯 중 같은 MID의 검색키워드 또는 유입플 키워드 히스토리가<br>각각 설정한 기간 이내에 있는 건만 해당 키워드를 채우고<br>선택한 상태로 변경합니다. (유입플 히스토리가 없으면 일괄 적용값 사용)</div>
+        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">대기 슬롯 중 같은 MID의 검색키워드/유입플 키워드 히스토리가<br>각각 설정한 기간 이내에 있는 건만 해당 키워드를 채웁니다.<br><b>둘 다</b> 최근 이력이 있으면 접수로 자동 전환되고,<br>1개만 일치하면 키워드만 채우고 대기 상태로 유지됩니다. (유입플 히스토리가 없으면 일괄 적용값 사용)</div>
         <div class="pmf" style="margin-bottom:12px;">
           <label>① 검색키워드 히스토리 검색 일자 (일)</label>
           <input type="number" id="reaccept-days-kw" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
@@ -2380,13 +2380,6 @@ window.toggleProdPanel = function(e) {
         <div class="pmf" style="margin-bottom:12px;">
           <label>③ 유입플 키워드 일괄 적용 (히스토리 없을 때)</label>
           <input type="text" id="reaccept-yupfl" value="" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
-        </div>
-        <div class="pmf" style="margin-bottom:4px;">
-          <label>④ 변경할 상태</label>
-          <div style="display:flex;gap:14px;font-size:13px;padding:2px 0;">
-            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="radio" name="reaccept-status" value="pending" checked> 대기</label>
-            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="radio" name="reaccept-status" value="accepted"> 접수</label>
-          </div>
         </div>
         <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
         <div class="modal-footer">
@@ -2414,8 +2407,6 @@ window.toggleProdPanel = function(e) {
       return;
     }
     const yupflKw = overlay.querySelector('#reaccept-yupfl').value.trim();
-    const targetStatus = overlay.querySelector('input[name="reaccept-status"]:checked').value;
-    const targetLabel = targetStatus === 'pending' ? '대기' : '접수';
 
     const pending = allSlots.filter(s => s.status === 'pending' && s.mid);
     if (!pending.length) { resultEl.innerHTML = '<span style="color:var(--muted)">대기 상태인 슬롯이 없습니다.</span>'; return; }
@@ -2444,11 +2435,12 @@ window.toggleProdPanel = function(e) {
       const yTop  = (yupflHistMap.get(s.mid) || [])[0];
       const kwMatched = withinCutoff(kwTop, cutoffDayKw);
       const yMatched  = withinCutoff(yTop, cutoffDayYupfl);
-      // 검색키워드 히스토리 또는 유입플 히스토리, 둘 중 하나만 최근이어도 재접수 대상
-      const matched = kwMatched || yMatched;
+      // 둘 다 최근이면 접수로 자동 전환, 1개만 일치하면 키워드만 채우고 대기 유지
+      const bothMatched = kwMatched && yMatched;
       return {
         slot: s,
-        matched, kwMatched, yMatched,
+        matched: kwMatched || yMatched, kwMatched, yMatched, bothMatched,
+        newStatus: bothMatched ? 'accepted' : 'pending',
         matchKeyword: kwMatched ? kwTop.searchKeyword : (s.searchKeyword || ''),
         matchYupfl: yMatched ? yTop.searchKeyword : '',
       };
@@ -2463,27 +2455,27 @@ window.toggleProdPanel = function(e) {
       return;
     }
 
-    const kwCount = matched.filter(r => r.kwMatched).length;
-    const yCount = matched.filter(r => r.yMatched).length;
-    if (!confirm(`대기 ${matched.length}건\n검색키워드 ${kwCount}건\n유입플 키워드 ${yCount}건\n\n각 키워드를 채우고 "${targetLabel}" 상태로 변경하시겠습니까?`)) {
+    const acceptCount = matched.filter(r => r.bothMatched).length;
+    const keepCount = matched.length - acceptCount;
+    if (!confirm(`대기 ${matched.length}건 처리 대상\n- 접수로 전환: ${acceptCount}건 (검색키워드+유입플 둘 다 일치)\n- 키워드만 갱신(대기 유지): ${keepCount}건 (1개만 일치)\n\n진행하시겠습니까?`)) {
       runBtn.disabled = false; runBtn.textContent = '실행';
       closeBtn.disabled = false;
       window.reacceptRunning = false;
       return;
     }
 
-    runBtn.textContent = `⏳ ${targetLabel} 처리 중... (0/${matched.length})`;
+    runBtn.textContent = `⏳ 처리 중... (0/${matched.length})`;
     let done = 0;
     for (const r of matched) {
-      const updates = { searchKeyword: r.matchKeyword, yupflKeyword: r.matchYupfl || yupflKw, status: targetStatus };
+      const updates = { searchKeyword: r.matchKeyword, yupflKeyword: r.matchYupfl || yupflKw, status: r.newStatus };
       await HA.updateSlot(r.slot._key, updates);
       updateLocalSlot(r.slot._key, updates);
       done++;
-      runBtn.textContent = `⏳ ${targetLabel} 처리 중... (${done}/${matched.length})`;
+      runBtn.textContent = `⏳ 처리 중... (${done}/${matched.length})`;
     }
     renderReceipts(false);
 
-    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 대기 ${pending.length}건 중 ${matched.length}건 "${targetLabel}" 처리 완료</span>`;
+    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 접수 전환 ${acceptCount}건 / 키워드만 갱신 ${keepCount}건 처리 완료</span>`;
     runBtn.textContent = '✅ 완료'; runBtn.disabled = true;
     closeBtn.disabled = false;
     window.reacceptRunning = false;
