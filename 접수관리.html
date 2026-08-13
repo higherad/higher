@@ -2368,17 +2368,17 @@ window.toggleProdPanel = function(e) {
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,440px);">
         <div class="modal-title" style="display:flex;align-items:center;gap:6px;">🔁 대기 히스토리 재접수<span id="reaccept-help-btn" title="도움말" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text2);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer;flex-shrink:0;position:relative;top:1px;">i</span></div>
-        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">대기 슬롯 중 같은 MID의 검색키워드 히스토리가 설정한 기간 이내에<br>있는 건만 처리 대상입니다. 유입플은 ②를 비우면 히스토리를 안 보고<br>바로 ③ 개별값을 쓰고, 일자를 넣으면 그 기간 내 히스토리를 찾아 없을 때만<br>③으로 대체합니다. <b>검색키워드+유입플 둘 다 충족(②를 비웠으면 검색키워드만)</b>해야<br>접수로 자동 전환되고, 아니면 키워드만 채우고 대기 상태로 유지됩니다.</div>
+        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">검색키워드는 ①일 이내 이력이 있어야 처리됩니다.<br>유입플은 ②를 비우면 ③ 값을 바로 쓰고, 채우면 이력을 먼저 찾고 없을 때만 ③을 씁니다.<br>조건을 모두 충족해야 접수로 전환되고, 아니면 키워드만 채워집니다.</div>
         <div class="pmf" style="margin-bottom:12px;">
           <label>① 검색키워드 히스토리 검색 일자 (일)</label>
           <input type="number" id="reaccept-days-kw" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div class="pmf" style="margin-bottom:12px;">
-          <label>② 유입플 키워드 히스토리 검색 일자 (일, 비우면 히스토리 확인 없이 ③ 사용)</label>
-          <input type="number" id="reaccept-days-yupfl" value="" min="1" placeholder="비우면 ③ 개별값 바로 사용" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
+          <label>② 유입플 키워드 히스토리 검색 일자 (일)</label>
+          <input type="number" id="reaccept-days-yupfl" value="" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div class="pmf" style="margin-bottom:12px;">
-          <label>③ 유입플 키워드 개별 설정 (② 비웠을 때 바로 사용 / 히스토리 없을 때 대체)</label>
+          <label>③ 유입플 키워드 개별 설정</label>
           <input type="text" id="reaccept-yupfl" value="" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
