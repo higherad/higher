@@ -981,7 +981,10 @@ window.toggleProdPanel = function(e) {
               <span id="delta-url-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.deltaBlogUrl||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
             </span>
           </dt>
-          <dd><input type="text" class="detail-kw-input" id="detail-delta-url-input" value="${escProd(s.deltaBlogUrl||'')}" placeholder="블로그 URL을 ,로 구분해 입력해주세요" oninput="updateDetailKwBadge(this,'delta-url-count-badge')"></dd>` : ''}
+          <dd style="display:flex;gap:6px;align-items:center;">
+            <input type="text" class="detail-kw-input" id="detail-delta-url-input" value="${escProd(s.deltaBlogUrl||'')}" placeholder="블로그 URL을 ,로 구분해 입력해주세요" oninput="updateDetailKwBadge(this,'delta-url-count-badge')" style="flex:1;">
+            <button onclick="applyDeltaBlogUrls('${key}')" id="delta-url-apply-btn" style="flex-shrink:0;font-size:11px;padding:6px 10px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;font-family:inherit;">적용</button>
+          </dd>` : ''}
           ${splitKeywordFieldsHtml(s, splitProd)}
         </dl>
         <div class="modal-footer">
@@ -1358,6 +1361,30 @@ window.toggleProdPanel = function(e) {
     if (!badge) return;
     const count = (inputEl.value || '').split(',').map(k => k.trim()).filter(k => k.length > 0).length;
     badge.textContent = count + '개';
+  };
+
+  // 델타 "블로그 URL" 적용 버튼 — 플레이스 URL의 "리뷰 > 블로그 리뷰" 탭에서 URL을 분할 개수만큼 자동으로 가져와 채운다.
+  const BLOG_TAG_SEARCH_PROXY = 'https://blog-tag-search-938928195180.asia-northeast3.run.app';
+  window.applyDeltaBlogUrls = async function(key) {
+    const s = allSlots.find(x => x._key === key);
+    const input = document.getElementById('detail-delta-url-input');
+    const btn = document.getElementById('delta-url-apply-btn');
+    if (!s || !s.url) { alert('플레이스 URL이 없습니다.'); return; }
+    const delta = prods.find(p => p.id === 'delta');
+    const n = Math.max(1, parseInt(delta?.blogSplit, 10) || 1);
+    if (btn) { btn.disabled = true; btn.textContent = '조회 중...'; }
+    try {
+      const res = await fetch(`${BLOG_TAG_SEARCH_PROXY}/place-blog?url=${encodeURIComponent(s.url)}&count=${n}`);
+      const data = await res.json();
+      if (!data.success) { alert('블로그 URL 조회 실패: ' + (data.message || '')); return; }
+      if (!data.urls || !data.urls.length) { alert('블로그 리뷰를 찾을 수 없습니다.'); return; }
+      input.value = data.urls.join(',');
+      updateDetailKwBadge(input, 'delta-url-count-badge');
+    } catch (e) {
+      alert('블로그 URL 조회 오류: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '적용'; }
+    }
   };
 
   // 닫기 시 키워드 자동저장
