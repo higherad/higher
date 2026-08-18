@@ -306,6 +306,10 @@
           <label>엑셀 버전</label>
           <input type="text" id="pm-ver" placeholder="ver.5.0/3.2" readonly style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;outline:none;width:100%;background:var(--bg2,#f1f5f9);color:var(--text2);cursor:default;" />
         </div>
+        <div class="pmf" id="pm-blogsplit-wrap" style="flex:0 0 66px;display:none;">
+          <label>분할</label>
+          <input type="number" id="pm-blogsplit" min="1" step="1" placeholder="5" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;outline:none;width:100%;" />
+        </div>
       </div>
       <div class="pmf" id="pm-kw-wrap">
         <label>키워드 배분</label>
@@ -407,6 +411,9 @@ window.toggleProdPanel = function(e) {
   // 찰리는 일반 상품과 달리 "NP 위치저장"(adrole=100) 메뉴로 접수해야 한다 — 계정에 NP트래픽(211 등)이
   // 함께 설정돼 있으면 등급명이 겹쳐서(가격은 다름) 자동탐색으론 구분이 안 되므로 adrole을 강제 지정.
   const CHARLIE_ADROLE = '100';
+  // 델타(블로그저장)도 찰리와 같은 NP위치저장(adrole=100) 계열 등급명으로 추정 — 실제 등급/adrole은
+  // 실측(비즈핏 사이트에서 소액 실접수)으로 확인 전까지 이 값은 가정치임(2026-08-18).
+  const DELTA_ADROLE = '100';
   const BIZFIT_CHARGE_FB = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/bizfit_charge';
 
   // ── 등급 배지 ────────────────────────────────────────────────
@@ -848,6 +855,8 @@ window.toggleProdPanel = function(e) {
     const kw = input ? input.value.trim() : null;
     const yupflInput = document.getElementById('detail-yupfl-keyword-input');
     const yupflKw = yupflInput ? yupflInput.value.trim() : null;
+    const deltaInput = document.getElementById('detail-delta-url-input');
+    const deltaUrl = deltaInput ? deltaInput.value.trim() : null;
     const s = allSlots.find(x => x._key === key);
     if (kw !== null && kw !== (s.searchKeyword||'')) {
       await HA.updateSlot(key, { searchKeyword: kw });
@@ -856,6 +865,10 @@ window.toggleProdPanel = function(e) {
     if (yupflKw !== null && yupflKw !== (s.yupflKeyword||'')) {
       await HA.updateSlot(key, { yupflKeyword: yupflKw });
       updateLocalSlot(key, { yupflKeyword: yupflKw });
+    }
+    if (deltaUrl !== null && deltaUrl !== (s.deltaBlogUrl||'')) {
+      await HA.updateSlot(key, { deltaBlogUrl: deltaUrl });
+      updateLocalSlot(key, { deltaBlogUrl: deltaUrl });
     }
     const splitKeywords = collectSplitKeywords();
     if (splitKeywords && JSON.stringify(splitKeywords) !== JSON.stringify(s.splitKeywords || {})) {
@@ -917,7 +930,9 @@ window.toggleProdPanel = function(e) {
 
     const yupflProd  = prods.find(p => p.id === 'yupfl');
     const splitProd  = prods.find(p => p.id === 'yupfl2');
+    const deltaProd  = prods.find(p => p.id === 'delta');
     const yupflShown = !!yupflProd?.active;
+    const deltaShown = !!deltaProd?.active;
 
     overlay.innerHTML = `
       <div class="modal-box">
@@ -959,6 +974,14 @@ window.toggleProdPanel = function(e) {
           </dt>
           <dd><input type="text" class="detail-kw-input" id="detail-yupfl-keyword-input" value="${escProd(s.yupflKeyword||'')}" placeholder="유입플 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'yupfl-kw-count-badge')"></dd>
           <dd id="yupfl-history-area" style="display:none;margin-top:8px;"></dd>` : ''}
+          ${deltaShown ? `
+          <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+            <span style="display:flex;align-items:center;gap:6px;">
+              블로그 URL
+              <span id="delta-url-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.deltaBlogUrl||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span>
+            </span>
+          </dt>
+          <dd><input type="text" class="detail-kw-input" id="detail-delta-url-input" value="${escProd(s.deltaBlogUrl||'')}" placeholder="블로그 URL을 ,로 구분해 입력해주세요" oninput="updateDetailKwBadge(this,'delta-url-count-badge')"></dd>` : ''}
           ${splitKeywordFieldsHtml(s, splitProd)}
         </dl>
         <div class="modal-footer">
@@ -1411,9 +1434,10 @@ window.toggleProdPanel = function(e) {
     {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, fixedPct:30, autoBalance:false, missionRules:[]},
     {id:'yupfl2', name:'분할',   color:'#06b6d4', active:false, ratio:0, kwPct:0, fixedAlloc:true, splitProduct:true, autoBalance:false, missionRules:[]},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
+    {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
-  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2']);
+  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2', 'delta']);
   const ap = () => prods.filter(p => p.active);
 
   let prodGroups = [];
@@ -1432,7 +1456,7 @@ window.toggleProdPanel = function(e) {
   }
   async function loadProdSettings() {
     const path = getProdSettingsPath();
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,blogUrlProduct:p.blogUrlProduct}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     // 최초 로드와 실시간 구독 콜백이 공유하는 처리 로직 — 원본 데이터를 받아 prods/prodGroups를 갱신
@@ -1449,8 +1473,8 @@ window.toggleProdPanel = function(e) {
       // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다 — 예: 분할(yupfl2)
       const loadedIds = new Set(prods.map(p => p.id));
       DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
-      // 고정 그룹(찰리/차감/유입플/분할) 노출 순서는 저장된 옛 순서와 무관하게 항상
-      // DEFAULT_PRODS 기준(차감→유입플→분할→찰리)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
+      // 고정 그룹(찰리/차감/유입플/분할/델타) 노출 순서는 저장된 옛 순서와 무관하게 항상
+      // DEFAULT_PRODS 기준(차감→유입플→분할→찰리→델타)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
       const fixedRank = new Map(DEFAULT_PRODS.filter(dp => FIXED_PROD_IDS.has(dp.id)).map((dp, i) => [dp.id, i]));
       const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
       let fi = 0;
@@ -1681,6 +1705,10 @@ window.toggleProdPanel = function(e) {
     nameEl.style.background = nameLocked ? 'var(--bg2,#f1f5f9)' : '';
     nameEl.style.color      = nameLocked ? 'var(--text2)' : '';
     document.getElementById('pm-ver').value  = p.ver || '';
+    const blogSplitWrap = document.getElementById('pm-blogsplit-wrap');
+    if (blogSplitWrap) blogSplitWrap.style.display = p.blogUrlProduct ? '' : 'none';
+    const blogSplitEl = document.getElementById('pm-blogsplit');
+    if (blogSplitEl) blogSplitEl.value = p.blogSplit || 1;
     const delBtn = document.getElementById('pm-del-btn');
     if (delBtn) delBtn.style.display = FIXED_PROD_IDS.has(id) ? 'none' : '';
     const verWrap = document.getElementById('pm-ver-wrap');
@@ -1849,6 +1877,11 @@ window.toggleProdPanel = function(e) {
     const p = prods.find(x => x.id === _prodModalId); if(!p) return;
     p.name = document.getElementById('pm-name').value.trim() || p.name;
     p.ver  = document.getElementById('pm-ver').value.trim();
+    if (p.blogUrlProduct) {
+      const n = parseInt(document.getElementById('pm-blogsplit')?.value, 10);
+      if (!Number.isFinite(n) || n < 1) { alert('분할 값은 1 이상의 숫자여야 합니다.'); return; }
+      p.blogSplit = n;
+    }
     if (!p.fixedAlloc) {
       const actives = ap().filter(q => !q.fixedAlloc);
       if(actives.length) {
@@ -2259,6 +2292,38 @@ window.toggleProdPanel = function(e) {
     ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:8}});
     ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:8},{wch:13},{wch:52}];
     window.XLSX.utils.book_append_sheet(wb, ws, label);
+  }
+
+  // 델타 전용 시트 — buildJumuSheet_와 달리 "분할" 설정값(N)만큼 일 목표를 다시 쪼개 블로그 URL을
+  // 1개씩 매칭한 행을 만든다(1슬롯=N행). splitEven/buildDeltaRows와 동일한 분할 규칙 사용.
+  function buildDeltaSheet_(wb, f, prod) {
+    const ws = {};
+    const AP = ap();
+    const n = Math.max(1, parseInt(prod.blogSplit, 10) || 1);
+    const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표','전체 목표','예약일','검색키워드','블로그 스타트 URL'];
+    headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':(h==='블로그 스타트 URL'?'16A34A':'1F2937')}); });
+    let curRow = 1;
+    f.forEach(r => {
+      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      const pp = alloc[prod.id] ?? 0;
+      if (pp <= 0) return;
+      const urls = (r.deltaBlogUrl||'').split(',').map(u=>u.trim()).filter(Boolean);
+      // 델타는 검색키워드를 별도로 나누지 않고 순위키워드와 동일한 값을 그대로 쓴다(사용자 지정 규칙).
+      const kw = r.rankKeyword||'';
+      splitEven(pp, n).forEach((partTarget, i) => {
+        if (partTarget <= 0) return;
+        const row = [prod.name, r.storeName||'', r.url||'', r.mid||'', r.rankKeyword||'', partTarget, partTarget*(r.days||0), null, kw, urls[i]||''];
+        row.forEach((v, ci) => {
+          if (ci===7) { scDate(ws, curRow, 7, r.startDate); return; }
+          sc(ws, curRow, ci, v, { align:[0,1,2,4,8,9].includes(ci)?'left':'center' });
+        });
+        curRow++;
+      });
+    });
+    if (curRow < 2) curRow = 2;
+    ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:9}});
+    ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:8},{wch:13},{wch:52},{wch:44}];
+    window.XLSX.utils.book_append_sheet(wb, ws, prod.name);
   }
 
   function buildYoupflSheet(wb, f, prod, sheetName) {
@@ -2695,6 +2760,7 @@ window.toggleProdPanel = function(e) {
             buildJumuSheet_(wb, f, '일반', p => !FIXED_PROD_IDS.has(p.id));
             ap().filter(p => FIXED_PROD_IDS.has(p.id) && !p.deductOnly).forEach(prod => {
               if (prod.fixedAlloc) buildYoupflSheet(wb, f, prod, prod.name);
+              else if (prod.blogUrlProduct) buildDeltaSheet_(wb, f, prod);
               else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id);
             });
             window.XLSX.writeFile(wb, realAg ? `${realAg}-주문서.xlsx` : `주문서-${shortD()}.xlsx`);
@@ -2761,6 +2827,7 @@ window.toggleProdPanel = function(e) {
         const kw = kwForProd(r.searchKeyword||'', prod);
         rows.push({
           _slotKey:   r._key,
+          _doneKey:   prod.name,
           _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
           상품등급명: prod.name,
           업체명:     r.storeName||'',
@@ -2775,6 +2842,54 @@ window.toggleProdPanel = function(e) {
       });
     });
     return { rows, deductTarget, deductAmount };
+  }
+
+  // total을 n개로 최대한 고르게(나머지는 앞쪽부터 +1) 나눔 — 델타 블로그 URL 분할용
+  function splitEven(total, n) {
+    if (n <= 0) return [];
+    const base = Math.floor(total / n);
+    const rem  = total - base * n;
+    return Array.from({length: n}, (_, i) => base + (i < rem ? 1 : 0));
+  }
+
+  // 델타는 daysMultiplied 상품이지만 "분할" 설정값(N)만큼 일 목표를 다시 쪼개 블로그 URL 1개씩 매칭한
+  // N개의 행을 만든다 — buildNormalRows(1슬롯=1행)와 달리 1슬롯=N행이 나올 수 있어 별도 함수로 분리.
+  // _doneKey에 분할 순번을 붙여 완료 여부를 행 단위로 추적(상품등급명은 전송용 실제 등급명 그대로 유지).
+  function buildDeltaRows(slots) {
+    const AP = ap();
+    const delta = AP.find(p => p.id === 'delta');
+    if (!delta) return [];
+    const n = Math.max(1, parseInt(delta.blogSplit, 10) || 1);
+    const rows = [];
+    slots.forEach(r => {
+      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      const pp = alloc[delta.id] ?? 0;
+      if (pp <= 0) return;
+      const urls = (r.deltaBlogUrl||'').split(',').map(u=>u.trim()).filter(Boolean);
+      // 델타는 검색키워드를 별도로 나누지 않고 순위키워드와 동일한 값을 그대로 쓴다(사용자 지정 규칙).
+      const kw = r.rankKeyword||'';
+      splitEven(pp, n).forEach((partTarget, i) => {
+        if (partTarget <= 0) return;
+        const doneKey = `${delta.name}#${i+1}`;
+        rows.push({
+          _slotKey:   r._key,
+          _doneKey:   doneKey,
+          _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(doneKey)),
+          _requiresBlogUrl: true,
+          상품등급명: delta.name,
+          업체명:     r.storeName||'',
+          업체URL:    r.url||'',
+          PID번호:    r.mid||'',
+          순위키워드: r.rankKeyword||'',
+          일목표:     partTarget,
+          일수:       partTarget*(r.days||0),
+          예약일:     r.startDate||'',
+          검색키워드: kw,
+          블로그URL:  urls[i] || '',
+        });
+      });
+    });
+    return rows;
   }
 
   // daysMultiplied 상품(찰리)은 "일수" 칸에 실제 일수 대신 일목표×일수(전체목표)가 들어있으므로
@@ -2846,7 +2961,8 @@ window.toggleProdPanel = function(e) {
     const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
     const hasFixed   = ap().some(p => p.fixedAlloc && !p.deductOnly);
     const hasCharlie = ap().some(p => p.id === 'charlie');
-    if (!hasNormal && !hasFixed && !hasCharlie) {
+    const hasDelta   = ap().some(p => p.id === 'delta');
+    if (!hasNormal && !hasFixed && !hasCharlie && !hasDelta) {
       alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
     }
@@ -2860,14 +2976,14 @@ window.toggleProdPanel = function(e) {
     btn.disabled = true; btn.textContent = '✅ 전체 완료'; btn.style.background = '#475569'; btn.style.cursor = 'default';
   }
 
-  function wireSubmitTab({ has, plan, bodyEl, subEl, applyBtn, label, daysMultiplied=false, target, emptyMsg, onSubmit }) {
+  function wireSubmitTab({ has, plan, bodyEl, subEl, applyBtn, label, daysMultiplied=false, blogUrl=false, target, emptyMsg, onSubmit }) {
     if (!has) {
       if (emptyMsg) { subEl.textContent = emptyMsg; applyBtn.disabled = true; }
       return;
     }
     let totalStores = 0, totalTarget = 0;
     plan.forEach(p => {
-      bodyEl.appendChild(buildSubmitAgencyBlock(p, label, daysMultiplied));
+      bodyEl.appendChild(buildSubmitAgencyBlock(p, label, daysMultiplied, blogUrl));
       totalStores += new Set(p.rows.map(r => r.업체명)).size;
       totalTarget += daysMultipliedSum(p.rows, daysMultiplied);
     });
@@ -2882,7 +2998,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // 레그별 "접수 신청" 버튼 셀렉터 — openSubmitModal 안 여러 곳(lockDoneButtons, 자동승인 레이스 가드)에서 공용.
-  const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', fixedKeys: '#youpfl-apply-btn', charlieKeys: '#csub-apply-btn' };
+  const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', fixedKeys: '#youpfl-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#dsub-apply-btn' };
 
   function openSubmitModal(target) {
     const agencies   = getAgencies(target);
@@ -2896,6 +3012,12 @@ window.toggleProdPanel = function(e) {
       agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
       ...buildNormalRows(slotsByAgency(target, ag), p => p.id === 'charlie'),
     }));
+    // 델타도 찰리와 마찬가지로 별도 탭 — buildNormalRows(슬롯당 1행)와 달리 "분할" 설정값만큼
+    // 슬롯당 여러 행(블로그 URL 1개씩)이 나올 수 있어 전용 buildDeltaRows를 쓴다.
+    const deltaPlan = agencies.map(ag => ({
+      agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
+      rows: buildDeltaRows(slotsByAgency(target, ag)),
+    }));
     const yupflRows  = buildYoupflRows(target);
     // hasNormal을 사이트 전체 상품 설정(ap())으로 판단하면 이 대상에 일반 상품이 하나도 없어도
     // true가 되어(일반 상품은 거의 항상 켜져 있으므로) 불필요하게 게이트가 생기고, 일반 탭엔
@@ -2905,7 +3027,8 @@ window.toggleProdPanel = function(e) {
     const hasNormal  = normalPlan.some(p => p.rows.length > 0);
     const hasFixed   = yupflRows.length > 0;
     const hasCharlie = charliePlan.some(p => p.rows.length > 0);
-    const defaultTab = hasNormal ? 'normal' : (hasFixed ? 'fixed' : 'charlie');
+    const hasDelta   = deltaPlan.some(p => p.rows.length > 0);
+    const defaultTab = hasNormal ? 'normal' : (hasFixed ? 'fixed' : (hasCharlie ? 'charlie' : (hasDelta ? 'delta' : 'normal')));
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -2919,9 +3042,11 @@ window.toggleProdPanel = function(e) {
           <button id="stab-normal" class="submit-tab${defaultTab==='normal'?' active':''}"
             onclick="switchSubmitTab('normal')"${!hasNormal?' disabled':''}>일반</button>
           <button id="stab-fixed" class="submit-tab${defaultTab==='fixed'?' active':''}"
-            onclick="switchSubmitTab('fixed')"${!hasFixed?' disabled':''}>유입플</button>
+            onclick="switchSubmitTab('fixed')" style="${hasFixed?'':'display:none;'}">유입플</button>
           <button id="stab-charlie" class="submit-tab${defaultTab==='charlie'?' active':''}"
-            onclick="switchSubmitTab('charlie')"${!hasCharlie?' disabled':''}>찰리</button>
+            onclick="switchSubmitTab('charlie')" style="${hasCharlie?'':'display:none;'}">찰리</button>
+          <button id="stab-delta" class="submit-tab${defaultTab==='delta'?' active':''}"
+            onclick="switchSubmitTab('delta')" style="${hasDelta?'':'display:none;'}">델타</button>
         </div>
         <div id="stab-panel-normal" style="display:${defaultTab==='normal'?'block':'none'}">
           <div style="font-size:12px;margin-bottom:14px;" id="submit-sub"></div>
@@ -2945,6 +3070,14 @@ window.toggleProdPanel = function(e) {
           <div class="modal-footer">
             <button class="btn-cancel" id="csub-close-btn">닫기</button>
             <button id="csub-apply-btn" style="background:#d946ef;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
+          </div>
+        </div>
+        <div id="stab-panel-delta" style="display:${defaultTab==='delta'?'block':'none'}">
+          <div style="font-size:12px;margin-bottom:14px;" id="dsub-sub"></div>
+          <div id="dsub-body"></div>
+          <div class="modal-footer">
+            <button class="btn-cancel" id="dsub-close-btn">닫기</button>
+            <button id="dsub-apply-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
           </div>
         </div>
       </div>`;
@@ -2995,10 +3128,11 @@ window.toggleProdPanel = function(e) {
     );
     const normalAlreadyDone  = alreadyDoneOf(rowsBySlotOf(normalPlan.flatMap(p => p.rows)), '_normalSubmitted');
     const charlieAlreadyDone = alreadyDoneOf(rowsBySlotOf(charliePlan.flatMap(p => p.rows)), '_normalSubmitted');
+    const deltaAlreadyDone   = alreadyDoneOf(rowsBySlotOf(deltaPlan.flatMap(p => p.rows)), '_normalSubmitted');
     const fixedAlreadyDone   = alreadyDoneOf(rowsBySlotOf(yupflRows), '_fixedSubmitted');
 
-    // 슬롯별로 실제 쓰는 레그 집합 — 3곳 rows에 그 슬롯(_slotKey)이 등장하는지로 판단
-    const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys')
+    // 슬롯별로 실제 쓰는 레그 집합 — 4곳 rows에 그 슬롯(_slotKey)이 등장하는지로 판단
+    const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys'|'deltaKeys')
     const addRequired = (rows, leg) => rows.forEach(r => {
       if (!r._slotKey) return;
       if (!requiredLegsByKey.has(r._slotKey)) requiredLegsByKey.set(r._slotKey, new Set());
@@ -3006,6 +3140,7 @@ window.toggleProdPanel = function(e) {
     });
     addRequired(normalPlan.flatMap(p => p.rows), 'normalKeys');
     addRequired(charliePlan.flatMap(p => p.rows), 'charlieKeys');
+    addRequired(deltaPlan.flatMap(p => p.rows), 'deltaKeys');
     addRequired(yupflRows, 'fixedKeys');
 
     // 게이트 유무와 상관없이 쓰는 판정 — doneSets(.normalKeys/.fixedKeys/.charlieKeys 형태, 게이트
@@ -3023,7 +3158,7 @@ window.toggleProdPanel = function(e) {
     // (외부 API, 실제 돈이 움직임)은 자동으로 시도하지 않고 필요한 슬롯만 배너에 올려 "재시도"를
     // 눌러야만 실행된다. 탭의 "접수 신청" 버튼도 승인이 끝나는 즉시 이 안에서 잠근다(버튼은 렌더
     // 시점 스냅샷이라 비동기 완료를 자동 반영 못 함).
-    const legHas = { normalKeys: hasNormal, fixedKeys: hasFixed, charlieKeys: hasCharlie };
+    const legHas = { normalKeys: hasNormal, fixedKeys: hasFixed, charlieKeys: hasCharlie, deltaKeys: hasDelta };
     function lockDoneButtons() {
       Object.entries(LEG_BTN_SEL).forEach(([leg, sel]) => {
         if (!legHas[leg]) return;
@@ -3036,10 +3171,12 @@ window.toggleProdPanel = function(e) {
     if (hasNormal)  activeLegs.push('normalKeys');
     if (hasFixed)   activeLegs.push('fixedKeys');
     if (hasCharlie) activeLegs.push('charlieKeys');
+    if (hasDelta)   activeLegs.push('deltaKeys');
     const gate = (activeLegs.length > 1) ? {
       normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
       fixedKeys:   fixedAlreadyDone.size   ? fixedAlreadyDone   : null,
       charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
+      deltaKeys:   deltaAlreadyDone.size   ? deltaAlreadyDone   : null,
       slotMap: slotMapAll,
       async tryApprove() {
         const keys = readyKeysOf(this);
@@ -3055,7 +3192,7 @@ window.toggleProdPanel = function(e) {
 
     // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
     // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
-    const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone });
+    const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone });
     if (initialReady.length) {
       // 자동 승인이 도는 짧은 틈(HA.approveSlot 왕복) 사이 관리자가 같은 레그의 "접수 신청"을
       // 눌러버리면 settleBizfitCashBatch가 bizfitDeducted 체크를 통과한 두 호출이 겹쳐 이중
@@ -3127,14 +3264,26 @@ window.toggleProdPanel = function(e) {
       onSubmit: () => executeSubmit(charliePlan, overlay, gate, 'charlieKeys', CHARLIE_ADROLE),
     });
 
+    // 델타 탭 구성 — 찰리와 동일한 별도 메뉴(NP 위치저장 계열) 전용, blogUrl 컬럼이 붙는 것만 다르다.
+    wireSubmitTab({
+      has: hasDelta, plan: deltaPlan, target,
+      bodyEl: overlay.querySelector('#dsub-body'),
+      subEl:  overlay.querySelector('#dsub-sub'),
+      applyBtn: overlay.querySelector('#dsub-apply-btn'),
+      label: '델타', daysMultiplied: true, blogUrl: true,
+      emptyMsg: '델타 배분 대상 슬롯이 없습니다.',
+      onSubmit: () => executeSubmit(deltaPlan, overlay, gate, 'deltaKeys', DELTA_ADROLE),
+    });
+
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#youpfl-close-btn').onclick = () => overlay.remove();
     overlay.querySelector('#csub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
+    overlay.querySelector('#dsub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.addEventListener('click', e => { if (e.target === overlay && !window.bizfitSubmitting) overlay.remove(); });
   }
 
   window.switchSubmitTab = function(tab) {
-    ['normal','fixed','charlie'].forEach(k => {
+    ['normal','fixed','charlie','delta'].forEach(k => {
       const panel = document.getElementById(`stab-panel-${k}`);
       const btn   = document.getElementById(`stab-${k}`);
       if (panel) panel.style.display = k === tab ? 'block' : 'none';
@@ -3146,7 +3295,7 @@ window.toggleProdPanel = function(e) {
   // 행 = (업체명, 등급) 쌍. 상태칸은 접수 신청 전까지 '-'
   // daysMultiplied: 찰리처럼 "일수" 칸에 실제 일수 대신 일목표×일수(전체목표)를 넣는 상품이면 true —
   // 헤더 라벨과 목표 합계 계산식을 "일수" 대신 "전체목표" 그대로 쓰도록 바꿔야 함(이중곱 방지)
-  function buildSubmitAgencyBlock(p, label='일반 상품', daysMultiplied=false) {
+  function buildSubmitAgencyBlock(p, label='일반 상품', daysMultiplied=false, blogUrl=false) {
     const block = document.createElement('div');
     block.className = 'agency-block';
 
@@ -3177,6 +3326,7 @@ window.toggleProdPanel = function(e) {
       <th style="width:44px;text-align:center">${daysMultiplied ? '전체목표' : '일수'}</th>
       <th style="width:84px">예약일</th>
       <th style="width:64px;text-align:center">검색키워드</th>
+      ${blogUrl ? '<th style="width:130px">블로그URL</th>' : ''}
       <th style="width:76px;text-align:center">상태</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
@@ -3200,6 +3350,7 @@ window.toggleProdPanel = function(e) {
         <td style="text-align:center;white-space:nowrap">${r.일수||0}</td>
         <td style="white-space:nowrap">${escProd(r.예약일||'-')}</td>
         <td title="${escProd(r.검색키워드||'')}${kwTrim?' (접수 시 앞 50개만 사용)':''}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwEmpty?'#fee2e2':(kwTrim?'#fef3c7':'#eff6ff')};color:${kwEmpty?'#dc2626':(kwTrim?'#b45309':'#1d4ed8')};border:1px solid ${kwEmpty?'#fca5a5':(kwTrim?'#fde68a':'#bfdbfe')};white-space:nowrap">${kwTrim?'✂️50':(kwCount+'개'+(kwEmpty?' ⚠️':''))}</span></td>
+        ${blogUrl ? `<td style="${ell};font-size:11px;${r.블로그URL?'':'color:var(--danger);'}" title="${escProd(r.블로그URL||'')}">${escProd(r.블로그URL||'미입력 ⚠️')}</td>` : ''}
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
@@ -3429,12 +3580,14 @@ window.toggleProdPanel = function(e) {
   // legKey: 게이트에 결과를 기록할 필드 ('normalKeys' | 'charlieKeys') — 일반/찰리 두 탭이 이 함수를 공유한다.
   // adrole: 지정 시 grade-info/register를 해당 adrole(예: 찰리='100')로만 조회 — 계정에 여러 adrole이
   // 함께 설정돼 있어도(등급명이 겹칠 수 있음) 원하는 메뉴로만 정확히 접수되게 한다.
+  // legKey→탭 버튼 접두사/등급 버전 매핑 — 일반/찰리/델타 세 탭이 이 함수를 공유한다.
+  const SUBMIT_TAB_PREFIX = { normalKeys: 'submit', charlieKeys: 'csub', deltaKeys: 'dsub' };
   async function executeSubmit(plan, overlay, gate=null, legKey='normalKeys', adrole=null) {
-    const isCharlie = legKey === 'charlieKeys';
-    const btnPrefix = isCharlie ? 'csub' : 'submit';
-    // NP위치저장(adrole=100)은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본 폴백 버전과
+    const btnPrefix = SUBMIT_TAB_PREFIX[legKey] || 'submit';
+    // NP위치저장(adrole=100) 계열은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본 폴백 버전과
     // 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
-    const charlieVer = isCharlie ? ap().find(p => p.id === 'charlie')?.ver : undefined;
+    const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : null;
+    const productVer = verSourceId ? ap().find(p => p.id === verSourceId)?.ver : undefined;
     const applyBtn = overlay.querySelector(`#${btnPrefix}-apply-btn`);
     const closeBtn = overlay.querySelector(`#${btnPrefix}-close-btn`);
     window.bizfitSubmitting = true;
@@ -3442,9 +3595,12 @@ window.toggleProdPanel = function(e) {
     closeBtn.disabled = true;
     const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
     if (youpflBtn) youpflBtn.disabled = true;
-    // 슬롯 상태를 동시에 건드릴 수 있는 다른 탭(일반↔찰리)도 진행 중엔 잠가둔다
-    const otherBtn = overlay.querySelector(`#${isCharlie ? 'submit' : 'csub'}-apply-btn`);
-    if (otherBtn) otherBtn.disabled = true;
+    // 슬롯 상태를 동시에 건드릴 수 있는 다른 탭(일반/찰리/델타)도 진행 중엔 잠가둔다
+    const otherBtns = Object.values(SUBMIT_TAB_PREFIX)
+      .filter(pfx => pfx !== btnPrefix)
+      .map(pfx => overlay.querySelector(`#${pfx}-apply-btn`))
+      .filter(Boolean);
+    otherBtns.forEach(b => { b.disabled = true; });
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
     const approvedKeys = gate ? new Set() : null;
@@ -3503,6 +3659,10 @@ window.toggleProdPanel = function(e) {
           r._kwFail = true;
           if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="일목표 ${r.일목표||0}개 — 10 미만">❌ 일목표 미달</span>`;
           failTotal++;
+        } else if (r._requiresBlogUrl && !r.블로그URL) {
+          r._kwFail = true;
+          if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="블로그 URL 미입력">❌ URL 미입력</span>';
+          failTotal++;
         }
       });
 
@@ -3525,7 +3685,7 @@ window.toggleProdPanel = function(e) {
 
       let gi;
       try {
-        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, adrole: adrole || undefined, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, ...rest}) => rest) });
+        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, adrole: adrole || undefined, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, ...rest}) => rest) });
       } catch(e) { gi = { success:false, message: '서버 호출 실패: '+e.message }; }
 
       if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
@@ -3543,13 +3703,13 @@ window.toggleProdPanel = function(e) {
         const grpRows = validRows.filter(r => r.상품등급명 === g.gradeName);
         if (!grpRows.length) continue;
         matchedGrades.add(g.gradeName);
-        const payloadRows = grpRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, ...rest}) => rest);
+        const payloadRows = grpRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, ...rest}) => rest);
         let result;
         try {
           result = await callBizfitProxy('/register', {
             domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw,
             tab: g.actualTab || BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType,
-            version: charlieVer, rowData: payloadRows,
+            version: productVer, rowData: payloadRows,
           });
         } catch(e) { result = { success:false, message: e.message }; }
         if (result.success) {
@@ -3592,7 +3752,7 @@ window.toggleProdPanel = function(e) {
       p.rows.forEach(r => {
         if (r._rowOk !== true || !r._slotKey) return;
         if (!newlyOkBySlot.has(r._slotKey)) newlyOkBySlot.set(r._slotKey, []);
-        newlyOkBySlot.get(r._slotKey).push(r.상품등급명);
+        newlyOkBySlot.get(r._slotKey).push(r._doneKey || r.상품등급명);
       });
       await Promise.all([...newlyOkBySlot.entries()].map(async ([slotKey, names]) => {
         const s = slotMap.get(slotKey);
@@ -3629,7 +3789,7 @@ window.toggleProdPanel = function(e) {
     closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
     // 유입플/다른 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
     if (youpflBtn) youpflBtn.disabled = false;
-    if (otherBtn)  otherBtn.disabled  = false;
+    otherBtns.forEach(b => { b.disabled = false; });
   }
 
   // 최초 로드
