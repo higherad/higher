@@ -100,7 +100,7 @@
         <th><input type="checkbox" id="s-check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>대행사</th><th>유저ID</th>
         <th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>상태</th><th>액션</th><th>순위</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색/유입플키워드</th><th>상태</th><th>액션</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="slots-body">
@@ -197,6 +197,7 @@
     } else {
       body.innerHTML = list.map((s,i) => {
         const kwCount = (s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+        const yupflCount = (s.yupflKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length;
         return `
         <tr>
           <td><input type="checkbox" class="s-check" data-key="${s._key}"></td>
@@ -210,7 +211,7 @@
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
-          <td><span class="kw-badge">${kwCount}개</span></td>
+          <td><span class="kw-badge">검색 ${kwCount}개</span> <span class="kw-badge" style="background:#fef3c7;color:#b45309;">유입 ${yupflCount}개</span></td>
           <td>${statusBadge(s, todayStr)}</td>
           <td>
             <div style="display:flex;gap:4px;justify-content:center;">
