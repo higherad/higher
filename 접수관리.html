@@ -2421,23 +2421,35 @@ window.toggleProdPanel = function(e) {
       ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20},{wch:20}];
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
-      // MID별 키워드 히스토리(자체 DB + kimpro 쪽 히스토리 포함, 히스토리 모달과 동일한 소스) 시트 — 같은 MID는 한 번만 조회
+      // MID별 검색키워드/유입플키워드 히스토리(자체 DB + kimpro 쪽 히스토리 포함, 히스토리 모달과
+      // 동일한 소스) — 서로 날짜가 다를 수 있어 시트를 분리한다. 같은 MID는 한 번만 조회.
       const btn = document.getElementById('dl-single-btn');
       if (btn) btn.disabled = true;
       const midRows = [...new Map(filtered.filter(s => s.mid).map(s => [s.mid, s])).values()];
       const histHeader = ['MID','업체명','날짜','키워드'];
-      const histRows = [];
-      const histories = await Promise.all(midRows.map(s => fullKeywordHistory(s.mid)));
+      const kwHistRows = [], yupflHistRows = [];
+      const [kwHistories, yupflHistories] = await Promise.all([
+        Promise.all(midRows.map(s => fullKeywordHistory(s.mid))),
+        Promise.all(midRows.map(s => fullYupflKeywordHistory(s.mid))),
+      ]);
       midRows.forEach((s, i) => {
-        histories[i].forEach(h => {
-          histRows.push([s.mid, s.storeName || '', h.createdAt ? ymd(new Date(h.createdAt)) : '', h.searchKeyword]);
+        kwHistories[i].forEach(h => {
+          kwHistRows.push([s.mid, s.storeName || '', h.createdAt ? ymd(new Date(h.createdAt)) : '', h.searchKeyword]);
+        });
+        yupflHistories[i].forEach(h => {
+          yupflHistRows.push([s.mid, s.storeName || '', h.createdAt ? ymd(new Date(h.createdAt)) : '', h.searchKeyword]);
         });
       });
       if (btn) btn.disabled = false;
-      if (histRows.length) {
-        const histWs = XLSX.utils.aoa_to_sheet([histHeader, ...histRows]);
-        histWs['!cols'] = [{wch:14},{wch:22},{wch:12},{wch:40}];
-        XLSX.utils.book_append_sheet(wb, histWs, '키워드 히스토리');
+      if (kwHistRows.length) {
+        const kwHistWs = XLSX.utils.aoa_to_sheet([histHeader, ...kwHistRows]);
+        kwHistWs['!cols'] = [{wch:14},{wch:22},{wch:12},{wch:40}];
+        XLSX.utils.book_append_sheet(wb, kwHistWs, '검색키워드 히스토리');
+      }
+      if (yupflHistRows.length) {
+        const yupflHistWs = XLSX.utils.aoa_to_sheet([histHeader, ...yupflHistRows]);
+        yupflHistWs['!cols'] = [{wch:14},{wch:22},{wch:12},{wch:40}];
+        XLSX.utils.book_append_sheet(wb, yupflHistWs, '유입플 히스토리');
       }
 
       const today = new Date();
