@@ -140,12 +140,12 @@
     .nav-item.active { color:#fff; background:var(--accent); box-shadow:0 4px 12px rgba(16,185,129,.25); }
     .nav-item .badge { margin-left:auto; background:var(--warn); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; border-radius:10px; }
     .nav-item.active .badge { background:rgba(255,255,255,.3); }
-    .sidebar-bottom { margin-top:auto; padding:16px 12px; border-top:1px solid rgba(255,255,255,.06); }
-    .admin-info { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; }
+    .sidebar-bottom { margin-top:auto; padding:16px 12px; border-top:1px solid rgba(255,255,255,.06); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .admin-info { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; min-width:0; }
     .admin-avatar { width:34px; height:34px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:#fff; flex-shrink:0; }
     .admin-name { font-size:13px; font-weight:600; }
     .admin-role { font-size:11px; color:var(--muted); }
-    .btn-logout { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--muted); font-size:13px; transition:.2s; margin-top:4px; }
+    .btn-logout { display:flex; align-items:center; justify-content:center; padding:9px; border-radius:8px; cursor:pointer; color:var(--muted); transition:.2s; flex-shrink:0; }
     .btn-logout:hover { color:#fff; background:rgba(255,255,255,.06); }
 
     main { flex-grow:1; margin-left:240px; padding:32px 36px; }
@@ -353,8 +353,8 @@
     <div class="admin-info">
       <div><div class="admin-name" id="sidebar-name">관리자</div><div class="admin-role" id="sidebar-role">Super Admin</div></div>
     </div>
-    <div class="btn-logout" onclick="doLogout()">
-      <i data-lucide="log-out" size="15"></i> 로그아웃
+    <div class="btn-logout" onclick="doLogout()" title="로그아웃" aria-label="로그아웃">
+      <i data-lucide="log-out" size="15"></i>
     </div>
   </div>
 </aside>
