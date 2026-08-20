@@ -3238,7 +3238,7 @@ window.toggleProdPanel = function(e) {
 
         const resetSlots = resetCandidates.filter(s => okMids.has(s.mid));
         // bizfitDeducted는 안 건드림 — 차감/메모 정산은 사람이 처리(자동화 안 함). status만 accepted로 복귀.
-        const clearFields = { status: 'accepted', normalDoneProducts: null };
+        const clearFields = { status: 'accepted', normalDoneProducts: null, fixedSubmitted: null, splitFixedSubmitted: null };
         await Promise.all(resetSlots.map(s => HA.updateSlot(s._key, clearFields)));
         resetSlots.forEach(s => updateLocalSlot(s._key, clearFields));
 
