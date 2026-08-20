@@ -3022,21 +3022,15 @@ window.toggleProdPanel = function(e) {
 
   // "접수 신청"을 누르기 전에 미리 검사해서, 오류가 하나라도 있으면 버튼 자체를 못 누르게 막는다.
   // executeSubmit(processAgency) 안의 검사와 완전히 동일한 조건을 렌더 시점에 먼저 돌리는 것 —
-  // 클릭 시점 검사는 그대로 두고(방어적 이중검사), 여기선 상태 배지만 미리 보여주고 버튼을 잠근다.
+  // 클릭 시점 검사는 그대로 둔다(방어적 이중검사). 상태(_statusTd)는 안 건드림 — 이미 오류
+  // 배지(검색키워드 0개 등)가 표에 따로 보이므로 여기서 또 표시하면 중복.
   function validateNormalRowsForSubmit(rows) {
     let anyFail = false;
     rows.forEach(r => {
       if (r._normalSubmitted) return;
       const kwCount = (r.검색키워드 || '').split(',').map(k => k.trim()).filter(k => k).length;
-      let failMsg = null;
-      if (kwCount === 0) failMsg = '검색키워드 미입력';
-      else if ((r.일목표 || 0) < 10) failMsg = `일목표 ${r.일목표 || 0}개 — 10 미만`;
-      else if (r._requiresBlogUrl && !r.블로그URL) failMsg = '블로그 URL 미입력';
-      if (failMsg) {
-        r._kwFail = true;
-        anyFail = true;
-        if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(failMsg)}">❌ ${escProd(failMsg)}</span>`;
-      }
+      let fail = kwCount === 0 || (r.일목표 || 0) < 10 || (r._requiresBlogUrl && !r.블로그URL);
+      if (fail) { r._kwFail = true; anyFail = true; }
     });
     return anyFail;
   }
@@ -3046,11 +3040,7 @@ window.toggleProdPanel = function(e) {
     let anyFail = false;
     rows.forEach(r => {
       if (r._fixedSubmitted) return;
-      if (!r.workKw) {
-        r._kwFail = true;
-        anyFail = true;
-        if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="키워드 미입력">❌ 키워드 미입력</span>';
-      }
+      if (!r.workKw) { r._kwFail = true; anyFail = true; }
     });
     return anyFail;
   }
@@ -3074,6 +3064,7 @@ window.toggleProdPanel = function(e) {
     } else if (validateNormalRowsForSubmit(plan.flatMap(p => p.rows))) {
       applyBtn.disabled = true;
       applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
+      applyBtn.style.background = '#9ca3af'; applyBtn.style.cursor = 'not-allowed';
     } else {
       applyBtn.onclick = onSubmit;
     }
@@ -3400,6 +3391,7 @@ window.toggleProdPanel = function(e) {
       } else if (validateYoupflRowsForSubmit(yupflRows)) {
         youpflApplyBtn.disabled = true;
         youpflApplyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
+        youpflApplyBtn.style.background = '#9ca3af'; youpflApplyBtn.style.cursor = 'not-allowed';
       } else {
         youpflApplyBtn.onclick = () => executeYoupflSubmit(yupflRows, overlay, gate);
       }
