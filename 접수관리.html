@@ -3211,9 +3211,10 @@ window.toggleProdPanel = function(e) {
         // bizfitDeducted도 일부러 안 건드린다 — 그대로 두면 재접수 후 재승인해도
         // settleBizfitCashBatch(원래의 !bizfitDeducted 체크)가 자동으로 차감/메모 시도를
         // 건너뛰어서, 차감·메모는 항상 사람이 직접 확인해서 처리하게 된다(의도된 동작).
-        // status도 안 건드린다 — submitDirect()가 체크박스로 선택하면 active도 대상에 포함하도록
-        // 이미 고쳐져 있어서(팝업 재오픈 가능), 상태를 accepted로 되돌릴 필요 자체가 없음.
-        const clearFields = { normalDoneProducts: null };
+        // status는 accepted로 되돌린다 — submitDirect()가 체크박스로 active도 열 수는 있지만,
+        // 그대로 두면 목록에 계속 "승인"으로 남아 매번 체크박스로 직접 골라야 함. accepted로
+        // 돌려놔야 일반적인 접수 흐름(체크 없이 바로 접수)에 자연스럽게 다시 들어옴.
+        const clearFields = { status: 'accepted', normalDoneProducts: null };
         await Promise.all(resetSlots.map(s => HA.updateSlot(s._key, clearFields)));
         resetSlots.forEach(s => updateLocalSlot(s._key, clearFields));
 
