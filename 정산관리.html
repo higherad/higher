@@ -175,9 +175,7 @@
   // 슬롯 저장 단가 우선, 없거나 0이면 현재 유저 단가 (기존 데이터 호환)
   function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!==''&&s.unitPrice>0)?s.unitPrice:getPrice(s.userId);}
   const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // decodeURIComponent(...)로 onclick 홑따옴표 JS 문자열에 넣는 값 전용 — encodeURIComponent는
-  // 홑따옴표(')를 인코딩하지 않으므로 agencyId/userId에 '가 있으면 그대로 살아남아 JS 문자열을
-  // 탈출할 수 있다. %27로 추가 치환해 막는다(decodeURIComponent가 다시 '로 정확히 복원함).
+  // onclick 홑따옴표 JS 문자열용 — encodeURIComponent는 '를 안 건드려 값에 '가 있으면 문자열 탈출 가능, %27로 추가 치환해 막음
   const encAttr = v => encodeURIComponent(v).replace(/'/g,'%27');
   function slotAmount(s){return (s.dailyTarget||0)*(s.days||0)*getSlotPrice(s);}
 
@@ -502,13 +500,9 @@
 
     renderSummary();
 
-    // 과거 날짜 그룹 스냅샷 저장 (오늘 이전만, 아직 저장 안 된 그룹만)
-    // + 이미 저장된 스냅샷 중 차감/유입플 금액이 실제 슬롯과 어긋난 건 재동기화.
-    // (승인은 deductFieldsFor/yupflFieldsFor를 통해 스냅샷 고정 이후에도 일어날 수 있어서,
-    //  얼린 시점에 아직 미승인이던 그룹은 차감/유입플이 0으로 영구 고정돼버림 — 2026-08-07 실사례)
-    // totalTarget/amount/refund는 정산 완료 후 조용히 바뀌면 안 되므로 그대로 고정 유지, 차감/유입플만 대상.
-    // 먼저 캐시된 allSlots로 "새로 얼리거나 재동기화할 그룹"이 있는지만 싸게 확인 — 없으면 조회 자체를 스킵해서
-    // 매 렌더(검색/필터/페이지 이동)마다 전체 slots를 다시 받는 비용을 피한다.
+    // 과거 날짜 그룹 스냅샷 저장(미저장 그룹) + 차감/유입플 금액이 실제 슬롯과 어긋난 기존 스냅샷 재동기화.
+    // 얼린 시점에 미승인이던 그룹은 차감/유입플이 0으로 영구 고정되는 문제 있었음(2026-08-07 실사례) — totalTarget/amount/refund는 고정 유지, 차감/유입플만 대상.
+    // 캐시된 allSlots로 대상 그룹 유무를 먼저 싸게 확인해 렌더마다 전체 slots 재조회하는 비용을 피함
     const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
     const pastGroups = (slots) => groupByTimeAgency(slots.filter(s=>s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending'))
       .filter(g => g.timeKey.slice(0,10) < todayStr);
@@ -1189,9 +1183,7 @@
       }catch(e){ok=false;resultMsg=`서버 연결 실패: ${e.message}`;}
       if(ok){
         cell.innerHTML=badge('#dbeafe','#1d4ed8',`⏳ 입금완료 처리 중... ${amount.toLocaleString()}원`);
-        // 방금 넣은 충전 신청 건(영업점+금액 일치)을 비즈핏 충전,입금관리에서 접수→입금완료로 자동 확정.
-        // 금액이 정확히 일치하는 접수 건을 못 찾으면(모호함) 아무 것도 안 건드리고 실패 반환하도록
-        // 서버에서 이미 막아둠 — 여기선 그 결과에 따라 배지만 다르게 표시.
+        // 방금 넣은 충전 신청(영업점+금액 일치)을 비즈핏 충전·입금관리에서 접수→입금완료로 자동 확정 — 금액 불일치 시 서버가 이미 막아두고 실패 반환, 여기선 배지만 다르게 표시
         let confirmOk=false,confirmMsg='';
         try{
           const cres=await fetch(`${BIZFIT_DIRECT_PROXY}/bizfit-charge-confirm`,{

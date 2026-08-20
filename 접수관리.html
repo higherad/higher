@@ -376,12 +376,8 @@ window.toggleProdPanel = function(e) {
   let _detailOpen  = false;
   const userPriceMap = new Map(); // userId -> 단가(원/개), 유입플 접수 모달 금액 표시용
   const userBizfitUidMap = new Map(); // userId -> 비즈핏 파트너 어드민 uid(이메일), 승인 시 캐시 자동차감용
-  // 페이지 로드 직후(맵이 아직 비어있는 동안) 승인을 누르면 매핑 안 된 대행사와 구분 없이 조용히
-  // 스킵되던 문제(2026-08-11) — settleBizfitCash/approveSlotsWithBizfit가 uid를 읽기 전에 이 promise를
-  // await해서, 로드가 안 끝났으면 "매핑 없음"으로 오판하지 않고 로드를 기다리게 한다.
-  // bizfitUid는 더 이상 별도 필드로 안 씀 — ha/bizfit_charge(BizFit 로그인 계정)의 id를 그대로 쓴다.
-  // 실제 데이터로 대조해 파트너 어드민 uid와 BizFit 로그인 id가 19개 대행사 전부 완전히 같은 값이었음을
-  // 확인함(2026-08-11) — 별도 필드를 손으로 채워 넣고 어긋날 위험을 없애기 위해 이쪽으로 통일.
+  // settleBizfitCash 등이 이 promise를 await해 로드 전 "매핑 없음" 오판을 방지(2026-08-11)
+  // bizfitUid는 별도 필드 대신 ha/bizfit_charge(BizFit 로그인 id)를 그대로 씀 — 19개 대행사 전수 확인해 통일
   const userBizfitUidReady = HA.getUsers().then(async users => {
     users.forEach(u => userPriceMap.set(u.username, u.unitPrice || 0));
     try {
@@ -410,11 +406,9 @@ window.toggleProdPanel = function(e) {
   const BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
   const BIZFIT_DOMAIN = 'http://higherad.co.kr';
   const BIZFIT_TAB    = '99'; // 전체 — 대행사별 단독/랜덤/통합 구분 정보가 없어 기본값 사용
-  // 찰리는 일반 상품과 달리 "NP 위치저장"(adrole=100) 메뉴로 접수해야 한다 — 계정에 NP트래픽(211 등)이
-  // 함께 설정돼 있으면 등급명이 겹쳐서(가격은 다름) 자동탐색으론 구분이 안 되므로 adrole을 강제 지정.
+  // 찰리는 NP 위치저장(adrole=100) 메뉴로 접수 — 등급명이 NP트래픽과 겹쳐 자동탐색 불가하므로 강제 지정
   const CHARLIE_ADROLE = '100';
-  // 델타(블로그저장)도 찰리와 같은 NP위치저장(adrole=100) 계열 등급명으로 추정 — 실제 등급/adrole은
-  // 실측(비즈핏 사이트에서 소액 실접수)으로 확인 전까지 이 값은 가정치임(2026-08-18).
+  // 델타도 찰리와 같은 계열로 추정(가정치, 2026-08-18 — 실측 전까지 미확정)
   const DELTA_ADROLE = '100';
   const BIZFIT_CHARGE_FB = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/bizfit_charge';
 
@@ -655,9 +649,7 @@ window.toggleProdPanel = function(e) {
       _slotsLoaded = true;
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-      // 페이지 진입할 때마다 도는 자리라, 슬롯마다 HA.updateSlot(kimpro 확인 왕복 포함)을 따로
-      // 부르면 밀린 건이 많을 때 한꺼번에 부담이 커짐 — expireSlots가 status만 한 번의 multi-path
-      // 쓰기로 처리한다(2026-08-11).
+      // 슬롯마다 HA.updateSlot을 개별 호출하면 부담 커서, expireSlots로 status만 한 번의 multi-path 쓰기로 처리(2026-08-11)
       const todayStr = ymd(new Date());
       const toExpire = allSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
@@ -743,9 +735,7 @@ window.toggleProdPanel = function(e) {
   };
 
   // ── 접수 목록 실시간 반영 ──────────────────────────────────────
-  // getSlots()로 최초 전체를 받은 뒤, 이후 변경분만 child 단위(추가/변경/삭제)로 구독해
-  // 다른 세션에서 상태를 바꿔도 새로고침 없이 반영. value 리스너로 전체를 구독하면 슬롯
-  // 하나만 바뀌어도 목록 전체(수천 건, 수 MB)가 매번 재전송되므로 반드시 child 리스너를 써야 함.
+  // 최초 전체 로드 후 child 단위(추가/변경/삭제)로 구독 — value 리스너는 슬롯 하나만 바뀌어도 전체(수천 건)가 재전송됨
   let _slotsUnsub = null;
   function attachSlotsLiveSync() {
     if (_slotsUnsub) return; // 중복 구독 방지
@@ -818,9 +808,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 승인 ─────────────────────────────────────────────────
-  // btn을 즉시 disable해 비즈핏 차감이 끝나기 전 같은 슬롯에 중복 클릭이 들어와 이중 차감되는 걸 막고,
-  // settleBizfitCash를 await해 차감+메모가 실제로 끝난 뒤에야 화면을 닫는다(그 전에 닫히면 관리자가
-  // 다른 페이지로 넘어가버려 진행 중이던 차감 요청이 취소될 수 있음, 2026-08-11).
+  // btn 즉시 disable로 이중 차감 방지, settleBizfitCash await로 차감 끝나기 전 화면 닫힘(요청 취소) 방지(2026-08-11)
   window.approveOne = async function(key, btn) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     const targetSlot = allSlots.find(s => s._key === key);
@@ -1000,9 +988,7 @@ window.toggleProdPanel = function(e) {
     // 충돌이면 modal 닫고 알림, 아니면 잠금 쓰기
   };
 
-  // 분할 상품이 켜져있고 미션이 등록돼 있으면, 미션 개수만큼 "분할 키워드" 입력칸을 만든다.
-  // 각 입력칸마다 독립된 "이전 키워드 보기" 버튼/영역을 가지며, 거기서 "적용"을 누르면 항상
-  // 그 입력칸으로 들어간다(미션 번호로 자동 매칭하지 않음).
+  // 분할 상품 미션 개수만큼 "분할 키워드" 입력칸 생성 — 각자 독립된 "이전 키워드 보기"를 가짐(미션 자동매칭 없음)
   function splitKeywordFieldsHtml(s, splitProd) {
     if (!splitProd?.active) return '';
     const rules = Array.isArray(splitProd.missionRules) ? splitProd.missionRules : [];
@@ -1138,9 +1124,8 @@ window.toggleProdPanel = function(e) {
     ]).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
 
-  // 자체 DB(allSlots)만으로 구성하는 유입플 키워드 히스토리 — 같은 MID의 다른 슬롯 유입플 키워드
-  // + 상세→변경으로 덮어쓴 기록(yupflKeywordHistory)을 합쳐 날짜순 반환. dedupHistoryByDay/
-  // dropUnchangedConsecutive는 searchKeyword/createdAt 필드를 보므로 같은 모양으로 매핑해서 재사용한다.
+  // 자체 DB 유입플 키워드 히스토리 — 같은 MID의 슬롯 기록+변경 이력(yupflKeywordHistory) 합쳐 날짜순 반환
+  // dedupHistoryByDay/dropUnchangedConsecutive 재사용 위해 searchKeyword/createdAt 모양으로 매핑
   function localYupflKeywordHistory(mid) {
     const sameMidSlots = allSlots.filter(s => s.mid === mid);
     const currentHistory = dropUnchangedConsecutive(
@@ -1259,8 +1244,7 @@ window.toggleProdPanel = function(e) {
   };
 
   // ── MID 유입플 작업키워드 (Firebase 유입플 실시간 시트, 미션 번호별) ──
-  // targetInputId/badgeId: "적용" 클릭 시 채워질 입력칸·배지 — 항상 이 버튼이 속한 입력칸으로 직접 들어감(미션 자동매칭 없음)
-  // suffix: 유입플(단일)은 생략, 분할은 입력칸마다 독립된 영역을 쓰도록 미션별로 다르게 지정
+  // targetInputId/badgeId: "적용" 시 채워질 입력칸·배지(미션 자동매칭 없음). suffix: 분할은 입력칸별 독립 영역용, 단일 유입플은 생략
   window.toggleYupflMidHistory = async function(mid, targetInputId, badgeId, suffix) {
     suffix = suffix || '';
     const area = document.getElementById('yupfl-history-area' + suffix);
@@ -1444,9 +1428,7 @@ window.toggleProdPanel = function(e) {
   // ── 상품 유형 설정 ────────────────────────────────────────────
 
   const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // onclick="fn('${v}')"처럼 홑따옴표 JS 문자열 안에 값을 넣을 때 전용 — HTML 속성 이스케이프만으론
-  // 홑따옴표가 그대로 살아남아 JS 문자열을 탈출할 수 있어(escProd는 큰따옴표만 방어), JS 문자열
-  // 이스케이프까지 먼저 적용한 뒤 속성 이스케이프를 씌운다.
+  // onclick="fn('${v}')" 같은 홑따옴표 JS 문자열용 — escProd는 큰따옴표만 방어해 홑따옴표로 탈출 가능하므로 JS 이스케이프 후 속성 이스케이프
   const escJsAttr = v => String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')
     .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -1508,9 +1490,7 @@ window.toggleProdPanel = function(e) {
       const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
       let fi = 0;
       prods = prods.map(p => fixedRank.has(p.id) ? fixedSorted[fi++] : p);
-      // 자동배분 대상(autoBalance!==false)인데 활성 상태끼리 ratio/kwPct 합이 10이 아니면 재배분 —
-      // 과거 버그(예: 찰리의 autoBalance:false)로 특정 상품 비율이 0으로 저장된 채 남아있던 계정을
-      // 수동으로 상품을 껐다 켜지 않아도 자동으로 복구시킨다.
+      // 자동배분 대상 중 활성 ratio/kwPct 합이 10이 아니면 재배분 — 과거 비율 0 버그를 수동 조작 없이 자동 복구
       const balanced = prods.filter(p => p.active && p.autoBalance !== false);
       if (balanced.length) {
         const ratioSum = Math.round(balanced.reduce((s,p)=>s+(p.ratio||0),0)*10)/10;
@@ -2018,9 +1998,8 @@ window.toggleProdPanel = function(e) {
     return rule ? rule.fixedPct : yupfl?.fixedPct;
   }
 
-  // 승인 시점에 유입플/분할로 배분되는 수량/금액을 스냅샷으로 남겨 정산관리에서 조회 가능하게 함.
-  // buildYoupflRows()와 동일한 배분 규칙(차감 이후 남은 수량 기준 + 미션 규칙 매칭)을 슬롯 1건에 대해 계산.
-  // 유입플과 분할은 동시 진행이 불가능하므로 하나의 필드(yupflAmount)로 합산해서 저장한다.
+  // 승인 시점 유입플/분할 배분 수량·금액을 스냅샷으로 남겨 정산관리에서 조회 — buildYoupflRows()와 동일 규칙을 슬롯 1건에 적용
+  // 유입플·분할은 동시 진행 불가하므로 하나의 필드(yupflAmount)로 합산 저장
   function yupflFieldsFor(slot) {
     if (!slot) return {};
     const yupfl = ap().find(p => p.id === 'yupfl' && p.fixedAlloc);
@@ -2048,30 +2027,21 @@ window.toggleProdPanel = function(e) {
     return { yupflTarget: target, yupflAmount: target * (slot.days||0) * unitPrice };
   }
 
-  // 대행사(bizfitUid) 하나에 대해 여러 슬롯 분의 차감을 합쳐서 /bizfit-refund를 딱 한 번만
-  // 호출한다 — 슬롯마다 따로 부르면 비즈핏 "캐시사용내역"이 승인 건수만큼 잘게 쪼개진 줄로
-  // 남는 걸 실사용에서 확인함(9건 승인 → 9줄로 분산 기록, 2026-08-10). 매핑 안 된 대행사
-  // (userBizfitUidMap에 없음)는 조용히 스킵 — 나중에 개별로 매핑 추가하면 됨. 실패해도 접수
-  // 자체(승인 처리)는 이미 끝난 뒤라 여기서 던지지 않고, 성공 여부를 boolean으로 반환해
-  // 호출부가 팝업 안에 재시도 배너를 띄울 수 있게 한다(2026-08-11 — 콘솔 로그만으로는 관리자가
-  // 실패를 알 방법이 없었음).
+  // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐(2026-08-10)
+  // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용, 2026-08-11)
   async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount) {
     const targets = slots.filter(s => s && !s.bizfitDeducted);
     if (!targets.length) return true;
     const amount = deductAmount + yupflAmount;
     if (amount <= 0) return true;
-    // bizfitDeductAttempted(실제로 시도했다는 마커, 목록 배지가 이 기능 이전 레거시 슬롯을 오탐하지
-    // 않게 함, 2026-08-11)를 API 호출 전에 미리 써두면, 성공하는 흔한 경우에도 "시도함/아직 안 됨"
-    // 상태가 실시간 구독에 잠깐 그대로 노출돼 배지가 떴다 사라지는 깜빡임이 생김(2026-08-11 확인) —
-    // 그래서 성공 시엔 attempted+deducted를 한 번에 같이 쓰고, 실패했을 때만 attempted 단독으로 남긴다.
+    // bizfitDeductAttempted(레거시 슬롯 오탐 방지 마커)를 호출 전에 미리 쓰면 성공 케이스도 배지가 깜빡임(2026-08-11 확인) —
+    // 성공 시 attempted+deducted를 한 번에, 실패 시만 attempted 단독으로 남긴다
     try {
       const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount });
       if (res && res.success) {
         await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true })));
         targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true }));
-        // 차감 자체와 별개 작업 — 실패해도 차감은 이미 끝났으니 여기서 막지 않고 콘솔에만 남긴다.
-        // 대상 대행사(agencyId)의 가장 최근 입금완료 건에 "[환불] 유입플 세팅 금액 : N원/M원"
-        // 메모를 누적 기록 — 같은 충전 건에 여러 번 걸리면 서버가 알아서 합산한다.
+        // 최근 입금완료 건에 "[환불] 유입플 세팅 금액" 메모 누적 기록(서버가 합산) — 차감과 별개라 실패해도 콘솔에만 남김
         const agencyId = targets[0].agencyId;
         callBizfitProxy('/bizfit-charge-memo', { company: agencyId, yupflAmount, deductAmount })
           .then(mres => { if (!mres || !mres.success) console.error('비즈핏 충전 메모 실패:', agencyId, mres && mres.message); })
@@ -2090,8 +2060,7 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  // 단건 승인(approveOne)용 — 슬롯 1개짜리 배치로 취급해 settleBizfitCashBatch를 그대로 재사용.
-  // 매핑 없어 스킵한 경우도 true(실패 아님) — settleBizfitCashBatch의 반환값 규약을 그대로 따름.
+  // 단건 승인용 — 슬롯 1개짜리 배치로 취급해 settleBizfitCashBatch 재사용(매핑 없어 스킵한 경우도 true)
   async function settleBizfitCash(slot, fields) {
     if (!slot) return true;
     await userBizfitUidReady;
@@ -2100,9 +2069,8 @@ window.toggleProdPanel = function(e) {
     return await settleBizfitCashBatch(bizfitUid, [slot], fields.deductAmount || 0, fields.yupflAmount || 0);
   }
 
-  // 승인은 됐는데(active) 차감을 실제로 시도했다가(bizfitDeductAttempted) 실패한(!bizfitDeducted)
-  // 슬롯만 걸러낸다 — bizfitDeducted 유무만 보면 이 기능 이전 레거시 active 슬롯까지 걸려서(실사용
-  // 확인, 2026-08-11) bizfitDeductAttempted를 같이 요구한다(레거시 슬롯엔 이 필드 자체가 없음).
+  // 승인됐지만 차감 시도(bizfitDeductAttempted)했다 실패한(!bizfitDeducted) 슬롯만 필터 — bizfitDeducted만 보면
+  // 이 기능 이전 레거시 active 슬롯까지 걸려서(2026-08-11 확인) attempted를 같이 요구(레거시엔 이 필드 자체가 없음)
   function bizfitDeductPending(s) {
     return !!(s && s.status === 'active' && s.bizfitDeductAttempted && !s.bizfitDeducted);
   }
@@ -2115,10 +2083,8 @@ window.toggleProdPanel = function(e) {
     renderReceipts(false);
   };
 
-  // 슬롯을 승인 확정(HA.approveSlot, status→active — 내부 RTDB 쓰기라 자동 호출도 안전)하고, 남은
-  // 차감 대상을 대행사(bizfitUid)별로 묶어서 반환한다(실행은 안 함, 조회 전용). 멀티레그 게이트
-  // 완료/일반·찰리 단일완료/유입플 단일완료 + 팝업 자동 승인, 전부 이 함수로 승인을 처리한 뒤 각자
-  // 필요에 따라 차감을 바로 실행하거나(→ approveSlotsWithBizfit) 미룬다(→ 팝업 배너).
+  // 슬롯 승인 확정(status→active) 후 남은 차감 대상을 대행사별로 묶어 반환(실행은 안 함, 조회 전용) —
+  // 멀티레그 게이트 완료/단일완료/팝업 자동승인 전부 이 함수로 승인 처리 후 필요에 따라 차감 실행 또는 팝업 배너로 미룸
   async function approveReadySlots(keys, slotMap) {
     if (!keys.length) return [];
     const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
@@ -2144,15 +2110,11 @@ window.toggleProdPanel = function(e) {
     return [...byUid.values()];
   }
 
-  // 승인 + 차감을 이어서 실행 — 멀티레그 게이트 완료/일반·찰리 단일완료/유입플 단일완료 3곳에서
-  // 동일하게 씀(전부 실제 클릭에서 나온 호출). 승인·그룹핑은 approveReadySlots에 위임하고, 차감은
-  // 슬롯 단위가 아니라 그룹당 한 번만 호출. 실패한 그룹만 배열로 반환 — 호출부가 팝업 안 재시도
-  // 배너에 넘겨준다.
+  // 승인+차감 연속 실행 — 멀티레그 게이트/단일완료 3곳에서 공용. 승인·그룹핑은 approveReadySlots에 위임,
+  // 차감은 그룹당 한 번만 호출. 실패한 그룹만 반환해 호출부가 팝업 재시도 배너에 넘김.
   async function approveSlotsWithBizfit(keys, slotMap) {
     const groups = await approveReadySlots(keys, slotMap);
-    // await 없이 던지면 호출부의 "await approveSlotsWithBizfit(...)"가 차감 완료 전에 끝나버려서
-    // 닫기 버튼이 너무 일찍 활성화된다(관리자가 그 틈에 페이지를 벗어나면 진행 중이던 차감 요청이
-    // 취소될 수 있음, 2026-08-11) — 전부 끝난 뒤에야 이 함수가 resolve되게 한다.
+    // await 없이 던지면 닫기 버튼이 차감 완료 전 활성화돼 요청이 취소될 수 있음(2026-08-11) — 전부 끝난 뒤 resolve
     const results = await Promise.all(groups.map(async g => {
       const ok = await settleBizfitCashBatch(g.bizfitUid, g.slots, g.ded, g.yup);
       return { ...g, ok };
@@ -2598,8 +2560,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 애드로그 대량등록 접수 (그룹/키워드/URL/메모) ────────────
-  // 프론트(SheetJS)가 만든 xlsx를 그대로 프록시로 릴레이한다.
-  // openpyxl 등 서버에서 새로 생성한 xlsx는 adlog.kr이 거부하는 것이 실측으로 확인됨.
+  // 프론트(SheetJS) xlsx를 그대로 릴레이 — 서버에서 새로 생성한 xlsx(openpyxl 등)는 adlog.kr이 거부함(실측 확인)
   window.submitAdlog = function() {
     const checkedKeys = getCheckedKeys();
     const keySet = new Set(checkedKeys);
@@ -2842,9 +2803,8 @@ window.toggleProdPanel = function(e) {
     return res.json();
   }
 
-  // buildJumuSheet_('일반', ...)와 동일한 배분 로직 — 엑셀 셀 쓰기 대신 등록 페이로드 행을 만듦
-  // prodFilter 생략 시 일반 상품(FIXED_PROD_IDS 제외) 전체. 찰리는 등급/가격 체계가 다른
-  // 별도 메뉴(NP 위치저장)로 접수해야 해서 prodFilter로 charlie만 뽑아 별도 호출한다.
+  // buildJumuSheet_('일반', ...)와 동일한 배분 로직 — 엑셀 셀 대신 등록 페이로드 행 생성.
+  // 찰리는 등급/가격 체계가 달라 별도 메뉴(NP 위치저장)로 접수해야 해서 prodFilter로 charlie만 뽑아 별도 호출
   function buildNormalRows(slots, prodFilter = p => !FIXED_PROD_IDS.has(p.id)) {
     const AP = ap();
     const normalProds = AP.filter(prodFilter);
@@ -2893,9 +2853,8 @@ window.toggleProdPanel = function(e) {
     return Array.from({length: n}, (_, i) => base + (i < rem ? 1 : 0));
   }
 
-  // 델타는 daysMultiplied 상품이지만 "분할" 설정값(N)만큼 일 목표를 다시 쪼개 블로그 URL 1개씩 매칭한
-  // N개의 행을 만든다 — buildNormalRows(1슬롯=1행)와 달리 1슬롯=N행이 나올 수 있어 별도 함수로 분리.
-  // _doneKey에 분할 순번을 붙여 완료 여부를 행 단위로 추적(상품등급명은 전송용 실제 등급명 그대로 유지).
+  // 델타는 "분할" 설정값(N)만큼 일 목표를 쪼개 블로그 URL 1개씩 매칭한 N개 행을 만듦(1슬롯=N행, buildNormalRows와 별도 함수)
+  // _doneKey에 분할 순번을 붙여 완료 여부를 행 단위로 추적
   function buildDeltaRows(slots) {
     const AP = ap();
     const delta = AP.find(p => p.id === 'delta');
@@ -3012,9 +2971,7 @@ window.toggleProdPanel = function(e) {
     openSubmitModal(target);
   };
 
-  // 일반/찰리 탭 공용 — 대행사별 블록 렌더 + 요약 문구 + 접수 신청 버튼 와이어링.
-  // emptyMsg 생략 시(일반 탭) 대상 없을 때 아무것도 안 함 — 탭 버튼 자체가 disabled라 도달 불가.
-  // "접수 신청" 버튼을 완료 상태로 잠근다 — wireSubmitTab/유입플 탭/lockDoneButtons 공용.
+  // "접수 신청" 버튼을 완료 상태로 잠금 — wireSubmitTab/유입플 탭/lockDoneButtons 공용
   function markApplyBtnDone(btn) {
     btn.disabled = true; btn.textContent = '✅ 전체 완료'; btn.style.background = '#475569'; btn.style.cursor = 'default';
   }
@@ -3054,7 +3011,7 @@ window.toggleProdPanel = function(e) {
     });
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${plan.length}곳 · ${label} ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
     const allRows = plan.flatMap(p => p.rows);
-    // 이 탭 행이 전부 이미 완료(_normalSubmitted)면 슬롯이 active 아니어도 완료로 표시.
+    // 이 탭 행이 전부 이미 완료(_normalSubmitted)면 슬롯이 active 아니어도 완료 표시
     if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
       markApplyBtnDone(applyBtn);
     } else if (validateNormalRowsForSubmit(allRows)) {
@@ -3088,11 +3045,8 @@ window.toggleProdPanel = function(e) {
       rows: buildDeltaRows(slotsByAgency(target, ag)),
     }));
     const yupflRows  = buildYoupflRows(target);
-    // hasNormal을 사이트 전체 상품 설정(ap())으로 판단하면 이 대상에 일반 상품이 하나도 없어도
-    // true가 되어(일반 상품은 거의 항상 켜져 있으므로) 불필요하게 게이트가 생기고, 일반 탭엔
-    // 제출할 행이 없어 normalKeys가 빈 Set으로 남아 교집합이 영원히 비어버림 — 유입플/찰리만
-    // 쓰는 대상이 승인·차감으로 넘어가지 못하는 문제로 이어짐(2026-08-11 발견). hasFixed/hasCharlie와
-    // 동일하게 이 대상에 실제로 제출할 행이 있는지로 판단하도록 통일.
+    // hasNormal을 사이트 전체 설정(ap())으로 판단하면 일반 상품이 없어도 true가 되어 normalKeys가 빈 채로
+    // 교집합이 영원히 안 채워짐 — 유입플/찰리만 쓰는 대상이 승인으로 못 넘어가는 문제(2026-08-11) — hasFixed/hasCharlie처럼 실제 제출 행 유무로 통일
     const hasNormal  = normalPlan.some(p => p.rows.length > 0);
     const hasFixed   = yupflRows.length > 0;
     const hasCharlie = charliePlan.some(p => p.rows.length > 0);
@@ -3153,10 +3107,8 @@ window.toggleProdPanel = function(e) {
       </div>`;
     document.body.appendChild(overlay);
 
-    // 캐시차감 실패는 콘솔 로그만 남기지 않고 이 모달이 열려있는 동안 배너+재시도 버튼으로 보여준다
-    // — 대상은 "지금 이 모달에서 시도한 것"만(목록 전체를 훑으면 이 기능 이전 레거시 active 슬롯도
-    // bizfitDeducted가 없어 오탐함). executeSubmit/executeYoupflSubmit(별도 최상위 함수, overlay를
-    // 인자로 받음)에서도 갱신할 수 있게 overlay 엘리먼트에 상태를 매달아둔다.
+    // 캐시차감 실패는 콘솔뿐 아니라 모달이 열려있는 동안 배너+재시도 버튼으로 표시 — 대상은 "이 모달에서 시도한 것"만
+    // (목록 전체를 훑으면 레거시 active 슬롯도 bizfitDeducted 없어 오탐). executeSubmit 등 최상위 함수도 갱신할 수 있게 overlay에 상태를 매달아둠
     overlay._deductFailures = []; // [{bizfitUid, slots, ded, yup}]
     overlay._renderDeductFailures = function() {
       const banner = overlay.querySelector('#deduct-fail-banner');
@@ -3250,15 +3202,9 @@ window.toggleProdPanel = function(e) {
       };
     }
 
-    // 일반/유입플/찰리 중 2개 이상 동시 활성 시(대상 전체 기준) 승인을 조율하는 게이트.
-    // 대상은 여러 슬롯이 섞인 배치라 슬롯마다 실제로 쓰는 상품 조합이 다를 수 있음(예: 어떤 슬롯은
-    // 일반+유입플, 어떤 슬롯은 유입플만) — 그래서 "탭 전체가 다 끝나야"가 아니라 슬롯별로 "그
-    // 슬롯이 실제로 쓰는 레그들만" 다 끝나면 그 슬롯만 바로 승인한다(requiredLegsByKey로 슬롯별
-    // 필요 레그를 미리 계산). 예전엔 탭(레그) 전체 완료를 요구해서, 유입플만 쓰는 슬롯이 배치에
-    // 섞여 있으면 일반 탭엔 그 슬롯 행 자체가 없어 영원히 승인 못 되는 문제가 있었음(2026-08-11).
-    // 모달을 닫았다가 재오픈한 경우 — 이전 세션에서 이미 완료된 탭은 이번 세션에서 그 탭 버튼을
-    // 다시 누르지 않아도(이미 완료(기존)로 표시되므로) 알 수 있도록 저장된 플래그로 미리 채워둠
-    // 일반/찰리는 상품별로 개별 완료 여부가 갈리므로, 슬롯에 걸린 모든 상품행이 완료된 경우에만 "이미 완료"로 취급
+    // 일반/유입플/찰리 2개 이상 동시 활성 시 승인 게이트 — "탭 전체 완료"가 아닌 슬롯별로 "그 슬롯이 쓰는 레그들만" 다 끝나면 바로 승인
+    // (requiredLegsByKey로 계산). 예전 탭 전체 완료 요구 방식은 유입플만 쓰는 슬롯이 영원히 승인 못 되는 문제가 있었음(2026-08-11).
+    // 재오픈 시 이전 세션 완료 탭은 저장된 플래그로 미리 채움(일반/찰리는 모든 상품행 완료 시에만 "이미 완료")
     const rowsBySlotOf = rows => {
       const m = new Map();
       rows.forEach(r => { if (!r._slotKey) return; if (!m.has(r._slotKey)) m.set(r._slotKey, []); m.get(r._slotKey).push(r); });
@@ -3284,9 +3230,7 @@ window.toggleProdPanel = function(e) {
     addRequired(deltaPlan.flatMap(p => p.rows), 'deltaKeys');
     addRequired(yupflRows, 'fixedKeys');
 
-    // 게이트 유무와 상관없이 쓰는 판정 — doneSets(.normalKeys/.fixedKeys/.charlieKeys 형태, 게이트
-    // 객체 자신이거나 초기 스냅샷)를 받아 슬롯이 필요로 하는 레그가 전부 들어있는지로 승인 대상을
-    // 고른다(조회 전용, 실행 안 함).
+    // 게이트 유무와 상관없이 쓰는 판정 — doneSets를 받아 슬롯이 필요 레그를 전부 채웠는지로 승인 대상을 고름(조회 전용, 실행 안 함)
     const slotMapAll = new Map(allSlots.map(s => [s._key, s]));
     function readyKeysOf(doneSets) {
       return [...requiredLegsByKey.entries()]
@@ -3295,10 +3239,8 @@ window.toggleProdPanel = function(e) {
         .map(([k]) => k);
     }
 
-    // 이미 내용이 다 완료된 슬롯은 승인(상태 전환)까지는 창을 여는 즉시 자동으로 처리하되, 차감
-    // (외부 API, 실제 돈이 움직임)은 자동으로 시도하지 않고 필요한 슬롯만 배너에 올려 "재시도"를
-    // 눌러야만 실행된다. 탭의 "접수 신청" 버튼도 승인이 끝나는 즉시 이 안에서 잠근다(버튼은 렌더
-    // 시점 스냅샷이라 비동기 완료를 자동 반영 못 함).
+    // 다 완료된 슬롯은 승인(상태 전환)만 창 열자마자 자동 처리 — 차감(실제 돈)은 자동 시도 안 하고 배너 "재시도"로만 실행.
+    // 탭 버튼은 렌더 시점 스냅샷이라 비동기 완료를 자동 반영 못 하므로 승인 끝나는 즉시 여기서 잠금.
     const legHas = { normalKeys: hasNormal, fixedKeys: hasFixed, charlieKeys: hasCharlie, deltaKeys: hasDelta };
     function lockDoneButtons() {
       Object.entries(LEG_BTN_SEL).forEach(([leg, sel]) => {
@@ -3335,9 +3277,7 @@ window.toggleProdPanel = function(e) {
     // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
     const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone });
     if (initialReady.length) {
-      // 자동 승인이 도는 짧은 틈(HA.approveSlot 왕복) 사이 관리자가 같은 레그의 "접수 신청"을
-      // 눌러버리면 settleBizfitCashBatch가 bizfitDeducted 체크를 통과한 두 호출이 겹쳐 이중
-      // 차감될 수 있음 — 그 레그 버튼만 처리 끝날 때까지 잠깐 잠가둔다(2026-08-11).
+      // 자동 승인 도는 틈에 관리자가 같은 레그 "접수 신청"을 누르면 이중 차감 가능 — 처리 끝날 때까지 그 레그 버튼만 잠금(2026-08-11)
       const legsInvolved = new Set();
       initialReady.forEach(k => (requiredLegsByKey.get(k) || []).forEach(leg => legsInvolved.add(leg)));
       legsInvolved.forEach(leg => {
@@ -3436,10 +3376,8 @@ window.toggleProdPanel = function(e) {
     });
   };
 
-  // 대행사 1곳에 대한 미리보기 블록 — 충전 신청 팝업(정산관리)과 동일한 agency-block/ag-table 스타일.
-  // 행 = (업체명, 등급) 쌍. 상태칸은 접수 신청 전까지 '-'
-  // daysMultiplied: 찰리처럼 "일수" 칸에 실제 일수 대신 일목표×일수(전체목표)를 넣는 상품이면 true —
-  // 헤더 라벨과 목표 합계 계산식을 "일수" 대신 "전체목표" 그대로 쓰도록 바꿔야 함(이중곱 방지)
+  // 대행사 1곳 미리보기 블록 — 충전 신청 팝업(정산관리)과 동일한 agency-block/ag-table 스타일. 행 = (업체명, 등급) 쌍.
+  // daysMultiplied: 찰리처럼 "일수" 칸에 일목표×일수(전체목표)를 넣는 상품이면 true — 헤더/합계 계산을 "전체목표" 그대로 써서 이중곱 방지
   function buildSubmitAgencyBlock(p, label='일반 상품', daysMultiplied=false, blogUrl=false) {
     const block = document.createElement('div');
     block.className = 'agency-block';
@@ -3722,10 +3660,8 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  // legKey: 게이트에 결과를 기록할 필드 ('normalKeys' | 'charlieKeys') — 일반/찰리 두 탭이 이 함수를 공유한다.
-  // adrole: 지정 시 grade-info/register를 해당 adrole(예: 찰리='100')로만 조회 — 계정에 여러 adrole이
-  // 함께 설정돼 있어도(등급명이 겹칠 수 있음) 원하는 메뉴로만 정확히 접수되게 한다.
-  // legKey→탭 버튼 접두사/등급 버전 매핑 — 일반/찰리/델타 세 탭이 이 함수를 공유한다.
+  // legKey: 게이트 기록 필드('normalKeys'|'charlieKeys') — 일반/찰리/델타 세 탭이 이 함수를 공유
+  // adrole: 지정 시 grade-info/register를 해당 adrole로만 조회 — 등급명이 겹쳐도 원하는 메뉴로만 정확히 접수
   const SUBMIT_TAB_PREFIX = { normalKeys: 'submit', charlieKeys: 'csub', deltaKeys: 'dsub' };
   async function executeSubmit(plan, overlay, gate=null, legKey='normalKeys', adrole=null) {
     const btnPrefix = SUBMIT_TAB_PREFIX[legKey] || 'submit';
@@ -3858,10 +3794,8 @@ window.toggleProdPanel = function(e) {
           });
         } catch(e) { result = { success:false, message: e.message }; }
         if (result.success) {
-          // 배치 내 일부 행만 결제에서 제외(비즈핏 측 검증 실패)될 수 있음 — payloadRows는 grpRows를
-          // 그대로 map한 것이라 순서가 1:1 대응하므로, 서버가 반환한 행 인덱스로 매칭한다.
-          // PID(업체)로 매칭하지 않는 이유: 같은 업체가 슬롯 2개(예: 기간이 다른 캠페인)에 걸쳐
-          // 같은 배치에 들어오면 PID만으로는 어느 행이 실패했는지 구분할 수 없다.
+          // 배치 내 일부 행만 결제 제외될 수 있어 서버가 반환한 행 인덱스로 매칭(payloadRows는 grpRows를 순서대로 map함)
+          // PID로 매칭 안 하는 이유: 같은 업체가 슬롯 2개에 걸쳐 같은 배치에 들어오면 PID만으론 실패 행을 구분 못 함
           const failByIdx = new Map((result.fail_rows || []).map(f => [f.index, f.reason]));
           let okCount = 0;
           grpRows.forEach((r, i) => {

@@ -401,9 +401,7 @@
 
   window.HA = HA;
 
-  // #content-area에 무엇을 그릴지 결정하는 요청마다 증가하는 세대 번호.
-  // 대시보드/페이지 렌더가 await로 대기하는 사이 사용자가 다른 메뉴로 넘어가면
-  // 뒤늦게 도착한 이전 렌더가 최신 화면을 덮어쓰지 않도록 막는다.
+  // #content-area 렌더 요청마다 증가하는 세대 번호 — await 대기 중 사용자가 다른 메뉴로 넘어가면 뒤늦게 도착한 이전 렌더가 최신 화면을 덮어쓰지 않게 막음
   let navGen = 0;
 
   // URL에서 파일명 숨기기 — 항상 / 로만 표시
@@ -796,8 +794,7 @@
   };
 
   // ── Firebase 실시간 리스너 ────────────────────────────────
-  // ※ 전체 캠페인 _key를 seenSlotKeys로 누적 관리.
-  //   한 번도 본 적 없는 key가 생겼을 때만 알림 → 상태 변경은 key가 그대로라 무시됨.
+  // 전체 캠페인 _key를 seenSlotKeys로 누적 관리 — 처음 보는 key만 알림(상태 변경은 key가 그대로라 무시)
   let notifTimer    = null;
   let seenSlotKeys  = null;  // null = 첫 스냅샷 수신 전
   let pendingDiff   = 0;

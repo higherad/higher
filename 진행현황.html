@@ -171,8 +171,7 @@
       allSlots = await HA.getSlotsLive();
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-      // HA.expireSlots가 status만 한 번의 multi-path 쓰기로 처리(슬롯마다 kimpro 확인 왕복하는
-      // HA.updateSlot 대신 — 접수관리.html과 동일한 이유, 2026-08-11).
+      // HA.expireSlots로 status만 한 번의 multi-path 쓰기 처리(슬롯별 HA.updateSlot 대신 — 접수관리.html과 동일 이유, 2026-08-11)
       const toExpire = allSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
       );
@@ -475,9 +474,7 @@
     await _renderTrashContent();
   };
 
-  // 페이지 로드 시 이미 받아둔 module 캐시(allSlots)를 그대로 씀 — 열 때/액션마다 매번
-  // HA.getSlots()(ha/slots, 5.8MB+)를 새로 받으면 낭비. 삭제/복구는 아래 각 함수가 allSlots를
-  // 직접 patch해서 이 캐시를 최신 상태로 유지함.
+  // 이미 받아둔 module 캐시(allSlots) 재사용 — 매번 HA.getSlots()(5.8MB+) 재조회는 낭비. 삭제/복구 시 각 함수가 allSlots를 직접 patch해 최신 유지
   async function _renderTrashContent() {
     const area = document.getElementById('trash-table-area');
     if (!area) return;

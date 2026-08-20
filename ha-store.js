@@ -29,10 +29,7 @@ const db   = getDatabase(app);
 const auth = getAuth(app);
 
 // ── kimpro/slots 미러링 전용 계정 ────────────────────────────
-// kimpro RTDB 규칙이 kimpro-access 계정만 허용해서 higher 로그인 세션(admin/staff 등)으로는
-// kimpro/slots에 읽기·쓰기 모두 permission denied가 남 — 별도 App 인스턴스로 이 계정만 따로
-// 로그인해서 씀. 실제 미러링이 필요한 시점에만 로그인하도록 지연 처리(모든 페이지 로드마다
-// 불필요한 로그인 요청이 나가지 않게).
+// kimpro RTDB 규칙이 kimpro-access 계정만 허용(higher 로그인 세션은 permission denied) — 별도 App으로 로그인, 필요 시점까지 지연
 const kimproMirrorApp = initializeApp(firebaseConfig, 'kimproMirror');
 const kimproDb        = getDatabase(kimproMirrorApp);
 const kimproMirrorAuth = getAuth(kimproMirrorApp);
@@ -45,8 +42,7 @@ function ensureKimproAuth() {
 }
 
 // ── 인증 상태 복원 대기 래퍼 ─────────────────────────────────
-// RTDB 규칙(auth != null)으로 인해 새로고침 직후 세션 복원 전에
-// get/onValue가 먼저 실행되면 permission denied가 발생할 수 있음.
+// 새로고침 직후 세션 복원 전 get/onValue가 먼저 돌면 RTDB 규칙(auth != null)에 걸려 permission denied 발생 가능
 const authReady = auth.authStateReady();
 
 async function get(r)        { await authReady; return _get(r); }
@@ -89,10 +85,7 @@ function dispatch(event) {
 }
 
 // ── 실시간 슬롯 배열 공유 캐시 ────────────────────────────────
-// onSlotsChange(대기 배지)/onSettlementsChange(정산 배지)가 둘 다 "getSlots() 1회 +
-// subscribeSlots() child 이벤트로 배열 유지"가 필요함. 각자 따로 구독하면 초기 로드(ha/slots,
-// 5.8MB+)와 child 리스너 자체가 두 벌씩 돌아 index.html(로그인~로그아웃까지 떠 있는 SPA 셸)
-// 세션 내내 낭비되므로, 배열 하나만 유지하고 구독자들에게 방송(broadcast)한다.
+// 여러 구독자(대기/정산 배지 등)가 각자 getSlots()+구독을 따로 하면 초기 로드(5.8MB+)가 중복되므로, 배열 하나를 유지해 방송(broadcast)
 let _liveSlotsPromise = null; // getSlots()+subscribeSlots() 초기 셋업 — 최초 구독자가 1회만 트리거
 let _liveSlots         = [];  // 최신 배열(참조) — child 콜백이 계속 patch
 const _liveSlotsSubs   = new Set();
@@ -193,12 +186,7 @@ const HA = {
     );
   },
 
-  // 목록 실시간 반영용 — getSlots()로 이미 받은 뒤 "이후 변경분"만 구독 (child 단위 이벤트라
-  // 상태 하나 바뀔 때마다 목록 전체(ha/slots 수천 건, 수 MB)가 재전송되는 걸 피함).
-  // currentSlots: getSlots() 결과 배열(호출부가 이미 들고 있는 것을 그대로 넘기면 됨) — 그중
-  // 가장 큰 push key(=가장 최근 생성) 이후에 생긴 것만 "추가"로 취급해, 기존 데이터가
-  // child_added로 다시 통째로 리플레이되는 것도 피한다. (호출부마다 afterKey를 직접 계산하지
-  // 않도록 이 함수 안에서 구함)
+  // getSlots() 이후 변경분만 child 이벤트로 구독(전체 재전송 방지). currentSlots의 최대 push key 이후만 "추가"로 취급해 기존 데이터 리플레이도 피함
   async subscribeSlots(currentSlots, { onAdded, onChanged, onRemoved } = {}) {
     await authReady;
     const afterKey = (currentSlots || []).reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
@@ -210,10 +198,7 @@ const HA = {
     return () => { offAdded(); offChanged(); offRemoved(); };
   },
 
-  // kimpro(reception.html) 쪽 kimpro/slots에서 같은 MID 슬롯 조회 — MID 키워드 히스토리를
-  // 양쪽 합쳐서 보여주는 용도(접수관리.html fullKeywordHistory). kimpro RTDB 규칙이 kimpro-access
-  // 계정만 허용해서 higher 기본 세션(db)으로는 읽기도 permission denied — kimproDb(위쪽 미러링
-  // 전용 인증)로 읽어야 함.
+  // kimpro/slots에서 같은 MID 슬롯 조회(fullKeywordHistory용) — kimpro RTDB는 kimpro-access 계정만 허용해 kimproDb로 읽어야 함
   async getKimproSlotsByMid(mid) {
     try {
       await ensureKimproAuth();
@@ -260,12 +245,8 @@ const HA = {
   async updateSlot(key, patch) {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
     dispatch('ha:slots:updated');
-    // kimpro/slots 동기화 — 편도(kimpro 쪽 변경은 여기로 안 들어옴).
-    // kimpro RTDB 규칙이 kimpro-access 계정만 허용하므로 반드시 kimproDb(별도 인증 세션)로 써야
-    // 함 — db(현재 로그인한 higher 계정)로 쓰면 항상 permission denied. 실패 시 최소한 콘솔에는
-    // 남김(예전엔 catch(e){}로 완전히 삼켜서 2026-08-05 kimpro 보안조치 이후 이 동기화가 깨진 걸
-    // 아무도 못 알아챘고, active 176건이 누락된 채로 방치됐었음).
-    // (fire-and-forget으로 두면 호출부가 await 후 곧바로 페이지 이동/탭 종료 시 씹힐 수 있어 반드시 await)
+    // kimpro/slots 동기화(편도) — kimpro RTDB는 kimpro-access 계정만 허용해 kimproDb로 써야 함.
+    // 실패 시 콘솔 로그 필수(과거 catch(e){}로 삼켜서 2026-08-05 보안조치 후 active 176건 누락을 못 알아챈 적 있음). fire-and-forget 금지, 반드시 await
     try {
       await ensureKimproAuth();
       const kpSnap = await get(ref(kimproDb, `${PATHS.kimproSlots}/${key}`));
@@ -330,12 +311,7 @@ const HA = {
     await this.updateSlot(key, { status: 'active', ...extra });
   },
 
-  // 종료일 지난 active 캠페인을 한꺼번에 expired로 전환할 때 전용 — updateSlot을 슬롯마다 부르면
-  // 각각 ensureKimproAuth()+kimpro get() 왕복까지 붙는데, {status:'expired'} 같은 status-only
-  // patch는 updateSlot의 kimpro 분기에서도 항상 아무 것도 안 씀(kimpro에 있어도 status는 patch에서
-  // 빠지고 남는 필드가 없어 skip, 없으면 patch.status!=='active'라 skip — kimpro는 최초 승인
-  // 이후 status를 안 따라감, 위 updateSlot 참고). 그래서 그 확인 자체를 생략하고 메인 db만
-  // multi-path update 한 번으로 전부 반영한다(N개 기준 호출 수 3N → 1).
+  // 종료일 지난 active 캠페인 일괄 expired 전환 전용 — status-only patch는 updateSlot의 kimpro 분기에서 어차피 아무 것도 안 쓰므로(kimpro는 승인 이후 status 미추적), 그 확인을 생략하고 메인 db만 multi-path update 한 번으로 처리(N개 기준 호출 수 3N → 1)
   async expireSlots(keys) {
     if (!keys.length) return;
     const patch = {};
@@ -573,11 +549,7 @@ const HA = {
     };
   },
 
-  // 공유 캐시(아래 ensureLiveSlots)를 통해 슬롯 배열 반환 — getSlots()와 인터페이스 동일(1회성
-  // await로 전체 배열을 받음)하지만, 세션 내 최초 호출자만 ha/slots(6MB+)를 실제로 받고 이후
-  // 호출(다른 페이지로 이동 후 재방문 등)은 이미 child 리스너로 갱신돼 있는 캐시를 재사용한다.
-  // 목록 페이지(접수관리/정산관리/종료예정/진행현황/회원관리/순위조회/홈)가 페이지 전환마다
-  // 각자 getSlots()를 새로 불러 6MB씩 중복 다운로드하던 걸 없애기 위해 추가함(2026-08-11).
+  // 공유 캐시(ensureLiveSlots) 경유 — getSlots()와 인터페이스는 같지만 세션 내 최초 호출자만 ha/slots(6MB+)를 받고 이후는 캐시 재사용. 페이지 전환마다 중복 다운로드하던 걸 없앰(2026-08-11)
   async getSlotsLive() {
     await ensureLiveSlots();
     return sortedLiveSlots();
@@ -600,13 +572,8 @@ const HA = {
     });
   },
 
-  // 정산 실시간 리스너 — slots + paid_slots 를 함께 구독해
-  // 정산관리 페이지와 동일하게 (접수일+대행사+유저ID) 단위로 묶은 뒤
-  // 그룹 전체가 미정산인 행의 개수를 콜백으로 전달.
-  // slots 쪽은 onSlotsChange와 같은 공유 캐시(subscribeLiveSlots)를 구독 — 둘이 따로 구독하면
-  // getSlots() 초기 로드와 child 리스너가 두 벌씩 돌아 낭비였음. paid_slots는 121KB 수준으로
-  // 훨씬 작고, 키가 push 순서가 아니라 슬롯 _key를 그대로 쓰는 구조라 startAfter 같은
-  // "이후 것만" 필터가 안 통해 child 전환의 이득이 작음 — value 리스너 유지.
+  // 정산 실시간 리스너 — slots+paid_slots를 (접수일+대행사+유저ID) 단위로 묶어 미정산 행 개수를 콜백.
+  // slots는 onSlotsChange와 같은 공유 캐시(subscribeLiveSlots) 재사용. paid_slots는 121KB로 작고 키가 push 순서가 아니라 startAfter 필터 이득이 없어 value 리스너 유지
   onSettlementsChange(callback) {
     let latestSlots = [];
     let latestPaid  = new Set();
