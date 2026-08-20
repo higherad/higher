@@ -2997,8 +2997,7 @@ window.toggleProdPanel = function(e) {
     const checkedKeys = getCheckedKeys();
     const keySet = new Set(checkedKeys);
     const base   = checkedKeys.length ? allSlots.filter(s => keySet.has(s._key)) : filteredAll;
-    // 체크박스로 직접 선택한 경우엔 승인(active)된 항목도 대상에 포함 — 초기화 버튼으로 재접수
-    // 준비하려는 것일 수 있음(체크 없이 여는 기본 동작은 기존처럼 accepted만).
+    // 체크 선택 시 active도 대상 포함(초기화 재진입용). 기본 동작은 accepted만.
     const allowedStatuses = checkedKeys.length ? ['accepted', 'active'] : ['accepted'];
     const target = base.filter(s => allowedStatuses.includes(s.status));
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재접수 불필요)'); return; }
@@ -3020,10 +3019,7 @@ window.toggleProdPanel = function(e) {
     btn.disabled = true; btn.textContent = '✅ 전체 완료'; btn.style.background = '#475569'; btn.style.cursor = 'default';
   }
 
-  // "접수 신청"을 누르기 전에 미리 검사해서, 오류가 하나라도 있으면 버튼 자체를 못 누르게 막는다.
-  // executeSubmit(processAgency) 안의 검사와 완전히 동일한 조건을 렌더 시점에 먼저 돌리는 것 —
-  // 클릭 시점 검사는 그대로 둔다(방어적 이중검사). 상태(_statusTd)는 안 건드림 — 이미 오류
-  // 배지(검색키워드 0개 등)가 표에 따로 보이므로 여기서 또 표시하면 중복.
+  // 접수 신청 전 사전검사(executeSubmit과 동일 조건) — 오류 있으면 버튼 비활성화. 상태칸은 안 건드림(오류 배지 중복).
   function validateNormalRowsForSubmit(rows) {
     let anyFail = false;
     rows.forEach(r => {
@@ -3057,11 +3053,11 @@ window.toggleProdPanel = function(e) {
       totalTarget += daysMultipliedSum(p.rows, daysMultiplied);
     });
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${plan.length}곳 · ${label} ${totalStores}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
-    // 내용이 이미 전부 제출 완료(재오픈 등)돼도 승인이 자동으로 일어나진 않으므로, 버튼은 계속
-    // 눌러야 하는 상태로 둔다 — 눌러도 재제출은 없고(pendingRows 없음) 승인·차감만 진행된다.
-    if (target.every(s => s.status === 'active')) {
+    const allRows = plan.flatMap(p => p.rows);
+    // 이 탭 행이 전부 이미 완료(_normalSubmitted)면 슬롯이 active 아니어도 완료로 표시.
+    if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
       markApplyBtnDone(applyBtn);
-    } else if (validateNormalRowsForSubmit(plan.flatMap(p => p.rows))) {
+    } else if (validateNormalRowsForSubmit(allRows)) {
       applyBtn.disabled = true;
       applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
       applyBtn.style.background = '#9ca3af'; applyBtn.style.cursor = 'not-allowed';
@@ -3183,12 +3179,8 @@ window.toggleProdPanel = function(e) {
       };
     };
 
-    // "초기화" — 실수로 잘못 접수(예: 고정차감 비활성 상태로 승인)된 슬롯을 실제 비즈핏
-    // 캠페인까지 취소/반려/삭제하고, 완료 기록(normalDoneProducts)만 지워 재접수 가능하게 한다.
-    // 대상: status==='active'(승인됨)이면 전부 — bizfitDeducted 여부는 안 본다. 캐시차감/메모는
-    // 재접수+재승인해도 자동으로 안 돌게 막아뒀으니(아래 clearFields 주석 참고) 이미 정산된
-    // 슬롯이어도 초기화 자체는 안전하다. 차감/메모는 사람이 직접 확인해서 처리한다(2026-08-20 —
-    // 델타 자동청구를 시도했다가 실서비스에서 원인 불명 추가차감이 나서 자동화를 걷어냄).
+    // "초기화" — 캠페인 취소/반려/삭제 + 완료기록(normalDoneProducts) 삭제, 재접수 가능하게.
+    // 대상: status==='active'면 전부(bizfitDeducted 무관). 차감/메모 자동화는 안 함(사람이 처리).
     const resetCandidates = target.filter(s => s.status === 'active');
     const resetBtn = overlay.querySelector('#reset-submission-btn');
     if (resetCandidates.length) {
@@ -3196,10 +3188,7 @@ window.toggleProdPanel = function(e) {
       resetBtn.onclick = async () => {
         if (!confirm(`${resetCandidates.length}건의 비즈핏 캠페인을 실제로 취소/삭제하고 접수 기록을 초기화합니다.\n되돌릴 수 없습니다. 계속할까요?`)) return;
         resetBtn.disabled = true; resetBtn.textContent = '초기화 중...';
-        // 실제 캠페인이 취소/삭제되는 중이라, 이 팝업의 기존 닫기 버튼/바깥클릭 가드
-        // (window.bizfitSubmitting 체크, 아래 submit-close-btn 등)가 초기화 도중엔 못 닫도록
-        // 같이 막아준다 — 별도 가드를 새로 만들지 않고 기존 플래그를 그대로 재사용.
-        window.bizfitSubmitting = true;
+        window.bizfitSubmitting = true; // 진행 중 팝업 닫기 방지(기존 가드 재사용)
 
         const byAgency = new Map(); // agencyId -> Set(mid)
         resetCandidates.forEach(s => {
@@ -3234,15 +3223,8 @@ window.toggleProdPanel = function(e) {
         }
 
         const resetSlots = resetCandidates.filter(s => okMids.has(s.mid));
-        // fixedSubmitted/splitFixedSubmitted(유입플 완료기록)는 지우지 않는다 — 이 취소 로직은
-        // admin.bizfit.kr/higherad.co.kr 쪽 캠페인만 취소하고 유입플(premiumset.shop) 캠페인은
-        // 안 건드리므로, 여기까지 지우면 이미 살아있는 유입플 캠페인을 재접수 때 중복 등록하게 됨.
-        // bizfitDeducted도 일부러 안 건드린다 — 그대로 두면 재접수 후 재승인해도
-        // settleBizfitCashBatch(원래의 !bizfitDeducted 체크)가 자동으로 차감/메모 시도를
-        // 건너뛰어서, 차감·메모는 항상 사람이 직접 확인해서 처리하게 된다(의도된 동작).
-        // status는 accepted로 되돌린다 — submitDirect()가 체크박스로 active도 열 수는 있지만,
-        // 그대로 두면 목록에 계속 "승인"으로 남아 매번 체크박스로 직접 골라야 함. accepted로
-        // 돌려놔야 일반적인 접수 흐름(체크 없이 바로 접수)에 자연스럽게 다시 들어옴.
+        // fixedSubmitted/splitFixedSubmitted(유입플)와 bizfitDeducted는 안 건드림 — 유입플 캠페인은
+        // 이 로직이 취소 안 하고, 차감/메모도 사람이 처리(자동화 안 함). status만 accepted로 복귀.
         const clearFields = { status: 'accepted', normalDoneProducts: null };
         await Promise.all(resetSlots.map(s => HA.updateSlot(s._key, clearFields)));
         resetSlots.forEach(s => updateLocalSlot(s._key, clearFields));
@@ -3385,8 +3367,8 @@ window.toggleProdPanel = function(e) {
       overlay.querySelector('#youpfl-sub').innerHTML =
         `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
       const youpflApplyBtn = overlay.querySelector('#youpfl-apply-btn');
-      // 일반 탭과 동일 — 내용이 이미 다 제출완료여도 승인은 버튼을 눌러야 진행된다.
-      if (target.every(s => s.status === 'active')) {
+      // 이 탭 행이 전부 이미 완료(_fixedSubmitted)면 슬롯이 active 아니어도 완료로 표시.
+      if (target.every(s => s.status === 'active') || (yupflRows.length && yupflRows.every(r => r._fixedSubmitted))) {
         markApplyBtnDone(youpflApplyBtn);
       } else if (validateYoupflRowsForSubmit(yupflRows)) {
         youpflApplyBtn.disabled = true;
