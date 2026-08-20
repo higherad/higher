@@ -825,9 +825,18 @@ window.toggleProdPanel = function(e) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     const targetSlot = allSlots.find(s => s._key === key);
     const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
+    // 초기화→재접수처럼 이미 일부(유입플 등)는 정산 끝난 슬롯을 다시 승인하는 경우를 위해, 저장은
+    // 새 값 전체로 하되(정산관리 등에서 항상 최신 총액을 보도록) 실제 청구·메모는 이전 저장값 대비
+    // 늘어난 차액만 하도록 분리한다 — 덮어쓰기 전에 이전 값을 먼저 스냅샷해둔다.
+    const prevDeduct = targetSlot.deductAmount || 0;
+    const prevYupfl  = targetSlot.yupflAmount || 0;
     await HA.approveSlot(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
-    const ok = await settleBizfitCash(targetSlot, extra);
+    const deltaExtra = {
+      deductAmount: Math.max(0, (extra.deductAmount || 0) - prevDeduct),
+      yupflAmount:  Math.max(0, (extra.yupflAmount  || 0) - prevYupfl),
+    };
+    const ok = await settleBizfitCash(targetSlot, deltaExtra);
     // 이 버튼엔 팝업이 없어 배너를 못 띄우니, 실패했을 때만 alert로 알림(성공/스킵은 조용히 넘어감)
     if (!ok) alert('접수는 승인됐지만 비즈핏 캐시차감에 실패했습니다.\n네트워크/세션 문제일 수 있으니 잠시 후 다시 승인해보거나 개발자에게 알려주세요.');
     closeOverlayAndRefresh();
@@ -2055,8 +2064,11 @@ window.toggleProdPanel = function(e) {
   // 자체(승인 처리)는 이미 끝난 뒤라 여기서 던지지 않고, 성공 여부를 boolean으로 반환해
   // 호출부가 팝업 안에 재시도 배너를 띄울 수 있게 한다(2026-08-11 — 콘솔 로그만으로는 관리자가
   // 실패를 알 방법이 없었음).
+  // deductAmount/yupflAmount는 이제 "이번에 늘어난 차액"만 들어온다(호출부가 이전 저장값과
+  // 비교해 미리 계산) — 그래서 여기선 bizfitDeducted 유무로 슬롯을 거르지 않는다(초기화→재접수처럼
+  // 유입플은 이미 정산됐고 차감만 새로 늘어난 슬롯도 정상적으로 청구 대상이 돼야 하기 때문).
   async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount) {
-    const targets = slots.filter(s => s && !s.bizfitDeducted);
+    const targets = slots.filter(Boolean);
     if (!targets.length) return true;
     const amount = deductAmount + yupflAmount;
     if (amount <= 0) return true;
@@ -2122,24 +2134,32 @@ window.toggleProdPanel = function(e) {
   async function approveReadySlots(keys, slotMap) {
     if (!keys.length) return [];
     const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
+    // 델타 청구용 — 덮어쓰기 전에 이전 저장값을 스냅샷(초기화→재접수처럼 유입플은 이미 정산됐고
+    // 차감만 새로 늘어난 슬롯도 지원하기 위함, approveOne과 동일한 이유).
+    const prevByKey = new Map(keys.map(k => {
+      const s = slotMap.get(k);
+      return [k, { deduct: (s && s.deductAmount) || 0, yupfl: (s && s.yupflAmount) || 0 }];
+    }));
     await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
-    keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+    keys.forEach(k => { const s = slotMap.get(k); if (s) Object.assign(s, { status: 'active', ...fieldsByKey.get(k) }); });
 
     await userBizfitUidReady;
     const byUid = new Map();
     for (const k of keys) {
       const s = slotMap.get(k);
-      if (!s || s.bizfitDeducted) continue;
+      if (!s) continue;
       const bizfitUid = userBizfitUidMap.get(s.userId);
       if (!bizfitUid) continue;
       const fields = fieldsByKey.get(k);
-      const amount = (fields.deductAmount || 0) + (fields.yupflAmount || 0);
-      if (amount <= 0) continue;
+      const prev = prevByKey.get(k);
+      const deltaDeduct = Math.max(0, (fields.deductAmount || 0) - prev.deduct);
+      const deltaYupfl  = Math.max(0, (fields.yupflAmount  || 0) - prev.yupfl);
+      if (deltaDeduct + deltaYupfl <= 0) continue;
       if (!byUid.has(bizfitUid)) byUid.set(bizfitUid, { bizfitUid, slots: [], ded: 0, yup: 0 });
       const g = byUid.get(bizfitUid);
       g.slots.push(s);
-      g.ded += fields.deductAmount || 0;
-      g.yup += fields.yupflAmount || 0;
+      g.ded += deltaDeduct;
+      g.yup += deltaYupfl;
     }
     return [...byUid.values()];
   }
@@ -3077,6 +3097,7 @@ window.toggleProdPanel = function(e) {
       <div class="modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;overflow-x:hidden;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
           <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
+          <button id="reset-submission-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
@@ -3149,6 +3170,63 @@ window.toggleProdPanel = function(e) {
         overlay._renderDeductFailures();
       };
     };
+
+    // "초기화" — 실수로 잘못 접수(예: 고정차감 비활성 상태로 승인)된 슬롯을 실제 비즈핏
+    // 캠페인까지 취소/반려/삭제하고 접수 기록을 지워 재접수 가능하게 한다.
+    // 대상: status==='active'(승인됨) 그리고 deductAmount가 0(차감은 실제로 한 번도 안 빠져나간
+    // 것) — 유입플은 이미 정산됐어도(bizfitDeducted:true) 상관없다. settleBizfitCashBatch가
+    // 이제 "이전 저장값 대비 늘어난 차액"만 청구하도록 바뀌어서, 재접수+재승인 시 유입플분은
+    // 차액 0으로 자동 스킵되고 차감분만 새로 청구된다(approveOne/approveReadySlots 참고).
+    // deductAmount 자체가 이미 빠져나간 슬롯(0이 아님)은 그 차감을 되돌리는 로직이 없어 제외.
+    const resetCandidates = target.filter(s => s.status === 'active' && !(s.deductAmount > 0));
+    const resetBtn = overlay.querySelector('#reset-submission-btn');
+    if (resetCandidates.length) {
+      resetBtn.style.display = '';
+      resetBtn.onclick = async () => {
+        if (!confirm(`${resetCandidates.length}건의 비즈핏 캠페인을 실제로 취소/삭제하고 접수 기록을 초기화합니다.\n되돌릴 수 없습니다. 계속할까요?`)) return;
+        resetBtn.disabled = true; resetBtn.textContent = '초기화 중...';
+
+        const byAgency = new Map(); // agencyId -> Set(mid)
+        resetCandidates.forEach(s => {
+          if (!s.mid) return;
+          const ag = s.agencyId || '';
+          if (!byAgency.has(ag)) byAgency.set(ag, new Set());
+          byAgency.get(ag).add(s.mid);
+        });
+
+        const okMids = new Set();
+        const errors = [];
+        for (const [agencyId, midSet] of byAgency) {
+          const account = await fetchBizfitAccount(agencyId);
+          if (!account || !account.id || !account.pw) {
+            errors.push(`${agencyId || '(대행사 미지정)'}: 비즈핏 계정 정보 없음`);
+            continue;
+          }
+          try {
+            const res = await callBizfitProxy('/cleanup-cancel', { loginId: account.id, pwd: account.pw, mids: [...midSet] });
+            if (!res.success) { errors.push(`${agencyId}: ${res.message || '실패'}`); continue; }
+            res.results.forEach(r => {
+              if (r.success) okMids.add(r.mid);
+              else errors.push(`${agencyId}/${r.mid}: ${r.message}`);
+            });
+          } catch (e) {
+            errors.push(`${agencyId}: ${e.message}`);
+          }
+        }
+
+        const resetSlots = resetCandidates.filter(s => okMids.has(s.mid));
+        // fixedSubmitted/splitFixedSubmitted(유입플 완료기록)는 지우지 않는다 — 이 취소 로직은
+        // admin.bizfit.kr/higherad.co.kr 쪽 캠페인만 취소하고 유입플(premiumset.shop) 캠페인은
+        // 안 건드리므로, 여기까지 지우면 이미 살아있는 유입플 캠페인을 재접수 때 중복 등록하게 됨.
+        const clearFields = { status: 'pending', normalDoneProducts: null };
+        await Promise.all(resetSlots.map(s => HA.updateSlot(s._key, clearFields)));
+        resetSlots.forEach(s => updateLocalSlot(s._key, clearFields));
+
+        overlay.remove();
+        renderReceipts(false);
+        alert(`초기화 완료: ${resetSlots.length}건` + (errors.length ? `\n실패:\n${errors.join('\n')}` : ''));
+      };
+    }
 
     // 일반/유입플/찰리 중 2개 이상 동시 활성 시(대상 전체 기준) 승인을 조율하는 게이트.
     // 대상은 여러 슬롯이 섞인 배치라 슬롯마다 실제로 쓰는 상품 조합이 다를 수 있음(예: 어떤 슬롯은
