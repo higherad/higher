@@ -3218,13 +3218,26 @@ window.toggleProdPanel = function(e) {
               errors.push(`${agencyId}: ${e.message}`);
             }
           }
+          // 유입플 슬롯 환불(premiumset.shop) — 대행사 구분 없는 단일 관리자 계정, mid 전체 한번에.
+          const allMids = [...new Set(resetCandidates.map(s => s.mid).filter(Boolean))];
+          try {
+            const premRes = await callBizfitProxy('/cleanup-youpfl-refund', { mids: allMids });
+            if (premRes.success) {
+              premRes.results.forEach(r => { if (!r.success) { okMids.delete(r.mid); errors.push(`[유입플] ${r.mid}: ${r.message}`); } });
+            } else {
+              allMids.forEach(m => okMids.delete(m));
+              errors.push(`유입플 환불 요청 실패: ${premRes.message || ''}`);
+            }
+          } catch (e) {
+            allMids.forEach(m => okMids.delete(m));
+            errors.push(`유입플 환불 요청 실패: ${e.message}`);
+          }
         } finally {
           window.bizfitSubmitting = false;
         }
 
         const resetSlots = resetCandidates.filter(s => okMids.has(s.mid));
-        // fixedSubmitted/splitFixedSubmitted(유입플)와 bizfitDeducted는 안 건드림 — 유입플 캠페인은
-        // 이 로직이 취소 안 하고, 차감/메모도 사람이 처리(자동화 안 함). status만 accepted로 복귀.
+        // bizfitDeducted는 안 건드림 — 차감/메모 정산은 사람이 처리(자동화 안 함). status만 accepted로 복귀.
         const clearFields = { status: 'accepted', normalDoneProducts: null };
         await Promise.all(resetSlots.map(s => HA.updateSlot(s._key, clearFields)));
         resetSlots.forEach(s => updateLocalSlot(s._key, clearFields));
