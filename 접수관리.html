@@ -3218,19 +3218,21 @@ window.toggleProdPanel = function(e) {
               errors.push(`${agencyId}: ${e.message}`);
             }
           }
-          // 유입플 슬롯 환불(premiumset.shop) — 대행사 구분 없는 단일 관리자 계정, mid 전체 한번에.
-          const allMids = [...new Set(resetCandidates.map(s => s.mid).filter(Boolean))];
-          try {
-            const premRes = await callBizfitProxy('/cleanup-youpfl-refund', { mids: allMids });
-            if (premRes.success) {
-              premRes.results.forEach(r => { if (!r.success) { okMids.delete(r.mid); errors.push(`[유입플] ${r.mid}: ${r.message}`); } });
-            } else {
-              allMids.forEach(m => okMids.delete(m));
-              errors.push(`유입플 환불 요청 실패: ${premRes.message || ''}`);
+          // 유입플 슬롯 환불(premiumset.shop) — 비즈핏 쪽이 진행중 등으로 막힌 mid는 아예 스킵.
+          const okMidsForPremium = [...okMids];
+          if (okMidsForPremium.length) {
+            try {
+              const premRes = await callBizfitProxy('/cleanup-youpfl-refund', { mids: okMidsForPremium });
+              if (premRes.success) {
+                premRes.results.forEach(r => { if (!r.success) { okMids.delete(r.mid); errors.push(`[유입플] ${r.mid}: ${r.message}`); } });
+              } else {
+                okMidsForPremium.forEach(m => okMids.delete(m));
+                errors.push(`유입플 환불 요청 실패: ${premRes.message || ''}`);
+              }
+            } catch (e) {
+              okMidsForPremium.forEach(m => okMids.delete(m));
+              errors.push(`유입플 환불 요청 실패: ${e.message}`);
             }
-          } catch (e) {
-            allMids.forEach(m => okMids.delete(m));
-            errors.push(`유입플 환불 요청 실패: ${e.message}`);
           }
         } finally {
           window.bizfitSubmitting = false;
