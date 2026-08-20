@@ -3186,7 +3186,7 @@ window.toggleProdPanel = function(e) {
     if (resetCandidates.length) {
       resetBtn.style.display = '';
       resetBtn.onclick = async () => {
-        if (!confirm(`${resetCandidates.length}건의 비즈핏 캠페인을 실제로 취소/삭제하고 접수 기록을 초기화합니다.\n되돌릴 수 없습니다. 계속할까요?`)) return;
+        if (!confirm(`${resetCandidates.length}건의 캠페인을 취소/삭제하고 접수 기록을 초기화합니다.`)) return;
         resetBtn.disabled = true; resetBtn.textContent = '초기화 중...';
         window.bizfitSubmitting = true; // 진행 중 팝업 닫기 방지(기존 가드 재사용)
 
