@@ -3017,7 +3017,10 @@ window.toggleProdPanel = function(e) {
     const checkedKeys = getCheckedKeys();
     const keySet = new Set(checkedKeys);
     const base   = checkedKeys.length ? allSlots.filter(s => keySet.has(s._key)) : filteredAll;
-    const target = base.filter(s => s.status === 'accepted');
+    // 체크박스로 직접 선택한 경우엔 승인(active)된 항목도 대상에 포함 — 초기화 버튼으로 재접수
+    // 준비하려는 것일 수 있음(체크 없이 여는 기본 동작은 기존처럼 accepted만).
+    const allowedStatuses = checkedKeys.length ? ['accepted', 'active'] : ['accepted'];
+    const target = base.filter(s => allowedStatuses.includes(s.status));
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재접수 불필요)'); return; }
     const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
     const hasFixed   = ap().some(p => p.fixedAlloc && !p.deductOnly);
@@ -3218,7 +3221,7 @@ window.toggleProdPanel = function(e) {
         // fixedSubmitted/splitFixedSubmitted(유입플 완료기록)는 지우지 않는다 — 이 취소 로직은
         // admin.bizfit.kr/higherad.co.kr 쪽 캠페인만 취소하고 유입플(premiumset.shop) 캠페인은
         // 안 건드리므로, 여기까지 지우면 이미 살아있는 유입플 캠페인을 재접수 때 중복 등록하게 됨.
-        const clearFields = { status: 'pending', normalDoneProducts: null };
+        const clearFields = { status: 'accepted', normalDoneProducts: null };
         await Promise.all(resetSlots.map(s => HA.updateSlot(s._key, clearFields)));
         resetSlots.forEach(s => updateLocalSlot(s._key, clearFields));
 
