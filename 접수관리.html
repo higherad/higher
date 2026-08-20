@@ -3167,6 +3167,10 @@ window.toggleProdPanel = function(e) {
       resetBtn.onclick = async () => {
         if (!confirm(`${resetCandidates.length}건의 비즈핏 캠페인을 실제로 취소/삭제하고 접수 기록을 초기화합니다.\n되돌릴 수 없습니다. 계속할까요?`)) return;
         resetBtn.disabled = true; resetBtn.textContent = '초기화 중...';
+        // 실제 캠페인이 취소/삭제되는 중이라, 이 팝업의 기존 닫기 버튼/바깥클릭 가드
+        // (window.bizfitSubmitting 체크, 아래 submit-close-btn 등)가 초기화 도중엔 못 닫도록
+        // 같이 막아준다 — 별도 가드를 새로 만들지 않고 기존 플래그를 그대로 재사용.
+        window.bizfitSubmitting = true;
 
         const byAgency = new Map(); // agencyId -> Set(mid)
         resetCandidates.forEach(s => {
@@ -3178,22 +3182,26 @@ window.toggleProdPanel = function(e) {
 
         const okMids = new Set();
         const errors = [];
-        for (const [agencyId, midSet] of byAgency) {
-          const account = await fetchBizfitAccount(agencyId);
-          if (!account || !account.id || !account.pw) {
-            errors.push(`${agencyId || '(대행사 미지정)'}: 비즈핏 계정 정보 없음`);
-            continue;
+        try {
+          for (const [agencyId, midSet] of byAgency) {
+            const account = await fetchBizfitAccount(agencyId);
+            if (!account || !account.id || !account.pw) {
+              errors.push(`${agencyId || '(대행사 미지정)'}: 비즈핏 계정 정보 없음`);
+              continue;
+            }
+            try {
+              const res = await callBizfitProxy('/cleanup-cancel', { loginId: account.id, pwd: account.pw, mids: [...midSet] });
+              if (!res.success) { errors.push(`${agencyId}: ${res.message || '실패'}`); continue; }
+              res.results.forEach(r => {
+                if (r.success) okMids.add(r.mid);
+                else errors.push(`${agencyId}/${r.mid}: ${r.message}`);
+              });
+            } catch (e) {
+              errors.push(`${agencyId}: ${e.message}`);
+            }
           }
-          try {
-            const res = await callBizfitProxy('/cleanup-cancel', { loginId: account.id, pwd: account.pw, mids: [...midSet] });
-            if (!res.success) { errors.push(`${agencyId}: ${res.message || '실패'}`); continue; }
-            res.results.forEach(r => {
-              if (r.success) okMids.add(r.mid);
-              else errors.push(`${agencyId}/${r.mid}: ${r.message}`);
-            });
-          } catch (e) {
-            errors.push(`${agencyId}: ${e.message}`);
-          }
+        } finally {
+          window.bizfitSubmitting = false;
         }
 
         const resetSlots = resetCandidates.filter(s => okMids.has(s.mid));
