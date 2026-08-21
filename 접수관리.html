@@ -1381,50 +1381,6 @@ window.toggleProdPanel = function(e) {
     _detailOpen = false;
   };
 
-  // ── 수정 ─────────────────────────────────────────────────
-  window.openEditModal = function(key) {
-    const s = allSlots.find(x => x._key === key);
-    if (!s) return;
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="modal-box">
-        <div class="modal-title">캠페인 정보 수정</div>
-        <div class="modal-field"><label>플레이스명</label><input id="e-storeName" value="${escProd(s.storeName||'')}"></div>
-        <div class="modal-row">
-          <div class="modal-field"><label>시작일</label><input type="date" id="e-startDate" value="${escProd(s.startDate||'')}"></div>
-          <div class="modal-field"><label>종료일</label><input type="date" id="e-endDate" value="${escProd(s.endDate||'')}"></div>
-        </div>
-        <div class="modal-field"><label>순위키워드</label><input id="e-rankKeyword" value="${escProd(s.rankKeyword||'')}"></div>
-        <div class="modal-field"><label>검색키워드</label><input id="e-searchKeyword" value="${escProd(s.searchKeyword||'')}"></div>
-        <div class="modal-field"><label>URL</label><input id="e-url" value="${escProd(s.url||'')}"></div>
-        <div class="modal-field"><label>MID</label><input id="e-mid" value="${escProd(s.mid||'')}"></div>
-        <div class="modal-field"><label>메모</label><textarea id="e-memo">${escProd(s.memo||'')}</textarea></div>
-        <div class="modal-footer">
-          <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">취소</button>
-          <button class="btn-save" onclick="saveEdit('${key}')">저장</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-  };
-
-  window.saveEdit = async function(key) {
-    const updates = {
-      storeName:     document.getElementById('e-storeName').value,
-      startDate:     document.getElementById('e-startDate').value,
-      endDate:       document.getElementById('e-endDate').value,
-      rankKeyword:   document.getElementById('e-rankKeyword').value,
-      searchKeyword: document.getElementById('e-searchKeyword').value,
-      url:           document.getElementById('e-url').value,
-      mid:           document.getElementById('e-mid').value,
-      memo:          document.getElementById('e-memo').value,
-    };
-    await HA.updateSlot(key, updates);
-    updateLocalSlot(key, updates);
-    document.querySelector('.modal-overlay').remove();
-    renderReceipts(false);
-  };
-
   // ── 상품 유형 설정 ────────────────────────────────────────────
 
   const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
