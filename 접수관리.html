@@ -2997,12 +2997,13 @@ window.toggleProdPanel = function(e) {
       return;
     }
     let totalSlots = 0, totalTarget = 0;
-    deltaPlan.forEach(p => {
+    // 델타/네이비는 같이 접수될 필요 없는 독립 상품 — 비활성인 쪽 블록은 아예 안 그려서 "배분 없음" 노이즈를 없앤다.
+    if (hasDelta) deltaPlan.forEach(p => {
       bodyEl.appendChild(buildSubmitAgencyBlock(p, '델타', true, true));
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, true);
     });
-    navyPlan.forEach(p => {
+    if (hasNavy) navyPlan.forEach(p => {
       bodyEl.appendChild(buildSubmitAgencyBlock(p, '네이비', false, true));
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, false);
@@ -3389,9 +3390,7 @@ window.toggleProdPanel = function(e) {
     block.className = 'agency-block';
 
     if (!p.rows.length) {
-      block.style.borderColor = '#fca5a5';
-      block.innerHTML = `<div style="padding:12px 16px;font-weight:700;color:var(--danger);">${escProd(p.agency)}</div>
-        <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ ${escProd(label)} 배분 결과가 없습니다 (목표 0).</div>`;
+      block.innerHTML = `<div style="padding:8px 16px;font-size:12px;color:var(--muted);">${escProd(p.agency)} — ${escProd(label)} 배분 없음</div>`;
       return block;
     }
 
