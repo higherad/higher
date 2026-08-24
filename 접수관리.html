@@ -2952,6 +2952,26 @@ window.toggleProdPanel = function(e) {
     return anyFail;
   }
 
+  // 검색키워드 미입력/일목표 10미만 건수 — 대행사 헤더 배지, 탭 상단 요약에 공용으로 씀
+  function rowIssueCounts(rows) {
+    const kwEmptyCount = rows.filter(r => (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length === 0).length;
+    const lowTargetCount = rows.filter(r => (r.일목표||0) < 10).length;
+    return { kwEmptyCount, lowTargetCount };
+  }
+
+  // 탭 상단에 "OO대행사 - 검색키워드 0개 N건 / 일 목표 10 미만 N건" 식으로 대행사별 문제 요약
+  function agencyIssueSummaryHtml(plan, label='') {
+    const prefix = label ? `[${escProd(label)}] ` : '';
+    return plan.map(p => {
+      const { kwEmptyCount, lowTargetCount } = rowIssueCounts(p.rows);
+      if (!kwEmptyCount && !lowTargetCount) return '';
+      const parts = [];
+      if (kwEmptyCount) parts.push(`검색키워드 0개 ${kwEmptyCount}건`);
+      if (lowTargetCount) parts.push(`일 목표 10 미만 ${lowTargetCount}건`);
+      return `<div style="color:#dc2626;font-size:11px;margin-top:2px;">⚠️ ${prefix}${escProd(p.agency)} - ${parts.join(' / ')}</div>`;
+    }).join('');
+  }
+
   // 유입플 탭 전용 — executeYoupflSubmit 안의 검사(workKw 미입력)와 동일 조건.
   function validateYoupflRowsForSubmit(rows) {
     let anyFail = false;
@@ -2974,7 +2994,7 @@ window.toggleProdPanel = function(e) {
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, daysMultiplied);
     });
-    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${plan.length}곳 · ${label} ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${plan.length}곳 · ${label} ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>${agencyIssueSummaryHtml(plan)}`;
     const allRows = plan.flatMap(p => p.rows);
     // 이 탭 행이 전부 이미 완료(_normalSubmitted)면 슬롯이 active 아니어도 완료 표시
     if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
@@ -3008,7 +3028,8 @@ window.toggleProdPanel = function(e) {
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, false);
     });
-    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${deltaPlan.length}곳 · 블로그 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+    const issueSummary = (hasDelta ? agencyIssueSummaryHtml(deltaPlan, '델타') : '') + (hasNavy ? agencyIssueSummaryHtml(navyPlan, '네이비') : '');
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${deltaPlan.length}곳 · 블로그 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>${issueSummary}`;
     const allRows = [...deltaPlan.flatMap(p => p.rows), ...navyPlan.flatMap(p => p.rows)];
     if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
       markApplyBtnDone(applyBtn);
@@ -3390,15 +3411,20 @@ window.toggleProdPanel = function(e) {
     block.className = 'agency-block';
 
     if (!p.rows.length) {
-      block.innerHTML = `<div style="padding:8px 16px;font-size:12px;color:var(--muted);">${escProd(p.agency)} — ${escProd(label)} 배분 없음</div>`;
+      block.style.borderColor = '#fca5a5';
+      block.innerHTML = `<div style="padding:12px 16px;font-weight:700;color:var(--danger);">${escProd(p.agency)}</div>
+        <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ ${escProd(label)} 배분 결과가 없습니다 (목표 0).</div>`;
       return block;
     }
 
     const totalTarget = daysMultipliedSum(p.rows, daysMultiplied);
     const deductNote = p.deductTarget ? ` · 차감 ${p.deductTarget.toLocaleString()} (${(p.deductAmount||0).toLocaleString()}원)` : '';
+    const { kwEmptyCount, lowTargetCount } = rowIssueCounts(p.rows);
+    const issueCount = kwEmptyCount + lowTargetCount;
+    const issueBadge = issueCount ? ` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">⚠️ 오류 ${issueCount}건</span>` : '';
     const hd = document.createElement('div');
     hd.className = 'agency-hd';
-    hd.innerHTML = `<div><div class="aname">${escProd(p.agency)}</div><div class="ameta">총 ${p.rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}${deductNote}</div></div>`;
+    hd.innerHTML = `<div><div class="aname">${escProd(p.agency)}${issueBadge}</div><div class="ameta">총 ${p.rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}${deductNote}</div></div>`;
     block.appendChild(hd);
 
     const wrap = document.createElement('div'); wrap.style.width = '100%';
@@ -3459,7 +3485,9 @@ window.toggleProdPanel = function(e) {
     const block = document.createElement('div');
     block.className = 'agency-block';
     if (!rows.length) {
-      block.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--text2);">유입플 배분 대상이 없습니다.</div>';
+      block.style.borderColor = '#fca5a5';
+      block.innerHTML = `<div style="padding:12px 16px;font-weight:700;color:var(--danger);">${escProd(agencyName||'')}</div>
+        <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ 유입플 배분 결과가 없습니다 (목표 0).</div>`;
       return block;
     }
     const totalTarget = rows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
