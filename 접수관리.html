@@ -921,8 +921,10 @@ window.toggleProdPanel = function(e) {
     const yupflProd  = prods.find(p => p.id === 'yupfl');
     const splitProd  = prods.find(p => p.id === 'yupfl2');
     const deltaProd  = prods.find(p => p.id === 'delta');
+    const navyProd   = prods.find(p => p.id === 'navy');
     const yupflShown = !!yupflProd?.active;
     const deltaShown = !!deltaProd?.active;
+    const navyShown  = !!navyProd?.active;
 
     overlay.innerHTML = `
       <div class="modal-box">
@@ -964,7 +966,7 @@ window.toggleProdPanel = function(e) {
           </dt>
           <dd><input type="text" class="detail-kw-input" id="detail-yupfl-keyword-input" value="${escProd(s.yupflKeyword||'')}" placeholder="유입플 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'yupfl-kw-count-badge')"></dd>
           <dd id="yupfl-history-area" style="display:none;margin-top:8px;"></dd>` : ''}
-          ${deltaShown ? `
+          ${(deltaShown || navyShown) ? `
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
             <span style="display:flex;align-items:center;gap:6px;">
               블로그 URL
@@ -1402,9 +1404,10 @@ window.toggleProdPanel = function(e) {
     {id:'yupfl2', name:'분할',   color:'#06b6d4', active:false, ratio:0, kwPct:0, fixedAlloc:true, splitProduct:true, autoBalance:false, missionRules:[]},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
     {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
+    {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
-  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2', 'delta']);
+  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2', 'delta', 'navy']);
   const ap = () => prods.filter(p => p.active);
 
   let prodGroups = [];
@@ -2210,14 +2213,15 @@ window.toggleProdPanel = function(e) {
     window.XLSX.utils.book_append_sheet(wb, ws, '접수');
   }
 
-  function buildJumuSheet_(wb, f, label, filterFn) {
+  function buildJumuSheet_(wb, f, label, filterFn, blogUrlField=null) {
     const ws = {};
     const AP = ap();
     const pList = AP.filter(filterFn);
     if(!pList.length) return;
     const daysColLabel = pList.every(p => p.daysMultiplied) ? '전체 목표' : '일 수';
     const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표',daysColLabel,'예약일','검색키워드'];
-    headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':'1F2937'}); });
+    if (blogUrlField) headers.push('블로그URL');
+    headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':(h==='블로그URL'?'16A34A':'1F2937')}); });
     let curRow = 1;
     const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords)]));
     pList.forEach(prod => {
@@ -2228,16 +2232,18 @@ window.toggleProdPanel = function(e) {
         const kw      = kwForProd(r.searchKeyword||'', prod);
         const pc      = prod.color.replace('#','');
         const row     = [prod.name,r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',pp,daysVal,null,kw];
+        if (blogUrlField) row.push(r[blogUrlField]||'');
         row.forEach((v, ci) => {
           if(ci===7){ scDate(ws, curRow, 7, r.startDate); return; }
-          sc(ws, curRow, ci, v, { align:[0,1,2,4,8].includes(ci)?'left':'center', font:ci===0?{color:{rgb:pc},bold:true}:{} });
+          sc(ws, curRow, ci, v, { align:[0,1,2,4,8,9].includes(ci)?'left':'center', font:ci===0?{color:{rgb:pc},bold:true}:{} });
         });
         curRow++;
       });
     });
     if(curRow<2) curRow=2;
-    ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:8}});
-    ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:8},{wch:13},{wch:52}];
+    const lastCol = blogUrlField ? 9 : 8;
+    ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:lastCol}});
+    ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:8},{wch:13},{wch:52}].concat(blogUrlField ? [{wch:44}] : []);
     window.XLSX.utils.book_append_sheet(wb, ws, label);
   }
 
@@ -2719,7 +2725,7 @@ window.toggleProdPanel = function(e) {
             ap().filter(p => FIXED_PROD_IDS.has(p.id) && !p.deductOnly).forEach(prod => {
               if (prod.fixedAlloc) buildYoupflSheet(wb, f, prod, prod.name);
               else if (prod.blogUrlProduct) buildDeltaSheet_(wb, f, prod);
-              else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id);
+              else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id, prod.id === 'navy' ? 'deltaBlogUrl' : null);
             });
             window.XLSX.writeFile(wb, realAg ? `${realAg}-주문서.xlsx` : `주문서-${shortD()}.xlsx`);
             await sleep(300);
@@ -2795,6 +2801,7 @@ window.toggleProdPanel = function(e) {
           일수:       daysVal,
           예약일:     r.startDate||'',
           검색키워드: kw,
+          ...(prod.id === 'navy' ? { 블로그URL: r.deltaBlogUrl||'', _requiresBlogUrl: true } : {}),
         });
       });
     });
@@ -2920,7 +2927,8 @@ window.toggleProdPanel = function(e) {
     const hasFixed   = ap().some(p => p.fixedAlloc && !p.deductOnly);
     const hasCharlie = ap().some(p => p.id === 'charlie');
     const hasDelta   = ap().some(p => p.id === 'delta');
-    if (!hasNormal && !hasFixed && !hasCharlie && !hasDelta) {
+    const hasNavy    = ap().some(p => p.id === 'navy');
+    if (!hasNormal && !hasFixed && !hasCharlie && !hasDelta && !hasNavy) {
       alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
     }
@@ -2980,8 +2988,41 @@ window.toggleProdPanel = function(e) {
     }
   }
 
+  // 블로그 탭 — 델타(NP 위치저장)와 네이비(NP트래픽)를 한 탭에 같이 보여주되, 접수는 각자의 등급/adrole 경로로 따로 나간다.
+  // 표는 상품별로 분리해서 붙이므로(상품등급명 칸이 델타/네이비로 구분됨) 헤더의 "일수 vs 전체목표" 라벨도 각자 정확하게 유지된다.
+  function wireBlogSubmitTab({ hasDelta, hasNavy, deltaPlan, navyPlan, bodyEl, subEl, applyBtn, target, onSubmit }) {
+    if (!hasDelta && !hasNavy) {
+      subEl.textContent = '블로그 배분 대상 슬롯이 없습니다.';
+      applyBtn.disabled = true;
+      return;
+    }
+    let totalSlots = 0, totalTarget = 0;
+    deltaPlan.forEach(p => {
+      bodyEl.appendChild(buildSubmitAgencyBlock(p, '델타', true, true));
+      totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
+      totalTarget += daysMultipliedSum(p.rows, true);
+    });
+    navyPlan.forEach(p => {
+      bodyEl.appendChild(buildSubmitAgencyBlock(p, '네이비', false, true));
+      totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
+      totalTarget += daysMultipliedSum(p.rows, false);
+    });
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${deltaPlan.length}곳 · 블로그 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+    const allRows = [...deltaPlan.flatMap(p => p.rows), ...navyPlan.flatMap(p => p.rows)];
+    if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
+      markApplyBtnDone(applyBtn);
+    } else if (validateNormalRowsForSubmit(allRows)) {
+      applyBtn.disabled = true;
+      applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
+      applyBtn.style.background = '#9ca3af'; applyBtn.style.cursor = 'not-allowed';
+    } else {
+      applyBtn.onclick = onSubmit;
+    }
+  }
+
   // 레그별 "접수 신청" 버튼 셀렉터 — openSubmitModal 안 여러 곳(lockDoneButtons, 자동승인 레이스 가드)에서 공용.
-  const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', fixedKeys: '#youpfl-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#dsub-apply-btn' };
+  // 델타/네이비는 "블로그" 탭 하나(#bsub-apply-btn)를 공유 — 등급 체계가 달라도 UI 버튼은 하나.
+  const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', fixedKeys: '#youpfl-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn' };
 
   function openSubmitModal(target) {
     const agencies   = getAgencies(target);
@@ -3001,6 +3042,11 @@ window.toggleProdPanel = function(e) {
       agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
       rows: buildDeltaRows(slotsByAgency(target, ag)),
     }));
+    // 네이비는 찰리처럼 일반 NP트래픽 접수 방식 그대로 쓰되(별도 adrole 없음), 블로그 URL 칸만 붙는 별도 탭.
+    const navyPlan = agencies.map(ag => ({
+      agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
+      ...buildNormalRows(slotsByAgency(target, ag), p => p.id === 'navy'),
+    }));
     const yupflRows  = buildYoupflRows(target);
     // hasNormal을 사이트 전체 설정(ap())으로 판단하면 일반 상품이 없어도 true가 되어 normalKeys가 빈 채로
     // 교집합이 영원히 안 채워짐 — 유입플/찰리만 쓰는 대상이 승인으로 못 넘어가는 문제(2026-08-11) — hasFixed/hasCharlie처럼 실제 제출 행 유무로 통일
@@ -3008,7 +3054,8 @@ window.toggleProdPanel = function(e) {
     const hasFixed   = yupflRows.length > 0;
     const hasCharlie = charliePlan.some(p => p.rows.length > 0);
     const hasDelta   = deltaPlan.some(p => p.rows.length > 0);
-    const defaultTab = hasNormal ? 'normal' : (hasFixed ? 'fixed' : (hasCharlie ? 'charlie' : (hasDelta ? 'delta' : 'normal')));
+    const hasNavy    = navyPlan.some(p => p.rows.length > 0);
+    const defaultTab = hasNormal ? 'normal' : (hasFixed ? 'fixed' : (hasCharlie ? 'charlie' : ((hasDelta||hasNavy) ? 'blog' : 'normal')));
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -3026,8 +3073,8 @@ window.toggleProdPanel = function(e) {
             onclick="switchSubmitTab('fixed')" style="${hasFixed?'':'display:none;'}">유입플</button>
           <button id="stab-charlie" class="submit-tab${defaultTab==='charlie'?' active':''}"
             onclick="switchSubmitTab('charlie')" style="${hasCharlie?'':'display:none;'}">찰리</button>
-          <button id="stab-delta" class="submit-tab${defaultTab==='delta'?' active':''}"
-            onclick="switchSubmitTab('delta')" style="${hasDelta?'':'display:none;'}">델타</button>
+          <button id="stab-blog" class="submit-tab${defaultTab==='blog'?' active':''}"
+            onclick="switchSubmitTab('blog')" style="${(hasDelta||hasNavy)?'':'display:none;'}">블로그</button>
         </div>
         <div id="stab-panel-normal" style="display:${defaultTab==='normal'?'block':'none'}">
           <div style="font-size:12px;margin-bottom:14px;" id="submit-sub"></div>
@@ -3053,12 +3100,12 @@ window.toggleProdPanel = function(e) {
             <button id="csub-apply-btn" style="background:#d946ef;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
           </div>
         </div>
-        <div id="stab-panel-delta" style="display:${defaultTab==='delta'?'block':'none'}">
-          <div style="font-size:12px;margin-bottom:14px;" id="dsub-sub"></div>
-          <div id="dsub-body"></div>
+        <div id="stab-panel-blog" style="display:${defaultTab==='blog'?'block':'none'}">
+          <div style="font-size:12px;margin-bottom:14px;" id="bsub-sub"></div>
+          <div id="bsub-body"></div>
           <div class="modal-footer">
-            <button class="btn-cancel" id="dsub-close-btn">닫기</button>
-            <button id="dsub-apply-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
+            <button class="btn-cancel" id="bsub-close-btn">닫기</button>
+            <button id="bsub-apply-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
           </div>
         </div>
       </div>`;
@@ -3173,10 +3220,11 @@ window.toggleProdPanel = function(e) {
     const normalAlreadyDone  = alreadyDoneOf(rowsBySlotOf(normalPlan.flatMap(p => p.rows)), '_normalSubmitted');
     const charlieAlreadyDone = alreadyDoneOf(rowsBySlotOf(charliePlan.flatMap(p => p.rows)), '_normalSubmitted');
     const deltaAlreadyDone   = alreadyDoneOf(rowsBySlotOf(deltaPlan.flatMap(p => p.rows)), '_normalSubmitted');
+    const navyAlreadyDone    = alreadyDoneOf(rowsBySlotOf(navyPlan.flatMap(p => p.rows)), '_normalSubmitted');
     const fixedAlreadyDone   = alreadyDoneOf(rowsBySlotOf(yupflRows), '_fixedSubmitted');
 
-    // 슬롯별로 실제 쓰는 레그 집합 — 4곳 rows에 그 슬롯(_slotKey)이 등장하는지로 판단
-    const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys'|'deltaKeys')
+    // 슬롯별로 실제 쓰는 레그 집합 — rows에 그 슬롯(_slotKey)이 등장하는지로 판단
+    const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys'|'deltaKeys'|'navyKeys')
     const addRequired = (rows, leg) => rows.forEach(r => {
       if (!r._slotKey) return;
       if (!requiredLegsByKey.has(r._slotKey)) requiredLegsByKey.set(r._slotKey, new Set());
@@ -3185,6 +3233,7 @@ window.toggleProdPanel = function(e) {
     addRequired(normalPlan.flatMap(p => p.rows), 'normalKeys');
     addRequired(charliePlan.flatMap(p => p.rows), 'charlieKeys');
     addRequired(deltaPlan.flatMap(p => p.rows), 'deltaKeys');
+    addRequired(navyPlan.flatMap(p => p.rows), 'navyKeys');
     addRequired(yupflRows, 'fixedKeys');
 
     // 게이트 유무와 상관없이 쓰는 판정 — doneSets를 받아 슬롯이 필요 레그를 전부 채웠는지로 승인 대상을 고름(조회 전용, 실행 안 함)
@@ -3198,7 +3247,7 @@ window.toggleProdPanel = function(e) {
 
     // 다 완료된 슬롯은 승인(상태 전환)만 창 열자마자 자동 처리 — 차감(실제 돈)은 자동 시도 안 하고 배너 "재시도"로만 실행.
     // 탭 버튼은 렌더 시점 스냅샷이라 비동기 완료를 자동 반영 못 하므로 승인 끝나는 즉시 여기서 잠금.
-    const legHas = { normalKeys: hasNormal, fixedKeys: hasFixed, charlieKeys: hasCharlie, deltaKeys: hasDelta };
+    const legHas = { normalKeys: hasNormal, fixedKeys: hasFixed, charlieKeys: hasCharlie, deltaKeys: hasDelta, navyKeys: hasNavy };
     function lockDoneButtons() {
       Object.entries(LEG_BTN_SEL).forEach(([leg, sel]) => {
         if (!legHas[leg]) return;
@@ -3212,11 +3261,13 @@ window.toggleProdPanel = function(e) {
     if (hasFixed)   activeLegs.push('fixedKeys');
     if (hasCharlie) activeLegs.push('charlieKeys');
     if (hasDelta)   activeLegs.push('deltaKeys');
+    if (hasNavy)    activeLegs.push('navyKeys');
     const gate = (activeLegs.length > 1) ? {
       normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
       fixedKeys:   fixedAlreadyDone.size   ? fixedAlreadyDone   : null,
       charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
       deltaKeys:   deltaAlreadyDone.size   ? deltaAlreadyDone   : null,
+      navyKeys:    navyAlreadyDone.size    ? navyAlreadyDone    : null,
       slotMap: slotMapAll,
       async tryApprove() {
         const keys = readyKeysOf(this);
@@ -3232,7 +3283,7 @@ window.toggleProdPanel = function(e) {
 
     // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
     // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
-    const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone });
+    const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone });
     if (initialReady.length) {
       // 자동 승인 도는 틈에 관리자가 같은 레그 "접수 신청"을 누르면 이중 차감 가능 — 처리 끝날 때까지 그 레그 버튼만 잠금(2026-08-11)
       const legsInvolved = new Set();
@@ -3306,26 +3357,24 @@ window.toggleProdPanel = function(e) {
       onSubmit: () => executeSubmit(charliePlan, overlay, gate, 'charlieKeys', CHARLIE_ADROLE),
     });
 
-    // 델타 탭 구성 — 찰리와 동일한 별도 메뉴(NP 위치저장 계열) 전용, blogUrl 컬럼이 붙는 것만 다르다.
-    wireSubmitTab({
-      has: hasDelta, plan: deltaPlan, target,
-      bodyEl: overlay.querySelector('#dsub-body'),
-      subEl:  overlay.querySelector('#dsub-sub'),
-      applyBtn: overlay.querySelector('#dsub-apply-btn'),
-      label: '델타', daysMultiplied: true, blogUrl: true,
-      emptyMsg: '델타 배분 대상 슬롯이 없습니다.',
-      onSubmit: () => executeSubmit(deltaPlan, overlay, gate, 'deltaKeys', DELTA_ADROLE),
+    // 블로그 탭 구성 — 델타(NP 위치저장)+네이비(NP트래픽)를 한 탭에 같이 표시, 접수는 executeBlogSubmit이 각자 등급으로 나눠 처리.
+    wireBlogSubmitTab({
+      hasDelta, hasNavy, deltaPlan, navyPlan, target,
+      bodyEl: overlay.querySelector('#bsub-body'),
+      subEl:  overlay.querySelector('#bsub-sub'),
+      applyBtn: overlay.querySelector('#bsub-apply-btn'),
+      onSubmit: () => executeBlogSubmit(deltaPlan, navyPlan, overlay, gate),
     });
 
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#youpfl-close-btn').onclick = () => overlay.remove();
     overlay.querySelector('#csub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
-    overlay.querySelector('#dsub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
+    overlay.querySelector('#bsub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.addEventListener('click', e => { if (e.target === overlay && !window.bizfitSubmitting) overlay.remove(); });
   }
 
   window.switchSubmitTab = function(tab) {
-    ['normal','fixed','charlie','delta'].forEach(k => {
+    ['normal','fixed','charlie','blog'].forEach(k => {
       const panel = document.getElementById(`stab-panel-${k}`);
       const btn   = document.getElementById(`stab-${k}`);
       if (panel) panel.style.display = k === tab ? 'block' : 'none';
@@ -3617,33 +3666,23 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  // legKey: 게이트 기록 필드('normalKeys'|'charlieKeys') — 일반/찰리/델타 세 탭이 이 함수를 공유
+  // legKey: 게이트 기록 필드('normalKeys'|'charlieKeys'|'deltaKeys'|'navyKeys') — 일반/찰리/블로그(델타+네이비) 탭이 이 로직을 공유
   // adrole: 지정 시 grade-info/register를 해당 adrole로만 조회 — 등급명이 겹쳐도 원하는 메뉴로만 정확히 접수
-  const SUBMIT_TAB_PREFIX = { normalKeys: 'submit', charlieKeys: 'csub', deltaKeys: 'dsub' };
-  async function executeSubmit(plan, overlay, gate=null, legKey='normalKeys', adrole=null) {
-    const btnPrefix = SUBMIT_TAB_PREFIX[legKey] || 'submit';
+  const ALL_SUBMIT_PREFIXES = ['submit', 'csub', 'bsub'];
+  const SUBMIT_TAB_PREFIX = { normalKeys: 'submit', charlieKeys: 'csub' };
+
+  // 한 plan(대행사별 rows)을 실제로 비즈핏에 등록 — UI(버튼/탭잠금)는 손대지 않고 결과 집계만 반환.
+  // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유한다.
+  // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
+  async function submitPlanRows(plan, overlay, gate, legKey, adrole) {
     // NP위치저장(adrole=100) 계열은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본 폴백 버전과
     // 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
     const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : null;
     const productVer = verSourceId ? ap().find(p => p.id === verSourceId)?.ver : undefined;
-    const applyBtn = overlay.querySelector(`#${btnPrefix}-apply-btn`);
-    const closeBtn = overlay.querySelector(`#${btnPrefix}-close-btn`);
-    window.bizfitSubmitting = true;
-    applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
-    closeBtn.disabled = true;
-    const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
-    if (youpflBtn) youpflBtn.disabled = true;
-    // 슬롯 상태를 동시에 건드릴 수 있는 다른 탭(일반/찰리/델타)도 진행 중엔 잠가둔다
-    const otherBtns = Object.values(SUBMIT_TAB_PREFIX)
-      .filter(pfx => pfx !== btnPrefix)
-      .map(pfx => overlay.querySelector(`#${pfx}-apply-btn`))
-      .filter(Boolean);
-    otherBtns.forEach(b => { b.disabled = true; });
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
     const approvedKeys = gate ? new Set() : null;
 
-    // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
     async function processAgency(p) {
       if (!p.rows.length) return;
 
@@ -3817,6 +3856,22 @@ window.toggleProdPanel = function(e) {
       await gate.tryApprove();
     }
 
+    return { okTotal, failTotal };
+  }
+
+  function lockOtherSubmitTabs(overlay, btnPrefix) {
+    const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
+    if (youpflBtn) youpflBtn.disabled = true;
+    // 슬롯 상태를 동시에 건드릴 수 있는 다른 탭(일반/찰리/블로그)도 진행 중엔 잠가둔다
+    const otherBtns = ALL_SUBMIT_PREFIXES
+      .filter(pfx => pfx !== btnPrefix)
+      .map(pfx => overlay.querySelector(`#${pfx}-apply-btn`))
+      .filter(Boolean);
+    otherBtns.forEach(b => { b.disabled = true; });
+    return { youpflBtn, otherBtns };
+  }
+
+  function finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, okTotal, failTotal) {
     window.bizfitSubmitting = false;
     applyBtn.textContent = failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`;
     applyBtn.style.background = failTotal ? '#b91c1c' : '#475569';
@@ -3826,6 +3881,39 @@ window.toggleProdPanel = function(e) {
     // 유입플/다른 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
     if (youpflBtn) youpflBtn.disabled = false;
     otherBtns.forEach(b => { b.disabled = false; });
+  }
+
+  async function executeSubmit(plan, overlay, gate=null, legKey='normalKeys', adrole=null) {
+    const btnPrefix = SUBMIT_TAB_PREFIX[legKey] || 'submit';
+    const applyBtn = overlay.querySelector(`#${btnPrefix}-apply-btn`);
+    const closeBtn = overlay.querySelector(`#${btnPrefix}-close-btn`);
+    window.bizfitSubmitting = true;
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
+    closeBtn.disabled = true;
+    const { youpflBtn, otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
+
+    const { okTotal, failTotal } = await submitPlanRows(plan, overlay, gate, legKey, adrole);
+
+    finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, okTotal, failTotal);
+  }
+
+  // 블로그 탭 제출 — 델타(NP 위치저장, adrole=100)와 네이비(NP트래픽, adrole 없음)는 등급 체계가 달라
+  // grade-info/register를 한 번에 묶어 부를 수 없다 — 각자 submitPlanRows로 따로 접수하고 결과만 합쳐 보여준다.
+  async function executeBlogSubmit(deltaPlan, navyPlan, overlay, gate=null) {
+    const btnPrefix = 'bsub';
+    const applyBtn = overlay.querySelector(`#${btnPrefix}-apply-btn`);
+    const closeBtn = overlay.querySelector(`#${btnPrefix}-close-btn`);
+    window.bizfitSubmitting = true;
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
+    closeBtn.disabled = true;
+    const { youpflBtn, otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
+
+    const [d, n] = await Promise.all([
+      submitPlanRows(deltaPlan, overlay, gate, 'deltaKeys', DELTA_ADROLE),
+      submitPlanRows(navyPlan, overlay, gate, 'navyKeys', null),
+    ]);
+
+    finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, d.okTotal + n.okTotal, d.failTotal + n.failTotal);
   }
 
   // 최초 로드
