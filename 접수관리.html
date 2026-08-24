@@ -2989,7 +2989,8 @@ window.toggleProdPanel = function(e) {
     }
     let totalSlots = 0, totalTarget = 0;
     plan.forEach(p => {
-      bodyEl.appendChild(buildSubmitAgencyBlock(p, label, daysMultiplied, blogUrl));
+      const block = buildSubmitAgencyBlock(p, label, daysMultiplied, blogUrl);
+      if (block) bodyEl.appendChild(block);
       // 업체명 기준으로 세면 동명 업체가 있는 슬롯이 하나로 뭉개져 실제 슬롯 수보다 적게 표시됨 — _slotKey로 세야 함
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, daysMultiplied);
@@ -3017,14 +3018,16 @@ window.toggleProdPanel = function(e) {
       return;
     }
     let totalSlots = 0, totalTarget = 0;
-    // 델타/네이비는 같이 접수될 필요 없는 독립 상품 — 비활성인 쪽 블록은 아예 안 그려서 "배분 없음" 노이즈를 없앤다.
+    // 델타/네이비는 같이 접수될 필요 없는 독립 상품 — 비활성인 쪽, 그리고 배분 0인 대행사는 블록 자체를 안 그린다.
     if (hasDelta) deltaPlan.forEach(p => {
-      bodyEl.appendChild(buildSubmitAgencyBlock(p, '델타', true, true));
+      const block = buildSubmitAgencyBlock(p, '델타', true, true);
+      if (block) bodyEl.appendChild(block);
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, true);
     });
     if (hasNavy) navyPlan.forEach(p => {
-      bodyEl.appendChild(buildSubmitAgencyBlock(p, '네이비', false, true));
+      const block = buildSubmitAgencyBlock(p, '네이비', false, true);
+      if (block) bodyEl.appendChild(block);
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, false);
     });
@@ -3346,7 +3349,8 @@ window.toggleProdPanel = function(e) {
       const yupflAgencies = [...new Set(yupflRows.map(r => r.agencyId))];
       yupflAgencies.forEach(ag => {
         const agRows = yupflRows.filter(r => r.agencyId === ag);
-        youpflBodyEl.appendChild(buildYoupflTableBlock(agRows, ag));
+        const block = buildYoupflTableBlock(agRows, ag);
+        if (block) youpflBodyEl.appendChild(block);
       });
       const totalTarget = yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
       overlay.querySelector('#youpfl-sub').innerHTML =
@@ -3407,15 +3411,9 @@ window.toggleProdPanel = function(e) {
   // 대행사 1곳 미리보기 블록 — 충전 신청 팝업(정산관리)과 동일한 agency-block/ag-table 스타일. 행 = (업체명, 등급) 쌍.
   // daysMultiplied: 찰리처럼 "일수" 칸에 일목표×일수(전체목표)를 넣는 상품이면 true — 헤더/합계 계산을 "전체목표" 그대로 써서 이중곱 방지
   function buildSubmitAgencyBlock(p, label='일반 상품', daysMultiplied=false, blogUrl=false) {
+    if (!p.rows.length) return null;
     const block = document.createElement('div');
     block.className = 'agency-block';
-
-    if (!p.rows.length) {
-      block.style.borderColor = '#fca5a5';
-      block.innerHTML = `<div style="padding:12px 16px;font-weight:700;color:var(--danger);">${escProd(p.agency)}</div>
-        <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ ${escProd(label)} 배분 결과가 없습니다 (목표 0).</div>`;
-      return block;
-    }
 
     const totalTarget = daysMultipliedSum(p.rows, daysMultiplied);
     const deductNote = p.deductTarget ? ` · 차감 ${p.deductTarget.toLocaleString()} (${(p.deductAmount||0).toLocaleString()}원)` : '';
@@ -3482,14 +3480,9 @@ window.toggleProdPanel = function(e) {
   }
 
   function buildYoupflTableBlock(rows, agencyName) {
+    if (!rows.length) return null;
     const block = document.createElement('div');
     block.className = 'agency-block';
-    if (!rows.length) {
-      block.style.borderColor = '#fca5a5';
-      block.innerHTML = `<div style="padding:12px 16px;font-weight:700;color:var(--danger);">${escProd(agencyName||'')}</div>
-        <div style="padding:0 16px 14px;font-size:12px;color:var(--danger);">⚠️ 유입플 배분 결과가 없습니다 (목표 0).</div>`;
-      return block;
-    }
     const totalTarget = rows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
     const totalAmount = rows.reduce((a,r) => a+(r.target||0)*(r.days||0)*(r.unitPrice ?? userPriceMap.get(r.userId) ?? 0), 0);
     const hd = document.createElement('div');
