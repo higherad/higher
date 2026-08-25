@@ -515,8 +515,8 @@
     const findStaleDeductGroups = (slots) => pastGroups(slots).filter(g => {
       const snap = snapshotMap[`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`];
       if (!snap) return false;
-      const {ded,yup} = calcGroup(g);
-      return ded !== (snap.deductAmt||0) || yup !== (snap.yupflAmt||0);
+      const {ded,dtg,yup} = calcGroup(g);
+      return ded !== (snap.deductAmt||0) || dtg !== (snap.deductTgt||0) || yup !== (snap.yupflAmt||0);
     });
     if (findNewGroups(allSlots).length || findStaleDeductGroups(allSlots).length) {
       // 캐시된 allSlots/refundMap은 탭을 오래 열어둔 세션에서 승인/환불 전 상태로 낡아있을 수 있어,
