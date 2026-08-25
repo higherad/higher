@@ -1351,15 +1351,16 @@ window.toggleProdPanel = function(e) {
     badge.textContent = count + '개';
   };
 
-  // 델타 "블로그 URL" 적용 버튼 — 플레이스 URL의 "리뷰 > 블로그 리뷰" 탭에서 URL을 분할 개수만큼 자동으로 가져와 채운다.
+  // 델타/네이비 공용 "블로그 URL" 적용 버튼 — 플레이스 URL의 "리뷰 > 블로그 리뷰" 탭에서 URL을 분할 개수만큼 자동으로 가져와 채운다.
+  // 분할 개수는 두 상품이 각자 설정을 따로 가짐(pm-blogsplit) — 활성화된 쪽(델타 우선) 설정값을 사용.
   const BLOG_TAG_SEARCH_PROXY = 'https://blog-tag-search-938928195180.asia-northeast3.run.app';
   window.applyDeltaBlogUrls = async function(key) {
     const s = allSlots.find(x => x._key === key);
     const input = document.getElementById('detail-delta-url-input');
     const btn = document.getElementById('delta-url-apply-btn');
     if (!s || !s.url) { alert('플레이스 URL이 없습니다.'); return; }
-    const delta = prods.find(p => p.id === 'delta');
-    const n = Math.max(1, parseInt(delta?.blogSplit, 10) || 1);
+    const splitProd = prods.find(p => p.id === 'delta' && p.active) || prods.find(p => p.id === 'navy' && p.active) || prods.find(p => p.id === 'delta');
+    const n = Math.max(1, parseInt(splitProd?.blogSplit, 10) || 1);
     if (btn) { btn.disabled = true; btn.textContent = '조회 중...'; }
     try {
       const res = await fetch(`${BLOG_TAG_SEARCH_PROXY}/place-blog?url=${encodeURIComponent(s.url)}&count=${n}`);
@@ -1404,7 +1405,7 @@ window.toggleProdPanel = function(e) {
     {id:'yupfl2', name:'분할',   color:'#06b6d4', active:false, ratio:0, kwPct:0, fixedAlloc:true, splitProduct:true, autoBalance:false, missionRules:[]},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
     {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
-    {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
+    {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0, blogSplit:1},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
   const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2', 'delta', 'navy']);
@@ -1674,7 +1675,7 @@ window.toggleProdPanel = function(e) {
     nameEl.style.color      = nameLocked ? 'var(--text2)' : '';
     document.getElementById('pm-ver').value  = p.ver || '';
     const blogSplitWrap = document.getElementById('pm-blogsplit-wrap');
-    if (blogSplitWrap) blogSplitWrap.style.display = p.blogUrlProduct ? '' : 'none';
+    if (blogSplitWrap) blogSplitWrap.style.display = (p.blogUrlProduct || p.id === 'navy') ? '' : 'none';
     const blogSplitEl = document.getElementById('pm-blogsplit');
     if (blogSplitEl) blogSplitEl.value = p.blogSplit || 1;
     const delBtn = document.getElementById('pm-del-btn');
@@ -1845,7 +1846,7 @@ window.toggleProdPanel = function(e) {
     const p = prods.find(x => x.id === _prodModalId); if(!p) return;
     p.name = document.getElementById('pm-name').value.trim() || p.name;
     p.ver  = document.getElementById('pm-ver').value.trim();
-    if (p.blogUrlProduct) {
+    if (p.blogUrlProduct || p.id === 'navy') {
       const n = parseInt(document.getElementById('pm-blogsplit')?.value, 10);
       if (!Number.isFinite(n) || n < 1) { alert('분할 값은 1 이상의 숫자여야 합니다.'); return; }
       p.blogSplit = n;
