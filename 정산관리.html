@@ -129,7 +129,7 @@
       <tr>
         <th><input type="checkbox" id="settle-chk-all" title="전체선택" onchange="toggleAllSettle(this)"></th>
         <th>접수일시</th><th>대행사</th><th>단가(원)</th><th>캠페인 수</th>
-        <th>일 목표 합산</th><th>정산 금액(VAT 별도)</th><th id="th-yupfl" style="display:none;color:#a78bfa">유입플 금액</th><th id="th-deduct" style="display:none;color:#f87171">차감 금액</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
+        <th>일 목표 합산</th><th>정산 금액(VAT 별도)</th><th id="th-yupfl" style="display:none;color:#a78bfa">유입플 금액</th><th id="th-deducttgt" style="display:none;color:var(--text2)">일 목표 차감</th><th id="th-deduct" style="display:none;color:#f87171">차감 금액</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="settle-body">
@@ -167,6 +167,7 @@
   const _cu=HA.getCurrentUser?.();
   const isAdmin=_cu?.role==='admin'||DEDUCT_VIEW_USERS.has(_cu?.username);
   document.getElementById('th-deduct')?.style.setProperty('display', isAdmin ? '' : 'none');
+  document.getElementById('th-deducttgt')?.style.setProperty('display', isAdmin ? '' : 'none');
   document.getElementById('th-yupfl')?.style.setProperty('display', isAdmin ? '' : 'none');
 
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
@@ -211,8 +212,9 @@
     const tot = g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
     const amt = g.slots.reduce((a,s)=>a+slotAmount(s),0);
     const ded = g.slots.reduce((a,s)=>a+(s.deductAmount||0),0);
+    const dtg = g.slots.reduce((a,s)=>a+(s.deductTarget||0),0);
     const yup = g.slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
-    return {p, pDisplay, tot, amt, ded, yup};
+    return {p, pDisplay, tot, amt, ded, dtg, yup};
   }
 
   // 분 단위 + 대행사 + 유저ID 그룹핑
@@ -335,11 +337,12 @@
       if (!v.timeKey) return;
       const d = v.timeKey.slice(0,10);
       if (d.slice(0,7) !== curYM || d >= todayStr) return;
-      if (!byDay[d]) byDay[d] = { count:0, tgt:0, amt:0, ded:0 };
+      if (!byDay[d]) byDay[d] = { count:0, tgt:0, amt:0, ded:0, dtg:0 };
       byDay[d].count += v.slotCount||1;
       byDay[d].tgt += v.totalTarget||0;
       byDay[d].amt += v.amount||0;
       byDay[d].ded += v.deductAmt||0;
+      byDay[d].dtg += v.deductTgt||0;
     });
 
     // 오늘 실시간
@@ -356,7 +359,8 @@
       const todayAmt = todaySlots.reduce((a,s)=>a+slotAmount(s),0);
       const todayRef = Object.entries(refundMap||{}).reduce((a,[k,v])=>k.split('__')[0].slice(0,10)===todayStr?a+(v||0):a,0);
       const todayDed = todaySlots.reduce((a,s)=>a+(s.deductAmount||0),0);
-      byDay[todayStr] = { count: todaySlots.length, tgt: todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0), amt: todayAmt-todayRef, ded: todayDed };
+      const todayDtg = todaySlots.reduce((a,s)=>a+(s.deductTarget||0),0);
+      byDay[todayStr] = { count: todaySlots.length, tgt: todaySlots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0), amt: todayAmt-todayRef, ded: todayDed, dtg: todayDtg };
     }
 
     const monthTotal = Object.values(byDay).reduce((a,v)=>a+(v.amt||0),0);
@@ -377,7 +381,7 @@
       </div>
       <div class="sp-section">일자별 합산</div>
       <table class="sp-tbl">
-        <thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>차감액(VAT 별도)</th>':''}</tr></thead>
+        <thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>일목표 차감</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody id="mp-day-tbody"></tbody>
       </table>
       <div id="mp-day-pg" class="pagination" style="margin-top:12px;"></div>
@@ -391,8 +395,8 @@
       const total = Math.ceil(sortedDays.length / DAY_PER) || 1;
       const slice = sortedDays.slice((mpCurPg-1)*DAY_PER, mpCurPg*DAY_PER);
       ov.querySelector('#mp-day-tbody').innerHTML = slice.length
-        ? slice.map(d => { const dv=byDay[d]; return `<tr><td style="font-weight:600">${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.amt.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.amt*1.1).toLocaleString()}원</td>${isAdmin?`<td style="font-weight:700;color:#f87171">${(dv.ded||0).toLocaleString()}원</td>`:''}</tr>`; }).join('')
-        : `<tr><td colspan="${isAdmin?6:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`;
+        ? slice.map(d => { const dv=byDay[d]; return `<tr><td style="font-weight:600">${d}</td><td>${dv.count}건</td><td>${dv.tgt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${dv.amt.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(dv.amt*1.1).toLocaleString()}원</td>${isAdmin?`<td>${(dv.dtg||0).toLocaleString()}</td><td style="font-weight:700;color:#f87171">${(dv.ded||0).toLocaleString()}원</td>`:''}</tr>`; }).join('')
+        : `<tr><td colspan="${isAdmin?7:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`;
       const pgDiv = ov.querySelector('#mp-day-pg');
       if (total <= 1) { pgDiv.innerHTML=''; return; }
       let ph=`<button class="pg-btn" data-pg="1">&laquo;</button><button class="pg-btn" data-pg="${Math.max(1,mpCurPg-1)}">&lsaquo;</button>`;
@@ -522,19 +526,19 @@
       const freshRefund = (timeKey,agencyId,userId) => (refundMap)[refundKey(timeKey,agencyId,userId)]||0;
       for (const g of findNewGroups(freshSlots)) {
         const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
-        const {tot:t,amt:a,ded:d,yup:y}=calcGroup(g);
+        const {tot:t,amt:a,ded:d,dtg:dt,yup:y}=calcGroup(g);
         if(!a) continue; // 금액 없으면 스킵
         const r=freshRefund(g.timeKey,g.agencyId,g.userId);
         const snap={timeKey:g.timeKey,agencyId:g.agencyId,userId:g.userId,
-          slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,deductAmt:d,yupflAmt:y,
+          slotCount:g.slots.length,totalTarget:t,amount:a-r,refund:r,deductAmt:d,deductTgt:dt,yupflAmt:y,
           unitPrice:getSlotPrice(g.slots[0])};
         await HA.saveSettleSnapshot(sk,snap,false); // 최초 1회만 저장
         snapshotMap[sk]=snap;
       }
       for (const g of findStaleDeductGroups(freshSlots)) {
         const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
-        const {ded:d,yup:y}=calcGroup(g);
-        const updated={...snapshotMap[sk], deductAmt:d, yupflAmt:y};
+        const {ded:d,dtg:dt,yup:y}=calcGroup(g);
+        const updated={...snapshotMap[sk], deductAmt:d, deductTgt:dt, yupflAmt:y};
         await HA.saveSettleSnapshot(sk, updated, true); // 차감/유입플만 최신화, amount/refund 등은 그대로 보존
         snapshotMap[sk]=updated;
       }
@@ -561,12 +565,13 @@
       const groupDate=g.timeKey.slice(0,10);
       // 과거 날짜는 스냅샷, 오늘은 실시간
       const useSnap = groupDate < todayStr && savedSnap;
-      const {p, pDisplay, tot, amt, ded, yup} = useSnap ? {
+      const {p, pDisplay, tot, amt, ded, dtg, yup} = useSnap ? {
         p: savedSnap.unitPrice||getSlotPrice(g.slots[0]),
         pDisplay: (savedSnap.unitPrice||getSlotPrice(g.slots[0])).toLocaleString(),
         tot: savedSnap.totalTarget||0,
         amt: savedSnap.amount+(savedSnap.refund||0),
         ded: savedSnap.deductAmt||0,
+        dtg: savedSnap.deductTgt||0,
         yup: savedSnap.yupflAmt||0,
       } : calcGroup(g);
       const refund = useSnap ? (savedSnap.refund||0) : getRefund(g.timeKey,g.agencyId,g.userId);
@@ -600,6 +605,7 @@
         <td><strong>${tot.toLocaleString()}</strong></td>
         <td style="font-weight:700;color:var(--accent)">${netAmt.toLocaleString()}원</td>
         ${isAdmin?`<td style="color:#7c3aed">${yup>0?yup.toLocaleString()+'원':'-'}</td>`:''}
+        ${isAdmin?`<td style="color:var(--text2)">${dtg>0?dtg.toLocaleString():'-'}</td>`:''}
         ${isAdmin?`<td style="color:var(--danger)">${ded>0?ded.toLocaleString()+'원':'-'}</td>`:''}
         <td style="font-weight:700;color:var(--info)">${netVat.toLocaleString()}원</td>
         <td style="color:var(--danger);font-weight:700">${refund>0?refund.toLocaleString()+'원':'-'}</td>
@@ -742,9 +748,10 @@
         const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
         const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
         const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
+        const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
         const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
         const refund=getRefund(timeKey,agencyId,userId);
-        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),memo:val};
+        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),memo:val};
         await HA.saveSettleSnapshot(snapKey,newSnap,true);
         snapshotMap[snapKey]=newSnap;
       }
@@ -771,9 +778,10 @@
         const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
         const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
         const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
+        const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
         const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
         const refund=getRefund(timeKey,agencyId,userId);
-        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),...updates};
+        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),...updates};
         await HA.saveSettleSnapshot(snapKey,newSnap,true);
         snapshotMap[snapKey]=newSnap;
       }
@@ -803,11 +811,12 @@
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
       const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
+      const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
       const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
       const refund=getRefund(timeKey,agencyId,userId);
       // 기존 스냅샷 보존(충전 담당자 등) 후 입금 필드만 덮어쓰기
       const existing=snapshotMap[snapKey]||{};
-      const snap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,deductAmt:ded,yupflAmt:yup,unitPrice:p,refund,agencyId,userId,timeKey,
+      const snap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:p,refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
       await HA.saveSettleSnapshot(snapKey,snap,true);
       snapshotMap[snapKey]=snap;
@@ -967,7 +976,7 @@
     function buildAndDownload(){
       const XLSX=window.XLSX;
       const wb=XLSX.utils.book_new();
-      const header=['접수일시','대행사','단가(원)','캠페인 수','일 목표 합산','정산 금액(VAT 별도)',...(isAdmin?['유입플 금액','차감 금액']:[]),'입금액(VAT 포함)','환불 금액','정산상태'];
+      const header=['접수일시','대행사','단가(원)','캠페인 수','일 목표 합산','정산 금액(VAT 별도)',...(isAdmin?['유입플 금액','일목표 차감','차감 금액']:[]),'입금액(VAT 포함)','환불 금액','정산상태'];
       const dataRows=rows.map(g=>{
         const safe=s=>s.replace(/[.#$[\]/]/g,'_');
         const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
@@ -980,13 +989,14 @@
         const netAmt=grossAmt-refund;
         const p=useSnap?(savedSnap.unitPrice||getSlotPrice(g.slots[0])):getSlotPrice(g.slots[0]);
         const ded=useSnap?(savedSnap.deductAmt||0):g.slots.reduce((ac,s)=>ac+(s.deductAmount||0),0);
+        const dtg=useSnap?(savedSnap.deductTgt||0):g.slots.reduce((ac,s)=>ac+(s.deductTarget||0),0);
         const yup=useSnap?(savedSnap.yupflAmt||0):g.slots.reduce((ac,s)=>ac+(s.yupflAmount||0),0);
         const pc=g.slots.filter(s=>paidSet.has(s._key)).length;
         const status=pc===g.slots.length?'정산완료':'미정산';
-        return [g.timeKey,g.agencyId,p,g.slots.length,tot,netAmt,...(isAdmin?[yup,ded]:[]),Math.round(netAmt*1.1),refund,status];
+        return [g.timeKey,g.agencyId,p,g.slots.length,tot,netAmt,...(isAdmin?[yup,dtg,ded]:[]),Math.round(netAmt*1.1),refund,status];
       });
       const ws=XLSX.utils.aoa_to_sheet([header,...dataRows]);
-      ws['!cols']=[{wch:18},{wch:16},{wch:12},{wch:10},{wch:14},{wch:20},...(isAdmin?[{wch:16},{wch:16}]:[]),{wch:20},{wch:12},{wch:10}];
+      ws['!cols']=[{wch:18},{wch:16},{wch:12},{wch:10},{wch:14},{wch:20},...(isAdmin?[{wch:16},{wch:14},{wch:16}]:[]),{wch:20},{wch:12},{wch:10}];
       XLSX.utils.book_append_sheet(wb,ws,'정산');
       const today=new Date();
       const dateStr=`${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
@@ -1026,10 +1036,11 @@
       const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
       const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
+      const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
       const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
       const refund=getRefund(timeKey,agencyId,userId);
       const existing=snapshotMap[snapKey]||{};
-      const newSnap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,deductAmt:ded,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),refund,agencyId,userId,timeKey,
+      const newSnap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),refund,agencyId,userId,timeKey,
         confirmedAt:new Date().toISOString(),confirmedBy:staffId,confirmedByName:staffName};
       await HA.saveSettleSnapshot(snapKey,newSnap,true);
       snapshotMap[snapKey]=newSnap;
