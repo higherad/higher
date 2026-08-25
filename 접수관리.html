@@ -2952,22 +2952,24 @@ window.toggleProdPanel = function(e) {
     return anyFail;
   }
 
-  // 검색키워드 미입력/일목표 10미만 건수 — 대행사 헤더 배지, 탭 상단 요약에 공용으로 씀
-  function rowIssueCounts(rows) {
+  // 검색키워드 미입력/일목표 10미만/블로그URL 미입력 건수 — 대행사 헤더 배지, 탭 상단 요약에 공용으로 씀
+  function rowIssueCounts(rows, checkBlogUrl=false) {
     const kwEmptyCount = rows.filter(r => (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length === 0).length;
     const lowTargetCount = rows.filter(r => (r.일목표||0) < 10).length;
-    return { kwEmptyCount, lowTargetCount };
+    const blogUrlEmptyCount = checkBlogUrl ? rows.filter(r => !r.블로그URL).length : 0;
+    return { kwEmptyCount, lowTargetCount, blogUrlEmptyCount };
   }
 
-  // 탭 상단에 "OO대행사 - 검색키워드 0개 N건 / 일 목표 10 미만 N건" 식으로 대행사별 문제 요약
-  function agencyIssueSummaryHtml(plan, label='') {
+  // 탭 상단에 "OO대행사 - 검색키워드 0개 N건 / 일 목표 10 미만 N건 / 블로그 URL 미입력 N건" 식으로 대행사별 문제 요약
+  function agencyIssueSummaryHtml(plan, label='', checkBlogUrl=false) {
     const prefix = label ? `[${escProd(label)}] ` : '';
     return plan.map(p => {
-      const { kwEmptyCount, lowTargetCount } = rowIssueCounts(p.rows);
-      if (!kwEmptyCount && !lowTargetCount) return '';
+      const { kwEmptyCount, lowTargetCount, blogUrlEmptyCount } = rowIssueCounts(p.rows, checkBlogUrl);
+      if (!kwEmptyCount && !lowTargetCount && !blogUrlEmptyCount) return '';
       const parts = [];
       if (kwEmptyCount) parts.push(`검색키워드 0개 ${kwEmptyCount}건`);
       if (lowTargetCount) parts.push(`일 목표 10 미만 ${lowTargetCount}건`);
+      if (blogUrlEmptyCount) parts.push(`블로그 URL 미입력 ${blogUrlEmptyCount}건`);
       return `<div style="color:#dc2626;font-size:11px;margin-top:2px;">⚠️ ${prefix}${escProd(p.agency)} - ${parts.join(' / ')}</div>`;
     }).join('');
   }
@@ -3031,7 +3033,7 @@ window.toggleProdPanel = function(e) {
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, false);
     });
-    const issueSummary = (hasDelta ? agencyIssueSummaryHtml(deltaPlan, '델타') : '') + (hasNavy ? agencyIssueSummaryHtml(navyPlan, '네이비') : '');
+    const issueSummary = (hasDelta ? agencyIssueSummaryHtml(deltaPlan, '델타', true) : '') + (hasNavy ? agencyIssueSummaryHtml(navyPlan, '네이비', true) : '');
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${deltaPlan.length}곳 · 블로그 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>${issueSummary}`;
     const allRows = [...deltaPlan.flatMap(p => p.rows), ...navyPlan.flatMap(p => p.rows)];
     if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
@@ -3111,6 +3113,11 @@ window.toggleProdPanel = function(e) {
         </div>
         <div id="stab-panel-fixed" style="display:${defaultTab==='fixed'?'block':'none'}">
           <div style="font-size:12px;margin-bottom:14px;" id="youpfl-sub"></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+            <span style="font-size:12px;color:var(--text2);">미션번호 일괄 적용</span>
+            <input type="number" min="0" id="youpfl-mission-bulk-input" placeholder="예: 12" style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+            <button type="button" onclick="applyYoupflMissionBulk(this)" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;">적용</button>
+          </div>
           <div id="youpfl-body"></div>
           <div class="modal-footer">
             <button class="btn-cancel" id="youpfl-close-btn">닫기</button>
@@ -3417,8 +3424,8 @@ window.toggleProdPanel = function(e) {
 
     const totalTarget = daysMultipliedSum(p.rows, daysMultiplied);
     const deductNote = p.deductTarget ? ` · 차감 ${p.deductTarget.toLocaleString()} (${(p.deductAmount||0).toLocaleString()}원)` : '';
-    const { kwEmptyCount, lowTargetCount } = rowIssueCounts(p.rows);
-    const issueCount = kwEmptyCount + lowTargetCount;
+    const { kwEmptyCount, lowTargetCount, blogUrlEmptyCount } = rowIssueCounts(p.rows, blogUrl);
+    const issueCount = kwEmptyCount + lowTargetCount + blogUrlEmptyCount;
     const issueBadge = issueCount ? ` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">⚠️ 오류 ${issueCount}건</span>` : '';
     const hd = document.createElement('div');
     hd.className = 'agency-hd';
@@ -3477,6 +3484,16 @@ window.toggleProdPanel = function(e) {
     p.msgEl = ft.querySelector('.totals');
 
     return block;
+  }
+
+  // 빈 미션번호 입력칸에만 값을 채움 — 이미 입력됐거나(자동배정 포함) 완료된(disabled) 행은 건드리지 않음
+  window.applyYoupflMissionBulk = function(btn) {
+    const overlay = btn.closest('.modal-overlay');
+    const val = overlay.querySelector('#youpfl-mission-bulk-input').value;
+    if (val === '') return;
+    overlay.querySelectorAll('#youpfl-body .ag-mission-input').forEach(el => {
+      if (!el.disabled && !el.value) el.value = val;
+    });
   }
 
   function buildYoupflTableBlock(rows, agencyName) {
