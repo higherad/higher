@@ -3715,9 +3715,10 @@ window.toggleProdPanel = function(e) {
   // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유한다.
   // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
   async function submitPlanRows(plan, overlay, gate, legKey, adrole) {
-    // NP위치저장(adrole=100) 계열은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본 폴백 버전과
-    // 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
-    const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : null;
+    // NP위치저장(adrole=100) 계열(찰리/델타)은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본
+    // 폴백 버전과 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
+    // 네이비도 2026-08-25 동일 증상 확인되어 포함(등록 시 이 override가 없으면 상품 설정의 ver를 바꿔도 전혀 전송되지 않음).
+    const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : legKey === 'navyKeys' ? 'navy' : null;
     const productVer = verSourceId ? ap().find(p => p.id === verSourceId)?.ver : undefined;
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
