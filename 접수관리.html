@@ -3112,11 +3112,13 @@ window.toggleProdPanel = function(e) {
           </div>
         </div>
         <div id="stab-panel-fixed" style="display:${defaultTab==='fixed'?'block':'none'}">
-          <div style="font-size:12px;margin-bottom:14px;" id="youpfl-sub"></div>
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
-            <span style="font-size:12px;color:var(--text2);">미션번호 일괄 적용</span>
-            <input type="number" min="0" id="youpfl-mission-bulk-input" placeholder="예: 12" style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
-            <button type="button" onclick="applyYoupflMissionBulk(this)" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;">적용</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="font-size:12px;" id="youpfl-sub"></div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+              <span style="font-size:12px;color:var(--text2);white-space:nowrap;">미션번호 일괄 적용</span>
+              <input type="number" min="0" id="youpfl-mission-bulk-input" placeholder="예: 12" style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+              <button type="button" onclick="applyYoupflMissionBulk(this)" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;white-space:nowrap;">적용</button>
+            </div>
           </div>
           <div id="youpfl-body"></div>
           <div class="modal-footer">
