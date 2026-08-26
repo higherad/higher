@@ -3189,9 +3189,8 @@ window.toggleProdPanel = function(e) {
     gradeMatchOn = true;
     return renderSubmitModal(target);
   }
-  async function renderSubmitModal(target) {
-    // 등급 자동매칭이 buildNormalRows/buildDeltaRows에서 동기적으로 GRADE_CACHE를 읽으므로 먼저 채워둔다.
-    await fetchGradesBatch([...new Set(target.map(s => s.mid).filter(Boolean))]);
+  // 각 탭의 plan/rows만 계산하는 순수 데이터 빌더 — renderSubmitModal의 최초 렌더/토글 재계산 양쪽에서 재사용.
+  function computeSubmitData(target) {
     const agencies   = getAgencies(target);
     const normalPlan = agencies.map(ag => ({
       agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
@@ -3222,6 +3221,13 @@ window.toggleProdPanel = function(e) {
     const hasDelta   = deltaPlan.some(p => p.rows.length > 0);
     const hasNavy    = navyPlan.some(p => p.rows.length > 0);
     const defaultTab = hasNormal ? 'normal' : (hasFixed ? 'fixed' : (hasCharlie ? 'charlie' : ((hasDelta||hasNavy) ? 'blog' : 'normal')));
+    return { normalPlan, charliePlan, deltaPlan, navyPlan, yupflRows, hasNormal, hasFixed, hasCharlie, hasDelta, hasNavy, defaultTab };
+  }
+
+  async function renderSubmitModal(target) {
+    // 등급 자동매칭이 buildNormalRows/buildDeltaRows에서 동기적으로 GRADE_CACHE를 읽으므로 먼저 채워둔다.
+    await fetchGradesBatch([...new Set(target.map(s => s.mid).filter(Boolean))]);
+    let data = computeSubmitData(target);
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -3233,7 +3239,7 @@ window.toggleProdPanel = function(e) {
             <button id="grade-match-toggle" type="button" title="MID가 이미 진행중인 등급/미션이 있으면 그 상태로 접수 — 끄면 상품 유형 설정값 그대로 배분"
               style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
               <span style="font-size:12px;color:var(--text2);font-weight:600;">기존 등급 자동매칭</span>
-              <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${gradeMatchOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
+              <span id="grade-match-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${gradeMatchOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
             </button>
@@ -3242,16 +3248,16 @@ window.toggleProdPanel = function(e) {
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
-          <button id="stab-normal" class="submit-tab${defaultTab==='normal'?' active':''}"
-            onclick="switchSubmitTab('normal')"${!hasNormal?' disabled':''}>일반</button>
-          <button id="stab-fixed" class="submit-tab${defaultTab==='fixed'?' active':''}"
-            onclick="switchSubmitTab('fixed')" style="${hasFixed?'':'display:none;'}">유입플</button>
-          <button id="stab-charlie" class="submit-tab${defaultTab==='charlie'?' active':''}"
-            onclick="switchSubmitTab('charlie')" style="${hasCharlie?'':'display:none;'}">찰리</button>
-          <button id="stab-blog" class="submit-tab${defaultTab==='blog'?' active':''}"
-            onclick="switchSubmitTab('blog')" style="${(hasDelta||hasNavy)?'':'display:none;'}">블로그</button>
+          <button id="stab-normal" class="submit-tab${data.defaultTab==='normal'?' active':''}"
+            onclick="switchSubmitTab('normal')"${!data.hasNormal?' disabled':''}>일반</button>
+          <button id="stab-fixed" class="submit-tab${data.defaultTab==='fixed'?' active':''}"
+            onclick="switchSubmitTab('fixed')" style="${data.hasFixed?'':'display:none;'}">유입플</button>
+          <button id="stab-charlie" class="submit-tab${data.defaultTab==='charlie'?' active':''}"
+            onclick="switchSubmitTab('charlie')" style="${data.hasCharlie?'':'display:none;'}">찰리</button>
+          <button id="stab-blog" class="submit-tab${data.defaultTab==='blog'?' active':''}"
+            onclick="switchSubmitTab('blog')" style="${(data.hasDelta||data.hasNavy)?'':'display:none;'}">블로그</button>
         </div>
-        <div id="stab-panel-normal" style="display:${defaultTab==='normal'?'block':'none'}">
+        <div id="stab-panel-normal" style="display:${data.defaultTab==='normal'?'block':'none'}">
           <div style="font-size:12px;margin-bottom:14px;" id="submit-sub"></div>
           <div id="submit-body"></div>
           <div class="modal-footer">
@@ -3259,7 +3265,7 @@ window.toggleProdPanel = function(e) {
             <button id="submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
           </div>
         </div>
-        <div id="stab-panel-fixed" style="display:${defaultTab==='fixed'?'block':'none'}">
+        <div id="stab-panel-fixed" style="display:${data.defaultTab==='fixed'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
             <div style="font-size:12px;" id="youpfl-sub"></div>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
@@ -3274,7 +3280,7 @@ window.toggleProdPanel = function(e) {
             <button id="youpfl-apply-btn" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
           </div>
         </div>
-        <div id="stab-panel-charlie" style="display:${defaultTab==='charlie'?'block':'none'}">
+        <div id="stab-panel-charlie" style="display:${data.defaultTab==='charlie'?'block':'none'}">
           <div style="font-size:12px;margin-bottom:14px;" id="csub-sub"></div>
           <div id="csub-body"></div>
           <div class="modal-footer">
@@ -3282,7 +3288,7 @@ window.toggleProdPanel = function(e) {
             <button id="csub-apply-btn" style="background:#d946ef;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
           </div>
         </div>
-        <div id="stab-panel-blog" style="display:${defaultTab==='blog'?'block':'none'}">
+        <div id="stab-panel-blog" style="display:${data.defaultTab==='blog'?'block':'none'}">
           <div style="font-size:12px;margin-bottom:14px;" id="bsub-sub"></div>
           <div id="bsub-body"></div>
           <div class="modal-footer">
@@ -3292,10 +3298,6 @@ window.toggleProdPanel = function(e) {
         </div>
       </div>`;
     document.body.appendChild(overlay);
-
-    // 등급 자동매칭 토글 — 값만 뒤집고 모달을 통째로 다시 열어 재사용(부분 재렌더 대신 기존 빌드 파이프라인 그대로 재활용)
-    const gmBtn = overlay.querySelector('#grade-match-toggle');
-    if (gmBtn) gmBtn.onclick = () => { gradeMatchOn = !gradeMatchOn; overlay.remove(); renderSubmitModal(target); };
 
     // 캐시차감 실패는 콘솔뿐 아니라 모달이 열려있는 동안 배너+재시도 버튼으로 표시 — 대상은 "이 모달에서 시도한 것"만
     // (목록 전체를 훑으면 레거시 active 슬롯도 bizfitDeducted 없어 오탐). executeSubmit 등 최상위 함수도 갱신할 수 있게 overlay에 상태를 매달아둠
@@ -3392,166 +3394,212 @@ window.toggleProdPanel = function(e) {
       };
     }
 
-    // 일반/유입플/찰리 2개 이상 동시 활성 시 승인 게이트 — "탭 전체 완료"가 아닌 슬롯별로 "그 슬롯이 쓰는 레그들만" 다 끝나면 바로 승인
-    // (requiredLegsByKey로 계산). 예전 탭 전체 완료 요구 방식은 유입플만 쓰는 슬롯이 영원히 승인 못 되는 문제가 있었음(2026-08-11).
-    // 재오픈 시 이전 세션 완료 탭은 저장된 플래그로 미리 채움(일반/찰리는 모든 상품행 완료 시에만 "이미 완료")
-    const rowsBySlotOf = rows => {
-      const m = new Map();
-      rows.forEach(r => { if (!r._slotKey) return; if (!m.has(r._slotKey)) m.set(r._slotKey, []); m.get(r._slotKey).push(r); });
-      return m;
-    };
-    const alreadyDoneOf = (rowsBySlot, doneField) => new Set(
-      [...rowsBySlot.entries()].filter(([, rs]) => rs.every(r => r[doneField])).map(([k]) => k)
-    );
-    const normalAlreadyDone  = alreadyDoneOf(rowsBySlotOf(normalPlan.flatMap(p => p.rows)), '_normalSubmitted');
-    const charlieAlreadyDone = alreadyDoneOf(rowsBySlotOf(charliePlan.flatMap(p => p.rows)), '_normalSubmitted');
-    const deltaAlreadyDone   = alreadyDoneOf(rowsBySlotOf(deltaPlan.flatMap(p => p.rows)), '_normalSubmitted');
-    const navyAlreadyDone    = alreadyDoneOf(rowsBySlotOf(navyPlan.flatMap(p => p.rows)), '_normalSubmitted');
-    const fixedAlreadyDone   = alreadyDoneOf(rowsBySlotOf(yupflRows), '_fixedSubmitted');
+    const submitBodyEl = overlay.querySelector('#submit-body');
+    const csubBodyEl   = overlay.querySelector('#csub-body');
+    const bsubBodyEl   = overlay.querySelector('#bsub-body');
+    const youpflBodyEl = overlay.querySelector('#youpfl-body');
+    const submitApplyBtn = overlay.querySelector('#submit-apply-btn');
+    const csubApplyBtn   = overlay.querySelector('#csub-apply-btn');
+    const bsubApplyBtn   = overlay.querySelector('#bsub-apply-btn');
+    const youpflApplyBtn = overlay.querySelector('#youpfl-apply-btn');
 
-    // 슬롯별로 실제 쓰는 레그 집합 — rows에 그 슬롯(_slotKey)이 등장하는지로 판단
-    const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys'|'deltaKeys'|'navyKeys')
-    const addRequired = (rows, leg) => rows.forEach(r => {
-      if (!r._slotKey) return;
-      if (!requiredLegsByKey.has(r._slotKey)) requiredLegsByKey.set(r._slotKey, new Set());
-      requiredLegsByKey.get(r._slotKey).add(leg);
-    });
-    addRequired(normalPlan.flatMap(p => p.rows), 'normalKeys');
-    addRequired(charliePlan.flatMap(p => p.rows), 'charlieKeys');
-    addRequired(deltaPlan.flatMap(p => p.rows), 'deltaKeys');
-    addRequired(navyPlan.flatMap(p => p.rows), 'navyKeys');
-    addRequired(yupflRows, 'fixedKeys');
-
-    // 게이트 유무와 상관없이 쓰는 판정 — doneSets를 받아 슬롯이 필요 레그를 전부 채웠는지로 승인 대상을 고름(조회 전용, 실행 안 함)
-    const slotMapAll = new Map(allSlots.map(s => [s._key, s]));
-    function readyKeysOf(doneSets) {
-      return [...requiredLegsByKey.entries()]
-        .filter(([k, req]) => slotMapAll.get(k)?.status !== 'active'
-          && [...req].every(leg => doneSets[leg] && doneSets[leg].has(k)))
-        .map(([k]) => k);
+    // 탭 버튼 disabled/노출 상태 갱신 — keepTab이 갱신 후에도 여전히 존재하면 유지, 아니면 새 defaultTab으로.
+    function applyTabState(keepTab) {
+      overlay.querySelector('#stab-normal').disabled = !data.hasNormal;
+      overlay.querySelector('#stab-fixed').style.display   = data.hasFixed   ? '' : 'none';
+      overlay.querySelector('#stab-charlie').style.display = data.hasCharlie ? '' : 'none';
+      overlay.querySelector('#stab-blog').style.display    = (data.hasDelta||data.hasNavy) ? '' : 'none';
+      const avail = { normal: data.hasNormal, fixed: data.hasFixed, charlie: data.hasCharlie, blog: data.hasDelta||data.hasNavy };
+      window.switchSubmitTab((keepTab && avail[keepTab]) ? keepTab : data.defaultTab);
+    }
+    // 재계산마다 재사용되는 버튼을 매번 초기 상태(활성화·기본 문구·원래 색)로 되돌려둔 뒤 wireSubmitTab 등이 다시 채움
+    function resetApplyBtn(btn, bg) {
+      btn.disabled = false; btn.title = ''; btn.textContent = '접수 신청';
+      btn.style.background = bg; btn.style.cursor = 'pointer'; btn.onclick = null;
     }
 
-    // 다 완료된 슬롯은 승인(상태 전환)만 창 열자마자 자동 처리 — 차감(실제 돈)은 자동 시도 안 하고 배너 "재시도"로만 실행.
-    // 탭 버튼은 렌더 시점 스냅샷이라 비동기 완료를 자동 반영 못 하므로 승인 끝나는 즉시 여기서 잠금.
-    const legHas = { normalKeys: hasNormal, fixedKeys: hasFixed, charlieKeys: hasCharlie, deltaKeys: hasDelta, navyKeys: hasNavy };
-    function lockDoneButtons() {
-      Object.entries(LEG_BTN_SEL).forEach(([leg, sel]) => {
-        if (!legHas[leg]) return;
-        const btn = overlay.querySelector(sel);
-        if (btn && !btn.disabled && target.every(s => s.status === 'active')) markApplyBtnDone(btn);
+    // 탭 본문(plan/rows에 의존하는 부분)만 다시 그림 — 모달 뼈대(overlay/탭바)는 그대로 두고 데이터만 갱신할 때 재호출.
+    function fillBody() {
+      submitBodyEl.innerHTML = ''; csubBodyEl.innerHTML = ''; bsubBodyEl.innerHTML = ''; youpflBodyEl.innerHTML = '';
+      resetApplyBtn(submitApplyBtn, '#16a34a');
+      resetApplyBtn(csubApplyBtn,   '#d946ef');
+      resetApplyBtn(bsubApplyBtn,   '#22c55e');
+      resetApplyBtn(youpflApplyBtn, '#f59e0b');
+
+      // 일반/유입플/찰리 2개 이상 동시 활성 시 승인 게이트 — "탭 전체 완료"가 아닌 슬롯별로 "그 슬롯이 쓰는 레그들만" 다 끝나면 바로 승인
+      // (requiredLegsByKey로 계산). 예전 탭 전체 완료 요구 방식은 유입플만 쓰는 슬롯이 영원히 승인 못 되는 문제가 있었음(2026-08-11).
+      // 재계산 시점에 이전에 이미 완료된 탭은 저장된 플래그로 미리 채움(일반/찰리는 모든 상품행 완료 시에만 "이미 완료")
+      const rowsBySlotOf = rows => {
+        const m = new Map();
+        rows.forEach(r => { if (!r._slotKey) return; if (!m.has(r._slotKey)) m.set(r._slotKey, []); m.get(r._slotKey).push(r); });
+        return m;
+      };
+      const alreadyDoneOf = (rowsBySlot, doneField) => new Set(
+        [...rowsBySlot.entries()].filter(([, rs]) => rs.every(r => r[doneField])).map(([k]) => k)
+      );
+      const normalAlreadyDone  = alreadyDoneOf(rowsBySlotOf(data.normalPlan.flatMap(p => p.rows)), '_normalSubmitted');
+      const charlieAlreadyDone = alreadyDoneOf(rowsBySlotOf(data.charliePlan.flatMap(p => p.rows)), '_normalSubmitted');
+      const deltaAlreadyDone   = alreadyDoneOf(rowsBySlotOf(data.deltaPlan.flatMap(p => p.rows)), '_normalSubmitted');
+      const navyAlreadyDone    = alreadyDoneOf(rowsBySlotOf(data.navyPlan.flatMap(p => p.rows)), '_normalSubmitted');
+      const fixedAlreadyDone   = alreadyDoneOf(rowsBySlotOf(data.yupflRows), '_fixedSubmitted');
+
+      // 슬롯별로 실제 쓰는 레그 집합 — rows에 그 슬롯(_slotKey)이 등장하는지로 판단
+      const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys'|'deltaKeys'|'navyKeys')
+      const addRequired = (rows, leg) => rows.forEach(r => {
+        if (!r._slotKey) return;
+        if (!requiredLegsByKey.has(r._slotKey)) requiredLegsByKey.set(r._slotKey, new Set());
+        requiredLegsByKey.get(r._slotKey).add(leg);
       });
-    }
+      addRequired(data.normalPlan.flatMap(p => p.rows), 'normalKeys');
+      addRequired(data.charliePlan.flatMap(p => p.rows), 'charlieKeys');
+      addRequired(data.deltaPlan.flatMap(p => p.rows), 'deltaKeys');
+      addRequired(data.navyPlan.flatMap(p => p.rows), 'navyKeys');
+      addRequired(data.yupflRows, 'fixedKeys');
 
-    const activeLegs = [];
-    if (hasNormal)  activeLegs.push('normalKeys');
-    if (hasFixed)   activeLegs.push('fixedKeys');
-    if (hasCharlie) activeLegs.push('charlieKeys');
-    if (hasDelta)   activeLegs.push('deltaKeys');
-    if (hasNavy)    activeLegs.push('navyKeys');
-    const gate = (activeLegs.length > 1) ? {
-      normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
-      fixedKeys:   fixedAlreadyDone.size   ? fixedAlreadyDone   : null,
-      charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
-      deltaKeys:   deltaAlreadyDone.size   ? deltaAlreadyDone   : null,
-      navyKeys:    navyAlreadyDone.size    ? navyAlreadyDone    : null,
-      slotMap: slotMapAll,
-      async tryApprove() {
-        const keys = readyKeysOf(this);
-        // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
-        if (keys.length) {
-          const failed = await approveSlotsWithBizfit(keys, this.slotMap);
-          if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
-        }
-        renderReceipts(false);
-        lockDoneButtons();
+      // 게이트 유무와 상관없이 쓰는 판정 — doneSets를 받아 슬롯이 필요 레그를 전부 채웠는지로 승인 대상을 고름(조회 전용, 실행 안 함)
+      const slotMapAll = new Map(allSlots.map(s => [s._key, s]));
+      function readyKeysOf(doneSets) {
+        return [...requiredLegsByKey.entries()]
+          .filter(([k, req]) => slotMapAll.get(k)?.status !== 'active'
+            && [...req].every(leg => doneSets[leg] && doneSets[leg].has(k)))
+          .map(([k]) => k);
       }
-    } : null;
 
-    // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
-    // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
-    const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone });
-    if (initialReady.length) {
-      // 자동 승인 도는 틈에 관리자가 같은 레그 "접수 신청"을 누르면 이중 차감 가능 — 처리 끝날 때까지 그 레그 버튼만 잠금(2026-08-11)
-      const legsInvolved = new Set();
-      initialReady.forEach(k => (requiredLegsByKey.get(k) || []).forEach(leg => legsInvolved.add(leg)));
-      legsInvolved.forEach(leg => {
-        const btn = overlay.querySelector(LEG_BTN_SEL[leg]);
-        if (btn && !btn.disabled) { btn.disabled = true; btn.textContent = '⏳ 처리 중...'; btn.dataset.autoLocking = '1'; }
-      });
-      approveReadySlots(initialReady, slotMapAll).then(pending => {
-        if (pending.length) { overlay._deductFailures.push(...pending); overlay._renderDeductFailures(); }
-        renderReceipts(false);
-        lockDoneButtons();
-        // 위에서 잠근 버튼이 lockDoneButtons로도 "완료" 처리 안 됐다면(같은 탭에 아직 안 끝난
-        // 다른 슬롯이 남은 경우) 원래대로 눌러야 하는 상태로 복구한다.
+      // 다 완료된 슬롯은 승인(상태 전환)만 창 열자마자 자동 처리 — 차감(실제 돈)은 자동 시도 안 하고 배너 "재시도"로만 실행.
+      // 탭 버튼은 렌더 시점 스냅샷이라 비동기 완료를 자동 반영 못 하므로 승인 끝나는 즉시 여기서 잠금.
+      const legHas = { normalKeys: data.hasNormal, fixedKeys: data.hasFixed, charlieKeys: data.hasCharlie, deltaKeys: data.hasDelta, navyKeys: data.hasNavy };
+      function lockDoneButtons() {
+        Object.entries(LEG_BTN_SEL).forEach(([leg, sel]) => {
+          if (!legHas[leg]) return;
+          const btn = overlay.querySelector(sel);
+          if (btn && !btn.disabled && target.every(s => s.status === 'active')) markApplyBtnDone(btn);
+        });
+      }
+
+      const activeLegs = [];
+      if (data.hasNormal)  activeLegs.push('normalKeys');
+      if (data.hasFixed)   activeLegs.push('fixedKeys');
+      if (data.hasCharlie) activeLegs.push('charlieKeys');
+      if (data.hasDelta)   activeLegs.push('deltaKeys');
+      if (data.hasNavy)    activeLegs.push('navyKeys');
+      const gate = (activeLegs.length > 1) ? {
+        normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
+        fixedKeys:   fixedAlreadyDone.size   ? fixedAlreadyDone   : null,
+        charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
+        deltaKeys:   deltaAlreadyDone.size   ? deltaAlreadyDone   : null,
+        navyKeys:    navyAlreadyDone.size    ? navyAlreadyDone    : null,
+        slotMap: slotMapAll,
+        async tryApprove() {
+          const keys = readyKeysOf(this);
+          // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
+          if (keys.length) {
+            const failed = await approveSlotsWithBizfit(keys, this.slotMap);
+            if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
+          }
+          renderReceipts(false);
+          lockDoneButtons();
+        }
+      } : null;
+
+      // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
+      // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
+      const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone });
+      if (initialReady.length) {
+        // 자동 승인 도는 틈에 관리자가 같은 레그 "접수 신청"을 누르면 이중 차감 가능 — 처리 끝날 때까지 그 레그 버튼만 잠금(2026-08-11)
+        const legsInvolved = new Set();
+        initialReady.forEach(k => (requiredLegsByKey.get(k) || []).forEach(leg => legsInvolved.add(leg)));
         legsInvolved.forEach(leg => {
           const btn = overlay.querySelector(LEG_BTN_SEL[leg]);
-          if (btn && btn.dataset.autoLocking) {
-            delete btn.dataset.autoLocking;
-            if (btn.disabled && btn.textContent === '⏳ 처리 중...') { btn.disabled = false; btn.textContent = '접수 신청'; }
-          }
+          if (btn && !btn.disabled) { btn.disabled = true; btn.textContent = '⏳ 처리 중...'; btn.dataset.autoLocking = '1'; }
         });
-      });
-    }
-
-    // 일반 탭 구성
-    wireSubmitTab({
-      has: hasNormal, plan: normalPlan, target,
-      bodyEl: overlay.querySelector('#submit-body'),
-      subEl:  overlay.querySelector('#submit-sub'),
-      applyBtn: overlay.querySelector('#submit-apply-btn'),
-      label: '일반 상품',
-      onSubmit: () => executeSubmit(normalPlan, overlay, gate, 'normalKeys'),
-    });
-
-    // 고정 탭 구성
-    const youpflBodyEl = overlay.querySelector('#youpfl-body');
-    if (hasFixed) {
-      const yupflAgencies = [...new Set(yupflRows.map(r => r.agencyId))];
-      yupflAgencies.forEach(ag => {
-        const agRows = yupflRows.filter(r => r.agencyId === ag);
-        const block = buildYoupflTableBlock(agRows, ag);
-        if (block) youpflBodyEl.appendChild(block);
-      });
-      const totalTarget = yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
-      overlay.querySelector('#youpfl-sub').innerHTML =
-        `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
-      const youpflApplyBtn = overlay.querySelector('#youpfl-apply-btn');
-      // 이 탭 행이 전부 이미 완료(_fixedSubmitted)면 슬롯이 active 아니어도 완료로 표시.
-      if (target.every(s => s.status === 'active') || (yupflRows.length && yupflRows.every(r => r._fixedSubmitted))) {
-        markApplyBtnDone(youpflApplyBtn);
-      } else if (validateYoupflRowsForSubmit(yupflRows)) {
-        youpflApplyBtn.disabled = true;
-        youpflApplyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
-        youpflApplyBtn.style.background = '#9ca3af'; youpflApplyBtn.style.cursor = 'not-allowed';
-      } else {
-        youpflApplyBtn.onclick = () => executeYoupflSubmit(yupflRows, overlay, gate);
+        approveReadySlots(initialReady, slotMapAll).then(pending => {
+          if (pending.length) { overlay._deductFailures.push(...pending); overlay._renderDeductFailures(); }
+          renderReceipts(false);
+          lockDoneButtons();
+          // 위에서 잠근 버튼이 lockDoneButtons로도 "완료" 처리 안 됐다면(같은 탭에 아직 안 끝난
+          // 다른 슬롯이 남은 경우) 원래대로 눌러야 하는 상태로 복구한다.
+          legsInvolved.forEach(leg => {
+            const btn = overlay.querySelector(LEG_BTN_SEL[leg]);
+            if (btn && btn.dataset.autoLocking) {
+              delete btn.dataset.autoLocking;
+              if (btn.disabled && btn.textContent === '⏳ 처리 중...') { btn.disabled = false; btn.textContent = '접수 신청'; }
+            }
+          });
+        });
       }
-    } else {
-      overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
-      overlay.querySelector('#youpfl-apply-btn').disabled = true;
+
+      // 일반 탭 구성
+      wireSubmitTab({
+        has: data.hasNormal, plan: data.normalPlan, target,
+        bodyEl: submitBodyEl,
+        subEl:  overlay.querySelector('#submit-sub'),
+        applyBtn: submitApplyBtn,
+        label: '일반 상품',
+        onSubmit: () => executeSubmit(data.normalPlan, overlay, gate, 'normalKeys'),
+      });
+
+      // 고정 탭 구성
+      if (data.hasFixed) {
+        const yupflAgencies = [...new Set(data.yupflRows.map(r => r.agencyId))];
+        yupflAgencies.forEach(ag => {
+          const agRows = data.yupflRows.filter(r => r.agencyId === ag);
+          const block = buildYoupflTableBlock(agRows, ag);
+          if (block) youpflBodyEl.appendChild(block);
+        });
+        const totalTarget = data.yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
+        overlay.querySelector('#youpfl-sub').innerHTML =
+          `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${data.yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+        // 이 탭 행이 전부 이미 완료(_fixedSubmitted)면 슬롯이 active 아니어도 완료로 표시.
+        if (target.every(s => s.status === 'active') || (data.yupflRows.length && data.yupflRows.every(r => r._fixedSubmitted))) {
+          markApplyBtnDone(youpflApplyBtn);
+        } else if (validateYoupflRowsForSubmit(data.yupflRows)) {
+          youpflApplyBtn.disabled = true;
+          youpflApplyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
+          youpflApplyBtn.style.background = '#9ca3af'; youpflApplyBtn.style.cursor = 'not-allowed';
+        } else {
+          youpflApplyBtn.onclick = () => executeYoupflSubmit(data.yupflRows, overlay, gate);
+        }
+      } else {
+        overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
+        youpflApplyBtn.disabled = true;
+      }
+
+      // 찰리 탭 구성 — NP 위치저장(adrole=100) 전용, 일반 탭과 동일한 표/제출 로직을 재사용하되
+      // grade-info/register 호출에 adrole을 강제 지정해 NP트래픽 등급과 절대 섞이지 않게 한다.
+      wireSubmitTab({
+        has: data.hasCharlie, plan: data.charliePlan, target,
+        bodyEl: csubBodyEl,
+        subEl:  overlay.querySelector('#csub-sub'),
+        applyBtn: csubApplyBtn,
+        label: '찰리', daysMultiplied: true,
+        emptyMsg: '찰리 배분 대상 슬롯이 없습니다.',
+        onSubmit: () => executeSubmit(data.charliePlan, overlay, gate, 'charlieKeys', CHARLIE_ADROLE),
+      });
+
+      // 블로그 탭 구성 — 델타(NP 위치저장)+네이비(NP트래픽)를 한 탭에 같이 표시, 접수는 executeBlogSubmit이 각자 등급으로 나눠 처리.
+      wireBlogSubmitTab({
+        hasDelta: data.hasDelta, hasNavy: data.hasNavy, deltaPlan: data.deltaPlan, navyPlan: data.navyPlan, target,
+        bodyEl: bsubBodyEl,
+        subEl:  overlay.querySelector('#bsub-sub'),
+        applyBtn: bsubApplyBtn,
+        onSubmit: () => executeBlogSubmit(data.deltaPlan, data.navyPlan, overlay, gate),
+      });
     }
 
-    // 찰리 탭 구성 — NP 위치저장(adrole=100) 전용, 일반 탭과 동일한 표/제출 로직을 재사용하되
-    // grade-info/register 호출에 adrole을 강제 지정해 NP트래픽 등급과 절대 섞이지 않게 한다.
-    wireSubmitTab({
-      has: hasCharlie, plan: charliePlan, target,
-      bodyEl: overlay.querySelector('#csub-body'),
-      subEl:  overlay.querySelector('#csub-sub'),
-      applyBtn: overlay.querySelector('#csub-apply-btn'),
-      label: '찰리', daysMultiplied: true,
-      emptyMsg: '찰리 배분 대상 슬롯이 없습니다.',
-      onSubmit: () => executeSubmit(charliePlan, overlay, gate, 'charlieKeys', CHARLIE_ADROLE),
-    });
+    // 등급 자동매칭 토글 — 모달을 새로 열지 않고 데이터만 재계산해 탭 본문만 다시 채움
+    const gmBtn  = overlay.querySelector('#grade-match-toggle');
+    const gmIcon = overlay.querySelector('#grade-match-toggle-icon');
+    if (gmBtn) gmBtn.onclick = () => {
+      gradeMatchOn = !gradeMatchOn;
+      if (gmIcon) gmIcon.style.background = gradeMatchOn ? '#16a34a' : '#94a3b8';
+      const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+      data = computeSubmitData(target);
+      applyTabState(keepTab);
+      fillBody();
+    };
 
-    // 블로그 탭 구성 — 델타(NP 위치저장)+네이비(NP트래픽)를 한 탭에 같이 표시, 접수는 executeBlogSubmit이 각자 등급으로 나눠 처리.
-    wireBlogSubmitTab({
-      hasDelta, hasNavy, deltaPlan, navyPlan, target,
-      bodyEl: overlay.querySelector('#bsub-body'),
-      subEl:  overlay.querySelector('#bsub-sub'),
-      applyBtn: overlay.querySelector('#bsub-apply-btn'),
-      onSubmit: () => executeBlogSubmit(deltaPlan, navyPlan, overlay, gate),
-    });
+    applyTabState(data.defaultTab);
+    fillBody();
 
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#youpfl-close-btn').onclick = () => overlay.remove();
