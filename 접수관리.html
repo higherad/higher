@@ -2179,6 +2179,8 @@ window.toggleProdPanel = function(e) {
   // 무시하고 그 등급(들)로만 접수한다 — 매칭된 등급이 여럿이면 그 등급끼리 균등분배, 상품 목록에 없는 등급명은
   // 일반상품 기본값(ver.5.0/3.2, adrole 미지정)으로 가상 등록. 차감/유입플/분할은 등급 개념이 아니므로 무관 —
   // allocate() 내부에서 항상 기존 fixedAlloc 로직 그대로 처리됨. kimpro/reception.html과 동일 구현.
+  // 접수 확인 팝업의 토글 버튼(기본 on)으로 끄면 이 매칭 전체를 건너뛰고 상품 유형 설정값 그대로 배분.
+  let gradeMatchOn = true;
   function gradeLabelsOf(mid) {
     const data = GRADE_CACHE.get(mid);
     if (!data) return [];
@@ -2208,7 +2210,7 @@ window.toggleProdPanel = function(e) {
   // 재접수(isRequeue) 슬롯은 신규 접수가 아니라 기존 배분을 이어받는 성격이라 이 매칭 대상에서 제외한다.
   function allocRowsForSlot(r) {
     const AP = ap();
-    const gradeProds = r.isRequeue ? [] : matchedGradeProds(r.mid);
+    const gradeProds = (gradeMatchOn && !r.isRequeue) ? matchedGradeProds(r.mid) : [];
     if (!gradeProds.length) {
       return { alloc: allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords), prods: AP, gradeProds: null };
     }
@@ -2971,7 +2973,7 @@ window.toggleProdPanel = function(e) {
 
       // MID가 이미 진행중인 미션 번호(들)를 알고 있으면 그 상태를 그대로 따른다 — 미션이 1개면 유입플(단일),
       // 2개 이상이면 분할 로직으로 강제(작업키워드 개수 규칙/화면 입력 분할 키워드는 건너뜀). 모르면 기존 방식 그대로.
-      const known = s.isRequeue ? null : knownYupflMissionKeywords(s.mid);
+      const known = (gradeMatchOn && !s.isRequeue) ? knownYupflMissionKeywords(s.mid) : null;
       const knownMissions = known ? Object.keys(known).map(Number) : [];
 
       if (knownMissions.length >= 2 && split) {
@@ -3181,7 +3183,13 @@ window.toggleProdPanel = function(e) {
   // 델타/네이비는 "블로그" 탭 하나(#bsub-apply-btn)를 공유 — 등급 체계가 달라도 UI 버튼은 하나.
   const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', fixedKeys: '#youpfl-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn' };
 
+  // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 토글을 항상 on으로 초기화 — 토글 버튼 자체의 재오픈은
+  // 방금 뒤집은 값을 유지해야 하므로 renderSubmitModal()을 직접 호출한다(아래 gmBtn.onclick 참고).
   async function openSubmitModal(target) {
+    gradeMatchOn = true;
+    return renderSubmitModal(target);
+  }
+  async function renderSubmitModal(target) {
     // 등급 자동매칭이 buildNormalRows/buildDeltaRows에서 동기적으로 GRADE_CACHE를 읽으므로 먼저 채워둔다.
     await fetchGradesBatch([...new Set(target.map(s => s.mid).filter(Boolean))]);
     const agencies   = getAgencies(target);
@@ -3220,7 +3228,16 @@ window.toggleProdPanel = function(e) {
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;overflow-x:hidden;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
-          <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
+            <button id="grade-match-toggle" type="button" title="MID가 이미 진행중인 등급/미션이 있으면 그 상태로 접수 — 끄면 상품 유형 설정값 그대로 배분"
+              style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
+              <span style="font-size:12px;color:var(--text2);font-weight:600;">기존 등급 자동매칭</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${gradeMatchOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </span>
+            </button>
+          </div>
           <button id="reset-submission-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
@@ -3275,6 +3292,10 @@ window.toggleProdPanel = function(e) {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+
+    // 등급 자동매칭 토글 — 값만 뒤집고 모달을 통째로 다시 열어 재사용(부분 재렌더 대신 기존 빌드 파이프라인 그대로 재활용)
+    const gmBtn = overlay.querySelector('#grade-match-toggle');
+    if (gmBtn) gmBtn.onclick = () => { gradeMatchOn = !gradeMatchOn; overlay.remove(); renderSubmitModal(target); };
 
     // 캐시차감 실패는 콘솔뿐 아니라 모달이 열려있는 동안 배너+재시도 버튼으로 표시 — 대상은 "이 모달에서 시도한 것"만
     // (목록 전체를 훑으면 레거시 active 슬롯도 bizfitDeducted 없어 오탐). executeSubmit 등 최상위 함수도 갱신할 수 있게 overlay에 상태를 매달아둠
