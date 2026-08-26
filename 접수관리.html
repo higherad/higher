@@ -3918,7 +3918,9 @@ window.toggleProdPanel = function(e) {
     // 폴백 버전과 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
     // 네이비도 2026-08-25 동일 증상 확인되어 포함(등록 시 이 override가 없으면 상품 설정의 ver를 바꿔도 전혀 전송되지 않음).
     const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : legKey === 'navyKeys' ? 'navy' : null;
-    const productVer = verSourceId ? ap().find(p => p.id === verSourceId)?.ver : undefined;
+    // ap()(활성 상품만)이 아니라 prods 전체에서 찾는다 — 등급 자동매칭은 비활성 상품도 매칭해 접수시키므로
+    // ap()로 찾으면 찰리/델타/네이비가 비활성일 때 undefined가 되어 버전 override가 안 실려 "버전체크 실패"로 이어짐.
+    const productVer = verSourceId ? prods.find(p => p.id === verSourceId)?.ver : undefined;
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
     const approvedKeys = gate ? new Set() : null;
