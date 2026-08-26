@@ -2975,12 +2975,10 @@ window.toggleProdPanel = function(e) {
       const knownMissions = known ? Object.keys(known).map(Number) : [];
 
       if (knownMissions.length >= 2 && split) {
+        // 미션별 % 규칙 설정과 무관하게 미션당 10% 고정(미션이 몇 개든 각자 10%)
         knownMissions.forEach(mission => {
           const workKw = known[mission];
-          const rules  = Array.isArray(split.missionRules) ? split.missionRules : [];
-          const rule   = rules.find(r => r.mission === mission);
-          if (!rule) return; // 배분 % 규칙이 없으면 강제할 수 없어 스킵
-          const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
+          const yAmt = Math.min(yupflAlloc(remaining, 10), remaining);
           if (yAmt <= 0) return;
           rows.push({
             _slotKey: s._key, _rowKey: `${s._key}__${mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
