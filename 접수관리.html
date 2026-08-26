@@ -3129,7 +3129,7 @@ window.toggleProdPanel = function(e) {
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, daysMultiplied);
     });
-    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${plan.length}곳 · ${label} ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>${agencyIssueSummaryHtml(plan)}`;
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${plan.length}곳 · ${label} ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>${agencyIssueSummaryHtml(plan)}`;
     const allRows = plan.flatMap(p => p.rows);
     // 이 탭 행이 전부 이미 완료(_normalSubmitted)면 슬롯이 active 아니어도 완료 표시
     if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
@@ -3166,7 +3166,7 @@ window.toggleProdPanel = function(e) {
       totalTarget += daysMultipliedSum(p.rows, false);
     });
     const issueSummary = (hasDelta ? agencyIssueSummaryHtml(deltaPlan, '델타', true) : '') + (hasNavy ? agencyIssueSummaryHtml(navyPlan, '네이비', true) : '');
-    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${deltaPlan.length}곳 · 블로그 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>${issueSummary}`;
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${deltaPlan.length}곳 · 블로그 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>${issueSummary}`;
     const allRows = [...deltaPlan.flatMap(p => p.rows), ...navyPlan.flatMap(p => p.rows)];
     if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
       markApplyBtnDone(applyBtn);
@@ -3556,7 +3556,7 @@ window.toggleProdPanel = function(e) {
         });
         const totalTarget = data.yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
         overlay.querySelector('#youpfl-sub').innerHTML =
-          `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${data.yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} —</span> <span style="color:#dc2626;font-weight:600;">검토 후 접수 신청을 눌러주세요.</span>`;
+          `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${data.yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>`;
         // 이 탭 행이 전부 이미 완료(_fixedSubmitted)면 슬롯이 active 아니어도 완료로 표시.
         if (target.every(s => s.status === 'active') || (data.yupflRows.length && data.yupflRows.every(r => r._fixedSubmitted))) {
           markApplyBtnDone(youpflApplyBtn);
