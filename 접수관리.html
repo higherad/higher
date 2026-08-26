@@ -2976,8 +2976,10 @@ window.toggleProdPanel = function(e) {
 
       if (knownMissions.length >= 2 && split) {
         // 미션별 % 규칙 설정과 무관하게 미션당 10% 고정(미션이 몇 개든 각자 10%)
+        // 미션 번호(라우팅)만 ha/grades 기준으로 강제하고, 키워드는 일반 탭과 동일하게 화면에 지금 입력된 값을 그대로 씀
+        // (분할 입력칸이 없는 미션이면 화면에 값이 없으므로 그때만 ha/grades 값으로 보완)
         knownMissions.forEach(mission => {
-          const workKw = known[mission];
+          const workKw = ((s.splitKeywords || {})[mission] || '').trim() || known[mission];
           const yAmt = Math.min(yupflAlloc(remaining, 10), remaining);
           if (yAmt <= 0) return;
           rows.push({
@@ -2990,8 +2992,9 @@ window.toggleProdPanel = function(e) {
           });
         });
       } else if (knownMissions.length === 1 && yupfl) {
+        // 미션 번호만 ha/grades 기준으로 강제하고, 키워드는 일반 탭과 동일하게 화면 유입플 키워드 칸에 지금 입력된 값을 그대로 씀
         const mission = knownMissions[0];
-        const workKw  = known[mission];
+        const workKw  = (s.yupflKeyword||'').trim();
         const rules   = Array.isArray(yupfl.missionRules) ? yupfl.missionRules : [];
         const rule    = rules.find(r => r.mission === mission) || { mission, fixedPct: yupfl.fixedPct };
         const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
