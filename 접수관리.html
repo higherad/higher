@@ -2142,6 +2142,63 @@ window.toggleProdPanel = function(e) {
     return '';
   }
 
+  // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
+  // ha/grades는 매시간 admin.bizfit.kr 진행중(status=3) 캠페인 기준으로 동기화되는 데이터(GRADE_CACHE에 캐싱됨,
+  // fetchGrade/fetchGradesBatch 참고). 같은 MID가 이미 어떤 등급으로 진행중이면 상품 유형 설정의 ratio 배분을
+  // 무시하고 그 등급(들)로만 접수한다 — 매칭된 등급이 여럿이면 그 등급끼리 균등분배, 상품 목록에 없는 등급명은
+  // 일반상품 기본값(ver.5.0/3.2, adrole 미지정)으로 가상 등록. 차감/유입플/분할은 등급 개념이 아니므로 무관 —
+  // allocate() 내부에서 항상 기존 fixedAlloc 로직 그대로 처리됨. kimpro/reception.html과 동일 구현.
+  function gradeLabelsOf(mid) {
+    const data = GRADE_CACHE.get(mid);
+    if (!data) return [];
+    return [...new Map(parseGradeEntries(data).map(g => [g.gradeLabel, g])).values()]
+      .flatMap(g => (g.gradeLabel || '').split(',').map(l => l.trim()).filter(l => l));
+  }
+
+  function matchedGradeProds(mid) {
+    if (!mid) return [];
+    const labels = gradeLabelsOf(mid);
+    if (!labels.length) return [];
+    const seen = new Set();
+    const result = [];
+    labels.forEach(label => {
+      if (seen.has(label)) return;
+      seen.add(label);
+      const known = prods.find(p => p.name === label && !p.fixedAlloc);
+      result.push(known
+        ? { ...known, ratio: 1, kwPct: 1 }
+        : { id: `grade_${label}`, name: label, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: 1, kwPct: 1, daysMultiplied: false });
+    });
+    return result;
+  }
+
+  // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 매칭된 등급이 있으면 차감/유입플/분할(고정)은
+  // 그대로 두고 나머지만 매칭된 등급끼리 균등분배(ratio:1), 없으면 기존 ratio 배분 그대로.
+  // 재접수(isRequeue) 슬롯은 신규 접수가 아니라 기존 배분을 이어받는 성격이라 이 매칭 대상에서 제외한다.
+  function allocRowsForSlot(r) {
+    const AP = ap();
+    const gradeProds = r.isRequeue ? [] : matchedGradeProds(r.mid);
+    if (!gradeProds.length) {
+      return { alloc: allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords), prods: AP, gradeProds: null };
+    }
+    const asgn = [...AP.filter(p => p.fixedAlloc), ...gradeProds];
+    return { alloc: allocate(asgn, r.dailyTarget||0, r.yupflKeyword, r.splitKeywords), prods: asgn, gradeProds };
+  }
+
+  // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 균등분배(ratio=1)한다.
+  function kwForGradeProd(keywords, prod, gradeProds) {
+    if (!keywords) return '';
+    const parts = keywords.split(',').map(k => k.trim()).filter(k => k);
+    if (!parts.length) return '';
+    const counts = lrm(gradeProds.map(p => ({ id: p.id, ratio: 1 })), parts.length);
+    let offset = 0;
+    for (const p of gradeProds) {
+      if (p.id === prod.id) return parts.slice(offset, offset + (counts[p.id] || 0)).join(',');
+      offset += counts[p.id] || 0;
+    }
+    return '';
+  }
+
   // ── XLSX 헬퍼 ─────────────────────────────────────────────────
 
   function sc(ws, r, c, v, s) {
@@ -2771,13 +2828,11 @@ window.toggleProdPanel = function(e) {
   // buildJumuSheet_('일반', ...)와 동일한 배분 로직 — 엑셀 셀 대신 등록 페이로드 행 생성.
   // 찰리는 등급/가격 체계가 달라 별도 메뉴(NP 위치저장)로 접수해야 해서 prodFilter로 charlie만 뽑아 별도 호출
   function buildNormalRows(slots, prodFilter = p => !FIXED_PROD_IDS.has(p.id)) {
-    const AP = ap();
-    const normalProds = AP.filter(prodFilter);
-    const deductProd = AP.find(p => p.deductOnly);
+    const deductProd = ap().find(p => p.deductOnly);
     const rows = [];
     let deductTarget = 0, deductAmount = 0;
     slots.forEach(r => {
-      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      const { alloc, prods: slotProds, gradeProds } = allocRowsForSlot(r);
       if (deductProd) {
         const dAmt = alloc[deductProd.id] || 0;
         if (dAmt > 0) {
@@ -2786,11 +2841,11 @@ window.toggleProdPanel = function(e) {
           deductAmount += dAmt * (r.days||0) * unitPrice;
         }
       }
-      normalProds.forEach(prod => {
+      slotProds.filter(prodFilter).forEach(prod => {
         const pp = alloc[prod.id] ?? 0;
         if (pp <= 0) return;
         const daysVal = prod.daysMultiplied ? pp*(r.days||0) : (r.days||0);
-        const kw = kwForProd(r.searchKeyword||'', prod);
+        const kw = gradeProds ? kwForGradeProd(r.searchKeyword||'', prod, gradeProds) : kwForProd(r.searchKeyword||'', prod);
         rows.push({
           _slotKey:   r._key,
           _doneKey:   prod.name,
@@ -2821,18 +2876,20 @@ window.toggleProdPanel = function(e) {
   // 델타/네이비 공용 — "분할" 설정값(N)만큼 일 목표를 쪼개 블로그 URL 1개씩 매칭한 N개 행을 만듦(1슬롯=N행, buildNormalRows와 별도 함수)
   // _doneKey에 분할 순번을 붙여 완료 여부를 행 단위로 추적. daysMultiplied는 상품별로 다름(델타=true, 네이비=false).
   function buildDeltaRows(slots, prodId = 'delta') {
-    const AP = ap();
-    const prod = AP.find(p => p.id === prodId);
-    if (!prod) return [];
-    const n = Math.max(1, parseInt(prod.blogSplit, 10) || 1);
+    const baseProd = prods.find(p => p.id === prodId);
+    if (!baseProd) return [];
+    const n = Math.max(1, parseInt(baseProd.blogSplit, 10) || 1);
     const rows = [];
     slots.forEach(r => {
-      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      const { alloc, gradeProds } = allocRowsForSlot(r);
+      // 등급 매칭이 있으면 그 슬롯은 매칭 결과에서만(비활성이어도) 델타/네이비를 찾고, 없으면 기존처럼 활성 상품만 대상으로 한다.
+      const prod = gradeProds ? gradeProds.find(p => p.name === baseProd.name) : ap().find(p => p.id === prodId);
+      if (!prod) return;
       const pp = alloc[prod.id] ?? 0;
       if (pp <= 0) return;
       const urls = (r.deltaBlogUrl||'').split(',').map(u=>u.trim()).filter(Boolean);
       // 델타는 검색키워드를 별도로 나누지 않고 순위키워드와 동일한 값을 그대로 쓴다(사용자 지정 규칙) — 네이비는 일반 검색키워드 그대로 사용.
-      const kw = prod.id === 'delta' ? (r.rankKeyword||'') : kwForProd(r.searchKeyword||'', prod);
+      const kw = prodId === 'delta' ? (r.rankKeyword||'') : (gradeProds ? kwForGradeProd(r.searchKeyword||'', prod, gradeProds) : kwForProd(r.searchKeyword||'', prod));
       splitEven(pp, n).forEach((partTarget, i) => {
         if (partTarget <= 0) return;
         const doneKey = `${prod.name}#${i+1}`;
@@ -3053,7 +3110,9 @@ window.toggleProdPanel = function(e) {
   // 델타/네이비는 "블로그" 탭 하나(#bsub-apply-btn)를 공유 — 등급 체계가 달라도 UI 버튼은 하나.
   const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', fixedKeys: '#youpfl-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn' };
 
-  function openSubmitModal(target) {
+  async function openSubmitModal(target) {
+    // 등급 자동매칭이 buildNormalRows/buildDeltaRows에서 동기적으로 GRADE_CACHE를 읽으므로 먼저 채워둔다.
+    await fetchGradesBatch([...new Set(target.map(s => s.mid).filter(Boolean))]);
     const agencies   = getAgencies(target);
     const normalPlan = agencies.map(ag => ({
       agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
