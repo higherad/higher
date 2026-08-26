@@ -1958,6 +1958,37 @@ window.toggleProdPanel = function(e) {
     return rule ? rule.fixedPct : yupfl?.fixedPct;
   }
 
+  // MID가 이미 진행중인 유입플 미션 번호(ha/grades.mission/missionKeywords, 등급 자동매칭과 같은 데이터 소스) —
+  // 알고 있으면 작업키워드 개수로 추정하는 yupflRuleFor보다 우선한다. 여러 미션이 동시에 잡혀있으면
+  // 모호하므로 강제하지 않고 기존 방식으로 폴백. 재접수(isRequeue) 슬롯은 신규 접수가 아니므로 제외.
+  // kimpro/reception.html과 동일 구현.
+  // MID의 ha/grades missionKeywords(미션별 작업키워드, grade_sync.py merge_youpfl_keywords_into 참고)를
+  // {미션번호: 키워드} 객체로 반환 — GRADE_CACHE 캐시 기반(동기). 없으면 null. kimpro/reception.html과 동일 구현.
+  function knownYupflMissionKeywords(mid) {
+    if (!mid) return null;
+    const data = GRADE_CACHE.get(mid);
+    if (!data) return null;
+    const result = {};
+    parseGradeEntries(data).forEach(g => {
+      if (g.missionKeywords && typeof g.missionKeywords === 'object') {
+        Object.entries(g.missionKeywords).forEach(([mission, kw]) => {
+          const n = parseInt(mission, 10);
+          const trimmedKw = (kw||'').trim();
+          if (!Number.isNaN(n) && trimmedKw) result[n] = trimmedKw;
+        });
+      } else if (g.mission) {
+        const kw = (g.yupflKw||'').trim();
+        if (kw) {
+          g.mission.split(',').map(m => m.trim()).filter(Boolean).forEach(m => {
+            const n = parseInt(m, 10);
+            if (!Number.isNaN(n)) result[n] = kw;
+          });
+        }
+      }
+    });
+    return Object.keys(result).length ? result : null;
+  }
+
   // 승인 시점 유입플/분할 배분 수량·금액을 스냅샷으로 남겨 정산관리에서 조회 — buildYoupflRows()와 동일 규칙을 슬롯 1건에 적용
   // 유입플·분할은 동시 진행 불가하므로 하나의 필드(yupflAmount)로 합산 저장
   function yupflFieldsFor(slot) {
@@ -2938,10 +2969,34 @@ window.toggleProdPanel = function(e) {
       const base = s.dailyTarget||0;
       const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
 
-      if (yupfl) {
-        const workKw = (s.yupflKeyword||'').trim();
-        const rule   = yupflRuleFor(yupfl, workKw);
-        const yAmt = Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
+      // MID가 이미 진행중인 미션 번호(들)를 알고 있으면 그 상태를 그대로 따른다 — 미션이 1개면 유입플(단일),
+      // 2개 이상이면 분할 로직으로 강제(작업키워드 개수 규칙/화면 입력 분할 키워드는 건너뜀). 모르면 기존 방식 그대로.
+      const known = s.isRequeue ? null : knownYupflMissionKeywords(s.mid);
+      const knownMissions = known ? Object.keys(known).map(Number) : [];
+
+      if (knownMissions.length >= 2 && split) {
+        knownMissions.forEach(mission => {
+          const workKw = known[mission];
+          const rules  = Array.isArray(split.missionRules) ? split.missionRules : [];
+          const rule   = rules.find(r => r.mission === mission);
+          if (!rule) return; // 배분 % 규칙이 없으면 강제할 수 없어 스킵
+          const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
+          if (yAmt <= 0) return;
+          rows.push({
+            _slotKey: s._key, _rowKey: `${s._key}__${mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
+            _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[mission]),
+            agencyId, userId: s.userId||'', unitPrice,
+            storeName: s.storeName||'', rankKw: s.rankKeyword||'',
+            workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
+            autoMission: mission,
+          });
+        });
+      } else if (knownMissions.length === 1 && yupfl) {
+        const mission = knownMissions[0];
+        const workKw  = known[mission];
+        const rules   = Array.isArray(yupfl.missionRules) ? yupfl.missionRules : [];
+        const rule    = rules.find(r => r.mission === mission) || { mission, fixedPct: yupfl.fixedPct };
+        const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
         if (yAmt > 0) {
           rows.push({
             _slotKey: s._key, _rowKey: s._key, _prodId: 'yupfl', _prodLabel: yupfl.name, _prodColor: yupfl.color,
@@ -2949,26 +3004,41 @@ window.toggleProdPanel = function(e) {
             agencyId, userId: s.userId||'', unitPrice,
             storeName: s.storeName||'', rankKw: s.rankKeyword||'',
             workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
-            autoMission: rule ? rule.mission : null,
+            autoMission: mission,
           });
         }
-      }
-
-      if (split && Array.isArray(split.missionRules)) {
-        split.missionRules.forEach(rule => {
-          const workKw = ((s.splitKeywords || {})[rule.mission] || '').trim();
-          if (!workKw) return;
-          const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
-          if (yAmt <= 0) return;
-          rows.push({
-            _slotKey: s._key, _rowKey: `${s._key}__${rule.mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
-            _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[rule.mission]),
-            agencyId, userId: s.userId||'', unitPrice,
-            storeName: s.storeName||'', rankKw: s.rankKeyword||'',
-            workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
-            autoMission: rule.mission,
+      } else {
+        if (yupfl) {
+          const workKw = (s.yupflKeyword||'').trim();
+          const rule   = yupflRuleFor(yupfl, workKw);
+          const yAmt = Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
+          if (yAmt > 0) {
+            rows.push({
+              _slotKey: s._key, _rowKey: s._key, _prodId: 'yupfl', _prodLabel: yupfl.name, _prodColor: yupfl.color,
+              _fixedSubmitted: !!s.fixedSubmitted,
+              agencyId, userId: s.userId||'', unitPrice,
+              storeName: s.storeName||'', rankKw: s.rankKeyword||'',
+              workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
+              autoMission: rule ? rule.mission : null,
+            });
+          }
+        }
+        if (split && Array.isArray(split.missionRules)) {
+          split.missionRules.forEach(rule => {
+            const workKw = ((s.splitKeywords || {})[rule.mission] || '').trim();
+            if (!workKw) return;
+            const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
+            if (yAmt <= 0) return;
+            rows.push({
+              _slotKey: s._key, _rowKey: `${s._key}__${rule.mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
+              _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[rule.mission]),
+              agencyId, userId: s.userId||'', unitPrice,
+              storeName: s.storeName||'', rankKw: s.rankKeyword||'',
+              workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
+              autoMission: rule.mission,
+            });
           });
-        });
+        }
       }
     });
     return rows;
