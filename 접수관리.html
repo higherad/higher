@@ -1854,7 +1854,7 @@ window.toggleProdPanel = function(e) {
     const btn = document.getElementById('pm-ver-refresh');
     const verEl = document.getElementById('pm-ver');
     const account = await fetchVersionCheckAccount();
-    if (!account) { alert('버전 조회용 계정(오렌지)이 등록돼 있지 않습니다.'); return; }
+    if (!account) { alert('버전 조회용 계정이 등록돼 있지 않습니다.'); return; }
     const adrole = p.id === 'charlie' ? CHARLIE_ADROLE : p.id === 'delta' ? DELTA_ADROLE : undefined;
     btn.disabled = true; const prevIcon = btn.textContent; btn.textContent = '⏳';
     try {
@@ -1864,7 +1864,7 @@ window.toggleProdPanel = function(e) {
       });
       if (!gi.success || !gi.gradeGroups) { alert('조회 실패: ' + (gi.message || '등급 정보를 가져오지 못했습니다.')); return; }
       const g = gi.gradeGroups.find(x => x.gradeName === p.name);
-      if (!g) { alert(`"${p.name}" 등급을 계정(${account.agency || account.id})에서 찾지 못했습니다.`); return; }
+      if (!g) { alert(`"${p.name}" 등급을 조회 계정에서 찾지 못했습니다.`); return; }
       if (!g.version) { alert('버전 조회 결과가 비어있습니다 — 잠시 후 다시 시도해주세요.'); return; }
       verEl.value = g.version;
     } catch(e) {
