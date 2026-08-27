@@ -306,7 +306,10 @@
         </div>
         <div class="pmf" id="pm-ver-wrap" style="flex:1.5;">
           <label>엑셀 버전</label>
-          <input type="text" id="pm-ver" placeholder="ver.5.0/3.2" readonly style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;outline:none;width:100%;background:var(--bg2,#f1f5f9);color:var(--text2);cursor:default;" />
+          <div style="display:flex;gap:4px;">
+            <input type="text" id="pm-ver" placeholder="ver.5.0/3.2" readonly style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;outline:none;width:100%;background:var(--bg2,#f1f5f9);color:var(--text2);cursor:default;" />
+            <button type="button" id="pm-ver-refresh" onclick="refreshProdVersion()" title="비즈핏 사이트에서 실제 등급 버전 새로 조회" style="flex:0 0 auto;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">🔄</button>
+          </div>
         </div>
         <div class="pmf" id="pm-blogsplit-wrap" style="flex:0 0 66px;display:none;">
           <label>분할</label>
@@ -1845,6 +1848,31 @@ window.toggleProdPanel = function(e) {
     document.getElementById('prod-modal-bg').classList.remove('show');
     _prodModalId = null;
   };
+  // 엑셀 버전 새로고침 — 비즈핏 사이트에 등급명으로 직접 조회해 pm-ver를 최신값으로 채운다.
+  window.refreshProdVersion = async function() {
+    const p = prods.find(x => x.id === _prodModalId); if (!p) return;
+    const btn = document.getElementById('pm-ver-refresh');
+    const verEl = document.getElementById('pm-ver');
+    const account = await fetchAnyBizfitAccount();
+    if (!account) { alert('등록된 비즈핏 계정이 없습니다 — 계정 설정에서 먼저 등록해주세요.'); return; }
+    const adrole = p.id === 'charlie' ? CHARLIE_ADROLE : p.id === 'delta' ? DELTA_ADROLE : undefined;
+    btn.disabled = true; const prevIcon = btn.textContent; btn.textContent = '⏳';
+    try {
+      const gi = await callBizfitProxy('/grade-info', {
+        domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB,
+        adrole: adrole || undefined, withVersion: true,
+      });
+      if (!gi.success || !gi.gradeGroups) { alert('조회 실패: ' + (gi.message || '등급 정보를 가져오지 못했습니다.')); return; }
+      const g = gi.gradeGroups.find(x => x.gradeName === p.name);
+      if (!g) { alert(`"${p.name}" 등급을 계정(${account.agency || account.id})에서 찾지 못했습니다.`); return; }
+      if (!g.version) { alert('버전 조회 결과가 비어있습니다 — 잠시 후 다시 시도해주세요.'); return; }
+      verEl.value = g.version;
+    } catch(e) {
+      alert('조회 중 오류: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = prevIcon;
+    }
+  };
   window.saveProdModal = function() {
     const p = prods.find(x => x.id === _prodModalId); if(!p) return;
     p.name = document.getElementById('pm-name').value.trim() || p.name;
@@ -2851,6 +2879,18 @@ window.toggleProdPanel = function(e) {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
       const snap = await get(ref(getDatabase(), `ha/bizfit_charge/${sanitizeFbKey(agencyId)}`));
       return snap.exists() ? snap.val() : null;
+    } catch { return null; }
+  }
+  // 등급이 가장 최신화된 계정(사용자 지정, 2026-08-27)을 우선 사용, 없으면 등록된 계정 아무거나 폴백 —
+  // refreshProdVersion 전용(버전은 계정이 아니라 등급 자체에 매겨지는 값이라 폴백해도 무관).
+  const PREFERRED_VERSION_ACCOUNT_ID = 'orangeplanet1@naver.com';
+  async function fetchAnyBizfitAccount() {
+    try {
+      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const snap = await get(ref(getDatabase(), 'ha/bizfit_charge'));
+      if (!snap.exists()) return null;
+      const list = Object.values(snap.val());
+      return list.find(a => a.id === PREFERRED_VERSION_ACCOUNT_ID) || list[0] || null;
     } catch { return null; }
   }
 
