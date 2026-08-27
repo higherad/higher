@@ -1409,6 +1409,9 @@ window.toggleProdPanel = function(e) {
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
   const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2', 'delta', 'navy']);
+  // 찰리/델타/네이비의 ver는 사용자 설정값이 아니라 버전체크 우회용 백엔드 고정값 — RTDB에 저장된 옛 값이
+  // 코드 기본값(버전 올릴 때)을 영원히 덮어쓰지 못하게 staticFlags처럼 매 로드마다 코드 값으로 재적용한다.
+  const VER_LOCKED_IDS = new Set(['charlie', 'delta', 'navy']);
   const ap = () => prods.filter(p => p.active);
 
   let prodGroups = [];
@@ -1427,7 +1430,7 @@ window.toggleProdPanel = function(e) {
   }
   async function loadProdSettings() {
     const path = getProdSettingsPath();
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,blogUrlProduct:p.blogUrlProduct}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {})}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     // 최초 로드와 실시간 구독 콜백이 공유하는 처리 로직 — 원본 데이터를 받아 prods/prodGroups를 갱신
@@ -1568,7 +1571,7 @@ window.toggleProdPanel = function(e) {
       p.active = s.active;
       if(s.ratio  !== undefined) p.ratio  = s.ratio;
       if(s.name)                 p.name   = s.name;
-      if(s.ver    !== undefined) p.ver    = s.ver;
+      if(s.ver    !== undefined && !VER_LOCKED_IDS.has(p.id)) p.ver = s.ver;
       if(s.kwPct  !== undefined) p.kwPct  = s.kwPct;
     });
     activeProdGroupId = id; renderPS();
