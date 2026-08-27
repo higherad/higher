@@ -1853,8 +1853,8 @@ window.toggleProdPanel = function(e) {
     const p = prods.find(x => x.id === _prodModalId); if (!p) return;
     const btn = document.getElementById('pm-ver-refresh');
     const verEl = document.getElementById('pm-ver');
-    const account = await fetchAnyBizfitAccount();
-    if (!account) { alert('등록된 비즈핏 계정이 없습니다 — 계정 설정에서 먼저 등록해주세요.'); return; }
+    const account = await fetchVersionCheckAccount();
+    if (!account) { alert('버전 조회용 계정(오렌지)이 등록돼 있지 않습니다.'); return; }
     const adrole = p.id === 'charlie' ? CHARLIE_ADROLE : p.id === 'delta' ? DELTA_ADROLE : undefined;
     btn.disabled = true; const prevIcon = btn.textContent; btn.textContent = '⏳';
     try {
@@ -2881,16 +2881,14 @@ window.toggleProdPanel = function(e) {
       return snap.exists() ? snap.val() : null;
     } catch { return null; }
   }
-  // 등급이 가장 최신화된 계정(사용자 지정, 2026-08-27)을 우선 사용, 없으면 등록된 계정 아무거나 폴백 —
-  // refreshProdVersion 전용(버전은 계정이 아니라 등급 자체에 매겨지는 값이라 폴백해도 무관).
-  const PREFERRED_VERSION_ACCOUNT_ID = 'orangeplanet1@naver.com';
-  async function fetchAnyBizfitAccount() {
+  // 엑셀 버전 조회 전용 계정(오렌지, orangeplanet1@naver.com로 고정 — 사용자 지정, 2026-08-27,
+  // 이 계정이 등급이 가장 최신화됨) — 실제 대행사 접수용 ha/bizfit_charge와는 별개 노드(ha/version_check_account)에
+  // 단일 계정만 저장해서, 오렌지가 실제 접수 대행사 목록에 없어도(2026-08-27 확인: 없음) 안전하게 조회 가능.
+  async function fetchVersionCheckAccount() {
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const snap = await get(ref(getDatabase(), 'ha/bizfit_charge'));
-      if (!snap.exists()) return null;
-      const list = Object.values(snap.val());
-      return list.find(a => a.id === PREFERRED_VERSION_ACCOUNT_ID) || list[0] || null;
+      const snap = await get(ref(getDatabase(), 'ha/version_check_account'));
+      return snap.exists() ? snap.val() : null;
     } catch { return null; }
   }
 
