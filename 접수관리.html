@@ -3659,7 +3659,10 @@ window.toggleProdPanel = function(e) {
       bsubBulkBtn.disabled = true; bsubBulkBtn.textContent = '조회 중...';
       let ok = 0, fail = 0;
       for (const key of slotKeys) {
-        const s = allSlots.find(x => x._key === key);
+        // target(모달이 연 시점의 스냅샷)에서 직접 찾아 그 객체를 그대로 고쳐야 computeSubmitData(target) 재계산에
+        // 반영됨 — allSlots는 실시간 리스너가 child_changed 때 같은 인덱스를 새 객체로 통째로 교체해버려서
+        // allSlots.find로 얻은 객체를 고쳐도 target 쪽엔 반영 안 되는 경우가 있었음.
+        const s = target.find(x => x._key === key);
         if (!s || !s.url) { fail++; continue; }
         const splitProd = prods.find(p => p.id === 'delta' && p.active) || prods.find(p => p.id === 'navy' && p.active) || prods.find(p => p.id === 'delta');
         const n = Math.max(1, parseInt(splitProd?.blogSplit, 10) || 1);
@@ -3670,6 +3673,8 @@ window.toggleProdPanel = function(e) {
           const joined = d.urls.join(',');
           await HA.updateSlot(key, { deltaBlogUrl: joined });
           s.deltaBlogUrl = joined;
+          const live = allSlots.find(x => x._key === key);
+          if (live) live.deltaBlogUrl = joined;
           ok++;
         } catch (e) { fail++; }
       }
