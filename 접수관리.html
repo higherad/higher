@@ -3339,6 +3339,7 @@ window.toggleProdPanel = function(e) {
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
             <div style="font-size:12px;" id="bsub-sub"></div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
+              <button type="button" id="bsub-bulk-blogurl-btn" title="블로그 URL 미입력 항목에 대해 플레이스 URL에서 자동으로 조회해 채웁니다" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;white-space:nowrap;">🔗 블로그URL 일괄조회</button>
               <button class="btn-cancel" id="bsub-close-btn">닫기</button>
               <button id="bsub-apply-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
             </div>
@@ -3645,6 +3646,39 @@ window.toggleProdPanel = function(e) {
       data = computeSubmitData(target);
       applyTabState(keepTab);
       fillBody();
+    };
+
+    // 블로그URL 일괄조회 — 블로그탭에 보이는 슬롯 중 블로그URL 미입력인 것만 골라 플레이스 URL에서
+    // 자동조회(applyDeltaBlogUrls와 동일한 프록시)해 채움. 이미 값이 있는 슬롯은 건드리지 않고,
+    // 조회 실패한 슬롯은 건너뛰고 마지막에 성공/실패 건수만 알림.
+    const bsubBulkBtn = overlay.querySelector('#bsub-bulk-blogurl-btn');
+    if (bsubBulkBtn) bsubBulkBtn.onclick = async () => {
+      const rows = [...data.deltaPlan.flatMap(p => p.rows), ...data.navyPlan.flatMap(p => p.rows)];
+      const slotKeys = [...new Set(rows.filter(r => r._requiresBlogUrl && !r.블로그URL).map(r => r._slotKey))];
+      if (!slotKeys.length) { alert('블로그 URL 미입력 항목이 없습니다.'); return; }
+      bsubBulkBtn.disabled = true; bsubBulkBtn.textContent = '조회 중...';
+      let ok = 0, fail = 0;
+      for (const key of slotKeys) {
+        const s = allSlots.find(x => x._key === key);
+        if (!s || !s.url) { fail++; continue; }
+        const splitProd = prods.find(p => p.id === 'delta' && p.active) || prods.find(p => p.id === 'navy' && p.active) || prods.find(p => p.id === 'delta');
+        const n = Math.max(1, parseInt(splitProd?.blogSplit, 10) || 1);
+        try {
+          const res = await fetch(`${BLOG_TAG_SEARCH_PROXY}/place-blog?url=${encodeURIComponent(s.url)}&count=${n}`);
+          const d = await res.json();
+          if (!d.success || !d.urls || !d.urls.length) { fail++; continue; }
+          const joined = d.urls.join(',');
+          await HA.updateSlot(key, { deltaBlogUrl: joined });
+          s.deltaBlogUrl = joined;
+          ok++;
+        } catch (e) { fail++; }
+      }
+      bsubBulkBtn.disabled = false; bsubBulkBtn.textContent = '🔗 블로그URL 일괄조회';
+      const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+      data = computeSubmitData(target);
+      applyTabState(keepTab);
+      fillBody();
+      alert(`블로그 URL 자동조회 완료 — 성공 ${ok}건 / 실패 ${fail}건`);
     };
 
     applyTabState(data.defaultTab);
