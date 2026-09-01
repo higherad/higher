@@ -2108,24 +2108,20 @@ window.toggleProdPanel = function(e) {
     renderReceipts(false);
   };
 
-  // 슬롯 승인 확정(status→active) 후 남은 차감 대상을 대행사별로 묶어 반환(실행은 안 함, 조회 전용) —
-  // 멀티레그 게이트 완료/단일완료/팝업 자동승인 전부 이 함수로 승인 처리 후 필요에 따라 차감 실행 또는 팝업 배너로 미룸
-  async function approveReadySlots(keys, slotMap) {
-    if (!keys.length) return [];
-    const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
-    await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
-    keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
-
+  // 슬롯 목록 + 슬롯별 차감 필드(deductFieldsFor/yupflFieldsFor 결과)를 bizfitUid별로 묶어 반환(실행은 안 함,
+  // 조회 전용) — 즉시 승인(approveReadySlots)과 예약 저장 시점 차감(initScheduledBatches) 공용.
+  // 이미 차감된 슬롯(bizfitDeducted)·매핑 없는 대행사·차감액 0인 건은 조용히 스킵.
+  async function groupFieldsByBizfitUid(slots, fieldsBySlotKey) {
     await userBizfitUidReady;
     const byUid = new Map();
-    for (const k of keys) {
-      const s = slotMap.get(k);
+    for (const s of slots) {
       if (!s || s.bizfitDeducted) continue;
-      const bizfitUid = userBizfitUidMap.get(s.userId);
-      if (!bizfitUid) continue;
-      const fields = fieldsByKey.get(k);
+      const fields = fieldsBySlotKey.get(s._key);
+      if (!fields) continue;
       const amount = (fields.deductAmount || 0) + (fields.yupflAmount || 0);
       if (amount <= 0) continue;
+      const bizfitUid = userBizfitUidMap.get(s.userId);
+      if (!bizfitUid) continue;
       if (!byUid.has(bizfitUid)) byUid.set(bizfitUid, { bizfitUid, slots: [], ded: 0, yup: 0 });
       const g = byUid.get(bizfitUid);
       g.slots.push(s);
@@ -2133,6 +2129,16 @@ window.toggleProdPanel = function(e) {
       g.yup += fields.yupflAmount || 0;
     }
     return [...byUid.values()];
+  }
+
+  // 슬롯 승인 확정(status→active) 후 남은 차감 대상을 대행사별로 묶어 반환(실행은 안 함, 조회 전용) —
+  // 멀티레그 게이트 완료/단일완료/팝업 자동승인 전부 이 함수로 승인 처리 후 필요에 따라 차감 실행 또는 팝업 배너로 미룸
+  async function approveReadySlots(keys, slotMap) {
+    if (!keys.length) return [];
+    const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
+    await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
+    keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+    return groupFieldsByBizfitUid(keys.map(k => slotMap.get(k)), fieldsByKey);
   }
 
   // 승인+차감 연속 실행 — 멀티레그 게이트/단일완료 3곳에서 공용. 승인·그룹핑은 approveReadySlots에 위임,
@@ -2276,10 +2282,11 @@ window.toggleProdPanel = function(e) {
     await userBizfitUidReady;
     const slotKeys = [...slotKeyCounts.keys()];
     const fieldsByKey = new Map();
-    const byUid = new Map(); // bizfitUid -> {bizfitUid, slots:[], ded:0, yup:0}
+    const slotsByKey = new Map(); // 이후 그룹핑에서 같은 slotKey로 allSlots를 다시 스캔하지 않도록 1회만 조회해 공유
 
     await Promise.all(slotKeys.map(async slotKey => {
       const s = allSlots.find(x => x._key === slotKey);
+      slotsByKey.set(slotKey, s);
       const preStatus = s && s.status !== 'split' ? s.status : (s?.preScheduleStatus || 'pending');
       const fields = s ? { ...deductFieldsFor(s), ...yupflFieldsFor(s) } : {};
       fieldsByKey.set(slotKey, fields);
@@ -2288,27 +2295,11 @@ window.toggleProdPanel = function(e) {
       if (s) Object.assign(s, { status: 'split', preScheduleStatus: preStatus, ...fields });
     }));
 
-    slotKeys.forEach(slotKey => {
-      const s = allSlots.find(x => x._key === slotKey);
-      if (!s) return;
-      const fields = fieldsByKey.get(slotKey) || {};
-      const amount = (fields.deductAmount||0) + (fields.yupflAmount||0);
-      if (amount <= 0) return;
-      const bizfitUid = userBizfitUidMap.get(s.userId);
-      if (!bizfitUid) return;
-      if (!byUid.has(bizfitUid)) byUid.set(bizfitUid, { bizfitUid, slots: [], ded: 0, yup: 0 });
-      const g = byUid.get(bizfitUid);
-      g.slots.push(s);
-      g.ded += fields.deductAmount || 0;
-      g.yup += fields.yupflAmount || 0;
-    });
-
-    const failures = [];
-    for (const g of byUid.values()) {
-      const ok = await settleBizfitCashBatch(g.bizfitUid, g.slots, g.ded, g.yup);
-      if (!ok) failures.push(g);
-    }
-    return failures;
+    // bizfitUid별 그룹핑은 approveReadySlots와 동일 로직 재사용(groupFieldsByBizfitUid) — 대행사별 차감은 서로
+    // 독립이라 settleBizfitCashBatch가 순차일 이유 없음(approveSlotsWithBizfit과 동일하게 병렬)
+    const groups = await groupFieldsByBizfitUid(slotKeys.map(k => slotsByKey.get(k)), fieldsByKey);
+    const results = await Promise.all(groups.map(async g => ({ g, ok: await settleBizfitCashBatch(g.bizfitUid, g.slots, g.ded, g.yup) })));
+    return results.filter(r => !r.ok).map(r => r.g);
   }
 
   function gradeLabelsOf(mid) {
@@ -3686,7 +3677,7 @@ window.toggleProdPanel = function(e) {
         scheduleBtn.style.opacity = scheduleBlocked ? '0.4' : '1';
         scheduleBtn.style.cursor = scheduleBlocked ? 'not-allowed' : 'pointer';
         scheduleBtn.title = scheduleBlocked ? '일반/찰리/델타/네이비 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다' : '';
-        if (scheduleBlocked && scheduleConfig) { scheduleConfig = null; overlay.querySelector('#schedule-editor').style.display = 'none'; }
+        if (scheduleBlocked && scheduleConfig) window.clearScheduleConfig();
       }
 
       // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
@@ -4203,17 +4194,34 @@ window.toggleProdPanel = function(e) {
   const ALL_SUBMIT_PREFIXES = ['submit', 'csub', 'bsub'];
   const SUBMIT_TAB_PREFIX = { normalKeys: 'submit', charlieKeys: 'csub' };
 
+  // NP위치저장(adrole=100) 계열(찰리/델타)은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본
+  // 폴백 버전과 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
+  // 네이비도 2026-08-25 동일 증상 확인되어 포함(등록 시 이 override가 없으면 상품 설정의 ver를 바꿔도 전혀 전송되지 않음).
+  // ap()(활성 상품만)이 아니라 prods 전체에서 찾는다 — 등급 자동매칭은 비활성 상품도 매칭해 접수시키므로
+  // ap()로 찾으면 찰리/델타/네이비가 비활성일 때 undefined가 되어 버전 override가 안 실려 "버전체크 실패"로 이어짐.
+  // submitPlanRows(즉시)/submitPlanRowsScheduled(예약) 공용.
+  function productVerFor(legKey) {
+    const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : legKey === 'navyKeys' ? 'navy' : null;
+    return verSourceId ? prods.find(p => p.id === verSourceId)?.ver : undefined;
+  }
+
+  // 검색키워드 50개 초과 시 앞 50개만 남기고 자름(사이드이펙트로 r.검색키워드 갱신) + 유효성 판정 —
+  // submitPlanRows(즉시)/submitPlanRowsScheduled(예약) 공용. 통과하면 null, 실패하면 사유 반환(DOM 표시는 호출부 몫).
+  function truncateAndValidateRow(r) {
+    const kwList = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k);
+    if (kwList.length > 50) r.검색키워드 = kwList.slice(0, 50).join(',');
+    const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+    if (kwCount === 0) return { title: '검색키워드 미입력', label: '❌ 키워드 미입력' };
+    if ((r.일목표||0) < 10) return { title: `일목표 ${r.일목표||0}개 — 10 미만`, label: '❌ 일목표 미달' };
+    if (r._requiresBlogUrl && !r.블로그URL) return { title: '블로그 URL 미입력', label: '❌ URL 미입력' };
+    return null;
+  }
+
   // 한 plan(대행사별 rows)을 실제로 비즈핏에 등록 — UI(버튼/탭잠금)는 손대지 않고 결과 집계만 반환.
   // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유한다.
   // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
   async function submitPlanRows(plan, overlay, gate, legKey, adrole) {
-    // NP위치저장(adrole=100) 계열(찰리/델타)은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본
-    // 폴백 버전과 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
-    // 네이비도 2026-08-25 동일 증상 확인되어 포함(등록 시 이 override가 없으면 상품 설정의 ver를 바꿔도 전혀 전송되지 않음).
-    const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : legKey === 'navyKeys' ? 'navy' : null;
-    // ap()(활성 상품만)이 아니라 prods 전체에서 찾는다 — 등급 자동매칭은 비활성 상품도 매칭해 접수시키므로
-    // ap()로 찾으면 찰리/델타/네이비가 비활성일 때 undefined가 되어 버전 override가 안 실려 "버전체크 실패"로 이어짐.
-    const productVer = verSourceId ? prods.find(p => p.id === verSourceId)?.ver : undefined;
+    const productVer = productVerFor(legKey);
     let okTotal = 0, failTotal = 0;
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
     const approvedKeys = gate ? new Set() : null;
@@ -4258,22 +4266,10 @@ window.toggleProdPanel = function(e) {
 
       // 유효성 검사 — 키워드 50개 초과 시 앞 50개만 남기고 자동으로 잘라서 접수 / 일목표 10 미만
       pendingRows.forEach(r => {
-        const kwList = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k);
-        if (kwList.length > 50) {
-          r.검색키워드 = kwList.slice(0, 50).join(',');
-        }
-        const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-        if (kwCount === 0) {
+        const fail = truncateAndValidateRow(r);
+        if (fail) {
           r._kwFail = true;
-          if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="검색키워드 미입력">❌ 키워드 미입력</span>';
-          failTotal++;
-        } else if ((r.일목표||0) < 10) {
-          r._kwFail = true;
-          if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="일목표 ${r.일목표||0}개 — 10 미만">❌ 일목표 미달</span>`;
-          failTotal++;
-        } else if (r._requiresBlogUrl && !r.블로그URL) {
-          r._kwFail = true;
-          if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="블로그 URL 미입력">❌ URL 미입력</span>';
+          if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${fail.title}">${fail.label}</span>`;
           failTotal++;
         }
       });
@@ -4297,7 +4293,7 @@ window.toggleProdPanel = function(e) {
 
       let gi;
       try {
-        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, adrole: adrole || undefined, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, ...rest}) => rest) });
+        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, adrole: adrole || undefined, rawData: validRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, _days, _daysMultiplied, ...rest}) => rest) });
       } catch(e) { gi = { success:false, message: '서버 호출 실패: '+e.message }; }
 
       if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
@@ -4315,7 +4311,7 @@ window.toggleProdPanel = function(e) {
         const grpRows = validRows.filter(r => r.상품등급명 === g.gradeName);
         if (!grpRows.length) continue;
         matchedGrades.add(g.gradeName);
-        const payloadRows = grpRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, ...rest}) => rest);
+        const payloadRows = grpRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, _days, _daysMultiplied, ...rest}) => rest);
         let result;
         try {
           result = await callBizfitProxy('/register', {
@@ -4397,22 +4393,27 @@ window.toggleProdPanel = function(e) {
   // 예약(시간대 분할) 진행 전에 유입플부터 즉시 접수시켜버린다(캐시차감 포함, 사용자 지정, 2026-09-01) —
   // 그래야 예약 그룹이 나중에 다 끝났을 때 서버가 다른 leg 상태를 몰라도 바로 승인해도 안전.
   // executeYoupflSubmit을 그대로 재사용(미션번호 입력칸도 그 함수가 DOM에서 직접 읽음 — 유입플 탭이 화면에
-  // 안 보이는 상태여도 overlay 안에 렌더는 돼있어 문제없음). 반환: 유입플이 필요한데 이 시도로도 못 끝낸
-  // slotKey Set(예약에서 제외할 대상).
+  // 안 보이는 상태여도 overlay 안에 렌더는 돼있어 문제없음). 완료 여부는 항상 라이브 슬롯 상태로 판정
+  // (r._fixedSubmitted는 computeSubmitData 시점 스냅샷이라 갱신 안 됨 — 일반/찰리/블로그 탭에서 이 함수가
+  // 같은 yupflRows를 여러 번 호출할 수 있는데, 스냅샷 플래그로만 판단하면 이미 끝난 유입플을
+  // /youpfl-upload로 중복 제출해버림, 이 업로드는 멱등이 아니라 재시도 시 슬롯이 중복 생성될 수 있어 위험).
+  // 반환: 유입플이 필요한데 이 시도로도 못 끝낸 slotKey Set(예약에서 제외할 대상).
   async function ensureYupflImmediate(yupflRows, overlay, gate) {
     const rows = yupflRows || [];
     if (!rows.length) return new Set();
     const bySlot = new Map();
     rows.forEach(r => { if (!bySlot.has(r._slotKey)) bySlot.set(r._slotKey, []); bySlot.get(r._slotKey).push(r); });
-    const pending = rows.filter(r => !r._fixedSubmitted);
+    const isRowDone = r => {
+      const s = allSlots.find(x => x._key === r._slotKey);
+      return r._prodId === 'yupfl2'
+        ? !!(s?.splitFixedSubmitted && s.splitFixedSubmitted[r._rowKey.split('__')[1]])
+        : !!s?.fixedSubmitted;
+    };
+    const pending = rows.filter(r => !isRowDone(r));
     if (pending.length) await executeYoupflSubmit(pending, overlay, gate);
     const blocked = new Set();
     bySlot.forEach((rs, slotKey) => {
-      const s = allSlots.find(x => x._key === slotKey);
-      const done = rs.every(r => r._prodId === 'yupfl2'
-        ? !!(s?.splitFixedSubmitted && s.splitFixedSubmitted[r._rowKey.split('__')[1]])
-        : !!s?.fixedSubmitted);
-      if (!done) blocked.add(slotKey);
+      if (!rs.every(isRowDone)) blocked.add(slotKey);
     });
     return blocked;
   }
@@ -4424,8 +4425,7 @@ window.toggleProdPanel = function(e) {
   // 필요한데 ensureYupflImmediate()로도 못 끝낸 슬롯)는 예약 대상에서 제외해 failTotal로 집계 — 안 그러면
   // 유입플 없이 서버가 그룹 완료 시 바로 승인해버려 승인 게이트를 우회하게 됨.
   async function submitPlanRowsScheduled(plan, overlay, legKey, adrole, schedule, blockedSlots = new Set()) {
-    const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : legKey === 'navyKeys' ? 'navy' : null;
-    const productVer = verSourceId ? prods.find(p => p.id === verSourceId)?.ver : undefined;
+    const productVer = productVerFor(legKey);
     const batchGroupId = `sch_${genId()}`;
     let scheduledCount = 0, failTotal = 0;
     const dispatchEntries = [];
@@ -4437,14 +4437,7 @@ window.toggleProdPanel = function(e) {
       failTotal += p.rows.filter(r => !r._normalSubmitted && blockedSlots.has(r._slotKey)).length;
       if (!pendingRows.length) return;
 
-      pendingRows.forEach(r => {
-        const kwList = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k);
-        if (kwList.length > 50) r.검색키워드 = kwList.slice(0, 50).join(',');
-        const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-        if (kwCount === 0) r._kwFail = true;
-        else if ((r.일목표||0) < 10) r._kwFail = true;
-        else if (r._requiresBlogUrl && !r.블로그URL) r._kwFail = true;
-      });
+      pendingRows.forEach(r => { if (truncateAndValidateRow(r)) r._kwFail = true; });
       const validRows = pendingRows.filter(r => !r._kwFail);
       if (!validRows.length) { failTotal += pendingRows.length; return; }
 
@@ -4502,29 +4495,35 @@ window.toggleProdPanel = function(e) {
     return { youpflBtn, otherBtns };
   }
 
-  function finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, okTotal, failTotal) {
+  // 접수 신청/예약 저장 공용 마무리 — 버튼 문구/색/닫기 동작만 호출부가 정하고 나머지 잠금 해제는 여기서 공통 처리
+  function finishTabUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, { text, color, onClose }) {
     window.bizfitSubmitting = false;
-    applyBtn.textContent = failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`;
-    applyBtn.style.background = failTotal ? '#b91c1c' : '#475569';
+    applyBtn.textContent = text;
+    applyBtn.style.background = color;
     applyBtn.style.cursor = 'default';
     closeBtn.disabled = false;
-    closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
+    closeBtn.onclick = onClose;
     // 유입플/다른 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
     if (youpflBtn) youpflBtn.disabled = false;
     otherBtns.forEach(b => { b.disabled = false; });
   }
 
+  function finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, okTotal, failTotal) {
+    finishTabUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, {
+      text: failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`,
+      color: failTotal ? '#b91c1c' : '#475569',
+      onClose: () => { overlay.remove(); if (!gate) renderReceipts(false); },
+    });
+  }
+
   // submitPlanRowsScheduled(예약 저장) 결과 표시 — 캐시차감은 이미 실행됐고(실패 시 상단 배너), 승인(상태 전환)만
   // 서버가 예약 그룹 완료 시 처리하므로 여기선 "예약됨"까지만
   function finishScheduleUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, scheduledCount, failTotal) {
-    window.bizfitSubmitting = false;
-    applyBtn.textContent = failTotal ? `⏰ 예약 ${scheduledCount}건 (실패 ${failTotal})` : `⏰ 예약 완료 (${scheduledCount}건)`;
-    applyBtn.style.background = failTotal ? '#b91c1c' : '#f59e0b';
-    applyBtn.style.cursor = 'default';
-    closeBtn.disabled = false;
-    closeBtn.onclick = () => { overlay.remove(); renderReceipts(false); };
-    if (youpflBtn) youpflBtn.disabled = false;
-    otherBtns.forEach(b => { b.disabled = false; });
+    finishTabUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, {
+      text: failTotal ? `⏰ 예약 ${scheduledCount}건 (실패 ${failTotal})` : `⏰ 예약 완료 (${scheduledCount}건)`,
+      color: failTotal ? '#b91c1c' : '#f59e0b',
+      onClose: () => { overlay.remove(); renderReceipts(false); },
+    });
   }
 
   async function executeSubmit(plan, overlay, gate=null, legKey='normalKeys', adrole=null, yupflRows=[]) {
