@@ -247,6 +247,7 @@
     <option value="">전체 상태</option>
     <option value="pending">대기</option>
     <option value="accepted">접수</option>
+    <option value="split">분할</option>
     <option value="active">승인</option>
   </select>
   <select id="filter-slot-type" onchange="renderReceipts()">
@@ -400,6 +401,7 @@ window.toggleProdPanel = function(e) {
     accepted: '<span class="status-badge s-accepted">접수</span>',
     active:   '<span class="status-badge s-active">승인</span>',
     expired:  '<span class="status-badge s-expired">종료</span>',
+    split:    '<span class="status-badge s-pending" style="background:#fef3c7;color:#b45309;" title="시간대 분할 예약 진행 중 — 전부 끝나면 자동으로 원래 상태로 돌아갑니다">⏰ 분할</span>',
   };
 
   const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -2213,6 +2215,78 @@ window.toggleProdPanel = function(e) {
   // allocate() 내부에서 항상 기존 fixedAlloc 로직 그대로 처리됨. kimpro/reception.html과 동일 구현.
   // 접수 확인 팝업의 토글 버튼(기본 on)으로 끄면 이 매칭 전체를 건너뛰고 상품 유형 설정값 그대로 배분.
   let gradeMatchOn = true;
+
+  // ── 시간대 분할 예약 접수 (kimpro/reception.html과 동일 구현 + higher 전용 캐시차감 스냅샷) ──
+  // scheduleConfig가 설정된 동안엔 executeSubmit/executeBlogSubmit이 즉시 /register 대신
+  // ha/scheduled_dispatch에 완성된 페이로드를 저장만 해두고, 서버(bizfit-direct-proxy의
+  // /dispatch-scheduled, Cloud Scheduler로 주기 호출)가 지정 시각에 그대로 재생한다.
+  // higher는 승인 시 비즈핏 캐시차감이 같이 일어나야 하므로(kimpro엔 없는 기능) deductFieldsFor/
+  // yupflFieldsFor 결과와 bizfitUid도 함께 스냅샷해 서버가 그룹 완료 시 그대로 재생한다.
+  // 다중 leg(승인 게이트 걸리는) 슬롯은 서버가 게이트 로직을 모르므로 지원하지 않음 — gate가 있으면 토글을 막는다.
+  let scheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34, batches:1}, ...]
+
+  function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  async function fbSet(path, val) {
+    const { getDatabase, ref, set } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+    await set(ref(getDatabase(), path), val);
+  }
+
+  // "HH:MM" → 오늘 그 시각의 UTC ISO 문자열 (브라우저 로컬시간=KST 가정, 이 코드베이스 전반의 기존 관례와 동일)
+  function scheduleTimeToIso(timeStr) {
+    const [h, m] = (timeStr || '00:00').split(':').map(Number);
+    const d = new Date();
+    d.setHours(h || 0, m || 0, 0, 0);
+    return d.toISOString();
+  }
+
+  // 한 행의 일목표를 schedule 비율×세부분할로 쪼갠 뒤, 각 조각마다 일수(daysMultiplied면 재계산)까지 채운 행 복제본을 반환
+  function splitRowBySchedule(row, schedule) {
+    const portions = lrm(schedule.map((s, i) => ({ id: i, ratio: s.pct })), row.일목표 || 0);
+    const out = [];
+    schedule.forEach((s, i) => {
+      const portionTotal = portions[i] || 0;
+      if (portionTotal < 10) return; // 비즈핏 최소 수량(10) 미만이면 그 조각은 버림
+      splitEven(portionTotal, Math.max(1, s.batches || 1)).forEach((sub, j) => {
+        if (sub < 10) return;
+        out.push({
+          ...row,
+          일목표: sub,
+          일수: row._daysMultiplied ? sub * (row._days || 0) : row._days,
+          _sendAt: scheduleTimeToIso(s.time),
+        });
+      });
+    });
+    return out;
+  }
+
+  async function saveScheduledDispatch(entry) {
+    const key = genId();
+    await fbSet(`ha/scheduled_dispatch/${key}`, { ...entry, status: 'pending', createdAt: new Date().toISOString() });
+  }
+
+  // 슬롯별로 이번에 예약한 조각 개수 + 캐시차감 스냅샷(deductFieldsFor/yupflFieldsFor는 슬롯 원본 기준이라
+  // 시간대로 쪼개도 값이 안 변함 — 한 번만 계산)을 미리 기록해둬야 서버가 "다 끝났는지" 판정 + 차감 재생 가능.
+  // 슬롯 상태는 'split'(분할)로 바꿔 일반 접수 대상과 구분, 원래 상태는 preScheduleStatus에 보관.
+  async function initScheduledBatches(slotKeyCounts, batchGroupId) {
+    await userBizfitUidReady;
+    await Promise.all([...slotKeyCounts.entries()].map(async ([slotKey, total]) => {
+      const s = allSlots.find(x => x._key === slotKey);
+      const preStatus = s && s.status !== 'split' ? s.status : (s?.preScheduleStatus || 'pending');
+      const fields = s ? { ...deductFieldsFor(s), ...yupflFieldsFor(s) } : {};
+      const bizfitUid = s ? (userBizfitUidMap.get(s.userId) || null) : null;
+      const agencyId  = s ? (s.agencyId || '') : '';
+      await fbSet(`ha/scheduled_batches/${slotKey}`, {
+        total, done: 0, failed: 0, batchGroupId, createdAt: new Date().toISOString(),
+        deductTarget: fields.deductTarget || 0, deductAmount: fields.deductAmount || 0,
+        yupflTarget:  fields.yupflTarget  || 0, yupflAmount:  fields.yupflAmount  || 0,
+        bizfitUid, agencyId,
+      });
+      await HA.updateSlot(slotKey, { status: 'split', preScheduleStatus: preStatus });
+      if (s) { s.status = 'split'; s.preScheduleStatus = preStatus; }
+    }));
+  }
+
   function gradeLabelsOf(mid) {
     const data = GRADE_CACHE.get(mid);
     if (!data) return [];
@@ -2925,6 +2999,8 @@ window.toggleProdPanel = function(e) {
           _slotKey:   r._key,
           _doneKey:   prod.name,
           _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
+          _days:            r.days||0,
+          _daysMultiplied:  !!prod.daysMultiplied,
           상품등급명: prod.name,
           업체명:     r.storeName||'',
           업체URL:    r.url||'',
@@ -2973,6 +3049,8 @@ window.toggleProdPanel = function(e) {
           _doneKey:   doneKey,
           _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(doneKey)),
           _requiresBlogUrl: true,
+          _days:            r.days||0,
+          _daysMultiplied:  !!prod.daysMultiplied,
           상품등급명: prod.name,
           업체명:     r.storeName||'',
           업체URL:    r.url||'',
@@ -3229,6 +3307,8 @@ window.toggleProdPanel = function(e) {
   // 방금 뒤집은 값을 유지해야 하므로 renderSubmitModal()을 직접 호출한다(아래 gmBtn.onclick 참고).
   async function openSubmitModal(target) {
     gradeMatchOn = true;
+    scheduleConfig = null;
+    scheduleDraftRows = [{ time: '10:00', pct: 100, batches: 1 }];
     return renderSubmitModal(target);
   }
   // 각 탭의 plan/rows만 계산하는 순수 데이터 빌더 — renderSubmitModal의 최초 렌더/토글 재계산 양쪽에서 재사용.
@@ -3285,8 +3365,25 @@ window.toggleProdPanel = function(e) {
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
             </button>
+            <button id="schedule-toggle-btn" type="button" onclick="toggleScheduleEditor()"
+              style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
+              <span style="font-size:12px;color:var(--text2);font-weight:600;">⏰ 시간대 분할 예약</span>
+              <span id="schedule-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#94a3b8;flex-shrink:0;">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </span>
+            </button>
           </div>
           <button id="reset-submission-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
+        </div>
+        <div id="schedule-editor" style="display:none;margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);">
+          <div id="schedule-rows"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+            <button type="button" onclick="addScheduleRow()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">+ 시간 추가</button>
+            <span id="schedule-sum-note" style="font-size:12px;color:var(--muted);"></span>
+            <button type="button" onclick="applyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
+            <button type="button" onclick="clearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">끄기</button>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">비율 합계는 100%여야 하며, 조각당 최소 10개 미만은 자동 제외됩니다. 다중 상품(승인 게이트) 슬롯이 섞여 있으면 사용할 수 없습니다.</div>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
@@ -3552,6 +3649,16 @@ window.toggleProdPanel = function(e) {
         }
       } : null;
 
+      // 다중 leg(승인 게이트) 슬롯이 섞여 있으면 시간대 분할 예약은 지원하지 않음(서버가 게이트 판정을 모름) — 토글 잠금
+      const scheduleBtn = overlay.querySelector('#schedule-toggle-btn');
+      if (scheduleBtn) {
+        scheduleBtn.disabled = !!gate;
+        scheduleBtn.style.opacity = gate ? '0.4' : '1';
+        scheduleBtn.style.cursor = gate ? 'not-allowed' : 'pointer';
+        scheduleBtn.title = gate ? '다중 상품(승인 게이트) 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다' : '';
+        if (gate && scheduleConfig) { scheduleConfig = null; overlay.querySelector('#schedule-editor').style.display = 'none'; }
+      }
+
       // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
       // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
       const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone });
@@ -3703,6 +3810,64 @@ window.toggleProdPanel = function(e) {
       if (panel) panel.style.display = k === tab ? 'block' : 'none';
       if (btn)   btn.classList.toggle('active', k === tab);
     });
+  };
+
+  // ── 시간대 분할 예약 편집기 (접수 확인 모달 상단, kimpro/reception.html과 동일 구현) ────────────
+  let scheduleDraftRows = [{ time: '10:00', pct: 100, batches: 1 }];
+
+  function renderScheduleRows() {
+    const wrap = document.getElementById('schedule-rows');
+    if (!wrap) return;
+    wrap.innerHTML = scheduleDraftRows.map((r, i) => `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <input type="time" value="${r.time}" onchange="updateScheduleRow(${i},'time',this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+        <input type="number" min="1" max="100" value="${r.pct}" onchange="updateScheduleRow(${i},'pct',this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+        <span style="font-size:11px;color:var(--muted);">×</span>
+        <input type="number" min="1" value="${r.batches}" onchange="updateScheduleRow(${i},'batches',this.value)" style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">개로 분할
+        ${scheduleDraftRows.length > 1 ? `<button type="button" onclick="removeScheduleRow(${i})" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>` : ''}
+      </div>`).join('');
+    const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
+    const note = document.getElementById('schedule-sum-note');
+    if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum === 100 ? 'var(--accent)' : 'var(--danger)'; }
+  }
+
+  window.toggleScheduleEditor = function() {
+    const panel = document.getElementById('schedule-editor');
+    if (!panel) return;
+    const show = panel.style.display === 'none';
+    panel.style.display = show ? 'block' : 'none';
+    if (show) renderScheduleRows();
+  };
+
+  window.addScheduleRow = function() {
+    scheduleDraftRows.push({ time: '12:00', pct: 0, batches: 1 });
+    renderScheduleRows();
+  };
+
+  window.removeScheduleRow = function(i) {
+    scheduleDraftRows.splice(i, 1);
+    renderScheduleRows();
+  };
+
+  window.updateScheduleRow = function(i, field, value) {
+    scheduleDraftRows[i][field] = field === 'time' ? value : (Number(value) || 0);
+  };
+
+  window.applyScheduleConfig = function() {
+    const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
+    if (sum !== 100) { alert(`시간대 비율 합계는 100%여야 합니다. (현재 ${sum}%)`); return; }
+    scheduleConfig = scheduleDraftRows.map(r => ({ time: r.time, pct: Number(r.pct)||0, batches: Math.max(1, Number(r.batches)||1) }));
+    const icon = document.getElementById('schedule-toggle-icon');
+    if (icon) icon.style.background = '#f59e0b';
+    alert(`시간대 분할 예약이 설정되었습니다. 이제 각 탭의 "접수 신청" 버튼을 누르면 즉시 전송 대신 예약 저장됩니다.`);
+  };
+
+  window.clearScheduleConfig = function() {
+    scheduleConfig = null;
+    const icon = document.getElementById('schedule-toggle-icon');
+    if (icon) icon.style.background = '#94a3b8';
+    const panel = document.getElementById('schedule-editor');
+    if (panel) panel.style.display = 'none';
   };
 
   // 대행사 1곳 미리보기 블록 — 충전 신청 팝업(정산관리)과 동일한 agency-block/ag-table 스타일. 행 = (업체명, 등급) 쌍.
@@ -4189,6 +4354,71 @@ window.toggleProdPanel = function(e) {
     return { okTotal, failTotal };
   }
 
+  // submitPlanRows(즉시 접수)와 같은 검증·등급매칭을 거치되, /register 호출 대신 완성된 페이로드를
+  // ha/scheduled_dispatch에 저장한다. gate/finalizeSlotApprovals/캐시차감은 여기서 안 씀 — 승인+차감은
+  // 서버가 scheduled_batches 카운터·스냅샷으로 그룹 전체 완료를 확인한 뒤 처리(다중 leg 슬롯은 토글이 막혀 있어 대상 아님).
+  async function submitPlanRowsScheduled(plan, legKey, adrole, schedule) {
+    const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : legKey === 'navyKeys' ? 'navy' : null;
+    const productVer = verSourceId ? prods.find(p => p.id === verSourceId)?.ver : undefined;
+    const batchGroupId = `sch_${genId()}`;
+    let scheduledCount = 0, failTotal = 0;
+    const dispatchEntries = [];
+    const slotKeyCounts = new Map();
+
+    async function scheduleAgency(p) {
+      if (!p.rows.length) return;
+      const pendingRows = p.rows.filter(r => !r._normalSubmitted);
+      if (!pendingRows.length) return;
+
+      pendingRows.forEach(r => {
+        const kwList = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k);
+        if (kwList.length > 50) r.검색키워드 = kwList.slice(0, 50).join(',');
+        const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+        if (kwCount === 0) r._kwFail = true;
+        else if ((r.일목표||0) < 10) r._kwFail = true;
+        else if (r._requiresBlogUrl && !r.블로그URL) r._kwFail = true;
+      });
+      const validRows = pendingRows.filter(r => !r._kwFail);
+      if (!validRows.length) { failTotal += pendingRows.length; return; }
+
+      const account = p.realAg ? await fetchBizfitAccount(p.realAg) : null;
+      if (!account) { failTotal += validRows.length; return; }
+
+      let gi;
+      try {
+        gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, adrole: adrole || undefined, rawData: [] });
+      } catch(e) { gi = { success:false }; }
+      if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) { failTotal += validRows.length; return; }
+
+      const expanded = validRows.flatMap(r => splitRowBySchedule(r, schedule));
+      if (!expanded.length) return;
+
+      for (const g of gi.gradeGroups) {
+        const grpRows = expanded.filter(r => r.상품등급명 === g.gradeName);
+        grpRows.forEach(r => {
+          const { _slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, _days, _daysMultiplied, _sendAt, ...rowData } = r;
+          dispatchEntries.push({
+            slotKey: _slotKey, batchGroupId, sendAt: _sendAt, endpoint: '/register',
+            payload: {
+              domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw,
+              tab: g.actualTab || BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType,
+              version: productVer, rowData: [rowData],
+            },
+          });
+          slotKeyCounts.set(_slotKey, (slotKeyCounts.get(_slotKey) || 0) + 1);
+          scheduledCount++;
+        });
+      }
+    }
+
+    await Promise.all(plan.map(p => scheduleAgency(p)));
+    if (dispatchEntries.length) {
+      await initScheduledBatches(slotKeyCounts, batchGroupId);
+      await Promise.all(dispatchEntries.map(saveScheduledDispatch));
+    }
+    return { scheduledCount, failTotal };
+  }
+
   function lockOtherSubmitTabs(overlay, btnPrefix) {
     const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
     if (youpflBtn) youpflBtn.disabled = true;
@@ -4213,6 +4443,18 @@ window.toggleProdPanel = function(e) {
     otherBtns.forEach(b => { b.disabled = false; });
   }
 
+  // submitPlanRowsScheduled(예약 저장) 결과 표시 — 승인+캐시차감은 서버가 예약 그룹 완료 시 처리하므로 여기선 "예약됨"까지만
+  function finishScheduleUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, scheduledCount, failTotal) {
+    window.bizfitSubmitting = false;
+    applyBtn.textContent = failTotal ? `⏰ 예약 ${scheduledCount}건 (실패 ${failTotal})` : `⏰ 예약 완료 (${scheduledCount}건)`;
+    applyBtn.style.background = failTotal ? '#b91c1c' : '#f59e0b';
+    applyBtn.style.cursor = 'default';
+    closeBtn.disabled = false;
+    closeBtn.onclick = () => { overlay.remove(); renderReceipts(false); };
+    if (youpflBtn) youpflBtn.disabled = false;
+    otherBtns.forEach(b => { b.disabled = false; });
+  }
+
   async function executeSubmit(plan, overlay, gate=null, legKey='normalKeys', adrole=null) {
     const btnPrefix = SUBMIT_TAB_PREFIX[legKey] || 'submit';
     const applyBtn = overlay.querySelector(`#${btnPrefix}-apply-btn`);
@@ -4221,6 +4463,12 @@ window.toggleProdPanel = function(e) {
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
     const { youpflBtn, otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
+
+    if (scheduleConfig && scheduleConfig.length) {
+      const { scheduledCount, failTotal } = await submitPlanRowsScheduled(plan, legKey, adrole, scheduleConfig);
+      finishScheduleUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, scheduledCount, failTotal);
+      return;
+    }
 
     const { okTotal, failTotal } = await submitPlanRows(plan, overlay, gate, legKey, adrole);
 
@@ -4237,6 +4485,15 @@ window.toggleProdPanel = function(e) {
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
     const { youpflBtn, otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
+
+    if (scheduleConfig && scheduleConfig.length) {
+      const [d, n] = await Promise.all([
+        submitPlanRowsScheduled(deltaPlan, 'deltaKeys', DELTA_ADROLE, scheduleConfig),
+        submitPlanRowsScheduled(navyPlan, 'navyKeys', null, scheduleConfig),
+      ]);
+      finishScheduleUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, d.scheduledCount + n.scheduledCount, d.failTotal + n.failTotal);
+      return;
+    }
 
     const [d, n] = await Promise.all([
       submitPlanRows(deltaPlan, overlay, gate, 'deltaKeys', DELTA_ADROLE),
