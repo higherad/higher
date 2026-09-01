@@ -2229,7 +2229,7 @@ window.toggleProdPanel = function(e) {
   // higher는 승인 시 비즈핏 캐시차감이 같이 일어나야 하므로(kimpro엔 없는 기능) deductFieldsFor/
   // yupflFieldsFor 결과와 bizfitUid도 함께 스냅샷해 서버가 그룹 완료 시 그대로 재생한다.
   // 다중 leg(승인 게이트 걸리는) 슬롯은 서버가 게이트 로직을 모르므로 지원하지 않음 — gate가 있으면 토글을 막는다.
-  let scheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34, batches:1}, ...]
+  let scheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34}, ...]
 
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -2238,30 +2238,36 @@ window.toggleProdPanel = function(e) {
     await set(ref(getDatabase(), path), val);
   }
 
-  // "HH:MM" → 오늘 그 시각의 UTC ISO 문자열 (브라우저 로컬시간=KST 가정, 이 코드베이스 전반의 기존 관례와 동일)
-  function scheduleTimeToIso(timeStr) {
+  // "HH:MM" → (오늘+dayOffset일) 그 시각의 UTC ISO 문자열 (브라우저 로컬시간=KST 가정, 이 코드베이스 전반의 기존 관례와 동일)
+  function scheduleTimeToIso(timeStr, dayOffset = 0) {
     const [h, m] = (timeStr || '00:00').split(':').map(Number);
     const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
     d.setHours(h || 0, m || 0, 0, 0);
     return d.toISOString();
   }
 
-  // 한 행의 일목표를 schedule 비율×세부분할로 쪼갠 뒤, 각 조각마다 일수(daysMultiplied면 재계산)까지 채운 행 복제본을 반환
+  // 한 행의 일목표를 schedule 비율로 쪼갠 뒤, 일수(_days)만큼 "1일치" 접수를 하루씩 밀려가며 만들어
+  // 매일 같은 시각에 접수되게 한다(1회 접수 후 비즈핏 자체 반복에 맡기지 않음).
+  // daysMultiplied 상품(찰리/델타, NP위치저장)은 "일수" 칸이 실제 일수가 아니라 그 콜 하나의 총목표라서
+  // 하루치 콜의 일수 필드에도 그날 portionTotal 그대로(곱하지 않음) 넣는다 — 서버 최소값도 일반(10)이
+  // 아니라 NP위치저장 전용 최소(전체목표 100) 기준으로 걸러야 매일 소액 콜이 반려되지 않는다.
   function splitRowBySchedule(row, schedule) {
     const portions = lrm(schedule.map((s, i) => ({ id: i, ratio: s.pct })), row.일목표 || 0);
+    const minPortion = row._daysMultiplied ? 100 : 10; // 비즈핏 최소 수량 — NP위치저장은 전체목표 100, 그 외는 10
     const out = [];
     schedule.forEach((s, i) => {
       const portionTotal = portions[i] || 0;
-      if (portionTotal < 10) return; // 비즈핏 최소 수량(10) 미만이면 그 조각은 버림
-      splitEven(portionTotal, Math.max(1, s.batches || 1)).forEach((sub, j) => {
-        if (sub < 10) return;
+      if (portionTotal < minPortion) return; // 최소값 미만이면 그 조각은 버림
+      const days = Math.max(1, row._days || 0);
+      for (let d = 0; d < days; d++) {
         out.push({
           ...row,
-          일목표: sub,
-          일수: row._daysMultiplied ? sub * (row._days || 0) : row._days,
-          _sendAt: scheduleTimeToIso(s.time),
+          일목표: portionTotal,
+          일수: row._daysMultiplied ? portionTotal : 1,
+          _sendAt: scheduleTimeToIso(s.time, d),
         });
-      });
+      }
     });
     return out;
   }
@@ -3323,7 +3329,7 @@ window.toggleProdPanel = function(e) {
   async function openSubmitModal(target) {
     gradeMatchOn = true;
     scheduleConfig = null;
-    scheduleDraftRows = [{ time: '10:00', pct: 100, batches: 1 }];
+    scheduleDraftRows = [{ time: '10:00', pct: 100 }];
     return renderSubmitModal(target);
   }
   // 각 탭의 plan/rows만 계산하는 순수 데이터 빌더 — renderSubmitModal의 최초 렌더/토글 재계산 양쪽에서 재사용.
@@ -3365,6 +3371,7 @@ window.toggleProdPanel = function(e) {
     // 등급 자동매칭이 buildNormalRows/buildDeltaRows에서 동기적으로 GRADE_CACHE를 읽으므로 먼저 채워둔다.
     await fetchGradesBatch([...new Set(target.map(s => s.mid).filter(Boolean))]);
     let data = computeSubmitData(target);
+    scheduleValidationRows = flattenScheduleRows(data);
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -3398,7 +3405,7 @@ window.toggleProdPanel = function(e) {
             <button type="button" onclick="applyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
             <button type="button" onclick="clearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">끄기</button>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;">비율 합계는 100%여야 하며, 조각당 최소 10개 미만은 자동 제외됩니다. 다중 상품(승인 게이트) 슬롯이 섞여 있으면 사용할 수 없습니다.</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">비율 합계는 100%여야 하며, 일수만큼 매일 하루 단위(일수:1)로 나눠 이 시각에 접수됩니다. 다중 상품(승인 게이트) 슬롯이 섞여 있으면 사용할 수 없습니다.</div>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
@@ -3773,6 +3780,7 @@ window.toggleProdPanel = function(e) {
       if (gmIcon) gmIcon.style.background = gradeMatchOn ? '#16a34a' : '#94a3b8';
       const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
       data = computeSubmitData(target);
+      scheduleValidationRows = flattenScheduleRows(data);
       applyTabState(keepTab);
       fillBody();
     };
@@ -3810,6 +3818,7 @@ window.toggleProdPanel = function(e) {
       bsubBulkBtn.disabled = false; bsubBulkBtn.textContent = '🔗 블로그URL 일괄조회';
       const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
       data = computeSubmitData(target);
+      scheduleValidationRows = flattenScheduleRows(data);
       applyTabState(keepTab);
       fillBody();
     };
@@ -3834,7 +3843,27 @@ window.toggleProdPanel = function(e) {
   };
 
   // ── 시간대 분할 예약 편집기 (접수 확인 모달 상단, kimpro/reception.html과 동일 구현) ────────────
-  let scheduleDraftRows = [{ time: '10:00', pct: 100, batches: 1 }];
+  let scheduleDraftRows = [{ time: '10:00', pct: 100 }];
+  // "적용" 시점에 최소 수량 위반을 미리 막기 위한 검증 대상 행 — renderSubmitModal이 data를 계산/재계산할 때마다 갱신
+  let scheduleValidationRows = [];
+  function flattenScheduleRows(data) {
+    return [...data.normalPlan, ...data.charliePlan, ...data.deltaPlan, ...data.navyPlan].flatMap(p => p.rows);
+  }
+  // schedule 설정대로 쪼갰을 때 한 조각이라도 비즈핏 최소 수량(일반 10 / NP위치저장 100) 미만이 되는 행을 찾음 —
+  // 접수 시점에 조용히 버려지는 대신(목표 미달) 여기서 미리 막는다.
+  function scheduleMinViolations(rows, schedule) {
+    const violations = [];
+    rows.forEach(r => {
+      if (!(r.일목표 > 0)) return;
+      const min = r._daysMultiplied ? 100 : 10;
+      const portions = lrm(schedule.map((s, i) => ({ id: i, ratio: s.pct })), r.일목표);
+      schedule.forEach((s, i) => {
+        const p = portions[i] || 0;
+        if (p > 0 && p < min) violations.push({ name: r.상품등급명, time: s.time, portion: p, min });
+      });
+    });
+    return violations;
+  }
 
   // %만 바뀌었을 때(updateScheduleRow) 행 전체를 다시 그리면 입력 중인 포커스/커서가 끊기므로,
   // 합계 표시만 따로 갱신하는 헬퍼로 분리 — renderScheduleRows(행 추가/삭제 시)와 공유.
@@ -3851,8 +3880,6 @@ window.toggleProdPanel = function(e) {
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
         <input type="time" value="${r.time}" onchange="updateScheduleRow(${i},'time',this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
         <input type="number" min="1" max="100" value="${r.pct}" oninput="updateScheduleRow(${i},'pct',this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
-        <span style="font-size:11px;color:var(--muted);">×</span>
-        <input type="number" min="1" value="${r.batches}" onchange="updateScheduleRow(${i},'batches',this.value)" style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">개로 분할
         ${scheduleDraftRows.length > 1 ? `<button type="button" onclick="removeScheduleRow(${i})" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>` : ''}
       </div>`).join('');
     updateScheduleSumNote();
@@ -3867,7 +3894,7 @@ window.toggleProdPanel = function(e) {
   };
 
   window.addScheduleRow = function() {
-    scheduleDraftRows.push({ time: '12:00', pct: 0, batches: 1 });
+    scheduleDraftRows.push({ time: '12:00', pct: 0 });
     renderScheduleRows();
   };
 
@@ -3887,10 +3914,17 @@ window.toggleProdPanel = function(e) {
     const now = new Date();
     const pastRows = scheduleDraftRows.filter(r => new Date(scheduleTimeToIso(r.time)) <= now);
     if (pastRows.length) { alert(`이미 지난 시각은 설정할 수 없습니다: ${pastRows.map(r=>r.time).join(', ')}`); return; }
-    scheduleConfig = scheduleDraftRows.map(r => ({ time: r.time, pct: Number(r.pct)||0, batches: Math.max(1, Number(r.batches)||1) }));
+    const violations = scheduleMinViolations(scheduleValidationRows, scheduleDraftRows);
+    if (violations.length) {
+      const lines = violations.slice(0, 5).map(v => `- ${v.name} ${v.time} → ${v.portion}개 (최소 ${v.min})`);
+      if (violations.length > 5) lines.push(`외 ${violations.length - 5}건`);
+      alert(`최소 수량 미만으로 쪼개져 적용할 수 없습니다. 시간 개수를 줄이거나 비율을 조정해주세요.\n${lines.join('\n')}`);
+      return;
+    }
+    scheduleConfig = scheduleDraftRows.map(r => ({ time: r.time, pct: Number(r.pct)||0 }));
     const icon = document.getElementById('schedule-toggle-icon');
     if (icon) icon.style.background = '#f59e0b';
-    alert(`시간대 분할 예약이 설정되었습니다. 이제 각 탭의 "접수 신청" 버튼을 누르면 즉시 전송 대신 예약 저장됩니다.`);
+    alert(`시간대 분할 예약이 설정되었습니다. 이제 각 탭의 "접수 신청" 버튼을 누르면 즉시 전송 대신 예약 저장됩니다(일수만큼 매일 이 시각에 나눠 접수).`);
   };
 
   window.clearScheduleConfig = function() {
