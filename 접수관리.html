@@ -2247,6 +2247,14 @@ window.toggleProdPanel = function(e) {
     return d.toISOString();
   }
 
+  // (오늘+dayOffset일)의 로컬 날짜를 "YYYY-MM-DD"로 — 날짜분할 조각마다 예약일(=비즈핏 시작일)을 실제
+  // 접수되는 그날로 맞추기 위함(안 맞추면 이틀 뒤에 나가는 콜도 예약일이 오늘로 찍혀 과거 시작일이 되어버림)
+  function scheduleDateForOffset(dayOffset = 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
   // 한 행의 일목표를 schedule 비율로 쪼갠 뒤, 일수(_days)만큼 "1일치" 접수를 하루씩 밀려가며 만들어
   // 매일 같은 시각에 접수되게 한다(1회 접수 후 비즈핏 자체 반복에 맡기지 않음).
   // daysMultiplied 상품(찰리/델타, NP위치저장)은 "일수" 칸이 실제 일수가 아니라 그 콜 하나의 총목표라서
@@ -2265,6 +2273,7 @@ window.toggleProdPanel = function(e) {
           ...row,
           일목표: portionTotal,
           일수: row._daysMultiplied ? portionTotal : 1,
+          예약일: scheduleDateForOffset(d),
           _sendAt: scheduleTimeToIso(s.time, d),
         });
       }
