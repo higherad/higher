@@ -3893,6 +3893,9 @@ window.toggleProdPanel = function(e) {
   window.applyScheduleConfig = function() {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
     if (sum !== 100) { alert(`시간대 비율 합계는 100%여야 합니다. (현재 ${sum}%)`); return; }
+    const now = new Date();
+    const pastRows = scheduleDraftRows.filter(r => new Date(scheduleTimeToIso(r.time)) <= now);
+    if (pastRows.length) { alert(`이미 지난 시각은 설정할 수 없습니다: ${pastRows.map(r=>r.time).join(', ')}`); return; }
     scheduleConfig = scheduleDraftRows.map(r => ({ time: r.time, pct: Number(r.pct)||0, batches: Math.max(1, Number(r.batches)||1) }));
     const icon = document.getElementById('schedule-toggle-icon');
     if (icon) icon.style.background = '#f59e0b';
