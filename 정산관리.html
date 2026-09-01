@@ -129,7 +129,7 @@
       <tr>
         <th><input type="checkbox" id="settle-chk-all" title="전체선택" onchange="toggleAllSettle(this)"></th>
         <th>접수일시</th><th>대행사</th><th>단가(원)</th><th>캠페인 수</th>
-        <th>일 목표 합산</th><th>정산 금액(VAT 별도)</th><th id="th-yupfl" style="display:none;color:#a78bfa">유입플 금액</th><th id="th-deducttgt" style="display:none;color:var(--text2)">일 목표 차감</th><th id="th-deduct" style="display:none;color:#f87171">차감 금액</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
+        <th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th id="th-yupfl" style="display:none;color:#a78bfa">유입플 금액</th><th id="th-deducttgt" style="display:none;color:var(--text2)">전체 목표 차감</th><th id="th-deduct" style="display:none;color:#f87171">차감 금액</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="settle-body">
@@ -381,7 +381,7 @@
       </div>
       <div class="sp-section">일자별 합산</div>
       <table class="sp-tbl">
-        <thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>일목표 차감</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
+        <thead><tr><th>날짜</th><th>캠페인 수</th><th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>전체 목표 차감</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody id="mp-day-tbody"></tbody>
       </table>
       <div id="mp-day-pg" class="pagination" style="margin-top:12px;"></div>
@@ -483,7 +483,7 @@
       </div>
       <div class="sp-section">월별 합산</div>
       <table class="sp-tbl">
-        <thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>일목표 차감</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
+        <thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>전체 목표 차감</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody>${mRows||`<tr><td colspan="${isAdmin?7:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`}</tbody>
       </table>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
@@ -928,7 +928,7 @@
       <table class="sp-tbl"><thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>유입플액(VAT 별도)</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody>${mRows||`<tr><td colspan="${isAdmin?7:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`}</tbody></table>
       <div class="sp-section">일별 합산</div>
-      <table class="sp-tbl"><thead><tr><th>날짜</th><th>캠페인 수</th><th>일목표합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>유입플액(VAT 별도)</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
+      <table class="sp-tbl"><thead><tr><th>날짜</th><th>캠페인 수</th><th>전체목표합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>유입플액(VAT 별도)</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody id="ag-day-tbody"></tbody></table>
       <div id="ag-day-pg" class="pagination" style="margin-top:12px;"></div>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
@@ -979,7 +979,7 @@
     function buildAndDownload(){
       const XLSX=window.XLSX;
       const wb=XLSX.utils.book_new();
-      const header=['접수일시','대행사','단가(원)','캠페인 수','일 목표 합산','정산 금액(VAT 별도)',...(isAdmin?['유입플 금액','일목표 차감','차감 금액']:[]),'입금액(VAT 포함)','환불 금액','정산상태'];
+      const header=['접수일시','대행사','단가(원)','캠페인 수','전체 목표 합산','정산 금액(VAT 별도)',...(isAdmin?['유입플 금액','전체 목표 차감','차감 금액']:[]),'입금액(VAT 포함)','환불 금액','정산상태'];
       const dataRows=rows.map(g=>{
         const safe=s=>s.replace(/[.#$[\]/]/g,'_');
         const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
@@ -1108,7 +1108,7 @@
       wrap.style.overflowX='auto';
       const tbl=document.createElement('table');
       tbl.className='ag-table';
-      tbl.innerHTML=`<thead><tr><th>접수일시</th><th>유저ID</th><th>캠페인 수</th><th>일 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>상태</th></tr></thead>`;
+      tbl.innerHTML=`<thead><tr><th>접수일시</th><th>유저ID</th><th>캠페인 수</th><th>전체 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>상태</th></tr></thead>`;
       const tbody=document.createElement('tbody');
       list.forEach(r=>{
         const tr=document.createElement('tr');

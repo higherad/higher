@@ -1972,7 +1972,8 @@ window.toggleProdPanel = function(e) {
     const dTarget = yupflAlloc(slot.dailyTarget||0, dp.fixedPct);
     if (dTarget <= 0) return {};
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
-    return { deductTarget: dTarget, deductAmount: dTarget * (slot.days||0) * unitPrice };
+    const totalTarget = dTarget * (slot.days||0); // 전체 목표 차감(일수 반영) — buildNormalRows와 동일 기준으로 맞춰 차감 금액과 일치시킴
+    return { deductTarget: totalTarget, deductAmount: totalTarget * unitPrice };
   }
 
   // 유입플 키워드 개수에 매칭되는 규칙을 찾음 — 매칭 없으면 null (이 경우 통합 고정 배분을 사용)
