@@ -3853,20 +3853,26 @@ window.toggleProdPanel = function(e) {
   // ── 시간대 분할 예약 편집기 (접수 확인 모달 상단, kimpro/reception.html과 동일 구현) ────────────
   let scheduleDraftRows = [{ time: '10:00', pct: 100, batches: 1 }];
 
+  // %만 바뀌었을 때(updateScheduleRow) 행 전체를 다시 그리면 입력 중인 포커스/커서가 끊기므로,
+  // 합계 표시만 따로 갱신하는 헬퍼로 분리 — renderScheduleRows(행 추가/삭제 시)와 공유.
+  function updateScheduleSumNote() {
+    const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
+    const note = document.getElementById('schedule-sum-note');
+    if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum === 100 ? 'var(--accent)' : 'var(--danger)'; }
+  }
+
   function renderScheduleRows() {
     const wrap = document.getElementById('schedule-rows');
     if (!wrap) return;
     wrap.innerHTML = scheduleDraftRows.map((r, i) => `
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
         <input type="time" value="${r.time}" onchange="updateScheduleRow(${i},'time',this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
-        <input type="number" min="1" max="100" value="${r.pct}" onchange="updateScheduleRow(${i},'pct',this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+        <input type="number" min="1" max="100" value="${r.pct}" oninput="updateScheduleRow(${i},'pct',this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
         <span style="font-size:11px;color:var(--muted);">×</span>
         <input type="number" min="1" value="${r.batches}" onchange="updateScheduleRow(${i},'batches',this.value)" style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">개로 분할
         ${scheduleDraftRows.length > 1 ? `<button type="button" onclick="removeScheduleRow(${i})" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>` : ''}
       </div>`).join('');
-    const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
-    const note = document.getElementById('schedule-sum-note');
-    if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum === 100 ? 'var(--accent)' : 'var(--danger)'; }
+    updateScheduleSumNote();
   }
 
   window.toggleScheduleEditor = function() {
@@ -3889,6 +3895,7 @@ window.toggleProdPanel = function(e) {
 
   window.updateScheduleRow = function(i, field, value) {
     scheduleDraftRows[i][field] = field === 'time' ? value : (Number(value) || 0);
+    if (field === 'pct') updateScheduleSumNote();
   };
 
   window.applyScheduleConfig = function() {
