@@ -3039,6 +3039,28 @@ window.toggleProdPanel = function(e) {
     return res.json();
   }
 
+  // /cleanup-cancel은 NDJSON 스트림(줄마다 JSON 한 개)으로 응답한다 — {type:"log"}는 버리고
+  // 마지막 {type:"result", success, results|message} 한 줄만 취한다(tools/macro/bizfit_cleanup.html과 동일 파싱).
+  async function callBizfitCleanupCancel(body) {
+    const res = await fetch(`${BIZFIT_PROXY}/cleanup-cancel`, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '', final = null;
+    const consume = line => { if (!line.trim()) return; const evt = JSON.parse(line); if (evt.type !== 'log') final = evt; };
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      lines.forEach(consume);
+    }
+    if (buf) consume(buf);
+    return final || { success: false, message: '서버 응답 없음' };
+  }
+
   // buildJumuSheet_('일반', ...)와 동일한 배분 로직 — 엑셀 셀 대신 등록 페이로드 행 생성.
   // 찰리는 등급/가격 체계가 달라 별도 메뉴(NP 위치저장)로 접수해야 해서 prodFilter로 charlie만 뽑아 별도 호출
   function buildNormalRows(slots, prodFilter = p => !FIXED_PROD_IDS.has(p.id)) {
@@ -3578,7 +3600,7 @@ window.toggleProdPanel = function(e) {
               continue;
             }
             try {
-              const res = await callBizfitProxy('/cleanup-cancel', { loginId: account.id, pwd: account.pw, mids: [...midSet] });
+              const res = await callBizfitCleanupCancel({ loginId: account.id, pwd: account.pw, mids: [...midSet] });
               if (!res.success) { errors.push(`${agencyId}: ${res.message || '실패'}`); continue; }
               res.results.forEach(r => {
                 if (r.success) okMids.add(r.mid);
@@ -5218,7 +5240,7 @@ window.toggleProdPanel = function(e) {
     if (!confirm(`${row.업체명||mid} — ${gradeName} 등급 접수를 취소합니다.\n※ 비즈핏 취소는 Pcode 구분 없이 이 MID 단위로 처리돼, 같은 MID에 걸린 다른 상품이 있으면 그것도 같이 취소될 수 있습니다.\n계속할까요?`)) return;
 
     try {
-      const res = await callBizfitProxy('/cleanup-cancel', { loginId: e.payload.loginId, pwd: e.payload.pwd, mids: [mid] });
+      const res = await callBizfitCleanupCancel({ loginId: e.payload.loginId, pwd: e.payload.pwd, mids: [mid] });
       const rows = (res.results || []).filter(r => r.mid === mid);
       const ok = res.success && rows.length > 0 && rows.every(r => r.success);
       if (!ok) {
