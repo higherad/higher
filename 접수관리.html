@@ -3439,7 +3439,6 @@ window.toggleProdPanel = function(e) {
               </span>
             </button>
           </div>
-          <button id="reset-submission-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
         </div>
         <div id="schedule-editor" style="display:none;margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);">
           <div id="schedule-rows"></div>
@@ -3466,6 +3465,7 @@ window.toggleProdPanel = function(e) {
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
             <div style="font-size:12px;" id="submit-sub"></div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
+              <button id="reset-normal-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
               <button class="btn-cancel" id="submit-close-btn">닫기</button>
               <button id="submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
             </div>
@@ -3482,6 +3482,7 @@ window.toggleProdPanel = function(e) {
                 <button type="button" onclick="applyYoupflMissionBulk(this)" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;white-space:nowrap;">적용</button>
               </div>
               <div style="display:flex;gap:8px;">
+                <button id="reset-fixed-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
                 <button class="btn-cancel" id="youpfl-close-btn">닫기</button>
                 <button id="youpfl-apply-btn" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
               </div>
@@ -3493,6 +3494,7 @@ window.toggleProdPanel = function(e) {
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
             <div style="font-size:12px;" id="csub-sub"></div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
+              <button id="reset-charlie-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
               <button class="btn-cancel" id="csub-close-btn">닫기</button>
               <button id="csub-apply-btn" style="background:#d946ef;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
             </div>
@@ -3504,6 +3506,7 @@ window.toggleProdPanel = function(e) {
             <div style="font-size:12px;" id="bsub-sub"></div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
               <button type="button" id="bsub-bulk-blogurl-btn" title="블로그 URL 미입력 항목에 대해 플레이스 URL에서 자동으로 조회해 채웁니다" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;white-space:nowrap;">🔗 블로그URL 일괄조회</button>
+              <button id="reset-blog-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
               <button class="btn-cancel" id="bsub-close-btn">닫기</button>
               <button id="bsub-apply-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
             </div>
@@ -3537,19 +3540,28 @@ window.toggleProdPanel = function(e) {
       };
     };
 
-    // "초기화" — 캠페인 취소/반려/삭제 + 완료기록(normalDoneProducts) 삭제, 재접수 가능하게.
-    // 대상: status==='active'면 전부(bizfitDeducted 무관). 차감/메모 자동화는 안 함(사람이 처리).
-    const resetCandidates = target.filter(s => s.status === 'active');
-    const resetBtn = overlay.querySelector('#reset-submission-btn');
-    if (resetCandidates.length) {
-      resetBtn.style.display = '';
-      resetBtn.onclick = async () => {
-        if (!confirm(`${resetCandidates.length}건의 캠페인을 취소/삭제하고 접수 기록을 초기화합니다.`)) return;
-        resetBtn.disabled = true; resetBtn.textContent = '초기화 중...';
+    // "초기화" — 이 탭에서 이미 접수된 걸 취소하고 완료기록을 지워 재접수 가능하게 함. 탭마다 독립된 버튼
+    // (reset-normal/fixed/charlie/blog-btn)으로 다른 탭 완료기록은 안 건드림 — 예전엔 버튼 하나로 일반/유입플/
+    // 찰리/블로그를 한꺼번에 초기화해서 일반만 취소하려 해도 유입플 등 다른 탭까지 같이 초기화됐음.
+    // 대상 판정도 슬롯 전체 status==='active' 대신 이 탭 몫(_normalSubmitted/_fixedSubmitted 중 하나라도 true)으로
+    // 판단 — 슬롯이 다른 레그를 기다리는 중(아직 active 전)이어도 이 탭만 이미 나간 상태면 되돌릴 수 있어야 함.
+    // bizfitDeducted(차감)는 안 건드림 — 차감/메모 정산은 사람이 처리(자동화 안 함).
+
+    // 일반/찰리/블로그처럼 bizfit /register로 나가는 탭 공용 — /cleanup-cancel은 Pcode 구분이 없어(같은 API를
+    // tools/macro/bizfit_cleanup.html도 씀) MID 단위로 취소되므로, 같은 MID에 걸린 다른 상품도 같이 취소될
+    // 수 있다는 걸 confirm에서 미리 알린다.
+    function wireBizfitTabReset(btn, resetKeys, doneNames) {
+      const candidates = target.filter(s => resetKeys.has(s._key));
+      if (!candidates.length) { btn.style.display = 'none'; return; }
+      btn.style.display = '';
+      btn.disabled = false; btn.textContent = '초기화';
+      btn.onclick = async () => {
+        if (!confirm(`${candidates.length}건의 이 탭 접수를 취소하고 초기화합니다.\n※ 비즈핏 취소는 Pcode 구분 없이 MID 단위로 처리돼, 같은 MID에 걸린 다른 상품이 있으면 그것도 같이 취소될 수 있습니다.\n계속할까요?`)) return;
+        btn.disabled = true; btn.textContent = '초기화 중...';
         window.bizfitSubmitting = true; // 진행 중 팝업 닫기 방지(기존 가드 재사용)
 
         const byAgency = new Map(); // agencyId -> Set(mid)
-        resetCandidates.forEach(s => {
+        candidates.forEach(s => {
           if (!s.mid) return;
           const ag = s.agencyId || '';
           if (!byAgency.has(ag)) byAgency.set(ag, new Set());
@@ -3576,31 +3588,60 @@ window.toggleProdPanel = function(e) {
               errors.push(`${agencyId}: ${e.message}`);
             }
           }
-          // 유입플 슬롯 환불(premiumset.shop) — 비즈핏 쪽이 진행중 등으로 막힌 mid는 아예 스킵.
-          const okMidsForPremium = [...okMids];
-          if (okMidsForPremium.length) {
-            try {
-              const premRes = await callBizfitProxy('/cleanup-youpfl-refund', { mids: okMidsForPremium });
-              if (premRes.success) {
-                premRes.results.forEach(r => { if (!r.success) { okMids.delete(r.mid); errors.push(`[유입플] ${r.mid}: ${r.message}`); } });
-              } else {
-                okMidsForPremium.forEach(m => okMids.delete(m));
-                errors.push(`유입플 환불 요청 실패: ${premRes.message || ''}`);
-              }
-            } catch (e) {
-              okMidsForPremium.forEach(m => okMids.delete(m));
-              errors.push(`유입플 환불 요청 실패: ${e.message}`);
-            }
-          }
         } finally {
           window.bizfitSubmitting = false;
         }
 
-        const resetSlots = resetCandidates.filter(s => okMids.has(s.mid));
-        // bizfitDeducted는 안 건드림 — 차감/메모 정산은 사람이 처리(자동화 안 함). status만 accepted로 복귀.
-        const clearFields = { status: 'accepted', normalDoneProducts: null, fixedSubmitted: null, splitFixedSubmitted: null };
-        await Promise.all(resetSlots.map(s => HA.updateSlot(s._key, clearFields)));
-        resetSlots.forEach(s => updateLocalSlot(s._key, clearFields));
+        const resetSlots = candidates.filter(s => okMids.has(s.mid));
+        await Promise.all(resetSlots.map(async s => {
+          // 이 탭 몫의 이름만 normalDoneProducts에서 빼고, 다른 탭(찰리/블로그 등) 완료기록은 그대로 둔다.
+          const remaining = (s.normalDoneProducts || []).filter(n => !doneNames.has(n));
+          const patch = { normalDoneProducts: remaining.length ? remaining : null };
+          if (s.status === 'active') patch.status = 'accepted';
+          await HA.updateSlot(s._key, patch);
+          updateLocalSlot(s._key, patch);
+        }));
+
+        overlay.remove();
+        renderReceipts(false);
+        alert(`초기화 완료: ${resetSlots.length}건` + (errors.length ? `\n실패:\n${errors.join('\n')}` : ''));
+      };
+    }
+
+    // 유입플은 bizfit /register를 안 거치고(별도 /youpfl-upload) premiumset.shop 정산이라 비즈핏 취소는
+    // 필요없이 환불만 하면 됨.
+    function wireFixedTabReset(btn, resetKeys) {
+      const candidates = target.filter(s => resetKeys.has(s._key));
+      if (!candidates.length) { btn.style.display = 'none'; return; }
+      btn.style.display = '';
+      btn.disabled = false; btn.textContent = '초기화';
+      btn.onclick = async () => {
+        if (!confirm(`${candidates.length}건의 유입플 접수를 취소(환불)하고 초기화합니다.`)) return;
+        btn.disabled = true; btn.textContent = '초기화 중...';
+
+        const mids = [...new Set(candidates.map(s => s.mid).filter(Boolean))];
+        let okMids = new Set(mids);
+        const errors = [];
+        try {
+          const res = await callBizfitProxy('/cleanup-youpfl-refund', { mids });
+          if (res.success) {
+            res.results.forEach(r => { if (!r.success) { okMids.delete(r.mid); errors.push(`${r.mid}: ${r.message}`); } });
+          } else {
+            okMids = new Set();
+            errors.push(`유입플 환불 요청 실패: ${res.message || ''}`);
+          }
+        } catch (e) {
+          okMids = new Set();
+          errors.push(`유입플 환불 요청 실패: ${e.message}`);
+        }
+
+        const resetSlots = candidates.filter(s => okMids.has(s.mid));
+        await Promise.all(resetSlots.map(async s => {
+          const patch = { fixedSubmitted: null, splitFixedSubmitted: null };
+          if (s.status === 'active') patch.status = 'accepted';
+          await HA.updateSlot(s._key, patch);
+          updateLocalSlot(s._key, patch);
+        }));
 
         overlay.remove();
         renderReceipts(false);
@@ -3656,6 +3697,35 @@ window.toggleProdPanel = function(e) {
       const deltaAlreadyDone   = alreadyDoneOf(rowsBySlotOf(data.deltaPlan.flatMap(p => p.rows)), '_normalSubmitted');
       const navyAlreadyDone    = alreadyDoneOf(rowsBySlotOf(data.navyPlan.flatMap(p => p.rows)), '_normalSubmitted');
       const fixedAlreadyDone   = alreadyDoneOf(rowsBySlotOf(data.yupflRows), '_fixedSubmitted');
+
+      // "초기화" 버튼 대상 — every(전부 완료)가 아니라 some(하나라도 완료)으로 판단. 초기화는 실수를
+      // 되돌리는 용도라 이 탭에 뭔가 이미 나간 게 있으면(전부는 아니어도) 되돌릴 수 있어야 한다.
+      const anyDoneOf = (rowsBySlot, doneField) => new Set(
+        [...rowsBySlot.entries()].filter(([, rs]) => rs.some(r => r[doneField])).map(([k]) => k)
+      );
+      const tabDoneNames = rows => new Set(rows.map(r => r._doneKey || r.상품등급명));
+      wireBizfitTabReset(
+        overlay.querySelector('#reset-normal-btn'),
+        anyDoneOf(rowsBySlotOf(data.normalPlan.flatMap(p => p.rows)), '_normalSubmitted'),
+        tabDoneNames(data.normalPlan.flatMap(p => p.rows)),
+      );
+      wireBizfitTabReset(
+        overlay.querySelector('#reset-charlie-btn'),
+        anyDoneOf(rowsBySlotOf(data.charliePlan.flatMap(p => p.rows)), '_normalSubmitted'),
+        tabDoneNames(data.charliePlan.flatMap(p => p.rows)),
+      );
+      wireBizfitTabReset(
+        overlay.querySelector('#reset-blog-btn'),
+        new Set([
+          ...anyDoneOf(rowsBySlotOf(data.deltaPlan.flatMap(p => p.rows)), '_normalSubmitted'),
+          ...anyDoneOf(rowsBySlotOf(data.navyPlan.flatMap(p => p.rows)), '_normalSubmitted'),
+        ]),
+        new Set([...tabDoneNames(data.deltaPlan.flatMap(p => p.rows)), ...tabDoneNames(data.navyPlan.flatMap(p => p.rows))]),
+      );
+      wireFixedTabReset(
+        overlay.querySelector('#reset-fixed-btn'),
+        anyDoneOf(rowsBySlotOf(data.yupflRows), '_fixedSubmitted'),
+      );
 
       // 슬롯별로 실제 쓰는 레그 집합 — rows에 그 슬롯(_slotKey)이 등장하는지로 판단
       const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys'|'deltaKeys'|'navyKeys')
