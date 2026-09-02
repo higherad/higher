@@ -171,7 +171,7 @@
   .pm-btn-del:hover{background:rgba(239,68,68,.18);}
 </style>
 
-<div class="stat-bar" id="receipt-stat-bar" style="grid-template-columns:repeat(3,1fr)">
+<div class="stat-bar" id="receipt-stat-bar" style="grid-template-columns:repeat(4,1fr)">
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(245,158,11,.1)">⏳</div>
     <div><div class="sb-label">대기</div><div class="sb-val" id="stat-pending" style="color:var(--warn)">-</div></div>
@@ -179,6 +179,10 @@
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(59,130,246,.1)">📋</div>
     <div><div class="sb-label">접수</div><div class="sb-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:#fef3c7">⏰</div>
+    <div><div class="sb-label">분할</div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
   </div>
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(16,185,129,.1)">✅</div>
@@ -670,9 +674,11 @@ window.toggleProdPanel = function(e) {
     filteredAll    = all;
     const pending  = allSlots.filter(s => s.status === 'pending').length;
     const accepted = allSlots.filter(s => s.status === 'accepted').length;
+    const split    = allSlots.filter(s => s.status === 'split').length;
     const active   = allSlots.filter(s => s.status === 'active').length;
     document.getElementById('stat-pending').textContent  = pending.toLocaleString();
     document.getElementById('stat-accepted').textContent = accepted.toLocaleString();
+    document.getElementById('stat-split').textContent    = split.toLocaleString();
     document.getElementById('stat-active').textContent   = active.toLocaleString();
 
     const start = (currentPage-1)*PER_PAGE;
@@ -846,6 +852,8 @@ window.toggleProdPanel = function(e) {
 
   // 상세 팝업의 키워드 입력칸(검색/유입플/분할) 값이 바뀐 경우에만 저장 — acceptFromDetail/closeDetailModal 공용
   async function saveDetailFields(key) {
+    const s0 = allSlots.find(x => x._key === key);
+    if (s0?.status === 'split') return; // 시간대 분할 예약 진행 중 — 모달 필드가 disabled라 값은 안 바뀌지만, 저장 자체도 막아둠
     const input = document.getElementById('detail-keyword-input');
     const kw = input ? input.value.trim() : null;
     const yupflInput = document.getElementById('detail-yupfl-keyword-input');
@@ -930,6 +938,8 @@ window.toggleProdPanel = function(e) {
     const yupflShown = !!yupflProd?.active;
     const deltaShown = !!deltaProd?.active;
     const navyShown  = !!navyProd?.active;
+    const isSplit = s.status === 'split';
+    const dis = isSplit ? 'disabled' : '';
 
     overlay.innerHTML = `
       <div class="modal-box">
@@ -944,7 +954,7 @@ window.toggleProdPanel = function(e) {
           <dt>일 목표</dt><dd>${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</dd>
           <dt>일 수</dt><dd>${s.days||'-'}</dd>
           <dt>기간</dt><dd>${escProd(s.startDate)} ~ ${escProd(s.endDate)}</dd>
-          <dt>상태</dt><dd>${stMap[s.status]||s.status}</dd>
+          <dt>상태</dt><dd>${stMap[s.status]||s.status}${isSplit ? '<div style="margin-top:4px;font-size:11px;color:#b45309;">시간대 분할 예약 진행 중에는 수정할 수 없습니다. 완료될 때까지 기다려주세요.</div>' : ''}</dd>
           <dt>메모</dt><dd>${escProd(s.memo||'-')}</dd>
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
             <span style="display:flex;align-items:center;gap:6px;">
@@ -956,7 +966,7 @@ window.toggleProdPanel = function(e) {
               이전 키워드 보기
             </button>` : ''}
           </dt>
-          <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)"></dd>
+          <dd><input type="text" class="detail-kw-input" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)" ${dis}></dd>
           <dd id="mid-history-area" style="display:none;margin-top:8px;"></dd>
           ${yupflShown ? `
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
@@ -969,7 +979,7 @@ window.toggleProdPanel = function(e) {
               이전 키워드 보기
             </button>` : ''}
           </dt>
-          <dd><input type="text" class="detail-kw-input" id="detail-yupfl-keyword-input" value="${escProd(s.yupflKeyword||'')}" placeholder="유입플 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'yupfl-kw-count-badge')"></dd>
+          <dd><input type="text" class="detail-kw-input" id="detail-yupfl-keyword-input" value="${escProd(s.yupflKeyword||'')}" placeholder="유입플 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'yupfl-kw-count-badge')" ${dis}></dd>
           <dd id="yupfl-history-area" style="display:none;margin-top:8px;"></dd>` : ''}
           ${(deltaShown || navyShown) ? `
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
@@ -979,14 +989,14 @@ window.toggleProdPanel = function(e) {
             </span>
           </dt>
           <dd style="display:flex;gap:6px;align-items:center;">
-            <input type="text" class="detail-kw-input" id="detail-delta-url-input" value="${escProd(s.deltaBlogUrl||'')}" placeholder="블로그 URL을 ,로 구분해 입력해주세요" oninput="updateDetailKwBadge(this,'delta-url-count-badge')" style="flex:1;">
-            <button onclick="applyDeltaBlogUrls('${key}')" id="delta-url-apply-btn" style="flex-shrink:0;font-size:11px;padding:6px 10px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;font-family:inherit;">적용</button>
+            <input type="text" class="detail-kw-input" id="detail-delta-url-input" value="${escProd(s.deltaBlogUrl||'')}" placeholder="블로그 URL을 ,로 구분해 입력해주세요" oninput="updateDetailKwBadge(this,'delta-url-count-badge')" style="flex:1;" ${dis}>
+            <button onclick="applyDeltaBlogUrls('${key}')" id="delta-url-apply-btn" ${dis} style="flex-shrink:0;font-size:11px;padding:6px 10px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;font-family:inherit;">적용</button>
           </dd>` : ''}
-          ${splitKeywordFieldsHtml(s, splitProd)}
+          ${splitKeywordFieldsHtml(s, splitProd, dis)}
         </dl>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
-          <button class="btn-save" style="background:rgba(59,130,246,1);" onclick="acceptFromDetail('${key}')">접수</button>
+          ${isSplit ? '' : `<button class="btn-save" style="background:rgba(59,130,246,1);" onclick="acceptFromDetail('${key}')">접수</button>`}
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -996,7 +1006,7 @@ window.toggleProdPanel = function(e) {
   };
 
   // 분할 상품 미션 개수만큼 "분할 키워드" 입력칸 생성 — 각자 독립된 "이전 키워드 보기"를 가짐(미션 자동매칭 없음)
-  function splitKeywordFieldsHtml(s, splitProd) {
+  function splitKeywordFieldsHtml(s, splitProd, dis = '') {
     if (!splitProd?.active) return '';
     const rules = Array.isArray(splitProd.missionRules) ? splitProd.missionRules : [];
     if (!rules.length) return '';
@@ -1018,7 +1028,7 @@ window.toggleProdPanel = function(e) {
               이전 키워드 보기
             </button>` : ''}
           </dt>
-          <dd><input type="text" class="detail-kw-input detail-split-kw-input" id="${inputId}" data-mission="${r.mission}" value="${escProd(sk[r.mission]||'')}" placeholder="분할 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'${badgeId}')"></dd>
+          <dd><input type="text" class="detail-kw-input detail-split-kw-input" id="${inputId}" data-mission="${r.mission}" value="${escProd(sk[r.mission]||'')}" placeholder="분할 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'${badgeId}')" ${dis}></dd>
           <dd id="${areaId}" style="display:none;margin-top:8px;"></dd>`;
     }).join('');
   }
