@@ -3916,15 +3916,27 @@ window.toggleProdPanel = function(e) {
     if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum === 100 ? 'var(--accent)' : 'var(--danger)'; }
   }
 
+  // <input type="time">의 네이티브 피커는 lang 속성이 아니라 브라우저/OS 언어를 따라가 크롬에선
+  // ko-KR일 때 오전/오후로 뜬다(우회 불가) — 대신 시/분 select 두 개로 대체해 24시간 표기를 강제한다.
+  function scheduleTimeSelectOptions(max, selected) {
+    return Array.from({length: max}, (_, n) => String(n).padStart(2, '0'))
+      .map(v => `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`).join('');
+  }
   function renderScheduleRows() {
     const wrap = document.getElementById('schedule-rows');
     if (!wrap) return;
-    wrap.innerHTML = scheduleDraftRows.map((r, i) => `
+    const selStyle = 'padding:3px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;';
+    wrap.innerHTML = scheduleDraftRows.map((r, i) => {
+      const [hh, mm] = (r.time || '10:00').split(':');
+      return `
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-        <input type="time" lang="en-GB" value="${r.time}" onchange="updateScheduleRow(${i},'time',this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+        <select id="sch-hh-${i}" onchange="updateScheduleRow(${i},'time',this.value+':'+document.getElementById('sch-mm-${i}').value)" style="${selStyle}">${scheduleTimeSelectOptions(24, hh)}</select>
+        :
+        <select id="sch-mm-${i}" onchange="updateScheduleRow(${i},'time',document.getElementById('sch-hh-${i}').value+':'+this.value)" style="${selStyle}">${scheduleTimeSelectOptions(60, mm)}</select>
         <input type="number" min="1" max="100" value="${r.pct}" oninput="updateScheduleRow(${i},'pct',this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
         ${scheduleDraftRows.length > 1 ? `<button type="button" onclick="removeScheduleRow(${i})" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>` : ''}
-      </div>`).join('');
+      </div>`;
+    }).join('');
     updateScheduleSumNote();
   }
 
