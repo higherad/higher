@@ -4736,7 +4736,9 @@ window.toggleProdPanel = function(e) {
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${escProd(g.pid||'-')}</span>
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-              ${pendCount ? `<button onclick="event.stopPropagation();toggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '잔여 재분류'}</button>` : ''}
+              ${pendCount
+                ? `<button onclick="event.stopPropagation();toggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '잔여 재분류'}</button>`
+                : `<button style="padding:3px 9px;border:1px solid transparent;border-radius:100px;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;visibility:hidden;">🔀 잔여 재분류</button>`}
               <div onclick="toggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;">
                 전체 ${g.items.length}건 · <span style="color:#3b82f6;">대기중 ${pendCount}</span> · <span style="color:#ef4444;">완료 ${doneCount}</span>
               </div>
