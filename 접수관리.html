@@ -4782,6 +4782,23 @@ window.toggleProdPanel = function(e) {
   function idSafe(s) { return encodeURIComponent(String(s)); }
   function escJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
+  // 등급명이 트래픽(NP트래픽, adrole 없음)/저장(NP위치저장, adrole='100') 계열끼리 겹칠 수 있어서
+  // (찰리/델타가 이 계열) gradeName만으론 구분이 안 됨 — 계열까지 합친 조합키로 고유하게 식별한다.
+  function scheduleGradeCkey(adrole, gradeName) { return (adrole ? 'storage' : 'traffic') + '::' + gradeName; }
+
+  // 계정의 등급을 트래픽/저장 두 계열 다 조회해 합쳐서 반환 — 등급변경/잔여재분류 공용.
+  // 하나만 조회하면(예전 방식) 반대 계열 등급(예: 찰리/델타의 NP위치저장)이 아예 선택지에 안 뜬다.
+  async function fetchScheduleGradeGroups(sample) {
+    const base = { domain: sample.payload?.domain || BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd, tab: BIZFIT_TAB, rawData: [] };
+    const [giTraffic, giStorage] = await Promise.all([
+      callBizfitProxy('/grade-info', base).catch(() => ({ success:false })),
+      callBizfitProxy('/grade-info', { ...base, adrole: '100' }).catch(() => ({ success:false })),
+    ]);
+    const traffic = (giTraffic.success && giTraffic.gradeGroups) ? giTraffic.gradeGroups.map(g => ({ ...g, adrole: null,  category: '트래픽' })) : [];
+    const storage = (giStorage.success && giStorage.gradeGroups) ? giStorage.gradeGroups.map(g => ({ ...g, adrole: '100', category: '저장'   })) : [];
+    return [...traffic, ...storage].map(g => ({ ...g, ckey: scheduleGradeCkey(g.adrole, g.gradeName) }));
+  }
+
   window.toggleScheduleResplit = async function(slotKey) {
     const st = _ssResplit[slotKey] || (_ssResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{} });
     st.open = !st.open;
@@ -4790,43 +4807,34 @@ window.toggleProdPanel = function(e) {
       renderSplitScheduleList();
       const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
       const sample = items[0];
-      let gi = { success:false };
-      if (sample) {
-        try {
-          gi = await callBizfitProxy('/grade-info', {
-            domain: sample.payload?.domain || BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd,
-            tab: BIZFIT_TAB, adrole: sample.adrole || undefined, rawData: [],
-          });
-        } catch(e) { gi = { success:false }; }
-      }
+      st.gradeGroups = sample ? await fetchScheduleGradeGroups(sample) : [];
       st.loading = false;
-      st.gradeGroups = (gi.success && gi.gradeGroups) ? gi.gradeGroups : [];
       // 시작점 제공 — 지금 쓰고 있는 등급들을 기본 체크해두고 등급 수만큼 균등 비율을 미리 채워줌(그대로 써도 되고 고쳐도 됨)
-      const curNames = [...new Set(items.map(e => e.payload?.gradeName).filter(Boolean))];
-      if (curNames.length) {
-        const pct = Math.round(100 / curNames.length);
-        curNames.forEach(n => { st.sel[n] = pct; });
+      const curKeys = [...new Set(items.map(e => scheduleGradeCkey(e.adrole, e.payload?.gradeName)).filter(k => k && !k.endsWith('::')))];
+      if (curKeys.length) {
+        const pct = Math.round(100 / curKeys.length);
+        curKeys.forEach(k => { st.sel[k] = pct; });
       }
     }
     renderSplitScheduleList();
   };
 
-  window.onScheduleResplitCheck = function(slotKey, gname, checked) {
+  window.onScheduleResplitCheck = function(slotKey, ckey, checked) {
     const st = _ssResplit[slotKey]; if (!st) return;
-    const pctInput = document.getElementById(`ss-resplit-pct-${slotKey}-${idSafe(gname)}`);
+    const pctInput = document.getElementById(`ss-resplit-pct-${slotKey}-${idSafe(ckey)}`);
     if (checked) {
-      if (st.sel[gname] == null) st.sel[gname] = 0;
+      if (st.sel[ckey] == null) st.sel[ckey] = 0;
       if (pctInput) pctInput.disabled = false;
     } else {
-      delete st.sel[gname];
+      delete st.sel[ckey];
       if (pctInput) pctInput.disabled = true;
     }
     updateScheduleResplitSum(slotKey);
   };
 
-  window.onScheduleResplitPctInput = function(slotKey, gname, val) {
+  window.onScheduleResplitPctInput = function(slotKey, ckey, val) {
     const st = _ssResplit[slotKey]; if (!st) return;
-    st.sel[gname] = Math.max(0, parseInt(val)||0);
+    st.sel[ckey] = Math.max(0, parseInt(val)||0);
     updateScheduleResplitSum(slotKey);
   };
 
@@ -4848,19 +4856,24 @@ window.toggleProdPanel = function(e) {
       body = '<span style="font-size:12px;color:var(--danger);">등급 조회 실패 — 계정 정보를 확인해주세요.</span>';
     } else {
       const sum = Object.values(st.sel).reduce((a,b)=>a+b,0);
+      const categories = [...new Set(st.gradeGroups.map(gg => gg.category))];
       body = `
-        <div style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:10px;">
-          ${st.gradeGroups.map(gg => {
-            const checked = st.sel[gg.gradeName] != null;
-            return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
-              <input type="checkbox" ${checked?'checked':''} onchange="onScheduleResplitCheck('${slotKey}','${escJs(gg.gradeName)}',this.checked)">
-              <span style="min-width:60px;">${escProd(gg.gradeName)}</span>
-              <input type="number" id="ss-resplit-pct-${slotKey}-${idSafe(gg.gradeName)}" value="${checked?st.sel[gg.gradeName]:''}" ${checked?'':'disabled'}
-                oninput="onScheduleResplitPctInput('${slotKey}','${escJs(gg.gradeName)}',this.value)" min="0" max="100"
-                style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
-            </label>`;
-          }).join('')}
-        </div>
+        ${categories.map(cat => `
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:4px;">${escProd(cat)}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px 18px;">
+            ${st.gradeGroups.filter(gg => gg.category === cat).map(gg => {
+              const checked = st.sel[gg.ckey] != null;
+              return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                <input type="checkbox" ${checked?'checked':''} onchange="onScheduleResplitCheck('${slotKey}','${escJs(gg.ckey)}',this.checked)">
+                <span style="min-width:60px;">${escProd(gg.gradeName)}</span>
+                <input type="number" id="ss-resplit-pct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?st.sel[gg.ckey]:''}" ${checked?'':'disabled'}
+                  oninput="onScheduleResplitPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
+                  style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+              </label>`;
+            }).join('')}
+          </div>
+        </div>`).join('')}
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <span style="font-size:11px;color:var(--text2);">
             <span style="color:#ef4444;font-weight:700;">대기중 항목 취소 후 재생성</span>
@@ -4891,9 +4904,9 @@ window.toggleProdPanel = function(e) {
     const violations = [];
     byTime.forEach((bucket, sendAt) => {
       const totalTarget = bucket.reduce((s,e) => s + ((e.payload?.rowData||[])[0]?.일목표 || 0), 0);
-      const amounts = lrm(grades.map(g => ({ id: g.gradeName, ratio: g.pct })), totalTarget);
+      const amounts = lrm(grades.map(g => ({ id: g.ckey, ratio: g.pct })), totalTarget);
       grades.forEach(g => {
-        const amt = amounts[g.gradeName] || 0;
+        const amt = amounts[g.ckey] || 0;
         if (amt > 0 && amt < SCHEDULE_MIN_PORTION) violations.push({ sendAt, gradeName: g.gradeName, amt });
       });
       buckets.push({ sendAt, bucket, amounts });
@@ -4903,9 +4916,9 @@ window.toggleProdPanel = function(e) {
 
   window.applyScheduleResplitClick = async function(slotKey) {
     const st = _ssResplit[slotKey]; if (!st) return;
-    const grades = Object.entries(st.sel).filter(([,pct]) => pct > 0).map(([name,pct]) => {
-      const gg = (st.gradeGroups||[]).find(x => x.gradeName === name);
-      return gg ? { gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, pct } : null;
+    const grades = Object.entries(st.sel).filter(([,pct]) => pct > 0).map(([ckey,pct]) => {
+      const gg = (st.gradeGroups||[]).find(x => x.ckey === ckey);
+      return gg ? { ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct } : null;
     }).filter(Boolean);
     if (!grades.length) { alert('등급을 선택하고 비율을 입력해주세요.'); return; }
 
@@ -4942,11 +4955,11 @@ window.toggleProdPanel = function(e) {
       bucket.forEach(e => { patch[`scheduled_dispatch/${e._key}`] = null; removed++; });
 
       grades.forEach(g => {
-        const amt = amounts[g.gradeName] || 0;
+        const amt = amounts[g.ckey] || 0;
         if (amt <= 0) return;
         const key = genId();
         patch[`scheduled_dispatch/${key}`] = {
-          slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '', adrole: sample.adrole ?? null,
+          slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '', adrole: g.adrole ?? null,
           payload: {
             ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || BIZFIT_TAB,
             rowData: [{ ...sampleRow, 일목표: amt, 상품등급명: g.gradeName }],
@@ -4986,39 +4999,40 @@ window.toggleProdPanel = function(e) {
 
   // 상품 등급 변경 — gradeName만 바꾸면 안 되고(classType/gradeType/tab이 그 등급 전용 값과 짝을 이뤄야
   // 서버 /register가 올바른 등급으로 접수함) 저장된 계정으로 grade-info를 다시 조회해 그 계정에 실제로
-  // 존재하는 등급 중에서만 고르게 한다. select로 고른 등급의 4개 필드를 한 번에 갱신.
+  // 존재하는 등급 중에서만 고르게 한다(트래픽/저장 두 계열 다 조회 — fetchScheduleGradeGroups 참고).
+  // select로 고른 등급의 4개 필드 + adrole을 한 번에 갱신.
   window.editScheduleGrade = async function(key) {
     const e = _ssEntries[key];
     const cell = document.getElementById(`ss-grade-${key}`);
     if (!e || !cell || isScheduleDone(e.status)) return; // 완료된 항목은 수정 불가
     cell.innerHTML = '<span style="font-size:11px;color:var(--muted);">불러오는 중...</span>';
-    let gi;
-    try {
-      gi = await callBizfitProxy('/grade-info', {
-        domain: e.payload?.domain || BIZFIT_DOMAIN, loginId: e.payload?.loginId, pwd: e.payload?.pwd,
-        tab: BIZFIT_TAB, adrole: e.adrole || undefined, rawData: [],
-      });
-    } catch(err) { gi = { success:false }; }
-    if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
+    const groups = await fetchScheduleGradeGroups(e);
+    if (!groups.length) {
       cell.innerHTML = '<span style="color:var(--danger);font-size:11px;">등급 조회 실패</span>';
       return;
     }
     const curName = e.payload?.gradeName || '';
+    const curCkey = scheduleGradeCkey(e.adrole, curName);
+    const categories = [...new Set(groups.map(g => g.category))];
     cell.innerHTML = `<select style="font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;max-width:100%;">
-      ${gi.gradeGroups.map(g => `<option value="${escProd(g.gradeName)}" ${g.gradeName===curName?'selected':''}>${escProd(g.gradeName)}</option>`).join('')}
+      ${categories.map(cat => `<optgroup label="${escProd(cat)}">
+        ${groups.filter(g => g.category === cat).map(g => `<option value="${escProd(g.ckey)}" ${g.ckey===curCkey?'selected':''}>${escProd(g.gradeName)}</option>`).join('')}
+      </optgroup>`).join('')}
     </select>`;
     cell.querySelector('select').onchange = async (ev) => {
-      const g = gi.gradeGroups.find(x => x.gradeName === ev.target.value);
+      const g = groups.find(x => x.ckey === ev.target.value);
       if (!g) return;
       ev.target.disabled = true;
       try {
         await fbUpdate(`ha/scheduled_dispatch/${key}`, {
+          adrole: g.adrole ?? null,
           'payload/gradeName':  g.gradeName,
           'payload/classType':  g.classType,
           'payload/gradeType':  g.gradeType,
           'payload/tab':        g.actualTab || BIZFIT_TAB,
           'payload/rowData/0/상품등급명': g.gradeName,
         });
+        e.adrole = g.adrole ?? null;
         e.payload.gradeName = g.gradeName; e.payload.classType = g.classType;
         e.payload.gradeType = g.gradeType; e.payload.tab = g.actualTab || BIZFIT_TAB;
         const row = (e.payload.rowData||[])[0]; if (row) row.상품등급명 = g.gradeName;
