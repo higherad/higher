@@ -5386,6 +5386,13 @@ window.toggleProdPanel = function(e) {
       submitPlanRows(navyPlan, overlay, gate, 'navyKeys', null),
     ]);
 
+    // 델타/네이비가 동시에 끝나면 각자 내부에서 부르는 gate.tryApprove()가 서로 상대방의 완료를
+    // 못 보고 지나칠 수 있어(둘 다 끝난 뒤 딱 한 번만 준비된 걸로 잡히는 타이밍이면 문제없지만,
+    // 어느 한쪽이 먼저 끝나 승인 체크를 도는 순간 다른 쪽 결과가 아직 gate에 안 실렸을 수도 있음) —
+    // 두 콜 다 끝난 뒤 한 번 더 불러 놓친 슬롯이 있으면 여기서 마저 승인한다(이미 승인된 건 readyKeysOf가
+    // status==='active'로 걸러 내 중복 처리 없음). 팝업을 다시 열어야만 승인되던 문제의 안전망.
+    if (gate) { try { await gate.tryApprove(); } catch (e) {} }
+
     finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, d.okTotal + n.okTotal, d.failTotal + n.failTotal);
   }
 
