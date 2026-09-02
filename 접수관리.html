@@ -4713,6 +4713,7 @@ window.toggleProdPanel = function(e) {
         const collapsed = _ssCollapsed.has(g.gid);
         const doneCount = g.items.filter(e => isScheduleDone(e.status)).length;
         const pendCount = g.items.length - doneCount;
+        const selCount = (_ssResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;background:#f8fafc;">
@@ -4725,7 +4726,7 @@ window.toggleProdPanel = function(e) {
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${escProd(g.pid||'-')}</span>
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-              ${pendCount ? `<button onclick="event.stopPropagation();toggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 잔여 재분류</button>` : ''}
+              ${pendCount ? `<button onclick="event.stopPropagation();toggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '잔여 재분류'}</button>` : ''}
               <div onclick="toggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;">
                 전체 ${g.items.length}건 · <span style="color:#3b82f6;">대기중 ${pendCount}</span> · <span style="color:#ef4444;">완료 ${doneCount}</span>
               </div>
@@ -4735,20 +4736,25 @@ window.toggleProdPanel = function(e) {
           ${collapsed ? '' : `
           <table class="ag-table" style="table-layout:fixed;">
             <thead><tr>
-              <th style="text-align:center;width:13%">전송예정</th>
-              <th style="text-align:center;width:10%">대행사</th>
-              <th style="text-align:center;width:13%">등급</th><th style="text-align:center;width:25%">검색키워드</th>
-              <th style="text-align:center;width:8%">키워드 수</th>
-              <th style="text-align:center;width:7%">일 목표</th><th style="text-align:center;width:6%">일 수</th>
-              <th style="text-align:center;width:9%">예약일</th><th style="text-align:center;width:9%">상태</th>
+              <th style="text-align:center;width:3%"></th>
+              <th style="text-align:center;width:11%">전송예정</th>
+              <th style="text-align:center;width:9%">PID</th>
+              <th style="text-align:center;width:8%">대행사</th>
+              <th style="text-align:center;width:11%">등급</th><th style="text-align:center;width:25%">검색키워드</th>
+              <th style="text-align:center;width:7%">키워드 수</th>
+              <th style="text-align:center;width:6%">일 목표</th><th style="text-align:center;width:5%">일 수</th>
+              <th style="text-align:center;width:8%">예약일</th><th style="text-align:center;width:7%">상태</th>
             </tr></thead>
             <tbody>
               ${g.items.map(e => {
                 const row = (e.payload?.rowData || [])[0] || {};
                 const done = isScheduleDone(e.status);
+                const checked = (_ssResplit[g.gid]?.selectedKeys || new Set()).has(e._key);
                 return `
                 <tr>
+                  <td style="text-align:center">${done ? '' : `<input type="checkbox" ${checked?'checked':''} onchange="onScheduleRowCheck('${g.gid}','${e._key}',this.checked)">`}</td>
                   <td style="text-align:center;font-size:11px;color:var(--text2);white-space:nowrap;">${fmtScheduleTime(e.sendAt)}</td>
+                  <td style="text-align:center;font-size:11px;color:var(--text2);">${escProd(row.PID번호||'-')}</td>
                   <td style="text-align:center;font-size:11px;color:var(--text2);">${escProd(e.agency||'-')}</td>
                   <td id="ss-grade-${e._key}" style="text-align:center">
                     <span>${escProd(e.payload?.gradeName || row.상품등급명 || '-')}</span>
@@ -4799,18 +4805,34 @@ window.toggleProdPanel = function(e) {
     return [...traffic, ...storage].map(g => ({ ...g, ckey: scheduleGradeCkey(g.adrole, g.gradeName) }));
   }
 
+  // 그룹당 하나만 존재하는 재분류 상태 — 패널 열기 전에 행 체크박스를 먼저 누를 수도 있어서
+  // toggleScheduleResplit뿐 아니라 onScheduleRowCheck에서도 필요할 때 만든다.
+  function ensureResplitState(slotKey) {
+    return _ssResplit[slotKey] || (_ssResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{}, selectedKeys:new Set() });
+  }
+
+  // 행 체크박스 — 하나 이상 체크하면 그 항목들만 대상으로, 아무것도 안 체크하면(기본) 전체(잔여 전부) 대상으로
+  // 재분류한다(applyScheduleResplitClick 참고). 체크만으로는 아무 요청도 안 나가고 버튼 라벨만 바뀐다.
+  window.onScheduleRowCheck = function(slotKey, entryKey, checked) {
+    const st = ensureResplitState(slotKey);
+    if (checked) st.selectedKeys.add(entryKey); else st.selectedKeys.delete(entryKey);
+    renderSplitScheduleList();
+  };
+
   window.toggleScheduleResplit = async function(slotKey) {
-    const st = _ssResplit[slotKey] || (_ssResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{} });
+    const st = ensureResplitState(slotKey);
     st.open = !st.open;
     if (st.open && !st.gradeGroups && !st.loading) {
       st.loading = true;
       renderSplitScheduleList();
       const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
-      const sample = items[0];
+      const targetItems = st.selectedKeys.size ? items.filter(e => st.selectedKeys.has(e._key)) : items;
+      const sample = targetItems[0] || items[0];
       st.gradeGroups = sample ? await fetchScheduleGradeGroups(sample) : [];
       st.loading = false;
-      // 시작점 제공 — 지금 쓰고 있는 등급들을 기본 체크해두고 등급 수만큼 균등 비율을 미리 채워줌(그대로 써도 되고 고쳐도 됨)
-      const curKeys = [...new Set(items.map(e => scheduleGradeCkey(e.adrole, e.payload?.gradeName)).filter(k => k && !k.endsWith('::')))];
+      // 시작점 제공 — 대상(선택했으면 선택분, 아니면 전체)이 지금 쓰고 있는 등급들을 기본 체크해두고
+      // 등급 수만큼 균등 비율을 미리 채워줌(그대로 써도 되고 고쳐도 됨)
+      const curKeys = [...new Set(targetItems.map(e => scheduleGradeCkey(e.adrole, e.payload?.gradeName)).filter(k => k && !k.endsWith('::')))];
       if (curKeys.length) {
         const pct = Math.round(100 / curKeys.length);
         curKeys.forEach(k => { st.sel[k] = pct; });
@@ -4891,8 +4913,9 @@ window.toggleProdPanel = function(e) {
   // 같은 sendAt(=같은 시각에 나갈 조각)끼리 묶어 그 시점의 일목표 합을 비율대로 나눈다. 조각 하나가
   // 최소수량 미만이 되면(예: 남은 양이 적은데 너무 잘게 쪼갬) 그 조각만 조용히 버리지 않고 violations로
   // 보고해 실행 자체를 막는다 — 안 그러면 그 등급분만 수량이 통째로 증발해도 아무 표시가 안 남는다.
-  function computeResplitBuckets(slotKey, grades) {
-    const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+  function computeResplitBuckets(slotKey, grades, targetKeys) {
+    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
     const byTime = new Map();
     items.forEach(e => {
       const t = e.sendAt || '';
@@ -4914,6 +4937,25 @@ window.toggleProdPanel = function(e) {
     return { buckets, violations };
   }
 
+  // 체크박스로 일부 항목만 골랐을 때, 같은 시각(sendAt)에 다른 등급과 함께 묶여 있던 항목을 그중
+  // 일부만 재분류하면 그 시각의 원래 목표가 반쪽만 재분배돼 수량이 어긋난다 — 그 시각 전체가
+  // 선택되거나 전체가 빠지거나 둘 중 하나여야 하므로, 걸치는 시각이 있으면 실행 자체를 막는다.
+  function scheduleResplitPartialSendAts(slotKey, targetKeys) {
+    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const bySendAt = new Map();
+    allItems.forEach(e => {
+      const t = e.sendAt || '';
+      if (!bySendAt.has(t)) bySendAt.set(t, []);
+      bySendAt.get(t).push(e);
+    });
+    const partial = [];
+    bySendAt.forEach((list, sendAt) => {
+      const selectedCount = list.filter(e => targetKeys.has(e._key)).length;
+      if (selectedCount > 0 && selectedCount < list.length) partial.push(sendAt);
+    });
+    return partial;
+  }
+
   window.applyScheduleResplitClick = async function(slotKey) {
     const st = _ssResplit[slotKey]; if (!st) return;
     const grades = Object.entries(st.sel).filter(([,pct]) => pct > 0).map(([ckey,pct]) => {
@@ -4922,16 +4964,28 @@ window.toggleProdPanel = function(e) {
     }).filter(Boolean);
     if (!grades.length) { alert('등급을 선택하고 비율을 입력해주세요.'); return; }
 
-    const { violations } = computeResplitBuckets(slotKey, grades);
+    // 체크박스로 골라둔 게 있으면 그것만, 없으면(기본) 잔여 전체를 대상으로
+    const targetKeys = st.selectedKeys && st.selectedKeys.size ? st.selectedKeys : null;
+    if (targetKeys) {
+      const partial = scheduleResplitPartialSendAts(slotKey, targetKeys);
+      if (partial.length) {
+        const times = [...new Set(partial)].map(t => fmtScheduleTime(t)).join(', ');
+        alert(`같은 시각(${times})에 여러 등급으로 나뉜 항목은 일부만 선택할 수 없습니다 — 그 시각 전체를 선택하거나 전체를 선택 해제해주세요.`);
+        return;
+      }
+    }
+
+    const { violations } = computeResplitBuckets(slotKey, grades, targetKeys);
     if (violations.length) {
       const detail = [...new Set(violations.map(v => `${v.gradeName}(${v.amt})`))].join(', ');
       alert(`이 비율로 나누면 최소 접수 수량(${SCHEDULE_MIN_PORTION}) 미만인 조각이 생겨 접수할 수 없습니다: ${detail}\n등급 수를 줄이거나 비율을 조정해주세요.`);
       return;
     }
-    if (!confirm(`남은 예약 항목을 취소하고 ${grades.map(g=>`${g.gradeName} ${g.pct}%`).join(' / ')} 비율로 다시 나눕니다. 계속할까요?`)) return;
+    const scopeLabel = targetKeys ? `선택한 ${targetKeys.size}건` : '남은 예약 항목';
+    if (!confirm(`${scopeLabel}을 취소하고 ${grades.map(g=>`${g.gradeName} ${g.pct}%`).join(' / ')} 비율로 다시 나눕니다. 계속할까요?`)) return;
 
     try {
-      const result = await applyScheduleResplit(slotKey, grades);
+      const result = await applyScheduleResplit(slotKey, grades, targetKeys);
       delete _ssResplit[slotKey];
       await reloadScheduleEntries();
       alert(`재분류 완료 — 기존 ${result.removed}건 취소, 새로 ${result.created}건 생성됐습니다.`);
@@ -4940,8 +4994,8 @@ window.toggleProdPanel = function(e) {
     }
   };
 
-  async function applyScheduleResplit(slotKey, grades) {
-    const { buckets, violations } = computeResplitBuckets(slotKey, grades);
+  async function applyScheduleResplit(slotKey, grades, targetKeys) {
+    const { buckets, violations } = computeResplitBuckets(slotKey, grades, targetKeys);
     if (!buckets.length) return { created: 0, removed: 0 };
     if (violations.length) throw new Error('최소 접수 수량 미만인 조각이 있어 중단했습니다.'); // applyScheduleResplitClick에서 이미 막지만 방어적으로 재확인
 
