@@ -2238,19 +2238,22 @@ window.toggleProdPanel = function(e) {
     await set(ref(getDatabase(), path), val);
   }
 
-  // "HH:MM" → (오늘+dayOffset일) 그 시각의 UTC ISO 문자열 (브라우저 로컬시간=KST 가정, 이 코드베이스 전반의 기존 관례와 동일)
-  function scheduleTimeToIso(timeStr, dayOffset = 0) {
+  // "HH:MM" → (baseDateStr+dayOffset일) 그 시각의 UTC ISO 문자열 (브라우저 로컬시간=KST 가정, 이 코드베이스 전반의
+  // 기존 관례와 동일). baseDateStr(예약일/시작일, "YYYY-MM-DD")이 없으면 오늘을 기준으로 한다 — 예약일이 9/3이면
+  // 시간대 10:00 설정 시 "내일 10시"로, 9/2(오늘)이면 "오늘 10시"로 인식돼야 하므로 "오늘"을 무조건 기준으로 삼으면 안 됨.
+  function scheduleTimeToIso(timeStr, baseDateStr, dayOffset = 0) {
     const [h, m] = (timeStr || '00:00').split(':').map(Number);
-    const d = new Date();
+    const d = baseDateStr ? new Date(`${baseDateStr}T00:00:00`) : new Date();
     d.setDate(d.getDate() + dayOffset);
     d.setHours(h || 0, m || 0, 0, 0);
     return d.toISOString();
   }
 
-  // (오늘+dayOffset일)의 로컬 날짜를 "YYYY-MM-DD"로 — 날짜분할 조각마다 예약일(=비즈핏 시작일)을 실제
-  // 접수되는 그날로 맞추기 위함(안 맞추면 이틀 뒤에 나가는 콜도 예약일이 오늘로 찍혀 과거 시작일이 되어버림)
-  function scheduleDateForOffset(dayOffset = 0) {
-    const d = new Date();
+  // (baseDateStr+dayOffset일)의 로컬 날짜를 "YYYY-MM-DD"로 — 날짜분할 조각마다 예약일(=비즈핏 시작일)을 실제
+  // 접수되는 그날로 맞추기 위함(안 맞추면 이틀 뒤에 나가는 콜도 예약일이 오늘로 찍혀 과거 시작일이 되어버림).
+  // baseDateStr 없으면 오늘 기준(폴백).
+  function scheduleDateForOffset(baseDateStr, dayOffset = 0) {
+    const d = baseDateStr ? new Date(`${baseDateStr}T00:00:00`) : new Date();
     d.setDate(d.getDate() + dayOffset);
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
@@ -2273,8 +2276,8 @@ window.toggleProdPanel = function(e) {
           ...row,
           일목표: portionTotal,
           일수: row._daysMultiplied ? portionTotal : 1,
-          예약일: scheduleDateForOffset(d),
-          _sendAt: scheduleTimeToIso(s.time, d),
+          예약일: scheduleDateForOffset(row.예약일, d),
+          _sendAt: scheduleTimeToIso(s.time, row.예약일, d),
         });
       }
     });
@@ -3858,6 +3861,23 @@ window.toggleProdPanel = function(e) {
   function flattenScheduleRows(data) {
     return [...data.normalPlan, ...data.charliePlan, ...data.deltaPlan, ...data.navyPlan].flatMap(p => p.rows);
   }
+  // schedule 시간을 각 행의 실제 예약일(row.예약일, 없으면 오늘) 기준 첫 회차(dayOffset 0)로 계산했을 때
+  // 이미 지난 시각이 되는 조합을 찾음 — 예약일이 미래(예: 9/3)면 오늘 기준으로는 지난 시각이라도 유효하므로
+  // "오늘"만 보고 일괄 차단하면 안 된다(2026-09-02, 예약일 다른 오늘 대비 미래 슬롯 혼재 케이스 대응).
+  function schedulePastViolations(rows, schedule) {
+    const now = new Date();
+    const violations = [];
+    rows.forEach(r => {
+      if (!(r.일목표 > 0)) return;
+      schedule.forEach(s => {
+        if (new Date(scheduleTimeToIso(s.time, r.예약일, 0)) <= now) {
+          violations.push({ name: r.상품등급명, time: s.time, date: r.예약일 || scheduleDateForOffset() });
+        }
+      });
+    });
+    return violations;
+  }
+
   // schedule 설정대로 쪼갰을 때 한 조각이라도 비즈핏 최소 수량(일반 10 / NP위치저장 100) 미만이 되는 행을 찾음 —
   // 접수 시점에 조용히 버려지는 대신(목표 미달) 여기서 미리 막는다.
   function scheduleMinViolations(rows, schedule) {
@@ -3887,7 +3907,7 @@ window.toggleProdPanel = function(e) {
     if (!wrap) return;
     wrap.innerHTML = scheduleDraftRows.map((r, i) => `
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-        <input type="time" value="${r.time}" onchange="updateScheduleRow(${i},'time',this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+        <input type="time" lang="en-GB" value="${r.time}" onchange="updateScheduleRow(${i},'time',this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
         <input type="number" min="1" max="100" value="${r.pct}" oninput="updateScheduleRow(${i},'pct',this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
         ${scheduleDraftRows.length > 1 ? `<button type="button" onclick="removeScheduleRow(${i})" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>` : ''}
       </div>`).join('');
@@ -3920,9 +3940,13 @@ window.toggleProdPanel = function(e) {
   window.applyScheduleConfig = function() {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
     if (sum !== 100) { alert(`시간대 비율 합계는 100%여야 합니다. (현재 ${sum}%)`); return; }
-    const now = new Date();
-    const pastRows = scheduleDraftRows.filter(r => new Date(scheduleTimeToIso(r.time)) <= now);
-    if (pastRows.length) { alert(`이미 지난 시각은 설정할 수 없습니다: ${pastRows.map(r=>r.time).join(', ')}`); return; }
+    const pastViolations = schedulePastViolations(scheduleValidationRows, scheduleDraftRows);
+    if (pastViolations.length) {
+      const lines = pastViolations.slice(0, 5).map(v => `- ${v.name} ${v.date} ${v.time}`);
+      if (pastViolations.length > 5) lines.push(`외 ${pastViolations.length - 5}건`);
+      alert(`이미 지난 시각으로는 설정할 수 없습니다.\n${lines.join('\n')}`);
+      return;
+    }
     const violations = scheduleMinViolations(scheduleValidationRows, scheduleDraftRows);
     if (violations.length) {
       const lines = violations.slice(0, 5).map(v => `- ${v.name} ${v.time} → ${v.portion}개 (최소 ${v.min})`);
