@@ -4860,53 +4860,6 @@ window.toggleProdPanel = function(e) {
     updateScheduleResplitSum(slotKey);
   };
 
-  function updateScheduleResplitSum(slotKey) {
-    const st = _ssResplit[slotKey]; if (!st) return;
-    const sum = Object.values(st.sel).reduce((a,b)=>a+b,0);
-    const el = document.getElementById(`ss-resplit-sum-${slotKey}`);
-    if (el) { el.textContent = sum; el.style.color = sum===100 ? 'var(--accent)' : '#b45309'; }
-  }
-
-  function renderScheduleResplitPanel(g) {
-    const st = _ssResplit[g.gid];
-    if (!st || !st.open) return '';
-    const slotKey = g.gid;
-    let body;
-    if (st.loading) {
-      body = '<span style="font-size:12px;color:var(--muted);">등급 조회 중...</span>';
-    } else if (!st.gradeGroups || !st.gradeGroups.length) {
-      body = '<span style="font-size:12px;color:var(--danger);">등급 조회 실패 — 계정 정보를 확인해주세요.</span>';
-    } else {
-      const sum = Object.values(st.sel).reduce((a,b)=>a+b,0);
-      const categories = [...new Set(st.gradeGroups.map(gg => gg.category))];
-      body = `
-        ${categories.map(cat => `
-        <div style="margin-bottom:8px;">
-          <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:4px;">${escProd(cat)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px 18px;">
-            ${st.gradeGroups.filter(gg => gg.category === cat).map(gg => {
-              const checked = st.sel[gg.ckey] != null;
-              return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
-                <input type="checkbox" ${checked?'checked':''} onchange="onScheduleResplitCheck('${slotKey}','${escJs(gg.ckey)}',this.checked)">
-                <span style="min-width:60px;">${escProd(gg.gradeName)}</span>
-                <input type="number" id="ss-resplit-pct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?st.sel[gg.ckey]:''}" ${checked?'':'disabled'}
-                  oninput="onScheduleResplitPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
-              </label>`;
-            }).join('')}
-          </div>
-        </div>`).join('')}
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:11px;color:var(--text2);">
-            <span style="color:#ef4444;font-weight:700;">대기중 항목 취소 후 재생성</span>
-            · 합계 <span id="ss-resplit-sum-${slotKey}" style="font-weight:700;color:${sum===100?'var(--accent)':'#b45309'};">${sum}</span>%
-          </span>
-          <button onclick="applyScheduleResplitClick('${slotKey}')" style="padding:6px 14px;border:none;border-radius:7px;background:#4338ca;color:#fff;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">적용</button>
-        </div>`;
-    }
-    return `<div style="padding:12px 14px;background:#eef2ff;border-top:1px solid #c7d2fe;border-bottom:1px solid #c7d2fe;">${body}</div>`;
-  }
-
   // 최소 접수 수량 — 비즈핏 최소 수량 기준, splitRowBySchedule과 동일
   const SCHEDULE_MIN_PORTION = 10;
 
@@ -4956,36 +4909,101 @@ window.toggleProdPanel = function(e) {
     return partial;
   }
 
-  window.applyScheduleResplitClick = async function(slotKey) {
-    const st = _ssResplit[slotKey]; if (!st) return;
+  // 재분류 패널의 모든 방어 로직을 한곳에 모음 — alert 팝업 대신 적용 버튼 위에 바로 보여주기 위해
+  // 체크박스/비율 입력이 바뀔 때마다(렌더 시점 포함) 이 함수로 다시 계산해서 경고문+버튼 상태를 맞춘다.
+  function computeResplitValidity(slotKey) {
+    const st = _ssResplit[slotKey];
+    if (!st) return null;
     const grades = Object.entries(st.sel).filter(([,pct]) => pct > 0).map(([ckey,pct]) => {
       const gg = (st.gradeGroups||[]).find(x => x.ckey === ckey);
       return gg ? { ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct } : null;
     }).filter(Boolean);
-    if (!grades.length) { alert('등급을 선택하고 비율을 입력해주세요.'); return; }
-
-    // 체크박스로 골라둔 게 있으면 그것만, 없으면(기본) 잔여 전체를 대상으로
+    const pctSum = grades.reduce((a,g) => a+g.pct, 0);
     const targetKeys = st.selectedKeys && st.selectedKeys.size ? st.selectedKeys : null;
-    if (targetKeys) {
-      const partial = scheduleResplitPartialSendAts(slotKey, targetKeys);
-      if (partial.length) {
-        const times = [...new Set(partial)].map(t => fmtScheduleTime(t)).join(', ');
-        alert(`같은 시각(${times})에 여러 등급으로 나뉜 항목은 일부만 선택할 수 없습니다 — 그 시각 전체를 선택하거나 전체를 선택 해제해주세요.`);
-        return;
-      }
-    }
+    const partialSendAts = targetKeys ? scheduleResplitPartialSendAts(slotKey, targetKeys) : [];
+    const { violations } = grades.length ? computeResplitBuckets(slotKey, grades, targetKeys) : { violations: [] };
 
-    const { violations } = computeResplitBuckets(slotKey, grades, targetKeys);
+    const messages = [];
+    if (pctSum > 100) messages.push(`비율 합계가 ${pctSum}%로 100%를 초과했습니다`);
+    if (partialSendAts.length) {
+      const times = [...new Set(partialSendAts)].map(t => fmtScheduleTime(t)).join(', ');
+      messages.push(`같은 시각(${times})에 여러 등급으로 묶인 항목은 전체 선택/전체 해제만 가능합니다`);
+    }
     if (violations.length) {
       const detail = [...new Set(violations.map(v => `${v.gradeName}(${v.amt})`))].join(', ');
-      alert(`이 비율로 나누면 최소 접수 수량(${SCHEDULE_MIN_PORTION}) 미만인 조각이 생겨 접수할 수 없습니다: ${detail}\n등급 수를 줄이거나 비율을 조정해주세요.`);
-      return;
+      messages.push(`최소 접수 수량(${SCHEDULE_MIN_PORTION}) 미만 조각 발생: ${detail}`);
     }
-    const scopeLabel = targetKeys ? `선택한 ${targetKeys.size}건` : '남은 예약 항목';
-    if (!confirm(`${scopeLabel}을 취소하고 ${grades.map(g=>`${g.gradeName} ${g.pct}%`).join(' / ')} 비율로 다시 나눕니다. 계속할까요?`)) return;
+    return { grades, pctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !grades.length };
+  }
+
+  function updateScheduleResplitSum(slotKey) {
+    const v = computeResplitValidity(slotKey);
+    if (!v) return;
+    const sumEl = document.getElementById(`ss-resplit-sum-${slotKey}`);
+    if (sumEl) { sumEl.textContent = v.pctSum; sumEl.style.color = v.pctSum>100 ? 'var(--danger)' : (v.pctSum===100 ? 'var(--accent)' : '#b45309'); }
+    const warnEl = document.getElementById(`ss-resplit-warn-${slotKey}`);
+    if (warnEl) {
+      if (v.messages.length) { warnEl.style.display = 'block'; warnEl.textContent = '⚠ ' + v.messages.join(' · '); }
+      else { warnEl.style.display = 'none'; warnEl.textContent = ''; }
+    }
+    const btnEl = document.getElementById(`ss-resplit-apply-${slotKey}`);
+    if (btnEl) {
+      btnEl.disabled = v.blocked;
+      btnEl.style.background = v.blocked ? 'var(--muted)' : '#4338ca';
+      btnEl.style.cursor = v.blocked ? 'not-allowed' : 'pointer';
+    }
+  }
+
+  function renderScheduleResplitPanel(g) {
+    const st = _ssResplit[g.gid];
+    if (!st || !st.open) return '';
+    const slotKey = g.gid;
+    let body;
+    if (st.loading) {
+      body = '<span style="font-size:12px;color:var(--muted);">등급 조회 중...</span>';
+    } else if (!st.gradeGroups || !st.gradeGroups.length) {
+      body = '<span style="font-size:12px;color:var(--danger);">등급 조회 실패 — 계정 정보를 확인해주세요.</span>';
+    } else {
+      const categories = [...new Set(st.gradeGroups.map(gg => gg.category))];
+      const v = computeResplitValidity(slotKey);
+      body = `
+        ${categories.map(cat => `
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:4px;">${escProd(cat)}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px 18px;">
+            ${st.gradeGroups.filter(gg => gg.category === cat).map(gg => {
+              const checked = st.sel[gg.ckey] != null;
+              return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                <input type="checkbox" ${checked?'checked':''} onchange="onScheduleResplitCheck('${slotKey}','${escJs(gg.ckey)}',this.checked)">
+                <span style="min-width:60px;">${escProd(gg.gradeName)}</span>
+                <input type="number" id="ss-resplit-pct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?st.sel[gg.ckey]:''}" ${checked?'':'disabled'}
+                  oninput="onScheduleResplitPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
+                  style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+              </label>`;
+            }).join('')}
+          </div>
+        </div>`).join('')}
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <span style="font-size:11px;color:var(--text2);">
+            <span style="color:#ef4444;font-weight:700;">대기중 항목 취소 후 재생성</span>
+            · 합계 <span id="ss-resplit-sum-${slotKey}" style="font-weight:700;color:${v.pctSum>100?'var(--danger)':v.pctSum===100?'var(--accent)':'#b45309'};">${v.pctSum}</span>%
+          </span>
+          <button id="ss-resplit-apply-${slotKey}" onclick="applyScheduleResplitClick('${slotKey}')" ${v.blocked?'disabled':''}
+            style="padding:6px 14px;border:none;border-radius:7px;background:${v.blocked?'var(--muted)':'#4338ca'};color:#fff;cursor:${v.blocked?'not-allowed':'pointer'};font-size:12px;font-weight:700;font-family:inherit;">적용</button>
+        </div>
+        <div id="ss-resplit-warn-${slotKey}" style="margin-top:6px;font-size:11px;color:var(--danger);font-weight:600;${v.messages.length?'':'display:none;'}">${v.messages.length?'⚠ '+escProd(v.messages.join(' · ')):''}</div>`;
+    }
+    return `<div style="padding:12px 14px;background:#eef2ff;border-top:1px solid #c7d2fe;border-bottom:1px solid #c7d2fe;">${body}</div>`;
+  }
+
+  window.applyScheduleResplitClick = async function(slotKey) {
+    const v = computeResplitValidity(slotKey);
+    if (!v || v.blocked) return; // 적용 버튼이 이미 막혀있어 정상 흐름에서 도달 안 함 — 방어적으로만 남겨둠(팝업 없음)
+    const scopeLabel = v.targetKeys ? `선택한 ${v.targetKeys.size}건` : '남은 예약 항목';
+    if (!confirm(`${scopeLabel}을 취소하고 ${v.grades.map(g=>`${g.gradeName} ${g.pct}%`).join(' / ')} 비율로 다시 나눕니다. 계속할까요?`)) return;
 
     try {
-      const result = await applyScheduleResplit(slotKey, grades, targetKeys);
+      const result = await applyScheduleResplit(slotKey, v.grades, v.targetKeys);
       delete _ssResplit[slotKey];
       await reloadScheduleEntries();
       alert(`재분류 완료 — 기존 ${result.removed}건 취소, 새로 ${result.created}건 생성됐습니다.`);
