@@ -4658,7 +4658,17 @@ window.toggleProdPanel = function(e) {
     });
     const list = [...groups.values()];
     list.forEach(g => g.items.sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||'')));
-    list.sort((a,b) => (a.items[0]?.sendAt||'').localeCompare(b.items[0]?.sendAt||''));
+    // 정렬 기준은 필터링 전 전체(_ssEntries)의 최소 sendAt으로 고정 — entries(필터된 부분집합)
+    // 기준으로 정렬하면 상태 필터를 바꿀 때마다 남는 항목이 달라져 그 최솟값도 같이 바뀌면서
+    // 그룹 순서 자체가 흔들린다(예: 대기중만 보면 이미 완료된 이른 시각 항목이 빠져 최솟값이 뒤로 밀림).
+    const minSendAtByGid = new Map();
+    Object.values(_ssEntries).forEach(e => {
+      const row = (e.payload?.rowData || [])[0] || {};
+      const gid = e.slotKey || row.PID번호 || row.업체명 || 'unknown';
+      const cur = minSendAtByGid.get(gid);
+      if (cur === undefined || (e.sendAt||'') < cur) minSendAtByGid.set(gid, e.sendAt||'');
+    });
+    list.sort((a,b) => (minSendAtByGid.get(a.gid)||'').localeCompare(minSendAtByGid.get(b.gid)||''));
     return list;
   }
 
