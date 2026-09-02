@@ -4676,15 +4676,15 @@ window.toggleProdPanel = function(e) {
     renderSplitScheduleList();
   };
 
-  // 검색/필터 결과가 접힌 그룹에 가려 안 바뀐 것처럼 보이지 않도록 실행할 때마다 전체 펼침
+  // 검색/필터는 그룹을 걸러낼 뿐 펼침 상태는 건드리지 않는다 — 펼쳐둔 그룹은 펼쳐진 채로 필터링되고,
+  // 접힌 그룹은 헤더의 건수 배지로만 결과가 보인다(펼쳐야 상세 확인).
   window.runScheduleSearch = function() {
-    _ssCollapsed = new Set();
     renderSplitScheduleList();
   };
 
   window.clearScheduleSearch = function() {
     document.getElementById('ss-search').value = '';
-    runScheduleSearch();
+    renderSplitScheduleList();
   };
 
   function ssKwCountBadge(str) {
@@ -5151,7 +5151,7 @@ window.toggleProdPanel = function(e) {
 </script>
 
 <!-- ── 분할접수 현황 모달 ───────────────────────────────────────── -->
-<div id="split-schedule-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+<div id="split-schedule-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:8px;">
