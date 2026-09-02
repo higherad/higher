@@ -4543,7 +4543,7 @@ window.toggleProdPanel = function(e) {
         grpRows.forEach(r => {
           const { _slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, _days, _daysMultiplied, _sendAt, ...rowData } = r;
           dispatchEntries.push({
-            slotKey: _slotKey, batchGroupId, sendAt: _sendAt, endpoint: '/register', agency: p.agency || '',
+            slotKey: _slotKey, batchGroupId, sendAt: _sendAt, endpoint: '/register', agency: p.agency || '', adrole: adrole ?? null,
             payload: {
               domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw,
               tab: g.actualTab || BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType,
@@ -4795,7 +4795,7 @@ window.toggleProdPanel = function(e) {
         try {
           gi = await callBizfitProxy('/grade-info', {
             domain: sample.payload?.domain || BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd,
-            tab: BIZFIT_TAB, rawData: [],
+            tab: BIZFIT_TAB, adrole: sample.adrole || undefined, rawData: [],
           });
         } catch(e) { gi = { success:false }; }
       }
@@ -4946,7 +4946,7 @@ window.toggleProdPanel = function(e) {
         if (amt <= 0) return;
         const key = genId();
         patch[`scheduled_dispatch/${key}`] = {
-          slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '',
+          slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '', adrole: sample.adrole ?? null,
           payload: {
             ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || BIZFIT_TAB,
             rowData: [{ ...sampleRow, 일목표: amt, 상품등급명: g.gradeName }],
@@ -4996,7 +4996,7 @@ window.toggleProdPanel = function(e) {
     try {
       gi = await callBizfitProxy('/grade-info', {
         domain: e.payload?.domain || BIZFIT_DOMAIN, loginId: e.payload?.loginId, pwd: e.payload?.pwd,
-        tab: BIZFIT_TAB, rawData: [],
+        tab: BIZFIT_TAB, adrole: e.adrole || undefined, rawData: [],
       });
     } catch(err) { gi = { success:false }; }
     if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
