@@ -508,7 +508,7 @@
     renderSummary();
 
     // 과거 날짜 그룹 스냅샷 저장(미저장 그룹) + 차감/유입플 금액이 실제 슬롯과 어긋난 기존 스냅샷 재동기화.
-    // 얼린 시점에 미승인이던 그룹은 차감/유입플이 0으로 영구 고정되는 문제 있었음(2026-08-07 실사례) — totalTarget/amount/refund는 고정 유지, 차감/유입플만 대상.
+    // 얼린 시점에 미승인이던 그룹은 차감/유입플이 0으로 영구 고정되므로 — totalTarget/amount/refund는 고정 유지, 차감/유입플만 대상.
     // 캐시된 allSlots로 대상 그룹 유무를 먼저 싸게 확인해 렌더마다 전체 slots 재조회하는 비용을 피함
     const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
     const pastGroups = (slots) => groupByTimeAgency(slots.filter(s=>s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending'))

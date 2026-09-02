@@ -384,8 +384,8 @@ window.toggleProdPanel = function(e) {
   let _detailOpen  = false;
   const userPriceMap = new Map(); // userId -> 단가(원/개), 유입플 접수 모달 금액 표시용
   const userBizfitUidMap = new Map(); // userId -> 비즈핏 파트너 어드민 uid(이메일), 승인 시 캐시 자동차감용
-  // settleBizfitCash 등이 이 promise를 await해 로드 전 "매핑 없음" 오판을 방지(2026-08-11)
-  // bizfitUid는 별도 필드 대신 ha/bizfit_charge(BizFit 로그인 id)를 그대로 씀 — 19개 대행사 전수 확인해 통일
+  // settleBizfitCash 등이 이 promise를 await해 로드 전 "매핑 없음" 오판을 방지
+  // bizfitUid는 별도 필드 대신 ha/bizfit_charge(BizFit 로그인 id)를 그대로 씀
   const userBizfitUidReady = HA.getUsers().then(async users => {
     users.forEach(u => userPriceMap.set(u.username, u.unitPrice || 0));
     try {
@@ -417,7 +417,7 @@ window.toggleProdPanel = function(e) {
   const BIZFIT_TAB    = '99'; // 전체 — 대행사별 단독/랜덤/통합 구분 정보가 없어 기본값 사용
   // 찰리는 NP 위치저장(adrole=100) 메뉴로 접수 — 등급명이 NP트래픽과 겹쳐 자동탐색 불가하므로 강제 지정
   const CHARLIE_ADROLE = '100';
-  // 델타도 찰리와 같은 계열로 추정(가정치, 2026-08-18 — 실측 전까지 미확정)
+  // 델타도 찰리와 같은 계열로 추정(가정치, 실측 전까지 미확정)
   const DELTA_ADROLE = '100';
   const BIZFIT_CHARGE_FB = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/bizfit_charge';
 
@@ -658,7 +658,7 @@ window.toggleProdPanel = function(e) {
       _slotsLoaded = true;
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-      // 슬롯마다 HA.updateSlot을 개별 호출하면 부담 커서, expireSlots로 status만 한 번의 multi-path 쓰기로 처리(2026-08-11)
+      // 슬롯마다 HA.updateSlot을 개별 호출하면 부담 커서, expireSlots로 status만 한 번의 multi-path 쓰기로 처리
       const todayStr = ymd(new Date());
       const toExpire = allSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
@@ -819,7 +819,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 승인 ─────────────────────────────────────────────────
-  // btn 즉시 disable로 이중 차감 방지, settleBizfitCash await로 차감 끝나기 전 화면 닫힘(요청 취소) 방지(2026-08-11)
+  // btn 즉시 disable로 이중 차감 방지, settleBizfitCash await로 차감 끝나기 전 화면 닫힘(요청 취소) 방지
   window.approveOne = async function(key, btn) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     const targetSlot = allSlots.find(s => s._key === key);
@@ -1468,7 +1468,7 @@ window.toggleProdPanel = function(e) {
       const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
       let fi = 0;
       prods = prods.map(p => fixedRank.has(p.id) ? fixedSorted[fi++] : p);
-      // 자동배분 대상 중 활성 ratio/kwPct 합이 10이 아니면 재배분 — 과거 비율 0 버그를 수동 조작 없이 자동 복구
+      // 자동배분 대상 중 활성 ratio/kwPct 합이 10이 아니면(예: 비율이 0으로 어긋난 경우) 재배분해 수동 조작 없이 복구
       const balanced = prods.filter(p => p.active && p.autoBalance !== false);
       if (balanced.length) {
         const ratioSum = Math.round(balanced.reduce((s,p)=>s+(p.ratio||0),0)*10)/10;
@@ -2062,14 +2062,14 @@ window.toggleProdPanel = function(e) {
     return { yupflTarget: target, yupflAmount: target * (slot.days||0) * unitPrice };
   }
 
-  // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐(2026-08-10)
-  // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용, 2026-08-11)
+  // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐
+  // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용)
   async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount) {
     const targets = slots.filter(s => s && !s.bizfitDeducted);
     if (!targets.length) return true;
     const amount = deductAmount + yupflAmount;
     if (amount <= 0) return true;
-    // bizfitDeductAttempted(레거시 슬롯 오탐 방지 마커)를 호출 전에 미리 쓰면 성공 케이스도 배지가 깜빡임(2026-08-11 확인) —
+    // bizfitDeductAttempted(레거시 슬롯 오탐 방지 마커)를 호출 전에 미리 쓰면 성공 케이스도 배지가 깜빡이므로
     // 성공 시 attempted+deducted를 한 번에, 실패 시만 attempted 단독으로 남긴다
     try {
       const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount });
@@ -2105,7 +2105,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // 승인됐지만 차감 시도(bizfitDeductAttempted)했다 실패한(!bizfitDeducted) 슬롯만 필터 — bizfitDeducted만 보면
-  // 이 기능 이전 레거시 active 슬롯까지 걸려서(2026-08-11 확인) attempted를 같이 요구(레거시엔 이 필드 자체가 없음)
+  // 이 필드가 없는 레거시 active 슬롯까지 걸리므로 attempted를 같이 요구(레거시엔 이 필드 자체가 없음)
   function bizfitDeductPending(s) {
     return !!(s && s.status === 'active' && s.bizfitDeductAttempted && !s.bizfitDeducted);
   }
@@ -2155,7 +2155,7 @@ window.toggleProdPanel = function(e) {
   // 차감은 그룹당 한 번만 호출. 실패한 그룹만 반환해 호출부가 팝업 재시도 배너에 넘김.
   async function approveSlotsWithBizfit(keys, slotMap) {
     const groups = await approveReadySlots(keys, slotMap);
-    // await 없이 던지면 닫기 버튼이 차감 완료 전 활성화돼 요청이 취소될 수 있음(2026-08-11) — 전부 끝난 뒤 resolve
+    // await 없이 던지면 닫기 버튼이 차감 완료 전 활성화돼 요청이 취소될 수 있음 — 전부 끝난 뒤 resolve
     const results = await Promise.all(groups.map(async g => {
       const ok = await settleBizfitCashBatch(g.bizfitUid, g.slots, g.ded, g.yup);
       return { ...g, ok };
@@ -2311,7 +2311,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // 슬롯별로 이번에 예약한 조각 개수를 미리 기록해둬야 서버가 "다 끝났는지"(승인 전환 시점) 판정 가능.
-  // 캐시차감은 예약 그룹 완료를 기다리지 않고 접수(예약) 시점에 즉시 실행한다(사용자 지정, 2026-09-01) —
+  // 캐시차감은 예약 그룹 완료를 기다리지 않고 접수(예약) 시점에 즉시 실행한다 —
   // approveReadySlots와 동일하게 deductFieldsFor/yupflFieldsFor를 슬롯에 스냅샷으로 남기고, bizfitUid별로
   // 묶어 settleBizfitCashBatch 한 번씩 호출. 슬롯 상태는 'split'(분할)로 바꿔 일반 접수 대상과 구분하고
   // 원래 상태는 preScheduleStatus에 보관 — 상태가 'active'로 바뀌는 건 여전히 예약 그룹이 실제로 전부
@@ -3010,9 +3010,9 @@ window.toggleProdPanel = function(e) {
       return snap.exists() ? snap.val() : null;
     } catch { return null; }
   }
-  // 엑셀 버전 조회 전용 계정(오렌지, orangeplanet1@naver.com로 고정 — 사용자 지정, 2026-08-27,
+  // 엑셀 버전 조회 전용 계정(오렌지, orangeplanet1@naver.com로 고정 —
   // 이 계정이 등급이 가장 최신화됨) — 실제 대행사 접수용 ha/bizfit_charge와는 별개 노드(ha/version_check_account)에
-  // 단일 계정만 저장해서, 오렌지가 실제 접수 대행사 목록에 없어도(2026-08-27 확인: 없음) 안전하게 조회 가능.
+  // 단일 계정만 저장해서, 오렌지가 실제 접수 대행사 목록에 없어도 안전하게 조회 가능.
   async function fetchVersionCheckAccount() {
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
@@ -3390,7 +3390,7 @@ window.toggleProdPanel = function(e) {
     }));
     const yupflRows  = buildYoupflRows(target);
     // hasNormal을 사이트 전체 설정(ap())으로 판단하면 일반 상품이 없어도 true가 되어 normalKeys가 빈 채로
-    // 교집합이 영원히 안 채워짐 — 유입플/찰리만 쓰는 대상이 승인으로 못 넘어가는 문제(2026-08-11) — hasFixed/hasCharlie처럼 실제 제출 행 유무로 통일
+    // 교집합이 영원히 안 채워져 유입플/찰리만 쓰는 대상이 승인으로 못 넘어가므로, hasFixed/hasCharlie처럼 실제 제출 행 유무로 판단
     const hasNormal  = normalPlan.some(p => p.rows.length > 0);
     const hasFixed   = yupflRows.length > 0;
     const hasCharlie = charliePlan.some(p => p.rows.length > 0);
@@ -3630,7 +3630,7 @@ window.toggleProdPanel = function(e) {
       resetApplyBtn(youpflApplyBtn, '#f59e0b');
 
       // 일반/유입플/찰리 2개 이상 동시 활성 시 승인 게이트 — "탭 전체 완료"가 아닌 슬롯별로 "그 슬롯이 쓰는 레그들만" 다 끝나면 바로 승인
-      // (requiredLegsByKey로 계산). 예전 탭 전체 완료 요구 방식은 유입플만 쓰는 슬롯이 영원히 승인 못 되는 문제가 있었음(2026-08-11).
+      // (requiredLegsByKey로 계산). 탭 전체 완료를 기준으로 하면 유입플만 쓰는 슬롯은 영원히 승인되지 않는다.
       // 재계산 시점에 이전에 이미 완료된 탭은 저장된 플래그로 미리 채움(일반/찰리는 모든 상품행 완료 시에만 "이미 완료")
       const rowsBySlotOf = rows => {
         const m = new Map();
@@ -3727,7 +3727,7 @@ window.toggleProdPanel = function(e) {
       // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
       const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone });
       if (initialReady.length) {
-        // 자동 승인 도는 틈에 관리자가 같은 레그 "접수 신청"을 누르면 이중 차감 가능 — 처리 끝날 때까지 그 레그 버튼만 잠금(2026-08-11)
+        // 자동 승인 도는 틈에 관리자가 같은 레그 "접수 신청"을 누르면 이중 차감 가능 — 처리 끝날 때까지 그 레그 버튼만 잠금
         const legsInvolved = new Set();
         initialReady.forEach(k => (requiredLegsByKey.get(k) || []).forEach(leg => legsInvolved.add(leg)));
         legsInvolved.forEach(leg => {
@@ -4299,7 +4299,7 @@ window.toggleProdPanel = function(e) {
 
   // NP위치저장(adrole=100) 계열(찰리/델타)은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본
   // 폴백 버전과 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
-  // 네이비도 2026-08-25 동일 증상 확인되어 포함(등록 시 이 override가 없으면 상품 설정의 ver를 바꿔도 전혀 전송되지 않음).
+  // 네이비도 동일 증상이 있어 포함(등록 시 이 override가 없으면 상품 설정의 ver를 바꿔도 전혀 전송되지 않음).
   // ap()(활성 상품만)이 아니라 prods 전체에서 찾는다 — 등급 자동매칭은 비활성 상품도 매칭해 접수시키므로
   // ap()로 찾으면 찰리/델타/네이비가 비활성일 때 undefined가 되어 버전 override가 안 실려 "버전체크 실패"로 이어짐.
   // submitPlanRows(즉시)/submitPlanRowsScheduled(예약) 공용.

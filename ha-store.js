@@ -1,7 +1,6 @@
 /**
- * HA-STORE.JS — Firebase Realtime Database 버전
- * localStorage → Firebase로 교체
- * 기존 코드와 인터페이스 동일 (async/await 방식으로 변경)
+ * HA-STORE.JS — Firebase Realtime Database 스토어
+ * 호출부 인터페이스는 동일하게 유지되며 내부는 async/await
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
@@ -246,7 +245,7 @@ const HA = {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
     dispatch('ha:slots:updated');
     // kimpro/slots 동기화(편도) — kimpro RTDB는 kimpro-access 계정만 허용해 kimproDb로 써야 함.
-    // 실패 시 콘솔 로그 필수(과거 catch(e){}로 삼켜서 2026-08-05 보안조치 후 active 176건 누락을 못 알아챈 적 있음). fire-and-forget 금지, 반드시 await
+    // 실패를 조용히 삼키면 누락을 못 알아채므로 콘솔 로그 필수. fire-and-forget 금지, 반드시 await
     try {
       await ensureKimproAuth();
       const kpSnap = await get(ref(kimproDb, `${PATHS.kimproSlots}/${key}`));
@@ -549,7 +548,7 @@ const HA = {
     };
   },
 
-  // 공유 캐시(ensureLiveSlots) 경유 — getSlots()와 인터페이스는 같지만 세션 내 최초 호출자만 ha/slots(6MB+)를 받고 이후는 캐시 재사용. 페이지 전환마다 중복 다운로드하던 걸 없앰(2026-08-11)
+  // 공유 캐시(ensureLiveSlots) 경유 — getSlots()와 인터페이스는 같지만 세션 내 최초 호출자만 ha/slots(6MB+)를 받고 이후는 캐시 재사용해 페이지 전환마다 중복 다운로드되지 않음
   async getSlotsLive() {
     await ensureLiveSlots();
     return sortedLiveSlots();

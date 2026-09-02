@@ -171,7 +171,7 @@
       allSlots = await HA.getSlotsLive();
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-      // HA.expireSlots로 status만 한 번의 multi-path 쓰기 처리(슬롯별 HA.updateSlot 대신 — 접수관리.html과 동일 이유, 2026-08-11)
+      // HA.expireSlots로 status만 한 번의 multi-path 쓰기 처리(슬롯별 HA.updateSlot 대신 — 접수관리.html과 동일 이유)
       const toExpire = allSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
       );

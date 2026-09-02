@@ -430,8 +430,7 @@
       return;
     }
 
-    // ★ 수정: 현재 _groups 설정 기준으로 base 구조를 직접 생성
-    //    (저장된 첫 번째 날 데이터를 기준으로 쓰면 구분 설정 변경이 반영되지 않음)
+    // 저장된 첫 번째 날 데이터를 기준으로 쓰면 구분 설정 변경이 반영되지 않으므로, 현재 _groups 설정 기준으로 base 구조를 직접 생성
     const base = {
       groupSums: _groups.map(g => ({
         name: g.name,
