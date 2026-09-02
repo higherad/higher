@@ -3228,7 +3228,7 @@ window.toggleProdPanel = function(e) {
     // 체크 선택 시 active도 대상 포함(초기화 재진입용). 기본 동작은 accepted만.
     const allowedStatuses = checkedKeys.length ? ['accepted', 'active'] : ['accepted'];
     const target = base.filter(s => allowedStatuses.includes(s.status));
-    if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(승인 완료 항목은 재접수 불필요)'); return; }
+    if (!target.length) { alert('접수 상태인 캠페인이 없습니다.'); return; }
     const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
     const hasFixed   = ap().some(p => p.fixedAlloc && !p.deductOnly);
     const hasCharlie = ap().some(p => p.id === 'charlie');
