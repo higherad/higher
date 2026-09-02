@@ -70,6 +70,8 @@
   .detail-kw-input:focus { border-color:var(--accent); }
   .stat-bar { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; }
   .stat-box { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px 20px; display:flex; align-items:center; gap:14px; }
+  .stat-box.clickable { cursor:pointer; transition:box-shadow .15s,border-color .15s; }
+  .stat-box.clickable:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); border-color:#c7d2fe; }
   .stat-box .sb-icon { width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
   .stat-box .sb-label { font-size:11px; color:var(--text2); font-weight:600; margin-bottom:4px; }
   .stat-box .sb-val { font-size:22px; font-weight:800; line-height:1; }
@@ -181,12 +183,12 @@
     <div><div class="sb-label">접수</div><div class="sb-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
   </div>
   <div class="stat-box">
-    <div class="sb-icon" style="background:#fef3c7">⏰</div>
-    <div><div class="sb-label">분할</div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
-  </div>
-  <div class="stat-box">
     <div class="sb-icon" style="background:rgba(16,185,129,.1)">✅</div>
     <div><div class="sb-label">승인</div><div class="sb-val" id="stat-active" style="color:var(--accent)">-</div></div>
+  </div>
+  <div class="stat-box clickable" onclick="openSplitScheduleModal()" title="클릭하면 분할접수 현황이 열립니다">
+    <div class="sb-icon" style="background:#fef3c7">⏰</div>
+    <div><div class="sb-label">분할 <span style="font-size:10px;">↗</span></div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
   </div>
 </div>
 
@@ -2246,6 +2248,15 @@ window.toggleProdPanel = function(e) {
   async function fbSet(path, val) {
     const { getDatabase, ref, set } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
     await set(ref(getDatabase(), path), val);
+  }
+  async function fbGet(path) {
+    const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+    return get(ref(getDatabase(), path));
+  }
+  // patch: RTDB 멀티패스 업데이트 — 키에 '/'를 쓰면 path 하위 여러 위치를 한 번에 갱신(값 null이면 그 위치 삭제)
+  async function fbUpdate(path, patch) {
+    const { getDatabase, ref, update } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+    await update(ref(getDatabase(), path), patch);
   }
 
   // baseDateStr(예약일/시작일)을 Date로 안전하게 파싱 — 자릿수가 안 맞거나(예: "2026-9-3") 이미 시각까지
@@ -4532,7 +4543,7 @@ window.toggleProdPanel = function(e) {
         grpRows.forEach(r => {
           const { _slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, _days, _daysMultiplied, _sendAt, ...rowData } = r;
           dispatchEntries.push({
-            slotKey: _slotKey, batchGroupId, sendAt: _sendAt, endpoint: '/register',
+            slotKey: _slotKey, batchGroupId, sendAt: _sendAt, endpoint: '/register', agency: p.agency || '',
             payload: {
               domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw,
               tab: g.actualTab || BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType,
@@ -4559,6 +4570,465 @@ window.toggleProdPanel = function(e) {
     }
     return { scheduledCount, failTotal };
   }
+
+  // ════════════════════════════════════════════════════════
+  // 분할접수 현황 — ha/scheduled_dispatch 조회. 서버(bizfit-direct-proxy)가 sendAt 시각에
+  // 맞춰 전송한 뒤 항목을 지우지 않고 status만 'pending' → 'done'으로 바꿔두므로, 완료된 항목도
+  // 계속 이 경로에 남아 함께 조회된다(수정은 'pending'인 항목만 가능하게 막아둠). kimpro/reception.html과
+  // 동일 구현(경로만 kimpro/→ha/) — 저쪽을 고치면 여기도 확인할 것.
+  // ════════════════════════════════════════════════════════
+
+  let _ssEntries = {};   // key -> entry, 등급 변경 시 저장된 계정정보(loginId/pwd) 조회용
+  let _ssCollapsed = new Set(); // 접힌 그룹의 gid(slotKey 기준) 집합
+  let _ssLastGroups = []; // 직전 렌더의 그룹 배열(펼치기/접기 클릭이 index로 이 배열을 참조)
+  let _ssResplit = {}; // slotKey -> { open, loading, gradeGroups, sel:{gradeName:pct} } — 잔여 재분류 패널 상태
+
+  function fmtScheduleTime(iso) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    return `${mm}.${dd} ${hh}:${mi}`;
+  }
+
+  async function reloadScheduleEntries() {
+    const snap = await fbGet('ha/scheduled_dispatch');
+    const val = snap.exists() ? snap.val() : {};
+    _ssEntries = {};
+    Object.entries(val).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k }; });
+    renderSplitScheduleList();
+  }
+
+  window.openSplitScheduleModal = async function() {
+    const modal = document.getElementById('split-schedule-modal');
+    modal.style.display = 'flex';
+    document.getElementById('ss-search').value = '';
+    document.getElementById('ss-status-filter').value = 'all';
+    document.getElementById('ss-list').innerHTML = '<div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div>';
+    document.getElementById('ss-count').textContent = '';
+    _ssCollapsed = new Set();
+    _ssResplit = {};
+
+    await reloadScheduleEntries(); // _ssLastGroups 채우기
+    _ssCollapsed = new Set(_ssLastGroups.map(g => g.gid)); // 처음엔 전체 접힌 상태로
+    renderSplitScheduleList();
+  };
+
+  window.closeSplitScheduleModal = function() {
+    document.getElementById('split-schedule-modal').style.display = 'none';
+  };
+
+  // 저장 시점엔 항상 'pending'이고(saveScheduledDispatch), 서버는 전송을 마쳐도 항목을 지우지 않고
+  // status만 pending → done으로 바꿔두므로, pending이 아니면 완료로 간주한다.
+  function isScheduleDone(status) {
+    return !!status && status !== 'pending';
+  }
+  function scheduleStatusLabel(status) {
+    const done = isScheduleDone(status);
+    return `<span style="color:${done?'#ef4444':'#3b82f6'};font-weight:600;">${done?'완료':'대기중'}</span>`;
+  }
+
+  // 검색(업체명/PID/검색키워드/순위키워드 부분일치) + 상태 필터
+  function filterScheduleEntries(entries) {
+    const q = (document.getElementById('ss-search')?.value || '').trim().toLowerCase();
+    const statusFilter = document.getElementById('ss-status-filter')?.value || 'all';
+    return entries.filter(e => {
+      const done = isScheduleDone(e.status);
+      if (statusFilter === 'pending' && done) return false;
+      if (statusFilter === 'done' && !done) return false;
+      if (!q) return true;
+      const row = (e.payload?.rowData || [])[0] || {};
+      return [row.업체명, row.PID번호, row.검색키워드, row.순위키워드]
+        .some(v => String(v||'').toLowerCase().includes(q));
+    });
+  }
+
+  // slotKey(=한 번의 예약 등록 단위) 기준으로 묶는다 — PID/업체명으로 묶으면 같은 업체를 서로 다른
+  // 시점에 두 번 예약했을 때 남은 수량 계산(잔여 재분류)이 두 배치를 섞어버리므로 slotKey가 맞다.
+  // 보통 업체 하나 = slotKey 하나라 화면상 묶임새는 기존과 거의 같다.
+  function groupScheduleEntries(entries) {
+    const groups = new Map();
+    entries.forEach(e => {
+      const row = (e.payload?.rowData || [])[0] || {};
+      const gid = e.slotKey || row.PID번호 || row.업체명 || 'unknown';
+      if (!groups.has(gid)) groups.set(gid, { gid, store: row.업체명||'', pid: row.PID번호||'', agency: e.agency||'', items: [] });
+      groups.get(gid).items.push(e);
+    });
+    const list = [...groups.values()];
+    list.forEach(g => g.items.sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||'')));
+    list.sort((a,b) => (a.items[0]?.sendAt||'').localeCompare(b.items[0]?.sendAt||''));
+    return list;
+  }
+
+  window.toggleScheduleGroupAt = function(i) {
+    const g = _ssLastGroups[i];
+    if (!g) return;
+    if (_ssCollapsed.has(g.gid)) _ssCollapsed.delete(g.gid); else _ssCollapsed.add(g.gid);
+    renderSplitScheduleList();
+  };
+
+  window.toggleAllScheduleGroups = function() {
+    const allCollapsed = _ssLastGroups.length > 0 && _ssLastGroups.every(g => _ssCollapsed.has(g.gid));
+    if (allCollapsed) _ssCollapsed.clear();
+    else _ssLastGroups.forEach(g => _ssCollapsed.add(g.gid));
+    renderSplitScheduleList();
+  };
+
+  // 검색/필터 결과가 접힌 그룹에 가려 안 바뀐 것처럼 보이지 않도록 실행할 때마다 전체 펼침
+  window.runScheduleSearch = function() {
+    _ssCollapsed = new Set();
+    renderSplitScheduleList();
+  };
+
+  window.clearScheduleSearch = function() {
+    document.getElementById('ss-search').value = '';
+    runScheduleSearch();
+  };
+
+  function ssKwCountBadge(str) {
+    const list = String(str||'').split(',').map(k=>k.trim()).filter(Boolean);
+    if (!list.length) return '<span style="color:#c0c8d4;font-size:11px;">-</span>';
+    return `<span title="${escProd(list.join(', '))}" style="display:inline-block;padding:1px 7px;border-radius:100px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;cursor:default;">${list.length}개</span>`;
+  }
+
+  // 검색키워드 입력칸 옆 개수 배지 — 저장(blur) 전에도 타이핑에 맞춰 즉시 갱신
+  window.updateScheduleKwCount = function(key, val) {
+    const el = document.getElementById(`ss-kwcnt-${key}`);
+    if (el) el.innerHTML = ssKwCountBadge(val);
+  };
+
+  function renderSplitScheduleList() {
+    const listEl = document.getElementById('ss-list');
+    const total = Object.keys(_ssEntries).length;
+    const filtered = filterScheduleEntries(Object.values(_ssEntries));
+    const groups = groupScheduleEntries(filtered);
+    _ssLastGroups = groups;
+
+    if (!groups.length) {
+      listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">조건에 맞는 항목이 없습니다.</div>';
+    } else {
+      listEl.innerHTML = groups.map((g, i) => {
+        const collapsed = _ssCollapsed.has(g.gid);
+        const doneCount = g.items.filter(e => isScheduleDone(e.status)).length;
+        const pendCount = g.items.length - doneCount;
+        return `
+        <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;background:#f8fafc;">
+            <div onclick="toggleScheduleGroupAt(${i})" style="display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;flex:1;">
+              <span style="font-size:10px;color:var(--muted);flex-shrink:0;">${collapsed?'▶':'▼'}</span>
+              <span style="font-size:11px;color:#4338ca;font-weight:600;flex-shrink:0;">${escProd(g.agency||'대행사 미지정')}</span>
+              <span style="color:var(--muted);flex-shrink:0;">/</span>
+              <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escProd(g.store||'-')}</span>
+              <span style="color:var(--muted);flex-shrink:0;">/</span>
+              <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${escProd(g.pid||'-')}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+              ${pendCount ? `<button onclick="event.stopPropagation();toggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 잔여 재분류</button>` : ''}
+              <div onclick="toggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;">
+                전체 ${g.items.length}건 · <span style="color:#3b82f6;">대기중 ${pendCount}</span> · <span style="color:#ef4444;">완료 ${doneCount}</span>
+              </div>
+            </div>
+          </div>
+          ${renderScheduleResplitPanel(g)}
+          ${collapsed ? '' : `
+          <table class="ag-table" style="table-layout:fixed;">
+            <thead><tr>
+              <th style="text-align:center;width:13%">전송예정</th>
+              <th style="text-align:center;width:10%">대행사</th>
+              <th style="text-align:center;width:13%">등급</th><th style="text-align:center;width:25%">검색키워드</th>
+              <th style="text-align:center;width:8%">키워드 수</th>
+              <th style="text-align:center;width:7%">일 목표</th><th style="text-align:center;width:6%">일 수</th>
+              <th style="text-align:center;width:9%">예약일</th><th style="text-align:center;width:9%">상태</th>
+            </tr></thead>
+            <tbody>
+              ${g.items.map(e => {
+                const row = (e.payload?.rowData || [])[0] || {};
+                const done = isScheduleDone(e.status);
+                return `
+                <tr>
+                  <td style="text-align:center;font-size:11px;color:var(--text2);white-space:nowrap;">${fmtScheduleTime(e.sendAt)}</td>
+                  <td style="text-align:center;font-size:11px;color:var(--text2);">${escProd(e.agency||'-')}</td>
+                  <td id="ss-grade-${e._key}" style="text-align:center">
+                    <span>${escProd(e.payload?.gradeName || row.상품등급명 || '-')}</span>
+                    ${done ? '' : `<button onclick="editScheduleGrade('${e._key}')" title="등급 변경" style="border:none;background:none;cursor:pointer;font-size:11px;margin-left:2px;padding:0;">✏️</button>`}
+                  </td>
+                  <td style="text-align:center" title="순위키워드: ${escProd(row.순위키워드||'-')}">
+                    <input type="text" value="${escProd(row.검색키워드||'')}" placeholder="검색키워드" ${done?'disabled':''}
+                      oninput="updateScheduleKwCount('${e._key}',this.value)"
+                      onblur="saveScheduleKeyword('${e._key}',this)" onkeydown="if(event.key==='Enter')this.blur()"
+                      style="width:100%;font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;text-align:center;box-sizing:border-box;${done?'background:#f8fafc;color:var(--text2);':''}">
+                  </td>
+                  <td style="text-align:center"><span id="ss-kwcnt-${e._key}">${ssKwCountBadge(row.검색키워드)}</span></td>
+                  <td style="text-align:center">${(row.일목표||0).toLocaleString()}</td>
+                  <td style="text-align:center">${row.일수||0}</td>
+                  <td style="text-align:center">${escProd(row.예약일||'-')}</td>
+                  <td style="text-align:center">${scheduleStatusLabel(e.status)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`}
+        </div>`;
+      }).join('');
+    }
+
+    document.getElementById('ss-count').textContent = filtered.length === total ? `전체 ${total}건` : `${filtered.length}건 표시 / 전체 ${total}건`;
+  }
+
+  // ── 잔여 재분류 — 슬롯의 남은(pending) 항목을 취소하고 등급별 비율(직접입력)로 다시 나눠 재생성 ──
+  // 대상은 아직 서버에 안 나간 pending뿐이라 bizfit 쪽 취소 API가 필요없고, Firebase에서 지우고
+  // 다시 쓰면 끝(등급변경과 동일하게 계정으로 grade-info 재조회해 실재하는 등급만 고르게 함).
+  function idSafe(s) { return encodeURIComponent(String(s)); }
+  function escJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+  window.toggleScheduleResplit = async function(slotKey) {
+    const st = _ssResplit[slotKey] || (_ssResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{} });
+    st.open = !st.open;
+    if (st.open && !st.gradeGroups && !st.loading) {
+      st.loading = true;
+      renderSplitScheduleList();
+      const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+      const sample = items[0];
+      let gi = { success:false };
+      if (sample) {
+        try {
+          gi = await callBizfitProxy('/grade-info', {
+            domain: sample.payload?.domain || BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd,
+            tab: BIZFIT_TAB, rawData: [],
+          });
+        } catch(e) { gi = { success:false }; }
+      }
+      st.loading = false;
+      st.gradeGroups = (gi.success && gi.gradeGroups) ? gi.gradeGroups : [];
+      // 시작점 제공 — 지금 쓰고 있는 등급들을 기본 체크해두고 등급 수만큼 균등 비율을 미리 채워줌(그대로 써도 되고 고쳐도 됨)
+      const curNames = [...new Set(items.map(e => e.payload?.gradeName).filter(Boolean))];
+      if (curNames.length) {
+        const pct = Math.round(100 / curNames.length);
+        curNames.forEach(n => { st.sel[n] = pct; });
+      }
+    }
+    renderSplitScheduleList();
+  };
+
+  window.onScheduleResplitCheck = function(slotKey, gname, checked) {
+    const st = _ssResplit[slotKey]; if (!st) return;
+    const pctInput = document.getElementById(`ss-resplit-pct-${slotKey}-${idSafe(gname)}`);
+    if (checked) {
+      if (st.sel[gname] == null) st.sel[gname] = 0;
+      if (pctInput) pctInput.disabled = false;
+    } else {
+      delete st.sel[gname];
+      if (pctInput) pctInput.disabled = true;
+    }
+    updateScheduleResplitSum(slotKey);
+  };
+
+  window.onScheduleResplitPctInput = function(slotKey, gname, val) {
+    const st = _ssResplit[slotKey]; if (!st) return;
+    st.sel[gname] = Math.max(0, parseInt(val)||0);
+    updateScheduleResplitSum(slotKey);
+  };
+
+  function updateScheduleResplitSum(slotKey) {
+    const st = _ssResplit[slotKey]; if (!st) return;
+    const sum = Object.values(st.sel).reduce((a,b)=>a+b,0);
+    const el = document.getElementById(`ss-resplit-sum-${slotKey}`);
+    if (el) { el.textContent = sum; el.style.color = sum===100 ? 'var(--accent)' : '#b45309'; }
+  }
+
+  function renderScheduleResplitPanel(g) {
+    const st = _ssResplit[g.gid];
+    if (!st || !st.open) return '';
+    const slotKey = g.gid;
+    let body;
+    if (st.loading) {
+      body = '<span style="font-size:12px;color:var(--muted);">등급 조회 중...</span>';
+    } else if (!st.gradeGroups || !st.gradeGroups.length) {
+      body = '<span style="font-size:12px;color:var(--danger);">등급 조회 실패 — 계정 정보를 확인해주세요.</span>';
+    } else {
+      const sum = Object.values(st.sel).reduce((a,b)=>a+b,0);
+      body = `
+        <div style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:10px;">
+          ${st.gradeGroups.map(gg => {
+            const checked = st.sel[gg.gradeName] != null;
+            return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
+              <input type="checkbox" ${checked?'checked':''} onchange="onScheduleResplitCheck('${slotKey}','${escJs(gg.gradeName)}',this.checked)">
+              <span style="min-width:60px;">${escProd(gg.gradeName)}</span>
+              <input type="number" id="ss-resplit-pct-${slotKey}-${idSafe(gg.gradeName)}" value="${checked?st.sel[gg.gradeName]:''}" ${checked?'':'disabled'}
+                oninput="onScheduleResplitPctInput('${slotKey}','${escJs(gg.gradeName)}',this.value)" min="0" max="100"
+                style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+            </label>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:11px;color:var(--text2);">
+            <span style="color:#ef4444;font-weight:700;">대기중 항목 취소 후 재생성</span>
+            · 합계 <span id="ss-resplit-sum-${slotKey}" style="font-weight:700;color:${sum===100?'var(--accent)':'#b45309'};">${sum}</span>%
+          </span>
+          <button onclick="applyScheduleResplitClick('${slotKey}')" style="padding:6px 14px;border:none;border-radius:7px;background:#4338ca;color:#fff;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">적용</button>
+        </div>`;
+    }
+    return `<div style="padding:12px 14px;background:#eef2ff;border-top:1px solid #c7d2fe;border-bottom:1px solid #c7d2fe;">${body}</div>`;
+  }
+
+  // 최소 접수 수량 — 비즈핏 최소 수량 기준, splitRowBySchedule과 동일
+  const SCHEDULE_MIN_PORTION = 10;
+
+  // 같은 sendAt(=같은 시각에 나갈 조각)끼리 묶어 그 시점의 일목표 합을 비율대로 나눈다. 조각 하나가
+  // 최소수량 미만이 되면(예: 남은 양이 적은데 너무 잘게 쪼갬) 그 조각만 조용히 버리지 않고 violations로
+  // 보고해 실행 자체를 막는다 — 안 그러면 그 등급분만 수량이 통째로 증발해도 아무 표시가 안 남는다.
+  function computeResplitBuckets(slotKey, grades) {
+    const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const byTime = new Map();
+    items.forEach(e => {
+      const t = e.sendAt || '';
+      if (!byTime.has(t)) byTime.set(t, []);
+      byTime.get(t).push(e);
+    });
+
+    const buckets = [];
+    const violations = [];
+    byTime.forEach((bucket, sendAt) => {
+      const totalTarget = bucket.reduce((s,e) => s + ((e.payload?.rowData||[])[0]?.일목표 || 0), 0);
+      const amounts = lrm(grades.map(g => ({ id: g.gradeName, ratio: g.pct })), totalTarget);
+      grades.forEach(g => {
+        const amt = amounts[g.gradeName] || 0;
+        if (amt > 0 && amt < SCHEDULE_MIN_PORTION) violations.push({ sendAt, gradeName: g.gradeName, amt });
+      });
+      buckets.push({ sendAt, bucket, amounts });
+    });
+    return { buckets, violations };
+  }
+
+  window.applyScheduleResplitClick = async function(slotKey) {
+    const st = _ssResplit[slotKey]; if (!st) return;
+    const grades = Object.entries(st.sel).filter(([,pct]) => pct > 0).map(([name,pct]) => {
+      const gg = (st.gradeGroups||[]).find(x => x.gradeName === name);
+      return gg ? { gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, pct } : null;
+    }).filter(Boolean);
+    if (!grades.length) { alert('등급을 선택하고 비율을 입력해주세요.'); return; }
+
+    const { violations } = computeResplitBuckets(slotKey, grades);
+    if (violations.length) {
+      const detail = [...new Set(violations.map(v => `${v.gradeName}(${v.amt})`))].join(', ');
+      alert(`이 비율로 나누면 최소 접수 수량(${SCHEDULE_MIN_PORTION}) 미만인 조각이 생겨 접수할 수 없습니다: ${detail}\n등급 수를 줄이거나 비율을 조정해주세요.`);
+      return;
+    }
+    if (!confirm(`남은 예약 항목을 취소하고 ${grades.map(g=>`${g.gradeName} ${g.pct}%`).join(' / ')} 비율로 다시 나눕니다. 계속할까요?`)) return;
+
+    try {
+      const result = await applyScheduleResplit(slotKey, grades);
+      delete _ssResplit[slotKey];
+      await reloadScheduleEntries();
+      alert(`재분류 완료 — 기존 ${result.removed}건 취소, 새로 ${result.created}건 생성됐습니다.`);
+    } catch(e) {
+      alert('재분류 실패: ' + (e.message||e));
+    }
+  };
+
+  async function applyScheduleResplit(slotKey, grades) {
+    const { buckets, violations } = computeResplitBuckets(slotKey, grades);
+    if (!buckets.length) return { created: 0, removed: 0 };
+    if (violations.length) throw new Error('최소 접수 수량 미만인 조각이 있어 중단했습니다.'); // applyScheduleResplitClick에서 이미 막지만 방어적으로 재확인
+
+    const patch = {};
+    let removed = 0, created = 0;
+
+    buckets.forEach(({ sendAt, bucket, amounts }) => {
+      const sample = bucket[0];
+      const sampleRow = (sample.payload?.rowData || [])[0] || {};
+
+      bucket.forEach(e => { patch[`scheduled_dispatch/${e._key}`] = null; removed++; });
+
+      grades.forEach(g => {
+        const amt = amounts[g.gradeName] || 0;
+        if (amt <= 0) return;
+        const key = genId();
+        patch[`scheduled_dispatch/${key}`] = {
+          slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '',
+          payload: {
+            ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || BIZFIT_TAB,
+            rowData: [{ ...sampleRow, 일목표: amt, 상품등급명: g.gradeName }],
+          },
+          status: 'pending', createdAt: new Date().toISOString(),
+        };
+        created++;
+      });
+    });
+
+    const batchSnap = await fbGet(`ha/scheduled_batches/${slotKey}`);
+    const batch = batchSnap.exists() ? batchSnap.val() : { total: 0 };
+    patch[`scheduled_batches/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
+
+    await fbUpdate('ha', patch);
+    return { created, removed };
+  }
+
+  // 검색키워드 변경 — 실제 접수 시 서버에 그대로 전송되는 값이라 payload.rowData[0]만 patch하면 충분
+  window.saveScheduleKeyword = async function(key, inputEl) {
+    if (isScheduleDone(_ssEntries[key]?.status)) { inputEl.disabled = true; return; } // 완료된 항목은 수정 불가
+    const val = inputEl.value.trim();
+    inputEl.disabled = true;
+    try {
+      await fbUpdate(`ha/scheduled_dispatch/${key}/payload/rowData/0`, { 검색키워드: val });
+      if (_ssEntries[key]) {
+        const row = (_ssEntries[key].payload.rowData || [])[0]; if (row) row.검색키워드 = val;
+      }
+      inputEl.style.borderColor = 'var(--accent)';
+      setTimeout(() => { inputEl.style.borderColor = 'var(--border)'; }, 800);
+    } catch(e) {
+      alert('키워드 저장 실패: ' + (e.message||e));
+    } finally {
+      inputEl.disabled = false;
+    }
+  };
+
+  // 상품 등급 변경 — gradeName만 바꾸면 안 되고(classType/gradeType/tab이 그 등급 전용 값과 짝을 이뤄야
+  // 서버 /register가 올바른 등급으로 접수함) 저장된 계정으로 grade-info를 다시 조회해 그 계정에 실제로
+  // 존재하는 등급 중에서만 고르게 한다. select로 고른 등급의 4개 필드를 한 번에 갱신.
+  window.editScheduleGrade = async function(key) {
+    const e = _ssEntries[key];
+    const cell = document.getElementById(`ss-grade-${key}`);
+    if (!e || !cell || isScheduleDone(e.status)) return; // 완료된 항목은 수정 불가
+    cell.innerHTML = '<span style="font-size:11px;color:var(--muted);">불러오는 중...</span>';
+    let gi;
+    try {
+      gi = await callBizfitProxy('/grade-info', {
+        domain: e.payload?.domain || BIZFIT_DOMAIN, loginId: e.payload?.loginId, pwd: e.payload?.pwd,
+        tab: BIZFIT_TAB, rawData: [],
+      });
+    } catch(err) { gi = { success:false }; }
+    if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
+      cell.innerHTML = '<span style="color:var(--danger);font-size:11px;">등급 조회 실패</span>';
+      return;
+    }
+    const curName = e.payload?.gradeName || '';
+    cell.innerHTML = `<select style="font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;max-width:100%;">
+      ${gi.gradeGroups.map(g => `<option value="${escProd(g.gradeName)}" ${g.gradeName===curName?'selected':''}>${escProd(g.gradeName)}</option>`).join('')}
+    </select>`;
+    cell.querySelector('select').onchange = async (ev) => {
+      const g = gi.gradeGroups.find(x => x.gradeName === ev.target.value);
+      if (!g) return;
+      ev.target.disabled = true;
+      try {
+        await fbUpdate(`ha/scheduled_dispatch/${key}`, {
+          'payload/gradeName':  g.gradeName,
+          'payload/classType':  g.classType,
+          'payload/gradeType':  g.gradeType,
+          'payload/tab':        g.actualTab || BIZFIT_TAB,
+          'payload/rowData/0/상품등급명': g.gradeName,
+        });
+        e.payload.gradeName = g.gradeName; e.payload.classType = g.classType;
+        e.payload.gradeType = g.gradeType; e.payload.tab = g.actualTab || BIZFIT_TAB;
+        const row = (e.payload.rowData||[])[0]; if (row) row.상품등급명 = g.gradeName;
+        cell.innerHTML = `<span>${escProd(g.gradeName)}</span> <button onclick="editScheduleGrade('${key}')" title="등급 변경" style="border:none;background:none;cursor:pointer;font-size:11px;margin-left:2px;padding:0;">✏️</button>`;
+      } catch(err) {
+        alert('등급 변경 실패: ' + (err.message||err));
+        cell.innerHTML = `<span>${escProd(curName||'-')}</span> <button onclick="editScheduleGrade('${key}')" title="등급 변경" style="border:none;background:none;cursor:pointer;font-size:11px;margin-left:2px;padding:0;">✏️</button>`;
+      }
+    };
+  };
 
   function lockOtherSubmitTabs(overlay, btnPrefix) {
     const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
@@ -4679,4 +5149,36 @@ window.toggleProdPanel = function(e) {
 
 })();
 </script>
+
+<!-- ── 분할접수 현황 모달 ───────────────────────────────────────── -->
+<div id="split-schedule-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+  <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:15px;font-weight:700;">⏰ 분할접수 현황</div>
+        <span id="ss-count" style="font-size:12px;color:var(--text2);"></span>
+      </div>
+      <button onclick="closeSplitScheduleModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <select id="ss-status-filter" onchange="runScheduleSearch()"
+        style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
+        <option value="all" selected>전체</option>
+        <option value="done">완료</option>
+        <option value="pending">대기중</option>
+      </select>
+      <div style="position:relative;flex:1;min-width:200px;">
+        <input type="text" id="ss-search" placeholder="🔍 업체명 / PID / 키워드 검색" onkeydown="if(event.key==='Enter')runScheduleSearch()"
+          style="width:100%;box-sizing:border-box;padding:7px 28px 7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
+        <button onclick="clearScheduleSearch()" title="검색어 지우기" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:13px;color:var(--muted);padding:2px 4px;line-height:1;">✕</button>
+      </div>
+      <button onclick="runScheduleSearch()" style="padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">검색</button>
+      <button onclick="toggleAllScheduleGroups()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">펼치기/접기</button>
+    </div>
+    <div id="ss-list"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+      <button onclick="closeSplitScheduleModal()" style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;">닫기</button>
+    </div>
+  </div>
+</div>
 </div>
