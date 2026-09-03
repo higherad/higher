@@ -186,7 +186,7 @@
     <div class="sb-icon" style="background:rgba(16,185,129,.1)">✅</div>
     <div><div class="sb-label">승인</div><div class="sb-val" id="stat-active" style="color:var(--accent)">-</div></div>
   </div>
-  <div class="stat-box clickable" onclick="openSplitScheduleModal()" title="클릭하면 분할 예약 현황이 열립니다">
+  <div class="stat-box clickable" onclick="openSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다">
     <div class="sb-icon" style="background:#fef3c7">⏰</div>
     <div><div class="sb-label">예약 <span style="font-size:10px;">↗</span></div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
   </div>
@@ -5112,7 +5112,7 @@ window.toggleProdPanel = function(e) {
     const { violations } = grades.length ? computeResplitBuckets(slotKey, grades, targetKeys) : { violations: [] };
 
     const messages = [];
-    if (pctSum > 100) messages.push(`비율 합계가 ${pctSum}%로 100%를 초과했습니다`);
+    if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
     if (partialSendAts.length) {
       const times = [...new Set(partialSendAts)].map(t => fmtScheduleTime(t)).join(', ');
       messages.push(`같은 시각(${times})에 여러 등급으로 묶인 항목은 전체 선택/전체 해제만 가능합니다`);
@@ -5576,12 +5576,12 @@ window.toggleProdPanel = function(e) {
 })();
 </script>
 
-<!-- ── 분할 예약 현황 모달 ───────────────────────────────────────── -->
+<!-- ── 예약 분할 현황 모달 ───────────────────────────────────────── -->
 <div id="split-schedule-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <div style="font-size:15px;font-weight:700;">⏰ 분할 예약 현황</div>
+        <div style="font-size:15px;font-weight:700;">⏰ 예약 분할 현황</div>
         <span id="ss-count" style="font-size:12px;color:var(--text2);"></span>
       </div>
       <button onclick="closeSplitScheduleModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">✕</button>
