@@ -3859,14 +3859,23 @@ window.toggleProdPanel = function(e) {
         navyKeys:    navyAlreadyDone.size    ? navyAlreadyDone    : null,
         slotMap: slotMapAll,
         async tryApprove() {
-          const keys = readyKeysOf(this);
-          // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
-          if (keys.length) {
-            const failed = await approveSlotsWithBizfit(keys, this.slotMap);
-            if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
+          // 이 메서드는 submitPlanRows/executeYoupflSubmit 등 여러 호출부에서 try/catch 없이 그냥
+          // await로 부르므로, 내부에서 예외가 나면(RTDB 쓰기 실패 등) 호출부 전체(Promise.all 포함)가
+          // 끊겨 등록은 성공했는데도 승인/화면갱신이 통째로 스킵되는 사고로 이어진다(2026-09-03 확인,
+          // 등급 자동매칭+블로그+유입플 3레그 슬롯이 재오픈 전까지 접수에 머물던 사례). 어디서 던지든
+          // 이 메서드 밖으로 새지 않게 여기서 한 번에 막는다.
+          try {
+            const keys = readyKeysOf(this);
+            // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
+            if (keys.length) {
+              const failed = await approveSlotsWithBizfit(keys, this.slotMap);
+              if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
+            }
+            renderReceipts(false);
+            lockDoneButtons();
+          } catch (e) {
+            console.error('승인 게이트 처리 오류(다음 완료 시 또는 팝업 재오픈 시 재시도됨):', e);
           }
-          renderReceipts(false);
-          lockDoneButtons();
         }
       } : null;
 
