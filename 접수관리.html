@@ -186,9 +186,9 @@
     <div class="sb-icon" style="background:rgba(16,185,129,.1)">✅</div>
     <div><div class="sb-label">승인</div><div class="sb-val" id="stat-active" style="color:var(--accent)">-</div></div>
   </div>
-  <div class="stat-box clickable" onclick="openSplitScheduleModal()" title="클릭하면 분할접수 현황이 열립니다">
+  <div class="stat-box clickable" onclick="openSplitScheduleModal()" title="클릭하면 분할 예약 현황이 열립니다">
     <div class="sb-icon" style="background:#fef3c7">⏰</div>
-    <div><div class="sb-label">분할 <span style="font-size:10px;">↗</span></div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
+    <div><div class="sb-label">예약 <span style="font-size:10px;">↗</span></div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
   </div>
 </div>
 
@@ -3467,7 +3467,7 @@ window.toggleProdPanel = function(e) {
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
             <button type="button" onclick="addScheduleRow()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">+ 시간 추가</button>
             <span id="schedule-sum-note" style="font-size:12px;color:var(--muted);"></span>
-            <button type="button" onclick="applyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
+            <button id="schedule-apply-btn" type="button" onclick="applyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
             <button type="button" onclick="clearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">끄기</button>
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:6px;">비율 합계는 100%여야 하며, 일수만큼 매일 하루 단위(일수:1)로 나눠 이 시각에 접수됩니다. 다중 상품(승인 게이트) 슬롯이 섞여 있으면 사용할 수 없습니다.</div>
@@ -3730,6 +3730,34 @@ window.toggleProdPanel = function(e) {
       btn.style.background = bg; btn.style.cursor = 'pointer'; btn.onclick = null;
     }
 
+    // 유입플 접수가 팝업을 닫지 않고 완료됐을 때 "시간대 분할 예약" 토글을 곧바로 갱신하기 위한 함수.
+    // fillBody() 전체를 다시 그리면 다른 탭에 입력 중인 값(키워드 등)이 날아가므로, 이 버튼 상태만
+    // 따로 갱신한다. executeYoupflSubmit 성공 콜백에서 호출.
+    function refreshScheduleToggle() {
+      data = computeSubmitData(target);
+      scheduleValidationRows = flattenScheduleRows(data);
+      const activeLegs = [];
+      if (data.hasNormal)  activeLegs.push('normalKeys');
+      if (data.hasFixed)   activeLegs.push('fixedKeys');
+      if (data.hasCharlie) activeLegs.push('charlieKeys');
+      if (data.hasDelta)   activeLegs.push('deltaKeys');
+      if (data.hasNavy)    activeLegs.push('navyKeys');
+      const registerLegs = activeLegs.filter(l => l !== 'fixedKeys');
+      const yupflPending = data.hasFixed && !(data.yupflRows.length && data.yupflRows.every(r => r._fixedSubmitted));
+      const scheduleBlocked = registerLegs.length > 1 || yupflPending;
+      const scheduleBtn = overlay.querySelector('#schedule-toggle-btn');
+      if (!scheduleBtn) return;
+      scheduleBtn.disabled = scheduleBlocked;
+      scheduleBtn.style.opacity = scheduleBlocked ? '0.4' : '1';
+      scheduleBtn.style.cursor = scheduleBlocked ? 'not-allowed' : 'pointer';
+      scheduleBtn.title = registerLegs.length > 1
+        ? '일반/찰리/델타/네이비 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다'
+        : yupflPending
+          ? '유입플 탭에서 접수를 먼저 완료해야 시간대 분할 예약을 쓸 수 있습니다'
+          : '';
+      if (scheduleBlocked && scheduleConfig) window.clearScheduleConfig();
+    }
+
     // 탭 본문(plan/rows에 의존하는 부분)만 다시 그림 — 모달 뼈대(overlay/탭바)는 그대로 두고 데이터만 갱신할 때 재호출.
     function fillBody() {
       submitBodyEl.innerHTML = ''; csubBodyEl.innerHTML = ''; bsubBodyEl.innerHTML = ''; youpflBodyEl.innerHTML = '';
@@ -3917,7 +3945,7 @@ window.toggleProdPanel = function(e) {
           youpflApplyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
           youpflApplyBtn.style.background = '#9ca3af'; youpflApplyBtn.style.cursor = 'not-allowed';
         } else {
-          youpflApplyBtn.onclick = () => executeYoupflSubmit(data.yupflRows, overlay, gate);
+          youpflApplyBtn.onclick = () => executeYoupflSubmit(data.yupflRows, overlay, gate, refreshScheduleToggle);
         }
       } else {
         overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
@@ -4062,6 +4090,13 @@ window.toggleProdPanel = function(e) {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
     const note = document.getElementById('schedule-sum-note');
     if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum === 100 ? 'var(--accent)' : 'var(--danger)'; }
+    const btn = document.getElementById('schedule-apply-btn');
+    if (btn) {
+      const blocked = sum !== 100;
+      btn.disabled = blocked;
+      btn.style.background = blocked ? 'var(--muted)' : '#f59e0b';
+      btn.style.cursor = blocked ? 'not-allowed' : 'pointer';
+    }
   }
 
   // <input type="time">의 네이티브 피커는 lang 속성이 아니라 브라우저/OS 언어를 따라가 크롬에선
@@ -4113,7 +4148,7 @@ window.toggleProdPanel = function(e) {
 
   window.applyScheduleConfig = function() {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
-    if (sum !== 100) { alert(`시간대 비율 합계는 100%여야 합니다. (현재 ${sum}%)`); return; }
+    if (sum !== 100) return; // 적용 버튼이 이미 막혀있어 정상 흐름에서 도달 안 함 — 방어적으로만 남겨둠(팝업 없음)
     const pastViolations = schedulePastViolations(scheduleValidationRows, scheduleDraftRows);
     if (pastViolations.length) {
       const lines = pastViolations.slice(0, 5).map(v => `- ${v.name} ${v.date} ${v.time}`);
@@ -4285,7 +4320,7 @@ window.toggleProdPanel = function(e) {
     return block;
   }
 
-  async function executeYoupflSubmit(rows, overlay, gate=null) {
+  async function executeYoupflSubmit(rows, overlay, gate=null, onDone=null) {
     const applyBtn = overlay.querySelector('#youpfl-apply-btn');
     const closeBtn = overlay.querySelector('#youpfl-close-btn');
     const subEl    = overlay.querySelector('#youpfl-sub');
@@ -4414,6 +4449,8 @@ window.toggleProdPanel = function(e) {
       // 일반/찰리 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
       if (normalBtn) normalBtn.disabled = false;
       if (csubBtn)   csubBtn.disabled   = false;
+      // 유입플을 먼저 접수 완료한 경우 "시간대 분할 예약" 토글이 팝업을 닫았다 열지 않아도 곧바로 풀리도록 갱신
+      if (onDone) await onDone();
     } else {
       validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
       subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'업로드 실패')}</span>`;
@@ -4709,6 +4746,7 @@ window.toggleProdPanel = function(e) {
   let _ssCollapsed = new Set(); // 접힌 그룹의 gid(slotKey 기준) 집합
   let _ssLastGroups = []; // 직전 렌더의 그룹 배열(펼치기/접기 클릭이 index로 이 배열을 참조)
   let _ssResplit = {}; // slotKey -> { open, loading, gradeGroups, sel:{gradeName:pct} } — 잔여 재분류 패널 상태
+  let _ssKwSplit = {}; // slotKey -> { open, kwText, chunk } — 검색키워드 일괄분배 패널 상태
 
   function fmtScheduleTime(iso) {
     if (!iso) return '-';
@@ -4737,6 +4775,7 @@ window.toggleProdPanel = function(e) {
     document.getElementById('ss-count').textContent = '';
     _ssCollapsed = new Set();
     _ssResplit = {};
+    _ssKwSplit = {};
 
     await reloadScheduleEntries(); // _ssLastGroups 채우기
     _ssCollapsed = new Set(_ssLastGroups.map(g => g.gid)); // 처음엔 전체 접힌 상태로
@@ -4862,17 +4901,24 @@ window.toggleProdPanel = function(e) {
               <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escProd(g.store||'-')}</span>
               <span style="color:var(--muted);flex-shrink:0;">/</span>
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${escProd(g.pid||'-')}</span>
+              ${pendCount
+                ? `<button onclick="event.stopPropagation();cancelAllSchedulePending('${g.gid}')" title="대기중 ${pendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:var(--danger);padding:0;flex-shrink:0;">✕</button>`
+                : ''}
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
               ${pendCount
                 ? `<button onclick="event.stopPropagation();toggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '잔여 재분류'}</button>`
                 : `<button style="padding:3px 9px;border:1px solid transparent;border-radius:100px;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;visibility:hidden;">🔀 잔여 재분류</button>`}
+              ${pendCount
+                ? `<button onclick="event.stopPropagation();toggleScheduleKwSplit('${g.gid}')" style="padding:3px 9px;border:1px solid #bbf7d0;border-radius:100px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">✂️ 키워드 일괄분배</button>`
+                : ''}
               <div onclick="toggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;">
                 전체 ${g.items.length}건 · <span style="color:#3b82f6;">대기중 ${pendCount}</span> · <span style="color:#ef4444;">완료 ${doneCount}</span>
               </div>
             </div>
           </div>
           ${renderScheduleResplitPanel(g)}
+          ${renderScheduleKwSplitPanel(g)}
           ${collapsed ? '' : `
           <table class="ag-table" style="table-layout:fixed;">
             <thead><tr>
@@ -4912,7 +4958,6 @@ window.toggleProdPanel = function(e) {
                   <td style="text-align:center">${escProd(row.예약일||'-')}</td>
                   <td style="text-align:center">
                     ${scheduleStatusLabel(e.status)}
-                    ${(isScheduleDone(e.status) && e.status !== 'cancelled') ? `<button onclick="cancelScheduleEntry('${e._key}')" title="이 건만 취소하고 슬롯을 되돌리기" style="border:none;background:none;cursor:pointer;font-size:11px;margin-left:2px;padding:0;">↩️</button>` : ''}
                   </td>
                 </tr>`;
               }).join('')}
@@ -5193,6 +5238,151 @@ window.toggleProdPanel = function(e) {
     return { created, removed };
   }
 
+  // 대기중(pending) 항목 일괄 취소 — 아직 전송 전이라 비즈핏에 아무것도 나가지 않은 상태라 API 호출
+  // 없이 예약 항목만 지우면 됨(개별 취소는 잔여 재분류 체크박스로 충분해 따로 안 둠). scheduled_batches/total도
+  // 같이 줄여야 서버가 "그룹 전체 완료"를 정확히 판정한다(applyScheduleResplit의 removed 처리와 동일한 규칙).
+  // 취소 후엔 강제종료(renderReceipts 자동만료)와 같은 방식으로 슬롯을 처리한다 — 남은 일수를 그대로 두지
+  // 않고 실제로 나간 날짜(완료된 예약일의 개수·마지막 날)만큼만 인정해 일수/종료일을 줄이고 종료 처리.
+  window.cancelAllSchedulePending = async function(slotKey) {
+    const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    if (!targets.length) return;
+    if (!confirm(`대기중 ${targets.length}건을 취소합니다. 캠페인은 실제로 나간 날짜까지만 인정되고 종료 처리됩니다. 계속할까요?`)) return;
+
+    try {
+      const patch = {};
+      targets.forEach(e => { patch[`scheduled_dispatch/${e._key}`] = null; });
+      const batchSnap = await fbGet(`ha/scheduled_batches/${slotKey}`);
+      if (batchSnap.exists()) {
+        const batch = batchSnap.val();
+        patch[`scheduled_batches/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
+      }
+      await fbUpdate('ha', patch);
+      targets.forEach(e => { delete _ssEntries[e._key]; });
+
+      const doneDates = [...new Set(
+        Object.values(_ssEntries)
+          .filter(e => e.slotKey === slotKey && e.status === 'done')
+          .map(e => (e.payload?.rowData||[])[0]?.예약일)
+          .filter(Boolean)
+      )].sort();
+      const slotSnap = await fbGet(`ha/slots/${slotKey}`);
+      if (slotSnap.exists()) {
+        const slotPatch = { status: 'ended', days: doneDates.length };
+        if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
+        await HA.updateSlot(slotKey, slotPatch);
+        const s = allSlots.find(x => x._key === slotKey);
+        if (s) Object.assign(s, slotPatch);
+      }
+
+      renderSplitScheduleList();
+      renderReceipts(false);
+    } catch(err) {
+      alert('취소 처리 중 오류: ' + (err.message||err));
+    }
+  };
+
+  // 검색키워드 일괄분배 — 쉼표로 넣은 키워드 목록을 "비율"(그룹당 개수)만큼씩 잘라 대기중인 행에
+  // sendAt 순서대로 하나씩 채워넣는다. 그룹보다 대기중 행이 더 많으면 남는 행은 건드리지 않고
+  // 기존 값 그대로 둔다(반대로 그룹이 더 많으면 남는 그룹은 그냥 버려짐).
+  function ensureKwSplitState(slotKey) {
+    return _ssKwSplit[slotKey] || (_ssKwSplit[slotKey] = { open:false, kwText:'', chunk:5 });
+  }
+
+  window.toggleScheduleKwSplit = function(slotKey) {
+    const st = ensureKwSplitState(slotKey);
+    st.open = !st.open;
+    renderSplitScheduleList();
+  };
+
+  function scheduleKwSplitGroups(st) {
+    const kws = (st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean);
+    const chunk = Math.max(1, parseInt(st.chunk)||0);
+    if (!kws.length) return [];
+    const groups = [];
+    for (let i=0; i<kws.length; i+=chunk) groups.push(kws.slice(i, i+chunk));
+    return groups;
+  }
+
+  // 입력칸 타이핑마다 리스트 전체를 다시 그리면 포커스가 끊기므로(스케줄 편집기와 동일한 이유),
+  // 상태만 갱신하고 미리보기·적용버튼만 부분 갱신한다.
+  window.onScheduleKwSplitInput = function(slotKey, field, val) {
+    const st = ensureKwSplitState(slotKey);
+    st[field] = val;
+    updateScheduleKwSplitPreview(slotKey);
+  };
+
+  function updateScheduleKwSplitPreview(slotKey) {
+    const st = _ssKwSplit[slotKey]; if (!st) return;
+    const groups = scheduleKwSplitGroups(st);
+    const pendingCount = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status)).length;
+    const previewEl = document.getElementById(`ss-kwsplit-preview-${slotKey}`);
+    if (previewEl) previewEl.textContent = groups.length ? `${groups.length}그룹 생성 → 대기중 ${pendingCount}건 중 ${Math.min(groups.length, pendingCount)}건에 적용` : '';
+    const btn = document.getElementById(`ss-kwsplit-apply-${slotKey}`);
+    if (btn) {
+      const blocked = !groups.length;
+      btn.disabled = blocked;
+      btn.style.background = blocked ? 'var(--muted)' : '#15803d';
+      btn.style.cursor = blocked ? 'not-allowed' : 'pointer';
+    }
+  }
+
+  function renderScheduleKwSplitPanel(g) {
+    const st = _ssKwSplit[g.gid];
+    if (!st || !st.open) return '';
+    const slotKey = g.gid;
+    const groups = scheduleKwSplitGroups(st);
+    const pendingCount = g.items.filter(e => !isScheduleDone(e.status)).length;
+    return `<div style="padding:12px 14px;background:#f0fdf4;border-top:1px solid #bbf7d0;border-bottom:1px solid #bbf7d0;">
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+        <textarea id="ss-kwsplit-kw-${slotKey}" placeholder="키워드를 쉼표로 구분해서 입력 (예: 키워드1,키워드2,키워드3...)"
+          oninput="onScheduleKwSplitInput('${slotKey}','kwText',this.value)"
+          style="flex:1;min-width:260px;height:56px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;">${escProd(st.kwText)}</textarea>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--text2);white-space:nowrap;">비율(그룹당 개수)</span>
+          <input type="number" min="1" value="${st.chunk}" oninput="onScheduleKwSplitInput('${slotKey}','chunk',this.value)"
+            style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;">
+        <span id="ss-kwsplit-preview-${slotKey}" style="font-size:11px;color:var(--text2);">${groups.length ? `${groups.length}그룹 생성 → 대기중 ${pendingCount}건 중 ${Math.min(groups.length, pendingCount)}건에 적용` : ''}</span>
+        <button id="ss-kwsplit-apply-${slotKey}" onclick="applyScheduleKwSplit('${slotKey}')" ${groups.length?'':'disabled'}
+          style="padding:6px 14px;border:none;border-radius:7px;background:${groups.length?'#15803d':'var(--muted)'};color:#fff;cursor:${groups.length?'pointer':'not-allowed'};font-size:12px;font-weight:700;font-family:inherit;">적용</button>
+      </div>
+    </div>`;
+  }
+
+  window.applyScheduleKwSplit = async function(slotKey) {
+    const st = _ssKwSplit[slotKey]; if (!st) return;
+    const groups = scheduleKwSplitGroups(st);
+    if (!groups.length) return; // 적용 버튼이 이미 막혀있어 정상 흐름에서 도달 안 함 — 방어적으로만 남겨둠(팝업 없음)
+
+    const pendingItems = Object.values(_ssEntries)
+      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status))
+      .sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||''));
+    const targets = pendingItems.slice(0, groups.length);
+    if (!targets.length) return;
+
+    const leftoverPending = pendingItems.length - targets.length;
+    const leftoverGroups = groups.length - targets.length;
+    const note = leftoverPending > 0 ? `초과분 대기중 ${leftoverPending}건은 그대로 둡니다.` : (leftoverGroups > 0 ? `남는 키워드 그룹 ${leftoverGroups}개는 사용하지 않습니다.` : '');
+    if (!confirm(`대기중 ${targets.length}건에 키워드를 순서대로 채웁니다.${note ? '\n' + note : ''}\n계속할까요?`)) return;
+
+    const patch = {};
+    targets.forEach((e, i) => { patch[`scheduled_dispatch/${e._key}/payload/rowData/0/검색키워드`] = groups[i].join(','); });
+
+    try {
+      await fbUpdate('ha', patch);
+      targets.forEach((e, i) => {
+        const row = (e.payload.rowData||[])[0]; if (row) row.검색키워드 = groups[i].join(',');
+      });
+      delete _ssKwSplit[slotKey];
+      renderSplitScheduleList();
+      alert(`키워드 일괄분배 완료: ${targets.length}건`);
+    } catch(err) {
+      alert('일괄분배 실패: ' + (err.message||err));
+    }
+  };
+
   // 검색키워드 변경 — 실제 접수 시 서버에 그대로 전송되는 값이라 payload.rowData[0]만 patch하면 충분
   window.saveScheduleKeyword = async function(key, inputEl) {
     if (isScheduleDone(_ssEntries[key]?.status)) { inputEl.disabled = true; return; } // 완료된 항목은 수정 불가
@@ -5257,53 +5447,6 @@ window.toggleProdPanel = function(e) {
         cell.innerHTML = `<span>${escProd(curName||'-')}</span> <button onclick="editScheduleGrade('${key}')" title="등급 변경" style="border:none;background:none;cursor:pointer;font-size:11px;margin-left:2px;padding:0;">✏️</button>`;
       }
     };
-  };
-
-  // 완료(done)된 한 건만 취소 — 실수로 접수했거나(예: 일반만 접수했는데 되돌려야 할 때) 되돌리는 용도.
-  // bizfit-direct-proxy /cleanup-cancel은 MID 단위로 취소한다(Pcode 구분이 없음 — tools/macro/bizfit_cleanup.html과
-  // 동일 API) — 그 MID에 이 계정으로 걸린 활성 캠페인이 여러 개면 전부 취소되니, 그 MID에 다른 상품도
-  // 살아있다면 그것까지 같이 취소될 수 있음(confirm 문구로 안내). 취소 성공 시 이 로그 항목은 'cancelled'로
-  // 표시만 바꾸고(재사용 안 함), 슬롯의 normalDoneProducts에서 이 등급명을 빼고 status가 승인(active)이었으면
-  // accepted로 되돌려 재접수 가능하게 한다 — 접수 확인 팝업의 "초기화" 버튼과 같은 되돌리기, 대상만 이 한 건.
-  window.cancelScheduleEntry = async function(key) {
-    const e = _ssEntries[key];
-    if (!e || !isScheduleDone(e.status) || e.status === 'cancelled') return;
-    const row = (e.payload?.rowData || [])[0] || {};
-    const mid = row.PID번호;
-    const gradeName = e.payload?.gradeName || row.상품등급명 || '';
-    if (!mid || !e.payload?.loginId || !e.payload?.pwd) { alert('취소에 필요한 계정 정보가 없습니다.'); return; }
-    if (!confirm(`${row.업체명||mid} — ${gradeName} 등급 접수를 취소합니다.\n※ 비즈핏 취소는 Pcode 구분 없이 이 MID 단위로 처리돼, 같은 MID에 걸린 다른 상품이 있으면 그것도 같이 취소될 수 있습니다.\n계속할까요?`)) return;
-
-    try {
-      const res = await callBizfitCleanupCancel({ loginId: e.payload.loginId, pwd: e.payload.pwd, mids: [mid] });
-      const rows = (res.results || []).filter(r => r.mid === mid);
-      const ok = res.success && rows.length > 0 && rows.every(r => r.success);
-      if (!ok) {
-        alert('취소 실패: ' + (rows.length ? rows.map(r => r.message).join(' / ') : (res.message || '알 수 없는 오류')));
-        return;
-      }
-
-      await fbUpdate(`ha/scheduled_dispatch/${key}`, { status: 'cancelled' });
-      e.status = 'cancelled';
-
-      if (e.slotKey) {
-        const slotSnap = await fbGet(`ha/slots/${e.slotKey}`);
-        if (slotSnap.exists()) {
-          const slot = slotSnap.val();
-          const patch = {};
-          if (Array.isArray(slot.normalDoneProducts) && slot.normalDoneProducts.includes(gradeName)) {
-            patch.normalDoneProducts = slot.normalDoneProducts.filter(n => n !== gradeName);
-          }
-          if (slot.status === 'active') patch.status = 'accepted';
-          if (Object.keys(patch).length) await HA.updateSlot(e.slotKey, patch);
-        }
-      }
-
-      renderSplitScheduleList();
-      alert('취소 완료 — 슬롯이 되돌려졌습니다.');
-    } catch(err) {
-      alert('취소 처리 중 오류: ' + (err.message||err));
-    }
   };
 
   function lockOtherSubmitTabs(overlay, btnPrefix) {
@@ -5433,12 +5576,12 @@ window.toggleProdPanel = function(e) {
 })();
 </script>
 
-<!-- ── 분할접수 현황 모달 ───────────────────────────────────────── -->
+<!-- ── 분할 예약 현황 모달 ───────────────────────────────────────── -->
 <div id="split-schedule-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <div style="font-size:15px;font-weight:700;">⏰ 분할접수 현황</div>
+        <div style="font-size:15px;font-weight:700;">⏰ 분할 예약 현황</div>
         <span id="ss-count" style="font-size:12px;color:var(--text2);"></span>
       </div>
       <button onclick="closeSplitScheduleModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">✕</button>
