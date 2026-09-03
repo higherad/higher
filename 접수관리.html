@@ -2004,12 +2004,8 @@ window.toggleProdPanel = function(e) {
     return rule ? rule.fixedPct : yupfl?.fixedPct;
   }
 
-  // MID가 이미 진행중인 유입플 미션 번호(ha/grades.mission/missionKeywords, 등급 자동매칭과 같은 데이터 소스) —
-  // 알고 있으면 작업키워드 개수로 추정하는 yupflRuleFor보다 우선한다. 여러 미션이 동시에 잡혀있으면
-  // 모호하므로 강제하지 않고 기존 방식으로 폴백. 재접수(isRequeue) 슬롯은 신규 접수가 아니므로 제외.
-  // kimpro/reception.html과 동일 구현.
-  // MID의 ha/grades missionKeywords(미션별 작업키워드, grade_sync.py merge_youpfl_keywords_into 참고)를
-  // {미션번호: 키워드} 객체로 반환 — GRADE_CACHE 캐시 기반(동기). 없으면 null. kimpro/reception.html과 동일 구현.
+  // ha/grades missionKeywords(진행중 미션, 등급 자동매칭과 동일 소스)를 {미션번호: 키워드}로 반환 —
+  // 알면 작업키워드 개수 추정(yupflRuleFor)보다 우선, 여러 미션이면 모호하니 폴백. kimpro와 동일 구현.
   function knownYupflMissionKeywords(mid) {
     if (!mid) return null;
     const data = GRADE_CACHE.get(mid);
@@ -2120,9 +2116,8 @@ window.toggleProdPanel = function(e) {
     renderReceipts(false);
   };
 
-  // 슬롯 목록 + 슬롯별 차감 필드(deductFieldsFor/yupflFieldsFor 결과)를 bizfitUid별로 묶어 반환(실행은 안 함,
-  // 조회 전용) — 즉시 승인(approveReadySlots)과 예약 저장 시점 차감(initScheduledBatches) 공용.
-  // 이미 차감된 슬롯(bizfitDeducted)·매핑 없는 대행사·차감액 0인 건은 조용히 스킵.
+  // 슬롯별 차감 필드를 bizfitUid별로 묶어 반환(조회 전용) — approveReadySlots/initScheduledBatches 공용.
+  // 이미 차감·매핑 없음·차감액 0인 건은 스킵.
   async function groupFieldsByBizfitUid(slots, fieldsBySlotKey) {
     await userBizfitUidReady;
     const byUid = new Map();
@@ -2226,21 +2221,15 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
-  // ha/grades는 매시간 admin.bizfit.kr 진행중(status=3) 캠페인 기준으로 동기화되는 데이터(GRADE_CACHE에 캐싱됨,
-  // fetchGrade/fetchGradesBatch 참고). 같은 MID가 이미 어떤 등급으로 진행중이면 상품 유형 설정의 ratio 배분을
-  // 무시하고 그 등급(들)로만 접수한다 — 매칭된 등급이 여럿이면 그 등급끼리 균등분배, 상품 목록에 없는 등급명은
-  // 일반상품 기본값(ver.5.0/3.2, adrole 미지정)으로 가상 등록. 차감/유입플/분할은 등급 개념이 아니므로 무관 —
-  // allocate() 내부에서 항상 기존 fixedAlloc 로직 그대로 처리됨. kimpro/reception.html과 동일 구현.
-  // 접수 확인 팝업의 토글 버튼(기본 on)으로 끄면 이 매칭 전체를 건너뛰고 상품 유형 설정값 그대로 배분.
+  // ha/grades(매시간 동기화된 진행중 등급, GRADE_CACHE)에 MID가 이미 있으면 상품 유형 설정 ratio를
+  // 무시하고 그 등급(들)로만 접수 — 목록에 없는 등급명은 가상 등록(ver.5.0/3.2). kimpro와 동일 구현,
+  // 팝업 토글(기본 on)로 끄면 상품 유형 설정값 그대로 배분.
   let gradeMatchOn = true;
 
-  // ── 시간대 분할 예약 접수 (kimpro/reception.html과 동일 구현 + higher 전용 캐시차감 스냅샷) ──
-  // scheduleConfig가 설정된 동안엔 executeSubmit/executeBlogSubmit이 즉시 /register 대신
-  // ha/scheduled_dispatch에 완성된 페이로드를 저장만 해두고, 서버(bizfit-direct-proxy의
-  // /dispatch-scheduled, Cloud Scheduler로 주기 호출)가 지정 시각에 그대로 재생한다.
-  // higher는 승인 시 비즈핏 캐시차감이 같이 일어나야 하므로(kimpro엔 없는 기능) deductFieldsFor/
-  // yupflFieldsFor 결과와 bizfitUid도 함께 스냅샷해 서버가 그룹 완료 시 그대로 재생한다.
-  // 다중 leg(승인 게이트 걸리는) 슬롯은 서버가 게이트 로직을 모르므로 지원하지 않음 — gate가 있으면 토글을 막는다.
+  // ── 시간대 분할 예약 접수 (kimpro와 동일 구현 + higher 전용 캐시차감 스냅샷) ──
+  // /register 대신 ha/scheduled_dispatch에 페이로드만 저장, 서버(Cloud Scheduler→/dispatch-scheduled)가
+  // 지정 시각에 재생. higher는 캐시차감 필드도 같이 스냅샷(kimpro엔 없음). 다중leg 슬롯은 서버가 게이트를
+  // 모르므로 미지원(gate 있으면 토글 막음).
   let scheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34}, ...]
 
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -2259,10 +2248,8 @@ window.toggleProdPanel = function(e) {
     await update(ref(getDatabase(), path), patch);
   }
 
-  // baseDateStr(예약일/시작일)을 Date로 안전하게 파싱 — 자릿수가 안 맞거나(예: "2026-9-3") 이미 시각까지
-  // 포함된 문자열이 섞여 들어와도 new Date(...).toISOString()이 예외를 던지지 않게 한다. 이 예외는 호출부
-  // (submitPlanRowsScheduled)에서 안 잡혀 예약 접수 버튼이 "처리 중"에서 영원히 안 풀리는 결과로 이어지므로,
-  // 형식이 이상하면 조용히 오늘로 폴백한다(크래시보다 낫다는 판단, baseDateStr 없을 때와 동일 취급, kimpro와 동일).
+  // baseDateStr 형식이 이상해도(자릿수 오류 등) new Date().toISOString()이 던지지 않게 오늘로 폴백 —
+  // 호출부(submitPlanRowsScheduled)에 catch가 없어 던지면 "처리 중" 버튼이 영원히 안 풀림.
   function scheduleParseBaseDate(baseDateStr) {
     if (baseDateStr) {
       const d = new Date(`${String(baseDateStr).slice(0, 10)}T00:00:00`);
@@ -2271,9 +2258,8 @@ window.toggleProdPanel = function(e) {
     return new Date();
   }
 
-  // "HH:MM" → (baseDateStr+dayOffset일) 그 시각의 UTC ISO 문자열 (브라우저 로컬시간=KST 가정, 이 코드베이스 전반의
-  // 기존 관례와 동일). baseDateStr이 없으면 오늘을 기준으로 한다 — 예약일이 9/3이면 시간대 10:00 설정 시
-  // "내일 10시"로, 9/2(오늘)이면 "오늘 10시"로 인식돼야 하므로 "오늘"을 무조건 기준으로 삼으면 안 됨.
+  // "HH:MM" → baseDateStr+dayOffset일 그 시각의 ISO(브라우저 로컬=KST 가정) — 기준일 없으면 오늘,
+  // "오늘"로 고정하면 미래 예약일이 잘못 계산된다.
   function scheduleTimeToIso(timeStr, baseDateStr, dayOffset = 0) {
     const [h, m] = (timeStr || '00:00').split(':').map(Number);
     const d = scheduleParseBaseDate(baseDateStr);
@@ -2282,19 +2268,15 @@ window.toggleProdPanel = function(e) {
     return d.toISOString();
   }
 
-  // (baseDateStr+dayOffset일)의 로컬 날짜를 "YYYY-MM-DD"로 — 날짜분할 조각마다 예약일(=비즈핏 시작일)을 실제
-  // 접수되는 그날로 맞추기 위함(안 맞추면 이틀 뒤에 나가는 콜도 예약일이 오늘로 찍혀 과거 시작일이 되어버림).
+  // baseDateStr+dayOffset일의 로컬 날짜("YYYY-MM-DD") — 날짜분할 조각마다 예약일을 실제 접수일에 맞춤.
   function scheduleDateForOffset(baseDateStr, dayOffset = 0) {
     const d = scheduleParseBaseDate(baseDateStr);
     d.setDate(d.getDate() + dayOffset);
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
-  // 한 행의 일목표를 schedule 비율로 쪼갠 뒤, 일수(_days)만큼 "1일치" 접수를 하루씩 밀려가며 만들어
-  // 매일 같은 시각에 접수되게 한다(1회 접수 후 비즈핏 자체 반복에 맡기지 않음).
-  // daysMultiplied 상품(찰리/델타, NP위치저장)은 "일수" 칸이 실제 일수가 아니라 그 콜 하나의 총목표라서
-  // 하루치 콜의 일수 필드에도 그날 portionTotal 그대로(곱하지 않음) 넣는다 — 서버 최소값도 일반(10)이
-  // 아니라 NP위치저장 전용 최소(전체목표 100) 기준으로 걸러야 매일 소액 콜이 반려되지 않는다.
+  // 일목표를 schedule 비율로 쪼갠 뒤 일수(_days)만큼 하루 1건씩 반복 생성(비즈핏 자체 반복에 안 맡김).
+  // daysMultiplied 상품(찰리/델타)은 "일수" 칸이 총목표라 그날 portionTotal 그대로 넣음(곱하지 않음).
   function splitRowBySchedule(row, schedule) {
     const portions = lrm(schedule.map((s, i) => ({ id: i, ratio: s.pct })), row.일목표 || 0);
     const minPortion = row._daysMultiplied ? 100 : 10; // 비즈핏 최소 수량 — NP위치저장은 전체목표 100, 그 외는 10
@@ -2321,13 +2303,9 @@ window.toggleProdPanel = function(e) {
     await fbSet(`ha/scheduled_dispatch/${key}`, { ...entry, status: 'pending', createdAt: new Date().toISOString() });
   }
 
-  // 슬롯별로 이번에 예약한 조각 개수를 미리 기록해둬야 서버가 "다 끝났는지"(승인 전환 시점) 판정 가능.
-  // 캐시차감은 예약 그룹 완료를 기다리지 않고 접수(예약) 시점에 즉시 실행한다 —
-  // approveReadySlots와 동일하게 deductFieldsFor/yupflFieldsFor를 슬롯에 스냅샷으로 남기고, bizfitUid별로
-  // 묶어 settleBizfitCashBatch 한 번씩 호출. 슬롯 상태는 'split'(분할)로 바꿔 일반 접수 대상과 구분하고
-  // 원래 상태는 preScheduleStatus에 보관 — 상태가 'active'로 바뀌는 건 여전히 예약 그룹이 실제로 전부
-  // 등록 완료된 뒤(서버 디스패처)다, 차감만 미리 실행될 뿐.
-  // 반환: 차감 실패한 {bizfitUid, slots, ded, yup} 그룹 배열 — 호출부가 기존 deduct-fail 배너에 반영.
+  // 슬롯별 예약 조각 개수를 기록(서버가 그룹 완료 판정에 씀). 캐시차감은 그룹 완료를 안 기다리고
+  // 예약 시점에 즉시 실행(status는 'split', 원래 상태는 preScheduleStatus 보관 — 'active' 전환은
+  // 여전히 서버 디스패처가 실제 등록 완료 후). 반환: 차감 실패 그룹(호출부가 deduct-fail 배너에 반영).
   async function initScheduledBatches(slotKeyCounts, batchGroupId) {
     await userBizfitUidReady;
     const slotKeys = [...slotKeyCounts.keys()];
@@ -3021,9 +2999,7 @@ window.toggleProdPanel = function(e) {
       return snap.exists() ? snap.val() : null;
     } catch { return null; }
   }
-  // 엑셀 버전 조회 전용 계정(오렌지, orangeplanet1@naver.com로 고정 —
-  // 이 계정이 등급이 가장 최신화됨) — 실제 대행사 접수용 ha/bizfit_charge와는 별개 노드(ha/version_check_account)에
-  // 단일 계정만 저장해서, 오렌지가 실제 접수 대행사 목록에 없어도 안전하게 조회 가능.
+  // 엑셀 버전 조회 전용 계정(오렌지, 등급이 가장 최신) — 실제 접수 계정 목록과 별개 노드에 저장.
   async function fetchVersionCheckAccount() {
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
@@ -3184,9 +3160,8 @@ window.toggleProdPanel = function(e) {
       const knownMissions = known ? Object.keys(known).map(Number) : [];
 
       if (knownMissions.length >= 2 && split) {
-        // 미션별 % 규칙 설정과 무관하게 미션당 10% 고정(미션이 몇 개든 각자 10%)
-        // 미션 번호(라우팅)만 ha/grades 기준으로 강제하고, 키워드는 일반 탭과 동일하게 화면에 지금 입력된 값을 그대로 씀
-        // (분할 입력칸이 없는 미션이면 화면에 값이 없으므로 그때만 ha/grades 값으로 보완)
+        // % 규칙 무관 미션당 10% 고정 — 미션 번호(라우팅)만 ha/grades로 강제, 키워드는 화면 입력값 우선
+        // (입력칸 없는 미션만 ha/grades 값으로 보완).
         knownMissions.forEach(mission => {
           const workKw = ((s.splitKeywords || {})[mission] || '').trim() || known[mission];
           const yAmt = Math.min(yupflAlloc(remaining, 10), remaining);
@@ -3570,16 +3545,13 @@ window.toggleProdPanel = function(e) {
       };
     };
 
-    // "초기화" — 이 탭에서 이미 접수된 걸 취소하고 완료기록을 지워 재접수 가능하게 함. 탭마다 독립된 버튼
-    // (reset-normal/fixed/charlie/blog-btn)으로 다른 탭 완료기록은 안 건드림 — 예전엔 버튼 하나로 일반/유입플/
-    // 찰리/블로그를 한꺼번에 초기화해서 일반만 취소하려 해도 유입플 등 다른 탭까지 같이 초기화됐음.
-    // 대상 판정도 슬롯 전체 status==='active' 대신 이 탭 몫(_normalSubmitted/_fixedSubmitted 중 하나라도 true)으로
-    // 판단 — 슬롯이 다른 레그를 기다리는 중(아직 active 전)이어도 이 탭만 이미 나간 상태면 되돌릴 수 있어야 함.
-    // bizfitDeducted(차감)는 안 건드림 — 차감/메모 정산은 사람이 처리(자동화 안 함).
+    // "초기화" — 이 탭 몫만 취소+완료기록 삭제, 탭별 독립 버튼(reset-normal/fixed/charlie/blog-btn)이라
+    // 다른 탭은 안 건드림. 대상 판정은 slot.status==='active'가 아니라 이 탭 몫(_normalSubmitted 등)
+    // 기준 — 다른 레그를 기다리는 중이어도 이 탭만 나갔으면 되돌릴 수 있어야 함.
+    // bizfitDeducted(차감)는 안 건드림 — 차감/메모 정산은 사람이 처리.
 
-    // 일반/찰리/블로그처럼 bizfit /register로 나가는 탭 공용 — /cleanup-cancel은 Pcode 구분이 없어(같은 API를
-    // tools/macro/bizfit_cleanup.html도 씀) MID 단위로 취소되므로, 같은 MID에 걸린 다른 상품도 같이 취소될
-    // 수 있다는 걸 confirm에서 미리 알린다.
+    // /register로 나가는 탭(일반/찰리/블로그) 공용 — /cleanup-cancel은 MID 단위 취소라 같은 MID의
+    // 다른 상품도 같이 취소될 수 있음을 confirm에서 미리 알림.
     function wireBizfitTabReset(btn, resetKeys, doneNames) {
       const candidates = target.filter(s => resetKeys.has(s._key));
       if (!candidates.length) { btn.style.display = 'none'; return; }
@@ -3622,11 +3594,9 @@ window.toggleProdPanel = function(e) {
           window.bizfitSubmitting = false;
         }
 
-        // 비즈핏 취소 실패 건 — "관련 캠페인 없음"은 이미 success:true로 와서 위에서 okMids에 들어가 있고,
-        // 여기 남는 건 서버가 진짜 취소 불가 판정을 했거나(다른 상품이 진행중) 계정/네트워크 오류인 경우다.
-        // 그런데 관리자가 캠페인을 비즈핏 관리자 화면에서 직접 이미 지웠다면 서버 쪽 조회가 그 흔적을 못
-        // 찾아 엉뚱한 실패로 잡힐 수 있어(예: 삭제 시점 타이밍) — 실패 사유를 보여주고 확인받은 뒤에만
-        // 비즈핏 취소 시도 없이 로그만 지운다(오늘 45개 MID를 이 방식으로 수동 정리했던 것과 동일 절차).
+        // "관련 캠페인 없음"은 이미 okMids에 들어감 — 여기 남는 실패는 진짜 취소불가/계정오류거나,
+        // 관리자가 비즈핏 화면에서 직접 이미 지워 조회가 그 흔적을 못 찾은 경우일 수 있어 확인 후에만
+        // 취소 시도 없이 로그만 지운다.
         let logOnlySlots = [];
         const failedSlots = candidates.filter(s => s.mid && !okMids.has(s.mid));
         if (failedSlots.length && confirm(`${failedSlots.length}건 취소 실패.${errors.length ? `\n${errors.join('\n')}` : ''}\n\n캠페인이 이미 삭제된 경우라면 로그만 지울 수 있습니다(재접수 시 중복등록 주의). 로그만 지울까요?`)) {
@@ -3646,8 +3616,7 @@ window.toggleProdPanel = function(e) {
           updateLocalSlot(s._key, patch);
         }));
 
-        // 팝업은 닫지 않고 데이터만 재계산해 이 탭 상태로그만 사라지게 갱신
-        // (예전엔 overlay.remove()가 alert()보다 먼저 실행돼 "초기화 완료" 안내가 뜨기도 전에 팝업이 사라졌음)
+        // 팝업은 닫지 않고 데이터만 재계산해 이 탭 상태만 갱신
         renderReceipts(false);
         const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
         data = computeSubmitData(target);
@@ -3730,9 +3699,7 @@ window.toggleProdPanel = function(e) {
       btn.style.background = bg; btn.style.cursor = 'pointer'; btn.onclick = null;
     }
 
-    // 유입플 접수가 팝업을 닫지 않고 완료됐을 때 "시간대 분할 예약" 토글을 곧바로 갱신하기 위한 함수.
-    // fillBody() 전체를 다시 그리면 다른 탭에 입력 중인 값(키워드 등)이 날아가므로, 이 버튼 상태만
-    // 따로 갱신한다. executeYoupflSubmit 성공 콜백에서 호출.
+    // 유입플 완료 시 예약 토글만 갱신 — fillBody() 전체를 다시 그리면 다른 탭 입력값이 날아감.
     function refreshScheduleToggle() {
       data = computeSubmitData(target);
       scheduleValidationRows = flattenScheduleRows(data);
@@ -3766,9 +3733,8 @@ window.toggleProdPanel = function(e) {
       resetApplyBtn(bsubApplyBtn,   '#22c55e');
       resetApplyBtn(youpflApplyBtn, '#f59e0b');
 
-      // 일반/유입플/찰리 2개 이상 동시 활성 시 승인 게이트 — "탭 전체 완료"가 아닌 슬롯별로 "그 슬롯이 쓰는 레그들만" 다 끝나면 바로 승인
-      // (requiredLegsByKey로 계산). 탭 전체 완료를 기준으로 하면 유입플만 쓰는 슬롯은 영원히 승인되지 않는다.
-      // 재계산 시점에 이전에 이미 완료된 탭은 저장된 플래그로 미리 채움(일반/찰리는 모든 상품행 완료 시에만 "이미 완료")
+      // 2개 이상 레그 동시 활성 시 승인 게이트 — 탭 전체 완료가 아니라 슬롯별 requiredLegsByKey 기준
+      // (안 그러면 유입플만 쓰는 슬롯은 영원히 승인 안 됨).
       const rowsBySlotOf = rows => {
         const m = new Map();
         rows.forEach(r => { if (!r._slotKey) return; if (!m.has(r._slotKey)) m.set(r._slotKey, []); m.get(r._slotKey).push(r); });
@@ -3876,9 +3842,7 @@ window.toggleProdPanel = function(e) {
         }
       } : null;
 
-      // 시간대 분할 예약은 서버가 승인 게이트를 모르므로, 예약 그룹이 끝나면 곧장 승인해도 안전한 경우에만
-      // 허용한다 — 일반/찰리/델타/네이비 중 2개 이상이 동시에 필요(진짜 다중 register-leg)하면 막고,
-      // 유입플(fixedKeys)이 필요한데 아직 완료 전이어도 막는다(사람이 유입플 탭에서 접수를 먼저 완료해야 풀림).
+      // 서버는 승인 게이트를 모르므로 예약 허용은 register-leg 2개 이상 동시필요, 유입플 미완료 시 막음.
       const registerLegs = activeLegs.filter(l => l !== 'fixedKeys');
       const yupflPending = data.hasFixed && !(data.yupflRows.length && data.yupflRows.every(r => r._fixedSubmitted));
       const scheduleBlocked = registerLegs.length > 1 || yupflPending;
@@ -3993,9 +3957,7 @@ window.toggleProdPanel = function(e) {
       fillBody();
     };
 
-    // 블로그URL 일괄조회 — 블로그탭에 보이는 슬롯 중 블로그URL 미입력인 것만 골라 플레이스 URL에서
-    // 자동조회(applyDeltaBlogUrls와 동일한 프록시)해 채움. 이미 값이 있는 슬롯은 건드리지 않고,
-    // 조회 실패한 슬롯은 건너뛰고 마지막에 성공/실패 건수만 알림.
+    // 블로그URL 미입력 슬롯만 골라 applyDeltaBlogUrls와 동일한 프록시로 자동조회해 채움(기존 값은 안 건드림).
     const bsubBulkBtn = overlay.querySelector('#bsub-bulk-blogurl-btn');
     if (bsubBulkBtn) bsubBulkBtn.onclick = async () => {
       const rows = [...data.deltaPlan.flatMap(p => p.rows), ...data.navyPlan.flatMap(p => p.rows)];
@@ -4004,9 +3966,8 @@ window.toggleProdPanel = function(e) {
       bsubBulkBtn.disabled = true; bsubBulkBtn.textContent = '조회 중...';
       let ok = 0, fail = 0;
       for (const key of slotKeys) {
-        // target(모달이 연 시점의 스냅샷)에서 직접 찾아 그 객체를 그대로 고쳐야 computeSubmitData(target) 재계산에
-        // 반영됨 — allSlots는 실시간 리스너가 child_changed 때 같은 인덱스를 새 객체로 통째로 교체해버려서
-        // allSlots.find로 얻은 객체를 고쳐도 target 쪽엔 반영 안 되는 경우가 있었음.
+        // target(모달 스냅샷)에서 찾아 직접 고쳐야 반영됨 — allSlots는 실시간 리스너가 객체를 통째로
+        // 교체하므로 allSlots.find로 고치면 target엔 반영 안 될 수 있음.
         const s = target.find(x => x._key === key);
         if (!s || !s.url) { fail++; continue; }
         const splitProd = prods.find(p => p.id === 'delta' && p.active) || prods.find(p => p.id === 'navy' && p.active) || prods.find(p => p.id === 'delta');
@@ -4478,12 +4439,8 @@ window.toggleProdPanel = function(e) {
   const ALL_SUBMIT_PREFIXES = ['submit', 'csub', 'bsub'];
   const SUBMIT_TAB_PREFIX = { normalKeys: 'submit', charlieKeys: 'csub' };
 
-  // NP위치저장(adrole=100) 계열(찰리/델타)은 ajax.excel_version.php 동적 조회가 빈 값을 반환해 기본
-  // 폴백 버전과 어긋나 "버전체크 실패"로 거부됨(실측) — 상품 설정에 저장된 ver를 그대로 넘겨 우회한다.
-  // 네이비도 동일 증상이 있어 포함(등록 시 이 override가 없으면 상품 설정의 ver를 바꿔도 전혀 전송되지 않음).
-  // ap()(활성 상품만)이 아니라 prods 전체에서 찾는다 — 등급 자동매칭은 비활성 상품도 매칭해 접수시키므로
-  // ap()로 찾으면 찰리/델타/네이비가 비활성일 때 undefined가 되어 버전 override가 안 실려 "버전체크 실패"로 이어짐.
-  // submitPlanRows(즉시)/submitPlanRowsScheduled(예약) 공용.
+  // 찰리/델타/네이비는 동적 버전조회가 빈 값을 반환해 "버전체크 실패"로 거부됨(실측) — 상품 설정 ver로
+  // override. ap()(활성만)가 아니라 prods 전체에서 찾음 — 등급 자동매칭이 비활성 상품도 접수시키므로.
   function productVerFor(legKey) {
     const verSourceId = legKey === 'charlieKeys' ? 'charlie' : legKey === 'deltaKeys' ? 'delta' : legKey === 'navyKeys' ? 'navy' : null;
     return verSourceId ? prods.find(p => p.id === verSourceId)?.ver : undefined;
@@ -4674,12 +4631,9 @@ window.toggleProdPanel = function(e) {
     return { okTotal, failTotal };
   }
 
-  // submitPlanRows(즉시 접수)와 같은 검증·등급매칭을 거치되, /register 호출 대신 완성된 페이로드를
-  // ha/scheduled_dispatch에 저장한다. 승인(status→active)은 서버가 scheduled_batches 카운터로 그룹 전체
-  // 완료를 확인한 뒤 처리하지만, 캐시차감은 그걸 기다리지 않고 initScheduledBatches가 예약 시점에 바로
-  // 실행한다 — 실패하면 기존 deduct-fail 배너에 반영. 유입플이 필요한 슬롯은 renderSubmitModal의
-  // scheduleBlocked 판정이 이미 걸러서(사람이 유입플 탭 접수 버튼을 먼저 눌러 완료해야 예약 토글이 풀림)
-  // 여기 도달하는 시점엔 유입플이 남아있지 않다고 가정한다.
+  // submitPlanRows와 같은 검증·등급매칭을 거치되 /register 대신 ha/scheduled_dispatch에 저장 —
+  // 승인은 서버가 그룹 완료 확인 후 처리, 캐시차감은 기다리지 않고 예약 시점에 바로 실행.
+  // 유입플은 scheduleBlocked가 이미 걸러 여기 도달 시점엔 안 남아있다고 가정.
   async function submitPlanRowsScheduled(plan, overlay, legKey, adrole, schedule) {
     const productVer = productVerFor(legKey);
     const batchGroupId = `sch_${genId()}`;
@@ -4717,9 +4671,7 @@ window.toggleProdPanel = function(e) {
             payload: {
               domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw,
               tab: g.actualTab || BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType,
-              // productVer는 일반(normalKeys) 탭에선 undefined(찰리/델타/네이비 전용 override) — 이 payload는
-              // saveScheduledDispatch가 그대로 Firebase set()에 넘기는데, RTDB는 undefined 값을 허용하지
-              // 않아 set()이 예외를 던진다(호출부에 catch가 없어 "처리 중" 버튼이 안 풀리는 결과로 이어짐).
+              // productVer는 normalKeys에선 undefined인데, RTDB set()은 undefined 값을 허용 안 해 던짐(catch 없어 "처리 중" 무한대기) — null로 치환.
               version: productVer ?? null, rowData: [rowData],
             },
           });
@@ -4742,10 +4694,8 @@ window.toggleProdPanel = function(e) {
   }
 
   // ════════════════════════════════════════════════════════
-  // 분할접수 현황 — ha/scheduled_dispatch 조회. 서버(bizfit-direct-proxy)가 sendAt 시각에
-  // 맞춰 전송한 뒤 항목을 지우지 않고 status만 'pending' → 'done'으로 바꿔두므로, 완료된 항목도
-  // 계속 이 경로에 남아 함께 조회된다(수정은 'pending'인 항목만 가능하게 막아둠). kimpro/reception.html과
-  // 동일 구현(경로만 kimpro/→ha/) — 저쪽을 고치면 여기도 확인할 것.
+  // 분할접수 현황 — ha/scheduled_dispatch 조회. 서버가 전송 후 항목을 안 지우고 status만
+  // pending→done으로 바꿔 완료 항목도 계속 남음(수정은 pending만 가능). kimpro와 동일 구현.
   // ════════════════════════════════════════════════════════
 
   let _ssEntries = {};   // key -> entry, 등급 변경 시 저장된 계정정보(loginId/pwd) 조회용
@@ -4818,9 +4768,8 @@ window.toggleProdPanel = function(e) {
     });
   }
 
-  // slotKey(=한 번의 예약 등록 단위) 기준으로 묶는다 — PID/업체명으로 묶으면 같은 업체를 서로 다른
-  // 시점에 두 번 예약했을 때 남은 수량 계산(잔여 재분류)이 두 배치를 섞어버리므로 slotKey가 맞다.
-  // 보통 업체 하나 = slotKey 하나라 화면상 묶임새는 기존과 거의 같다.
+  // slotKey 기준 그룹핑 — PID/업체명으로 묶으면 같은 업체를 다른 시점에 두 번 예약했을 때
+  // 잔여 재분류 계산이 두 배치를 섞어버림.
   function groupScheduleEntries(entries) {
     const groups = new Map();
     entries.forEach(e => {
@@ -4831,9 +4780,8 @@ window.toggleProdPanel = function(e) {
     });
     const list = [...groups.values()];
     list.forEach(g => g.items.sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||'')));
-    // 정렬 기준은 필터링 전 전체(_ssEntries)의 최소 sendAt으로 고정 — entries(필터된 부분집합)
-    // 기준으로 정렬하면 상태 필터를 바꿀 때마다 남는 항목이 달라져 그 최솟값도 같이 바뀌면서
-    // 그룹 순서 자체가 흔들린다(예: 대기중만 보면 이미 완료된 이른 시각 항목이 빠져 최솟값이 뒤로 밀림).
+    // 정렬 기준은 필터링 전 전체(_ssEntries)의 최소 sendAt으로 고정 — 필터된 부분집합 기준이면
+    // 상태 필터를 바꿀 때마다 그룹 순서가 흔들림.
     const minSendAtByGid = new Map();
     Object.values(_ssEntries).forEach(e => {
       const row = (e.payload?.rowData || [])[0] || {};
@@ -4986,8 +4934,7 @@ window.toggleProdPanel = function(e) {
   // (찰리/델타가 이 계열) gradeName만으론 구분이 안 됨 — 계열까지 합친 조합키로 고유하게 식별한다.
   function scheduleGradeCkey(adrole, gradeName) { return (adrole ? 'storage' : 'traffic') + '::' + gradeName; }
 
-  // 계정의 등급을 트래픽/저장 두 계열 다 조회해 합쳐서 반환 — 등급변경/잔여재분류 공용.
-  // 하나만 조회하면(예전 방식) 반대 계열 등급(예: 찰리/델타의 NP위치저장)이 아예 선택지에 안 뜬다.
+  // 트래픽/저장 두 계열 다 조회해 합쳐서 반환 — 하나만 조회하면 반대 계열 등급이 선택지에 안 뜸.
   async function fetchScheduleGradeGroups(sample) {
     const base = { domain: sample.payload?.domain || BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd, tab: BIZFIT_TAB, rawData: [] };
     const [giTraffic, giStorage] = await Promise.all([
@@ -5057,9 +5004,8 @@ window.toggleProdPanel = function(e) {
   // 최소 접수 수량 — 비즈핏 최소 수량 기준, splitRowBySchedule과 동일
   const SCHEDULE_MIN_PORTION = 10;
 
-  // 같은 sendAt(=같은 시각에 나갈 조각)끼리 묶어 그 시점의 일목표 합을 비율대로 나눈다. 조각 하나가
-  // 최소수량 미만이 되면(예: 남은 양이 적은데 너무 잘게 쪼갬) 그 조각만 조용히 버리지 않고 violations로
-  // 보고해 실행 자체를 막는다 — 안 그러면 그 등급분만 수량이 통째로 증발해도 아무 표시가 안 남는다.
+  // 같은 sendAt끼리 묶어 비율대로 나누고, 조각이 최소수량 미만이면 조용히 버리지 않고 violations로
+  // 보고해 실행을 막는다(안 그러면 그 등급분 수량이 표시 없이 증발).
   function computeResplitBuckets(slotKey, grades, targetKeys) {
     const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
@@ -5084,9 +5030,8 @@ window.toggleProdPanel = function(e) {
     return { buckets, violations };
   }
 
-  // 체크박스로 일부 항목만 골랐을 때, 같은 시각(sendAt)에 다른 등급과 함께 묶여 있던 항목을 그중
-  // 일부만 재분류하면 그 시각의 원래 목표가 반쪽만 재분배돼 수량이 어긋난다 — 그 시각 전체가
-  // 선택되거나 전체가 빠지거나 둘 중 하나여야 하므로, 걸치는 시각이 있으면 실행 자체를 막는다.
+  // 같은 sendAt에 묶인 항목을 일부만 재분류하면 그 시각의 목표가 반쪽만 재분배돼 수량이 어긋남 —
+  // 걸치는 시각이 있으면 실행 자체를 막는다.
   function scheduleResplitPartialSendAts(slotKey, targetKeys) {
     const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     const bySendAt = new Map();
@@ -5244,11 +5189,8 @@ window.toggleProdPanel = function(e) {
     return { created, removed };
   }
 
-  // 대기중(pending) 항목 일괄 취소 — 아직 전송 전이라 비즈핏에 아무것도 나가지 않은 상태라 API 호출
-  // 없이 예약 항목만 지우면 됨(개별 취소는 잔여 재분류 체크박스로 충분해 따로 안 둠). scheduled_batches/total도
-  // 같이 줄여야 서버가 "그룹 전체 완료"를 정확히 판정한다(applyScheduleResplit의 removed 처리와 동일한 규칙).
-  // 취소 후엔 강제종료(renderReceipts 자동만료)와 같은 방식으로 슬롯을 처리한다 — 남은 일수를 그대로 두지
-  // 않고 실제로 나간 날짜(완료된 예약일의 개수·마지막 날)만큼만 인정해 일수/종료일을 줄이고 종료 처리.
+  // 대기중 일괄취소 — 전송 전이라 비즈핏 API 없이 예약 항목만 삭제, scheduled_batches/total도 같이
+  // 줄여야 서버가 그룹 완료를 정확히 판정. 강제종료와 동일하게 실제로 나간 날짜만 인정해 일수/종료일 축소.
   window.cancelAllSchedulePending = async function(slotKey) {
     const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     if (!targets.length) return;
@@ -5287,9 +5229,8 @@ window.toggleProdPanel = function(e) {
     }
   };
 
-  // 검색키워드 일괄분배 — 쉼표로 넣은 키워드 목록을 "비율"(그룹당 개수)만큼씩 잘라 대기중인 행에
-  // sendAt 순서대로 하나씩 채워넣는다. 그룹보다 대기중 행이 더 많으면 남는 행은 건드리지 않고
-  // 기존 값 그대로 둔다(반대로 그룹이 더 많으면 남는 그룹은 그냥 버려짐).
+  // 검색키워드 일괄분배 — 쉼표 목록을 "비율"(그룹당 개수)만큼 잘라 대기중 행에 sendAt 순서대로 채움
+  // (행이 더 많으면 초과분은 안 건드림, 그룹이 더 많으면 남는 그룹은 버림).
   function ensureKwSplitState(slotKey) {
     return _ssKwSplit[slotKey] || (_ssKwSplit[slotKey] = { open:false, kwText:'', chunk:5 });
   }
@@ -5408,10 +5349,8 @@ window.toggleProdPanel = function(e) {
     }
   };
 
-  // 상품 등급 변경 — gradeName만 바꾸면 안 되고(classType/gradeType/tab이 그 등급 전용 값과 짝을 이뤄야
-  // 서버 /register가 올바른 등급으로 접수함) 저장된 계정으로 grade-info를 다시 조회해 그 계정에 실제로
-  // 존재하는 등급 중에서만 고르게 한다(트래픽/저장 두 계열 다 조회 — fetchScheduleGradeGroups 참고).
-  // select로 고른 등급의 4개 필드 + adrole을 한 번에 갱신.
+  // 상품 등급 변경 — gradeName만 바꾸면 안 됨(classType/gradeType/tab이 짝을 이뤄야 /register가 정확)
+  // 저장된 계정으로 grade-info 재조회해 실재하는 등급 중에서만 고르게 함.
   window.editScheduleGrade = async function(key) {
     const e = _ssEntries[key];
     const cell = document.getElementById(`ss-grade-${key}`);
@@ -5543,11 +5482,8 @@ window.toggleProdPanel = function(e) {
       submitPlanRows(navyPlan, overlay, gate, 'navyKeys', null),
     ]);
 
-    // 델타/네이비가 동시에 끝나면 각자 내부에서 부르는 gate.tryApprove()가 서로 상대방의 완료를
-    // 못 보고 지나칠 수 있어(둘 다 끝난 뒤 딱 한 번만 준비된 걸로 잡히는 타이밍이면 문제없지만,
-    // 어느 한쪽이 먼저 끝나 승인 체크를 도는 순간 다른 쪽 결과가 아직 gate에 안 실렸을 수도 있음) —
-    // 두 콜 다 끝난 뒤 한 번 더 불러 놓친 슬롯이 있으면 여기서 마저 승인한다(이미 승인된 건 readyKeysOf가
-    // status==='active'로 걸러 내 중복 처리 없음). 팝업을 다시 열어야만 승인되던 문제의 안전망.
+    // 델타/네이비 중 먼저 끝난 쪽의 자체 tryApprove()가 아직 안 끝난 쪽을 못 볼 수 있어 안전망으로 한 번 더 호출
+    // (이미 승인된 건 readyKeysOf가 걸러 중복 없음).
     if (gate) { try { await gate.tryApprove(); } catch (e) {} }
 
     finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, d.okTotal + n.okTotal, d.failTotal + n.failTotal);
