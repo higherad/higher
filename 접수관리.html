@@ -3485,9 +3485,11 @@ window.toggleProdPanel = function(e) {
         </div>
         <div id="stab-panel-normal" style="display:${data.defaultTab==='normal'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="font-size:12px;" id="submit-sub"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="submit-sub"></div>
+              <button id="reset-normal-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
-              <button id="reset-normal-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
               <button class="btn-cancel" id="submit-close-btn">닫기</button>
               <button id="submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
             </div>
@@ -3496,7 +3498,10 @@ window.toggleProdPanel = function(e) {
         </div>
         <div id="stab-panel-fixed" style="display:${data.defaultTab==='fixed'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="font-size:12px;" id="youpfl-sub"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="youpfl-sub"></div>
+              <button id="reset-fixed-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0;">
               <div style="display:flex;align-items:center;gap:6px;">
                 <span style="font-size:12px;color:var(--text2);white-space:nowrap;">미션번호 일괄 적용</span>
@@ -3504,7 +3509,6 @@ window.toggleProdPanel = function(e) {
                 <button type="button" onclick="applyYoupflMissionBulk(this)" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;white-space:nowrap;">적용</button>
               </div>
               <div style="display:flex;gap:8px;">
-                <button id="reset-fixed-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
                 <button class="btn-cancel" id="youpfl-close-btn">닫기</button>
                 <button id="youpfl-apply-btn" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
               </div>
@@ -3514,9 +3518,11 @@ window.toggleProdPanel = function(e) {
         </div>
         <div id="stab-panel-charlie" style="display:${data.defaultTab==='charlie'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="font-size:12px;" id="csub-sub"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="csub-sub"></div>
+              <button id="reset-charlie-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
-              <button id="reset-charlie-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
               <button class="btn-cancel" id="csub-close-btn">닫기</button>
               <button id="csub-apply-btn" style="background:#d946ef;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
             </div>
@@ -3525,10 +3531,12 @@ window.toggleProdPanel = function(e) {
         </div>
         <div id="stab-panel-blog" style="display:${data.defaultTab==='blog'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="font-size:12px;" id="bsub-sub"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="bsub-sub"></div>
+              <button id="reset-blog-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
               <button type="button" id="bsub-bulk-blogurl-btn" title="블로그 URL 미입력 항목에 대해 플레이스 URL에서 자동으로 조회해 채웁니다" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;white-space:nowrap;">🔗 블로그URL 일괄조회</button>
-              <button id="reset-blog-btn" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted);">초기화</button>
               <button class="btn-cancel" id="bsub-close-btn">닫기</button>
               <button id="bsub-apply-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
             </div>
