@@ -539,7 +539,7 @@ window.toggleProdPanel = function(e) {
 
   async function injectGradeBadges(slots) {
     await Promise.all(slots.map(async s => {
-      if (!['pending','accepted','active'].includes(s.status) || !s.mid) return;
+      if (!['pending','accepted','active','split'].includes(s.status) || !s.mid) return;
       const el = document.getElementById(`grade-${s._key}`);
       if (!el) return;
       const data = await fetchGrade(s.mid);
@@ -590,7 +590,7 @@ window.toggleProdPanel = function(e) {
       if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
       if (gradeFilter) {
-        if (!['pending','accepted','active'].includes(s.status)) return false;
+        if (!['pending','accepted','active','split'].includes(s.status)) return false;
         const cached = GRADE_CACHE.get(s.mid);
         if (!cached) return false;
         if (!_allFilterLabels(cached).includes(gradeFilter)) return false;
@@ -697,7 +697,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${escProd(s.userId||'-')}</td>
-          <td>${['pending','accepted','active'].includes(s.status)
+          <td>${['pending','accepted','active','split'].includes(s.status)
             ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>`
             : `<span style="color:#cbd5e1">-</span>`
           }</td>
@@ -734,7 +734,7 @@ window.toggleProdPanel = function(e) {
     injectGradeBadges(page);
 
     // 등급 백그라운드 로드 — 미캐시 MID만 로드, 완료 시 필터 갱신
-    const uniqueMids    = [...new Set(allSlots.filter(s => ['pending','accepted','active'].includes(s.status) && s.mid).map(s => s.mid))];
+    const uniqueMids    = [...new Set(allSlots.filter(s => ['pending','accepted','active','split'].includes(s.status) && s.mid).map(s => s.mid))];
     const uncachedMids  = uniqueMids.filter(mid => !GRADE_CACHE.has(mid));
     if (uncachedMids.length) {
       fetchGradesBatch(uncachedMids).then(() => {
