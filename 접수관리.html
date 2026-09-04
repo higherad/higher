@@ -1520,7 +1520,8 @@ window.toggleProdPanel = function(e) {
     })).catch(()=>{});
   }
 
-  const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct}));
+  const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct,fixedPct:p.fixedPct,blogSplit:p.blogSplit,
+    missionRules: Array.isArray(p.missionRules) ? p.missionRules.map(r => ({...r})) : undefined}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
   function deactivateProdGroup() {
     activeProdGroupId = null;
@@ -1590,6 +1591,9 @@ window.toggleProdPanel = function(e) {
       if(s.name)                 p.name   = s.name;
       if(s.ver    !== undefined && !VER_LOCKED_IDS.has(p.id)) p.ver = s.ver;
       if(s.kwPct  !== undefined) p.kwPct  = s.kwPct;
+      if(s.fixedPct !== undefined) p.fixedPct = s.fixedPct;
+      if(s.blogSplit !== undefined) p.blogSplit = s.blogSplit;
+      if(Array.isArray(s.missionRules)) p.missionRules = s.missionRules.map(r => ({...r}));
     });
     activeProdGroupId = id; renderPS();
   };
