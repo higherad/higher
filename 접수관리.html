@@ -3355,7 +3355,7 @@ window.toggleProdPanel = function(e) {
       totalSlots += new Set(p.rows.map(r => r._slotKey)).size;
       totalTarget += daysMultipliedSum(p.rows, false);
     });
-    const issueSummary = (hasDelta ? agencyIssueSummaryHtml(deltaPlan, '델타', true) : '') + (hasNavy ? agencyIssueSummaryHtml(navyPlan, '네이비', true) : '');
+    const issueSummary = (hasDelta ? agencyIssueSummaryHtml(deltaPlan, '', true) : '') + (hasNavy ? agencyIssueSummaryHtml(navyPlan, '', true) : '');
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${deltaPlan.length}곳 · 블로그 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>${issueSummary}`;
     const allRows = [...deltaPlan.flatMap(p => p.rows), ...navyPlan.flatMap(p => p.rows)];
     if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
