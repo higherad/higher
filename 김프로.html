@@ -3346,6 +3346,19 @@ document.addEventListener('keydown', function(e) {
   .kp-uex-card{background:#fff;border:1px solid var(--border);border-radius:20px;padding:28px;box-shadow:0 4px 24px rgba(0,0,0,.04);}
   .kp-uex-card-title{font-size:18px;font-weight:800;}
   .kp-uex-btn-template{padding:7px 16px;background:var(--info);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;}
+  /* 탭 바 + 개별 신청 폼 — 접수관리 rex-tab-bar/rex-form-*와 동일 디자인 */
+  .kp-uex-tab-bar{display:flex;gap:8px;margin-bottom:20px;}
+  .kp-uex-tab-btn{padding:10px 24px;border-radius:10px;border:1.5px solid var(--border);background:#fff;color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:.2s;display:flex;align-items:center;gap:6px;}
+  .kp-uex-tab-btn.active{background:var(--kp-accent);color:#fff;border-color:var(--kp-accent);box-shadow:0 4px 12px rgba(16,185,129,.25);}
+  .kp-uex-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .kp-uex-form-field{margin-bottom:14px;}
+  .kp-uex-form-field label{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;}
+  .kp-uex-required-dot{width:5px;height:5px;border-radius:50%;background:var(--danger);display:inline-block;flex-shrink:0;}
+  .kp-uex-form-field input,.kp-uex-form-field textarea{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#fff;outline:none;box-sizing:border-box;}
+  .kp-uex-form-field textarea{resize:vertical;min-height:38px;}
+  .kp-uex-form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid var(--border);}
+  .kp-uex-btn-next{padding:11px 26px;border:none;border-radius:10px;background:var(--kp-accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(16,185,129,.25);display:flex;align-items:center;gap:6px;}
+  .kp-uex-btn-next:disabled{background:var(--muted);box-shadow:none;cursor:not-allowed;}
 </style>
 
 <div id="kp-uex-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
@@ -3373,7 +3386,37 @@ document.addEventListener('keydown', function(e) {
       </div>
     </div>
 
-    <div class="kp-uex-card">
+    <div class="kp-uex-tab-bar">
+      <button class="kp-uex-tab-btn" id="kp-uex-tab-single" onclick="kpUexSwitchTab('single')"><i data-lucide="file-plus" size="14"></i> 개별 신청</button>
+      <button class="kp-uex-tab-btn active" id="kp-uex-tab-excel" onclick="kpUexSwitchTab('excel')"><i data-lucide="table" size="14"></i> 엑셀 일괄 업로드</button>
+    </div>
+
+    <div id="kp-uex-mode-single" class="kp-uex-card" style="display:none">
+      <div class="kp-uex-card-title" style="margin-bottom:20px;">캠페인 신청 정보를 입력해주세요</div>
+      <div class="kp-uex-form-row">
+        <div class="kp-uex-form-field"><label><span class="kp-uex-required-dot"></span> 업체명 (네이버 상호명)</label><input id="kp-uex-s-store" type="text" placeholder="네이버 상호명을 입력하세요"></div>
+        <div class="kp-uex-form-field"><label><span class="kp-uex-required-dot"></span> 순위 키워드</label><input id="kp-uex-s-kw" type="text" placeholder="예: 홍대맛집"></div>
+      </div>
+      <div class="kp-uex-form-row">
+        <div class="kp-uex-form-field"><label><span class="kp-uex-required-dot"></span> URL</label><input id="kp-uex-s-url" type="url" placeholder="https://m.place.naver.com/..." oninput="kpUexOnUrlInput()"></div>
+        <div class="kp-uex-form-field"><label>MID (URL에서 자동 추출)</label><input id="kp-uex-s-mid" type="text" readonly style="background:#f8fafc;color:var(--text2);"></div>
+      </div>
+      <div class="kp-uex-form-row">
+        <div class="kp-uex-form-field"><label><span class="kp-uex-required-dot"></span> 일 수</label><input id="kp-uex-s-days" type="number" min="1" placeholder="예: 7" oninput="kpUexAutoCalcEndDate()"></div>
+        <div class="kp-uex-form-field"><label><span class="kp-uex-required-dot"></span> 일 목표</label><input id="kp-uex-s-target" type="number" min="0" placeholder="예: 1000"></div>
+      </div>
+      <div class="kp-uex-form-row">
+        <div class="kp-uex-form-field"><label>시작일</label><input id="kp-uex-s-start" type="date" oninput="kpUexAutoCalcEndDate()"></div>
+        <div class="kp-uex-form-field"><label>종료일 (자동 계산)</label><input id="kp-uex-s-end" type="text" readonly style="background:#f8fafc;color:var(--text2);"></div>
+      </div>
+      <div class="kp-uex-form-field"><label>검색키워드 (선택)</label><input id="kp-uex-s-search" type="text" placeholder="비워두면 순위 키워드와 동일하게 처리"></div>
+      <div class="kp-uex-form-field"><label>메모 / 특이사항</label><textarea id="kp-uex-s-memo" rows="1" placeholder="운영 시 참고해야 할 사항이 있으면 입력해주세요."></textarea></div>
+      <div class="kp-uex-form-actions">
+        <button class="kp-uex-btn-next" id="kp-uex-s-submit-btn" onclick="kpUexSubmitSingle()"><i data-lucide="check-circle" size="15"></i> 신청 완료</button>
+      </div>
+    </div>
+
+    <div id="kp-uex-mode-excel" class="kp-uex-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div class="kp-uex-card-title">엑셀 일괄 업로드</div>
         <button class="kp-uex-btn-template" onclick="downloadKpUexTemplate()">양식 다운로드</button>
@@ -3481,8 +3524,80 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-uex-branch-clear').style.display = 'none';
     document.getElementById('kp-uex-branch-info').style.display = 'none';
     resetKpUex();
+    kpUexSwitchTab('excel');
+    const todayStr = uexFmt(new Date());
+    document.getElementById('kp-uex-s-store').value = '';
+    document.getElementById('kp-uex-s-kw').value = '';
+    document.getElementById('kp-uex-s-url').value = '';
+    document.getElementById('kp-uex-s-mid').value = '';
+    document.getElementById('kp-uex-s-days').value = '';
+    document.getElementById('kp-uex-s-target').value = '';
+    document.getElementById('kp-uex-s-start').value = todayStr;
+    document.getElementById('kp-uex-s-start').min   = todayStr;
+    document.getElementById('kp-uex-s-end').value   = todayStr;
+    document.getElementById('kp-uex-s-search').value = '';
+    document.getElementById('kp-uex-s-memo').value  = '';
   };
   window.closeKpUexModal = function() { document.getElementById('kp-uex-modal').style.display = 'none'; kpUexCloseDropdown(); };
+
+  window.kpUexSwitchTab = function(mode) {
+    const single = mode === 'single';
+    document.getElementById('kp-uex-mode-single').style.display = single ? 'block' : 'none';
+    document.getElementById('kp-uex-mode-excel').style.display  = single ? 'none'  : 'block';
+    document.getElementById('kp-uex-tab-single').classList.toggle('active', single);
+    document.getElementById('kp-uex-tab-excel').classList.toggle('active', !single);
+  };
+
+  window.kpUexOnUrlInput = function() {
+    const url = document.getElementById('kp-uex-s-url').value.trim();
+    document.getElementById('kp-uex-s-mid').value = uexExtractMid(url) || '';
+  };
+
+  window.kpUexAutoCalcEndDate = function() {
+    const days  = Number(document.getElementById('kp-uex-s-days').value);
+    const start = document.getElementById('kp-uex-s-start').value;
+    if (days > 0 && start) {
+      const s = new Date(start);
+      s.setDate(s.getDate() + days - 1);
+      document.getElementById('kp-uex-s-end').value = uexFmt(s);
+    } else if (start) {
+      document.getElementById('kp-uex-s-end').value = start;
+    }
+  };
+
+  window.kpUexSubmitSingle = async function() {
+    if (!kpUexSelected) { alert('영업점을 먼저 선택해주세요.'); return; }
+    const storeName     = document.getElementById('kp-uex-s-store').value.trim();
+    const rankKeyword   = document.getElementById('kp-uex-s-kw').value.trim().replace(/\s+/g,'');
+    const url           = document.getElementById('kp-uex-s-url').value.trim();
+    const mid           = document.getElementById('kp-uex-s-mid').value.trim();
+    const days          = Number(document.getElementById('kp-uex-s-days').value) || 0;
+    const dailyTarget   = Number(document.getElementById('kp-uex-s-target').value) || 0;
+    const startDate     = document.getElementById('kp-uex-s-start').value;
+    const endDate       = document.getElementById('kp-uex-s-end').value;
+    const searchKeyword = document.getElementById('kp-uex-s-search').value.trim();
+    const memo          = document.getElementById('kp-uex-s-memo').value;
+    if (!storeName || !rankKeyword || !url || !mid || days <= 0 || dailyTarget <= 0 || !startDate) {
+      alert('필수 항목을 모두 입력해주세요. (업체명/순위키워드/URL/일 수/일 목표/시작일)');
+      return;
+    }
+    const btn = document.getElementById('kp-uex-s-submit-btn');
+    btn.disabled = true; btn.innerHTML = '처리 중...';
+    try {
+      const agencyId = kpUexSelected.agency || kpUexSelected.username;
+      const result = await window.HA.addKpSlot({
+        agencyId, storeName, rankKeyword, url: uexNormalizeUrl(url), mid,
+        startDate, endDate, days, dailyTarget, searchKeyword, memo, unitPrice: 0,
+      });
+      window.HA.notifySingle(result, { label: '김프로 개별' }).catch(() => {});
+      if (window.kpRenderReceipts) window.kpRenderReceipts(true, true);
+      closeKpUexModal();
+    } catch (e) {
+      alert('접수 중 오류가 발생했습니다.');
+      btn.disabled = false; btn.innerHTML = '<i data-lucide="check-circle" size="15"></i> 신청 완료';
+      if (window.lucide) window.lucide.createIcons();
+    }
+  };
 
   (function initZone() {
     const zone = document.getElementById('kp-uex-zone');
