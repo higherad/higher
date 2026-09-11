@@ -32,6 +32,7 @@
     .kp-stat-bar { display:grid; grid-template-columns:repeat(9,1fr); gap:10px; margin-bottom:16px; }
     .kp-stat-box { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
     .kp-sb-label { font-size:11px; color:var(--text2); font-weight:600; }
+    .kp-sb-sub { color:var(--muted); font-weight:500; margin-right:5px; padding-right:5px; border-right:1px solid var(--border); }
     .kp-sb-val { font-size:20px; font-weight:800; line-height:1; }
     @media (max-width:1100px) { .kp-stat-bar { grid-template-columns:repeat(4,1fr); } }
     .kp-filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
@@ -139,9 +140,9 @@
     <div class="kp-stat-box"><div class="kp-sb-label">접수</div><div class="kp-sb-val" id="kp-stat-accepted" style="color:#1d4ed8">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">승인</div><div class="kp-sb-val" id="kp-stat-active" style="color:var(--kp-accent)">-</div></div>
     <div class="kp-stat-box" style="cursor:pointer;" onclick="openKpSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="kp-sb-label" style="color:#b45309;font-weight:700;">예약 <span style="font-size:10px;">↗</span></div><div class="kp-sb-val" id="kp-stat-split" style="color:#b45309">-</div></div>
-    <div class="kp-stat-box"><div class="kp-sb-label">재접수 대기</div><div class="kp-sb-val" id="kp-stat-requeue" style="color:#b45309">-</div></div>
-    <div class="kp-stat-box"><div class="kp-sb-label">재접수 접수</div><div class="kp-sb-val" id="kp-stat-requeue-accepted" style="color:#1d4ed8">-</div></div>
-    <div class="kp-stat-box"><div class="kp-sb-label">재접수 승인</div><div class="kp-sb-val" id="kp-stat-requeue-active" style="color:var(--kp-accent)">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label"><span class="kp-sb-sub">재접수</span>대기</div><div class="kp-sb-val" id="kp-stat-requeue" style="color:#b45309">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label"><span class="kp-sb-sub">재접수</span>접수</div><div class="kp-sb-val" id="kp-stat-requeue-accepted" style="color:#1d4ed8">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label"><span class="kp-sb-sub">재접수</span>승인</div><div class="kp-sb-val" id="kp-stat-requeue-active" style="color:var(--kp-accent)">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">임시중단</div><div class="kp-sb-val" id="kp-stat-paused" style="color:#7c3aed">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">강제종료</div><div class="kp-sb-val" id="kp-stat-force" style="color:#dc2626">-</div></div>
   </div>
