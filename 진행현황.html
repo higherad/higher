@@ -161,7 +161,7 @@
       else { if (!['active','split','expired','ended','force_stopped','paused'].includes(s.status)) return false; }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       return true;
-    });
+    }).sort((a,b) => (b.startDate||'').localeCompare(a.startDate||'')); // 시작일 내림차순 — ha/kp 병합 순서(kp가 뒤에 붙는 문제)와 무관하게 통일
   }
 
   function renderSummary() {
