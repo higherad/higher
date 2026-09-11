@@ -374,6 +374,8 @@ async function downloadRankTable() {
       return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
     };
     const slots = await HA.getKpSlotsLive();
+    const mids = [...new Set(slots.filter(s => s.mid).map(s => s.mid))];
+    await window.KpGrade.fetchGradesBatch(mids.filter(mid => !window.KpGrade.cache.has(mid)));
     const midEntries = slots
       .filter(s => s.mid)
       .map(s => ({
@@ -385,7 +387,7 @@ async function downloadRankTable() {
         createdDate: s.createdAt ? fmtDate(s.createdAt) : '',
         status: s.status || '',
         isRequeue: !!s.isRequeue,
-        grade: '',
+        grade: [...new Set(window.KpGrade.allFilterLabels(window.KpGrade.cache.get(s.mid)))].join(', '),
       }));
 
     const res = await fetch('https://kimpro-premium-938928195180.asia-northeast3.run.app/rank-table', {
