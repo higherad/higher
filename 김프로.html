@@ -1524,12 +1524,12 @@ window.closeStopModal = function() {
       .kw-switch input:checked + .kw-slider { background-color:#0277bd; }
       .kw-switch input:checked + .kw-slider::before { transform:translateX(15px); }
       .kw-tab-btn { padding:7px 16px; border:1px solid var(--border); background:#fff; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--text2); }
-      .kw-tab-btn.active { background:#0277bd; color:#fff; border-color:#0277bd; }
+      .kw-tab-btn.active { color:#0277bd; border-color:#0277bd; }
     </style>
 
     <div style="display:flex;gap:6px;margin-bottom:14px;">
       <button type="button" id="kw-tab-btn-normal" class="kw-tab-btn active" onclick="kwSwitchTab('normal')">일반</button>
-      <button type="button" id="kw-tab-btn-sched" class="kw-tab-btn" onclick="kwSwitchTab('sched')">⏰ 예약</button>
+      <button type="button" id="kw-tab-btn-sched" class="kw-tab-btn" onclick="kwSwitchTab('sched')">예약</button>
     </div>
 
     <div class="kw-grid">
