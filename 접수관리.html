@@ -3182,16 +3182,42 @@ window.toggleProdPanel = function(e) {
         const wb = XLSX.read(e.target.result, { type:'array', cellDates:false });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
-        const dataRows = raw.slice(1).filter(r => r[0] || r[1]);
+        if (!raw.length) { alert('빈 파일입니다.'); return; }
+
+        // 컬럼 위치를 고정 순서 대신 첫 행(헤더) 텍스트로 자동 인식 — 순서가 바뀌거나 줄바꿈/공백/
+        // 예시문구가 섞여 있어도("시작일\n예) 2026-01-31") 부분일치로 찾히도록 공백류를 다 지우고
+        // 매칭(기존 슈퍼 계정 엑셀 접수와 동일한 방식, user-apply.html 이식)
+        const hdr = raw[0].map(h => String(h||'').replace(/\s+/g, ''));
+        const storeCol  = hdr.findIndex(h => /업체명|상호명/.test(h));
+        const urlCol    = hdr.findIndex(h => /url/i.test(h));
+        const midCol    = hdr.findIndex(h => /mid|pid/i.test(h));
+        const kwCol     = hdr.findIndex(h => /키워드/.test(h));
+        const daysCol   = hdr.findIndex(h => /일수/.test(h));
+        const targetCol = hdr.findIndex(h => /일목표/.test(h));
+        const startCol  = hdr.findIndex(h => /시작일/.test(h));
+        const missing = [];
+        if (storeCol  < 0) missing.push('업체명/상호명');
+        if (urlCol    < 0) missing.push('URL');
+        if (midCol    < 0) missing.push('MID/PID');
+        if (kwCol     < 0) missing.push('순위키워드');
+        if (daysCol   < 0) missing.push('일 수');
+        if (targetCol < 0) missing.push('일 목표');
+        if (startCol  < 0) missing.push('시작일');
+        if (missing.length) {
+          alert(`엑셀 첫 행(헤더)에서 다음 항목을 찾을 수 없습니다: ${missing.join(', ')}\n헤더에 해당 항목명이 포함돼 있는지 확인해주세요.`);
+          return;
+        }
+
+        const dataRows = raw.slice(1).filter(r => r[storeCol] || r[urlCol]);
         rexRows = dataRows.map(r => {
-          const storeName    = String(r[0]??'').trim();
-          const url          = rexNormalizeUrl(r[1]) || null;
-          const mid          = String(r[2]??'').trim();
-          const rankKeyword  = String(r[3]??'').trim().replace(/\s+/g,'');
-          const daysRaw      = String(r[4]??'').trim();
+          const storeName    = String(r[storeCol] || '').trim();
+          const url          = rexNormalizeUrl(r[urlCol]) || null;
+          const mid          = String(r[midCol] ?? '').trim();
+          const rankKeyword  = String(r[kwCol] ?? '').trim().replace(/\s+/g,'');
+          const daysRaw      = String(r[daysCol] ?? '').trim();
           const days         = daysRaw !== '' ? Number(daysRaw) : null;
-          const startDate    = rexNormalizeDate(r[5]) || null;
-          const targetRaw    = String(r[6]??'').trim();
+          const startDate    = rexNormalizeDate(r[startCol]) || null;
+          const targetRaw    = String(r[targetCol] ?? '').trim();
           const dailyTarget  = targetRaw !== '' ? Number(targetRaw) : null;
           let endDate = null;
           if (startDate && days !== null && !isNaN(days) && days > 0) {
@@ -3262,19 +3288,25 @@ window.toggleProdPanel = function(e) {
     btn.disabled = true; btn.innerHTML = '처리 중...';
     const agencyId = rexSelected.agency || rexSelected.username;
     const userId   = rexSelected.username;
+
+    // 행마다 HA.addSlot이 RTDB 왕복(+단가 조회)이라 순차 대기(for...of)면 건수만큼 지연이 쌓인다
+    // (50건이면 왕복 50번) — 서로 독립된 요청이라 병렬로 한 번에 쏨. 단, 병렬이면 서버 완료 순서가
+    // 엑셀 행 순서와 달라지므로 행 인덱스로 어긋낸 createdAt을 미리 만들어 보내 정렬을 엑셀 순서에
+    // 고정(higher_user 포털과 동일 패턴).
+    const excelBaseTs = Date.now();
+    const results = await Promise.allSettled(validRows.map((row, i) => HA.addSlot({
+      agencyId, userId,
+      storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
+      startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget, memo: '',
+      createdAt: new Date(excelBaseTs + i).toISOString(),
+    })));
+
     let success = 0, fail = 0;
     const succeededSlots = [];
-    for (const row of validRows) {
-      try {
-        const result = await HA.addSlot({
-          agencyId, userId,
-          storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
-          startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget, memo: '',
-        });
-        succeededSlots.push(result);
-        success++;
-      } catch { fail++; }
-    }
+    results.forEach(r => {
+      if (r.status === 'fulfilled') { succeededSlots.push(r.value); success++; }
+      else fail++;
+    });
     if (succeededSlots.length) HA.notifyExcelBatch(succeededSlots).catch(() => {});
     renderReceipts(true, true);
     alert(`총 ${validRows.length}건 중 ${success}건 접수 완료${fail ? ` / ${fail}건 실패` : ''}`);

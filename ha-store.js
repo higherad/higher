@@ -440,6 +440,8 @@ const HA = {
     return result;
   },
 
+  // 접수 시점엔 김프로에 미러하지 않음 — updateSlot()의 자가치유 폴백(status가 active/split일 때만
+  // 최초 미러 생성)이 승인/예약 시점에 만들어줌. "승인 전엔 김프로에 안 보여야 한다"는 요청(2026-09-11).
   async addSlot(data) {
     // 접수 시점 단가 스냅샷: userId로 현재 단가 조회 후 슬롯에 저장
     let unitPriceSnapshot = 0;
@@ -452,7 +454,9 @@ const HA = {
 
     const newSlot = {
       status:        'pending',
-      createdAt:     new Date().toISOString(),
+      // 엑셀 일괄접수는 병렬 전송이라 서버 도착 순서≠엑셀 행순서 — 호출부가 행 인덱스로 어긋낸
+      // createdAt을 넘기면 그대로 신뢰(위조 이득 없는 값이라 예외 허용, higher_user와 동일 패턴)
+      createdAt:     data.createdAt || new Date().toISOString(),
       origin:        'ha', // 접수 출처(접수관리) — 김프로 미러/휴지통 분류에 사용, 절대 덮어쓰지 않음
       agencyId:      data.agencyId      || '',
       userId:        data.userId        || '',
@@ -470,15 +474,6 @@ const HA = {
     const newRef = await push(ref(db, PATHS.slots), newSlot);
     const result = { ...newSlot, _key: newRef.key };
     dispatch('ha:slots:updated');
-
-    // 신규 접수를 즉시 김프로에도 미러 — pending도 ha/kp 공유 상태값(HA_KP_SHARED_STATUSES)이라
-    // 승인/분할 시점까지 기다릴 필요 없이 대기 단계부터 바로 보이게 함(updateSlot의 기존 미러와 동일 대상).
-    // 실패를 조용히 삼키면 누락을 못 알아채므로 콘솔 로그 필수, fire-and-forget 금지.
-    const kpMirrorData = { ...newSlot, searchKeyword: newSlot.searchKeyword || '' };
-    try {
-      await set(ref(db, `${KP_PATHS.slots}/${newRef.key}`), kpMirrorData);
-    } catch (e) { console.error('ha/kimproSlots 신규 미러 오류:', e); }
-
     return result;
   },
 
@@ -490,7 +485,7 @@ const HA = {
     const amount      = totalTarget * unitPrice;
     const amountVat   = Math.round(amount * 1.1);
     await sendTelegram(
-`📥 <b>새 캠페인 접수 (관리자 등록)</b>
+`📥 <b>새 캠페인 접수 (개별)</b>
 ━━━━━━━━━━━━━━━━
 • 대행사: ${slot.agencyId}
 • 캠페인 수: 1건
@@ -514,7 +509,7 @@ const HA = {
     const unitPrice   = slots[0].unitPrice || 0;
     const amountVat   = Math.round(amount * 1.1);
     await sendTelegram(
-`📊 <b>새 캠페인 접수 (관리자 엑셀)</b>
+`📊 <b>새 캠페인 접수 (엑셀)</b>
 ━━━━━━━━━━━━━━━━
 • 대행사: ${agencyId}
 • 캠페인 수: ${slots.length}건
@@ -540,11 +535,13 @@ const HA = {
           await remove(ref(db, `${KP_PATHS.slots}/${key}`));
         } else if (!('status' in patch) || HA_KP_SHARED_STATUSES.has(patch.status)) {
           // 상태값이 없거나 공유 상태값일 때만 필드 반영 — ha 전용 상태 전환은 patch 통째로 무시
-          // (위 kimpro/slots 블록과 동일한 이유)
+          // (kp 전용 상태값으로의 전환은 endDate 등 동반 필드까지 새어나가면 반대편이 오판할 수 있음)
           await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
         }
-      } else if (patch.status !== 'deleted') {
-        // addSlot이 접수 시점에 이미 미러를 만드므로 보통 여기 안 옴 — 레거시/복구 슬롯 자가치유 폴백
+      } else if (patch.status === 'active' || patch.status === 'split') {
+        // addSlot()은 접수 시점에 미러를 안 만듦 — 승인(active)/예약(split) 시점에 여기서 처음
+        // 생성됨. 그 전(pending 상태에서의 일반 필드 수정 등)까지는 절대 만들지 않음(요청사항: 접수는
+        // 승인 전까지 김프로에 안 보여야 함).
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
           const slot = slotSnap.val();
