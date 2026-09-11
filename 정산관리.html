@@ -159,6 +159,30 @@
   let _settleLoaded=false;
   let allSlots=[],allUsers=[],paidSet=new Set(),refundMap={};
   let snapshotMap={};
+
+  // 다른 세션에서 입금/충전/환불 처리 시 새로고침 없이 반영 — 슬롯(수 MB)은 그대로 캐시 유지하고
+  // 정산 부가 데이터(입금·충전여부/환불액/스냅샷, 전부 작은 노드)만 실시간 구독해 병합
+  let _settleLiveWired=false;
+  let _liveHaPaid=new Set(), _liveKpPaid=new Set();
+  let _liveHaRefund={}, _liveKpRefund={};
+  let _liveHaSnapshot={}, _liveKpSnapshot={};
+  function recomputeLiveSettleData(){
+    if (!_settleLoaded) return;
+    paidSet = new Set([..._liveHaPaid, ..._liveKpPaid]);
+    refundMap = {..._liveHaRefund, ..._liveKpRefund};
+    snapshotMap = {..._liveHaSnapshot, ..._liveKpSnapshot};
+    if (document.getElementById('settle-page')) renderSettle(false);
+  }
+  function wireSettleLiveListeners(){
+    if (_settleLiveWired) return;
+    _settleLiveWired = true;
+    HA.onPaidSetChange(s => { _liveHaPaid = s; recomputeLiveSettleData(); });
+    HA.onKpPaidSetChange(s => { _liveKpPaid = s; recomputeLiveSettleData(); });
+    HA.onRefundsChange(m => { _liveHaRefund = m; recomputeLiveSettleData(); });
+    HA.onKpRefundsChange(m => { _liveKpRefund = m; recomputeLiveSettleData(); });
+    HA.onSettleSnapshotsChange(m => { _liveHaSnapshot = m; recomputeLiveSettleData(); });
+    HA.onKpSettleSnapshotsChange(m => { _liveKpSnapshot = m; recomputeLiveSettleData(); });
+  }
   let filteredRows=[];
   const selectedSnapKeys=new Set();
   const todayStr=(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
@@ -548,6 +572,7 @@
       refundMap = {...haRefundMap, ...kpRefundMap};
       snapshotMap = {...haSnapshotMap, ...kpSnapshotMap};
       _settleLoaded = true;
+      wireSettleLiveListeners();
     }
     if (!document.getElementById('settle-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 

@@ -187,6 +187,38 @@ function subscribeLiveKpSlots(onChange) {
   return () => { cancelled = true; _liveKpSlotsSubs.delete(wrapped); };
 }
 
+// 작은 노드(입금/충전여부·환불액·정산스냅샷 등, 전부 수백KB 이하) 전용 실시간 캐시 헬퍼 —
+// onValue 리스너를 경로당 1개만 붙이고(최초 구독자가 트리거) 여러 구독자에게 공유. 정산관리.html처럼
+// SPA 재방문마다 스크립트가 새로 실행되는 페이지에서 그때마다 onValue를 새로 붙이면 리스너가 방문
+// 횟수만큼 누적되므로, 이 모듈(ha-store.js) 스코프에 한 번만 붙여 공유한다(ensureLiveKpSlots와 동일 취지).
+function makeValueLiveCache(path, transform) {
+  let started = false;
+  let hasValue = false;
+  let value;
+  const subs = new Set();
+  function start() {
+    if (started) return;
+    started = true;
+    onValue(ref(db, path), snap => {
+      value = transform(snap.exists() ? snap.val() : null);
+      hasValue = true;
+      subs.forEach(cb => cb(value));
+    });
+  }
+  return function subscribe(cb) {
+    subs.add(cb);
+    if (hasValue) cb(value);
+    start();
+    return () => subs.delete(cb);
+  };
+}
+const onPaidSetChangeShared            = makeValueLiveCache(PATHS.paid,            v => v ? new Set(Object.keys(v)) : new Set());
+const onKpPaidSetChangeShared          = makeValueLiveCache(KP_PATHS.paid,         v => v ? new Set(Object.keys(v)) : new Set());
+const onRefundsChangeShared            = makeValueLiveCache(PATHS.refunds,         v => v || {});
+const onKpRefundsChangeShared          = makeValueLiveCache(KP_PATHS.refunds,      v => v || {});
+const onSettleSnapshotsChangeShared    = makeValueLiveCache(PATHS.settleSnapshots, v => v || {});
+const onKpSettleSnapshotsChangeShared  = makeValueLiveCache(KP_PATHS.settleSnapshots, v => v || {});
+
 // ════════════════════════════════════════════════════════════
 const HA = {
 
@@ -901,6 +933,18 @@ const HA = {
 
     return () => { unsubSlots(); unsubPaid(); };
   },
+
+  // 정산관리.html 전용 실시간 리스너 — 슬롯(수 MB)은 재다운로드하지 않고 정산 부가 데이터
+  // (입금/충전 여부·환불액·스냅샷, 전부 수백KB 이하)만 구독해 다른 세션에서 입금/충전/환불을 처리하면
+  // 새로고침 없이 반영되게 함(2026-09-11, "다른 곳에서 충전 눌렀는데 새로고침 전까지 안 보임" 수정).
+  // 리스너 자체는 makeValueLiveCache로 경로당 1개만 공유(정산관리.html은 SPA 재방문마다 스크립트가
+  // 새로 실행돼 매번 새로 구독하므로, 여기서 공유 안 하면 방문 횟수만큼 onValue가 누적됨)
+  onPaidSetChange(callback)           { return onPaidSetChangeShared(callback); },
+  onKpPaidSetChange(callback)         { return onKpPaidSetChangeShared(callback); },
+  onRefundsChange(callback)           { return onRefundsChangeShared(callback); },
+  onKpRefundsChange(callback)         { return onKpRefundsChangeShared(callback); },
+  onSettleSnapshotsChange(callback)   { return onSettleSnapshotsChangeShared(callback); },
+  onKpSettleSnapshotsChange(callback) { return onKpSettleSnapshotsChangeShared(callback); },
 
   // ════════════════════════════════════════════════════════
   // 초기 데이터 시드 (Firebase가 비어있을 때 한 번만 실행)
