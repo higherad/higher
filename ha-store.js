@@ -364,14 +364,16 @@ const HA = {
   async updateKpSlot(key, patch) {
     await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
     // ha/slots 역방향 동기화(신규, 2026-09-10) — updateSlot()의 ha/slots -> ha/kimproSlots 미러와
-    // 반대 방향. 상태값은 HA_KP_SHARED_STATUSES(겹치는 값)만 반영, 그 외 필드는 항상 반영.
+    // 반대 방향. 상태값이 없거나 공유값(HA_KP_SHARED_STATUSES)일 때만 필드 반영, kp 전용 상태
+    // 전환(강제종료→종료 등)은 patch 통째로 무시 — endDate 등 일부 필드만 넘어가면 접수관리가
+    // 자체 만료 로직으로 상태를 오판할 수 있어서(2026-09-11 수정, 강제종료가 "종료"로 잘못 보이던 문제).
     // 순수 김프로 네이티브 캠페인은 ha/slots에 대응 항목이 없다가 active/split 전환 시점에 처음 생성됨.
     try {
       const haSnap = await get(ref(db, `${PATHS.slots}/${key}`));
       if (haSnap.exists()) {
-        const patchForHa = { ...patch };
-        if ('status' in patchForHa && !HA_KP_SHARED_STATUSES.has(patchForHa.status)) delete patchForHa.status;
-        if (Object.keys(patchForHa).length) await update(ref(db, `${PATHS.slots}/${key}`), patchForHa);
+        if (!('status' in patch) || HA_KP_SHARED_STATUSES.has(patch.status)) {
+          await update(ref(db, `${PATHS.slots}/${key}`), patch);
+        }
       } else if (patch.status === 'active' || patch.status === 'split') {
         const kpSnap = await get(ref(db, `${KP_PATHS.slots}/${key}`));
         if (kpSnap.exists()) {
@@ -582,14 +584,13 @@ const HA = {
         if (patch.status === 'deleted') {
           // 접수관리에서 삭제(취소) — kimpro 쪽도 즉시 제거 (kimpro 자체 삭제와 동일하게 완전삭제)
           await remove(ref(kimproDb, `${PATHS.kimproSlots}/${key}`));
-        } else {
-          // 상태값은 ha/kp 어휘가 겹치는 것만 반영(HA_KP_SHARED_STATUSES), 그 외 필드는 항상 반영 —
-          // kp 전용 상태값(force_stopped/paused/ended/requeue 등)은 kimpro 자체 관리라 덮어쓰지 않음
-          const patchForKp = { ...patch };
-          if ('status' in patchForKp && !HA_KP_SHARED_STATUSES.has(patchForKp.status)) delete patchForKp.status;
-          if (Object.keys(patchForKp).length) {
-            await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), patchForKp);
-          }
+        } else if (!('status' in patch) || HA_KP_SHARED_STATUSES.has(patch.status)) {
+          // 상태값이 없거나 서로 이해하는 공유 상태값(HA_KP_SHARED_STATUSES)일 때만 필드를 그대로 반영.
+          // ha 전용 상태값으로의 전환은 status만 막고 나머지 필드(endDate 등)를 그대로 넘기면 안 됨 —
+          // kimpro가 그 필드만 보고 자기 상태를 오판할 수 있어(반대편 사례: 김프로 강제종료→종료 처리
+          // 시 endDate가 당겨지며 접수관리가 자체 만료 로직으로 잘못 종료 처리한 것과 대칭되는 문제),
+          // 그래서 status가 전용값이면 patch 전체를 무시한다.
+          await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), patch);
         }
       } else if (patch.status !== 'deleted') {
         // addSlot이 접수 시점에 이미 미러를 만드므로 보통 여기 안 옴 — 이 change 이전에 생성된
@@ -613,13 +614,10 @@ const HA = {
       if (kpSnap.exists()) {
         if (patch.status === 'deleted') {
           await remove(ref(db, `${KP_PATHS.slots}/${key}`));
-        } else {
-          // 상태값은 ha/kp 어휘가 겹치는 것만 반영(HA_KP_SHARED_STATUSES), 그 외 필드는 항상 반영
-          const patchForKp = { ...patch };
-          if ('status' in patchForKp && !HA_KP_SHARED_STATUSES.has(patchForKp.status)) delete patchForKp.status;
-          if (Object.keys(patchForKp).length) {
-            await update(ref(db, `${KP_PATHS.slots}/${key}`), patchForKp);
-          }
+        } else if (!('status' in patch) || HA_KP_SHARED_STATUSES.has(patch.status)) {
+          // 상태값이 없거나 공유 상태값일 때만 필드 반영 — ha 전용 상태 전환은 patch 통째로 무시
+          // (위 kimpro/slots 블록과 동일한 이유)
+          await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
         }
       } else if (patch.status !== 'deleted') {
         // addSlot이 접수 시점에 이미 미러를 만드므로 보통 여기 안 옴 — 레거시/복구 슬롯 자가치유 폴백(위 블록과 동일)

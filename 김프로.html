@@ -2639,7 +2639,6 @@ document.addEventListener('keydown', function(e) {
     const requeueActive    = allSlots.filter(s => s.isRequeue && s.status==='active').length;
     const paused            = allSlots.filter(s => s.status==='paused').length;
     const forceStopped      = allSlots.filter(s => s.status==='force_stopped').length;
-    const split              = allSlots.filter(s => s.status==='split').length;
     document.getElementById('kp-stat-pending').textContent = pending.toLocaleString();
     document.getElementById('kp-stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('kp-stat-active').textContent = active.toLocaleString();
@@ -2648,9 +2647,9 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-stat-requeue-active').textContent = requeueActive.toLocaleString();
     document.getElementById('kp-stat-paused').textContent = paused.toLocaleString();
     document.getElementById('kp-stat-force').textContent = forceStopped.toLocaleString();
-    document.getElementById('kp-stat-split').textContent = split.toLocaleString();
-    // 예약(split) 카드는 예약 분할 현황 팝업과 완전히 동일한 계산(computeKpScheduleGroupCount)으로
-    // 표시 — 팝업/카드/접수관리·김프로 화면 전부 숫자가 항상 일치하도록
+    // 예약(split) 카드는 ha/kimproSlots만 봐선 정확한 값이 아니라(접수관리 쪽 예약은 별도 소스) '-'로
+    // 뒀다가 예약 분할 현황 팝업과 완전히 동일한 계산(computeKpScheduleGroupCount)이 끝나면 채움
+    document.getElementById('kp-stat-split').textContent = '-';
     window.computeKpScheduleGroupCount().then(n => {
       const el = document.getElementById('kp-stat-split');
       if (el) el.textContent = n.toLocaleString();
