@@ -5471,7 +5471,7 @@ window.toggleProdPanel = function(e) {
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${escProd(g.pid||'-')}</span>
               ${srcBadge}
               ${editablePendCount
-                ? `<button onclick="event.stopPropagation();cancelAllSchedulePending('${g.gid}')" title="${selCount ? `선택 ${selCount}건 취소` : `대기중 ${editablePendCount}건 일괄 취소`}" style="border:none;background:none;cursor:pointer;font-size:12px;color:var(--danger);padding:0;flex-shrink:0;">✕</button>`
+                ? `<button onclick="event.stopPropagation();cancelAllSchedulePending('${g.gid}')" title="대기중 ${editablePendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:var(--danger);padding:0;flex-shrink:0;">✕</button>`
                 : ''}
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
@@ -5839,19 +5839,13 @@ window.toggleProdPanel = function(e) {
 
   // 대기중 일괄취소 — 전송 전이라 비즈핏 API 없이 예약 항목만 삭제, scheduled_batches/total도 같이
   // 줄여야 서버가 그룹 완료를 정확히 판정. 강제종료와 동일하게 실제로 나간 날짜만 인정해 일수/종료일 축소.
-  // 잔여 재분류와 동일 규칙(체크박스 있으면 그것만, 없으면 전체) — kimpro/reception.html 이식.
-  // 전송 전이라 API 호출 없이 예약 항목만 지우면 됨. 전체 취소는 강제종료와 동일하게 실제로 나간
-  // 날짜만큼만 인정해 일수/종료일 줄이고 종료 처리(선택 취소는 나머지가 계속 진행되므로 종료 안 함).
+  // ✕는 항상 그 그룹의 대기중 전체를 취소(체크박스 선택과 무관 — 부분취소는 필요 없다는 사용자 판단).
+  // 전송 전이라 API 호출 없이 예약 항목만 지우면 됨. 강제종료와 동일하게 실제로 나간 날짜만큼만
+  // 인정해 일수/종료일을 줄이고 슬롯을 종료 처리.
   window.cancelAllSchedulePending = async function(slotKey) {
-    const pending = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
-    const selectedKeys = _ssResplit[slotKey]?.selectedKeys;
-    const isPartial = !!(selectedKeys && selectedKeys.size);
-    const targets = isPartial ? pending.filter(e => selectedKeys.has(e._key)) : pending;
+    const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     if (!targets.length) return;
-    const msg = isPartial
-      ? `선택한 ${targets.length}건을 취소합니다. 계속할까요?`
-      : `대기중 ${targets.length}건을 취소합니다. 계속할까요?`;
-    if (!confirm(msg)) return;
+    if (!confirm(`대기중 ${targets.length}건을 취소합니다. 계속할까요?`)) return;
 
     const src = targets[0]._src === 'kp' ? 'kp' : 'ha';
     const dispatchSuffix = scheduleDispatchSuffix(src);
@@ -5865,30 +5859,27 @@ window.toggleProdPanel = function(e) {
         patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
       }
       await fbUpdate('ha', patch);
-      targets.forEach(e => { delete _ssEntries[e._key]; selectedKeys?.delete(e._key); });
+      targets.forEach(e => { delete _ssEntries[e._key]; });
 
-      if (!isPartial) {
-        // 전체 취소일 때만 슬롯 자체를 종료 처리 — 선택 취소는 나머지 대기 건이 계속 진행되므로 건드리지 않음
-        const doneDates = [...new Set(
-          Object.values(_ssEntries)
-            .filter(e => e.slotKey === slotKey && e.status === 'done')
-            .map(e => (e.payload?.rowData||[])[0]?.예약일)
-            .filter(Boolean)
-        )].sort();
-        if (src === 'kp') {
-          // 김프로 소유 슬롯(ha/kimproSlots) — 접수관리 자체 allSlots엔 없으므로 HA.updateKpSlot으로만 반영
-          const slotPatch = { status: 'ended', days: doneDates.length };
+      const doneDates = [...new Set(
+        Object.values(_ssEntries)
+          .filter(e => e.slotKey === slotKey && e.status === 'done')
+          .map(e => (e.payload?.rowData||[])[0]?.예약일)
+          .filter(Boolean)
+      )].sort();
+      if (src === 'kp') {
+        // 김프로 소유 슬롯(ha/kimproSlots) — 접수관리 자체 allSlots엔 없으므로 HA.updateKpSlot으로만 반영
+        const slotPatch = { status: 'ended', days: doneDates.length };
+        if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
+        await HA.updateKpSlot(slotKey, slotPatch);
+      } else {
+        const slotSnap = await fbGet(`ha/slots/${slotKey}`);
+        if (slotSnap.exists()) {
+          const slotPatch = { status: 'expired', days: doneDates.length }; // ha 상태값 체계엔 'ended'가 없음(김프로 쪽 용어) — 접수관리는 'expired'
           if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-          await HA.updateKpSlot(slotKey, slotPatch);
-        } else {
-          const slotSnap = await fbGet(`ha/slots/${slotKey}`);
-          if (slotSnap.exists()) {
-            const slotPatch = { status: 'expired', days: doneDates.length }; // ha 상태값 체계엔 'ended'가 없음(김프로 쪽 용어) — 접수관리는 'expired'
-            if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-            await HA.updateSlot(slotKey, slotPatch);
-            const s = allSlots.find(x => x._key === slotKey);
-            if (s) Object.assign(s, slotPatch);
-          }
+          await HA.updateSlot(slotKey, slotPatch);
+          const s = allSlots.find(x => x._key === slotKey);
+          if (s) Object.assign(s, slotPatch);
         }
       }
 

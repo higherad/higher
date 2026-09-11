@@ -5901,7 +5901,7 @@ document.addEventListener('keydown', function(e) {
               <span style="color:var(--muted);flex-shrink:0;">/</span>
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${ssEsc(g.pid||'-')}</span>
               ${srcBadge}
-              ${editablePendCount ? `<button onclick="event.stopPropagation();kpCancelAllSchedulePending('${g.gid}')" title="${selCount ? `선택 ${selCount}건 취소` : `대기중 ${editablePendCount}건 일괄 취소`}" style="border:none;background:none;cursor:pointer;font-size:12px;color:#dc2626;padding:0;flex-shrink:0;">✕</button>` : ''}
+              ${editablePendCount ? `<button onclick="event.stopPropagation();kpCancelAllSchedulePending('${g.gid}')" title="대기중 ${editablePendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:#dc2626;padding:0;flex-shrink:0;">✕</button>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
               ${editablePendCount
@@ -5977,17 +5977,11 @@ document.addEventListener('keydown', function(e) {
     }
   };
 
-  // 잔여 재분류와 동일 규칙(체크박스 있으면 그것만, 없으면 전체) — kimpro/reception.html 이식.
+  // ✕는 항상 그 그룹의 대기중 전체를 취소(체크박스 선택과 무관 — 부분취소는 필요 없다는 사용자 판단).
   window.kpCancelAllSchedulePending = async function(slotKey) {
-    const pending = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
-    const selectedKeys = kpSsResplit[slotKey]?.selectedKeys;
-    const isPartial = !!(selectedKeys && selectedKeys.size);
-    const targets = isPartial ? pending.filter(e => selectedKeys.has(e._key)) : pending;
+    const targets = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     if (!targets.length) return;
-    const msg = isPartial
-      ? `선택한 ${targets.length}건을 취소합니다. 계속할까요?`
-      : `대기중 ${targets.length}건을 취소합니다. 계속할까요?`;
-    if (!confirm(msg)) return;
+    if (!confirm(`대기중 ${targets.length}건을 취소합니다. 계속할까요?`)) return;
     const src = targets[0]._src === 'ha' ? 'ha' : 'kp';
     const dispatchSuffix = kpScheduleDispatchSuffix(src);
     const batchSuffix = kpScheduleBatchSuffix(src);
@@ -6000,29 +5994,26 @@ document.addEventListener('keydown', function(e) {
         patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
       }
       await window.HA.updateKpDoc('ha', patch);
-      targets.forEach(e => { delete ssEntries[e._key]; selectedKeys?.delete(e._key); });
+      targets.forEach(e => { delete ssEntries[e._key]; });
 
-      if (!isPartial) {
-        // 전체 취소일 때만 슬롯 자체를 종료 처리 — 선택 취소는 나머지 대기 건이 계속 진행되므로 건드리지 않음
-        const doneDates = [...new Set(
-          Object.values(ssEntries).filter(e => e.slotKey === slotKey && e.status === 'done')
-            .map(e => (e.payload?.rowData||[])[0]?.예약일).filter(Boolean)
-        )].sort();
-        if (src === 'ha') {
-          // 접수관리 소유 슬롯(ha/slots) — 김프로 쪽 allSlots엔 없으므로 HA.updateSlot으로만 반영.
-          // ha 상태값 체계엔 'ended'가 없음(김프로 쪽 용어) — 접수관리는 'expired'
-          const slotPatch = { status:'expired', days: doneDates.length };
+      const doneDates = [...new Set(
+        Object.values(ssEntries).filter(e => e.slotKey === slotKey && e.status === 'done')
+          .map(e => (e.payload?.rowData||[])[0]?.예약일).filter(Boolean)
+      )].sort();
+      if (src === 'ha') {
+        // 접수관리 소유 슬롯(ha/slots) — 김프로 쪽 allSlots엔 없으므로 HA.updateSlot으로만 반영.
+        // ha 상태값 체계엔 'ended'가 없음(김프로 쪽 용어) — 접수관리는 'expired'
+        const slotPatch = { status:'expired', days: doneDates.length };
+        if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
+        await window.HA.updateSlot(slotKey, slotPatch);
+      } else {
+        const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+        const s = allSlots.find(x => x._key === slotKey);
+        if (s) {
+          const slotPatch = { status:'ended', days: doneDates.length };
           if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-          await window.HA.updateSlot(slotKey, slotPatch);
-        } else {
-          const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
-          const s = allSlots.find(x => x._key === slotKey);
-          if (s) {
-            const slotPatch = { status:'ended', days: doneDates.length };
-            if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-            await window.HA.updateKpSlot(slotKey, slotPatch);
-            Object.assign(s, slotPatch);
-          }
+          await window.HA.updateKpSlot(slotKey, slotPatch);
+          Object.assign(s, slotPatch);
         }
       }
       renderKpSplitScheduleList();
