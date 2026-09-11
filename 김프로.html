@@ -5876,8 +5876,8 @@ document.addEventListener('keydown', function(e) {
         const pendCount = g.items.length - doneCount;
         // 레거시(구 kimpro/scheduled_dispatch) 항목은 kimpro-access 인증이 따로 필요해 읽기만 가능 —
         // 취소/재분류/키워드 일괄분배 등 쓰기 액션은 신규 경로(ha/kimproScheduledDispatch) 대기건만 대상으로 함
-        const editablePendCount = g.items.filter(e => e._src !== 'legacy' && !isScheduleDone(e.status)).length;
-        const groupSrc = g.items.find(e => e._src === 'ha') ? 'ha' : (g.items.every(e => e._src === 'legacy') ? 'legacy' : 'kp');
+        const editablePendCount = g.items.filter(e => !isScheduleDone(e.status)).length;
+        const groupSrc = g.items.find(e => e._src === 'ha') ? 'ha' : 'kp';
         const srcBadge = groupSrc === 'ha'
           ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">접수관리</span>'
           : groupSrc === 'kp'
@@ -5922,7 +5922,7 @@ document.addEventListener('keydown', function(e) {
             <tbody>
               ${g.items.map(e => {
                 const row = (e.payload?.rowData || [])[0] || {};
-                const done = isScheduleDone(e.status) || e._src === 'legacy';
+                const done = isScheduleDone(e.status);
                 const checked = (kpSsResplit[g.gid]?.selectedKeys || new Set()).has(e._key);
                 return `<tr>
                   <td>${done ? '' : `<input type="checkbox" ${checked?'checked':''} onchange="kpOnScheduleRowCheck('${g.gid}','${e._key}',this.checked)">`}</td>
@@ -5941,7 +5941,7 @@ document.addEventListener('keydown', function(e) {
                   <td>${(row.일목표||0).toLocaleString()}</td>
                   <td>${row.일수||0}</td>
                   <td>${ssEsc(row.예약일||'-')}</td>
-                  <td>${scheduleStatusLabel(e.status)}${e._src === 'legacy' ? ' <span title="이관 전 원본 kimpro 예약 — 읽기 전용" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>' : ''}</td>
+                  <td>${scheduleStatusLabel(e.status)}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -5956,7 +5956,7 @@ document.addEventListener('keydown', function(e) {
 
   window.kpSaveScheduleKeyword = async function(key, inputEl) {
     const entry = ssEntries[key];
-    if (isScheduleDone(entry?.status) || entry?._src === 'legacy') { inputEl.disabled = true; return; }
+    if (isScheduleDone(entry?.status)) { inputEl.disabled = true; return; }
     const val = inputEl.value.trim();
     inputEl.disabled = true;
     try {
@@ -5972,7 +5972,7 @@ document.addEventListener('keydown', function(e) {
   };
 
   window.kpCancelAllSchedulePending = async function(slotKey) {
-    const targets = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
+    const targets = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     if (!targets.length) return;
     if (!confirm(`대기중 ${targets.length}건을 취소합니다. 캠페인은 실제로 나간 날짜까지만 인정되고 종료 처리됩니다. 계속할까요?`)) return;
     const src = targets[0]._src === 'ha' ? 'ha' : 'kp';
@@ -6031,7 +6031,7 @@ document.addEventListener('keydown', function(e) {
     if (st.open && !st.gradeGroups && !st.loading) {
       st.loading = true;
       renderKpSplitScheduleList();
-      const items = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
+      const items = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
       const targetItems = st.selectedKeys.size ? items.filter(e => st.selectedKeys.has(e._key)) : items;
       const sample = targetItems[0] || items[0];
       const groupSrc = sample?._src === 'ha' ? 'ha' : 'kp';
@@ -6058,7 +6058,7 @@ document.addEventListener('keydown', function(e) {
     kpUpdateScheduleResplitSum(slotKey);
   };
   function kpComputeResplitBuckets(slotKey, grades, targetKeys) {
-    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
+    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
     const byTime = new Map();
     items.forEach(e => { const t = e.sendAt || ''; if (!byTime.has(t)) byTime.set(t, []); byTime.get(t).push(e); });
@@ -6075,7 +6075,7 @@ document.addEventListener('keydown', function(e) {
     return { buckets, violations };
   }
   function kpScheduleResplitPartialSendAts(slotKey, targetKeys) {
-    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
+    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     const bySendAt = new Map();
     allItems.forEach(e => { const t = e.sendAt || ''; if (!bySendAt.has(t)) bySendAt.set(t, []); bySendAt.get(t).push(e); });
     const partial = [];
@@ -6235,7 +6235,7 @@ document.addEventListener('keydown', function(e) {
   function kpUpdateScheduleKwSplitPreview(slotKey) {
     const st = kpSsKwSplit[slotKey]; if (!st) return;
     const groups = kpScheduleKwSplitGroups(st);
-    const pendingCount = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy').length;
+    const pendingCount = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status)).length;
     const previewEl = document.getElementById(`kp-ss-kwsplit-preview-${slotKey}`);
     if (previewEl) previewEl.textContent = groups.length ? `${groups.length}그룹 생성 → 대기중 ${pendingCount}건 중 ${Math.min(groups.length, pendingCount)}건에 적용` : '';
     const btn = document.getElementById(`kp-ss-kwsplit-apply-${slotKey}`);
@@ -6270,7 +6270,7 @@ document.addEventListener('keydown', function(e) {
     const groups = kpScheduleKwSplitGroups(st);
     if (!groups.length) return;
     const pendingItems = Object.values(ssEntries)
-      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy')
+      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status))
       .sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||''));
     const targets = pendingItems.slice(0, groups.length);
     if (!targets.length) return;
@@ -6296,7 +6296,7 @@ document.addEventListener('keydown', function(e) {
   window.kpEditScheduleGrade = async function(key) {
     const e = ssEntries[key];
     const cell = document.getElementById(`kp-ss-grade-${key}`);
-    if (!e || !cell || isScheduleDone(e.status) || e._src === 'legacy') return;
+    if (!e || !cell || isScheduleDone(e.status)) return;
     cell.innerHTML = '<span style="font-size:11px;color:var(--muted);">불러오는 중...</span>';
     const groupSrc = e._src === 'ha' ? 'ha' : 'kp';
     const prodsList = await kpProdsForScheduleSrc(groupSrc);

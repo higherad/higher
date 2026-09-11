@@ -5276,7 +5276,7 @@ window.toggleProdPanel = function(e) {
   // 한 화면에 합쳐서 관리(사용자 요청, 2026-09-10 — "서로 다른 서버라서 막아뒀던 것"이었는데
   // 지금은 같은 프로젝트/DB라 저장은 분리 유지하면서 화면만 합침, 정산관리.html과 동일한 패턴).
   // 항목의 _src('ha'|'kp')로 쓰기 액션을 올바른 저장소로 라우팅. 구 kimpro/scheduled_dispatch(레거시)
-  // 병합은 kimpro.kro.kr 접속 차단(2026-09-11)으로 제거 — _src==='legacy' 분기는 이제 도달 안 함.
+  // 구 kimpro/scheduled_dispatch(레거시) 병합은 kimpro.kro.kr 접속 차단(2026-09-11)으로 제거됨.
   // ha/ 루트 아래 상대 경로 — 두 노드 다 'ha' 밑이라 fbUpdate('ha', patch) 하나로 같이 갱신 가능
   function scheduleDispatchSuffix(src) { return src === 'kp' ? 'kimproScheduledDispatch' : 'scheduled_dispatch'; }
   function scheduleBatchSuffix(src)    { return src === 'kp' ? 'kimproScheduledBatches'  : 'scheduled_batches'; }
@@ -5445,8 +5445,8 @@ window.toggleProdPanel = function(e) {
         const pendCount = g.items.length - doneCount;
         // 레거시(구 kimpro/scheduled_dispatch)는 kimpro-access 인증이 따로 필요해 읽기만 가능 —
         // 취소/재분류/키워드 일괄분배는 신규 경로(ha/scheduled_dispatch·ha/kimproScheduledDispatch) 대기건만 대상
-        const editablePendCount = g.items.filter(e => e._src !== 'legacy' && !isScheduleDone(e.status)).length;
-        const groupSrc = g.items.find(e => e._src === 'kp') ? 'kp' : (g.items.every(e => e._src === 'legacy') ? 'legacy' : 'ha');
+        const editablePendCount = g.items.filter(e => !isScheduleDone(e.status)).length;
+        const groupSrc = g.items.find(e => e._src === 'kp') ? 'kp' : 'ha';
         const srcBadge = groupSrc === 'kp'
           ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>'
           : groupSrc === 'ha'
@@ -5497,7 +5497,7 @@ window.toggleProdPanel = function(e) {
             <tbody>
               ${g.items.map(e => {
                 const row = (e.payload?.rowData || [])[0] || {};
-                const done = isScheduleDone(e.status) || e._src === 'legacy';
+                const done = isScheduleDone(e.status);
                 const checked = (_ssResplit[g.gid]?.selectedKeys || new Set()).has(e._key);
                 return `
                 <tr>
@@ -5520,7 +5520,7 @@ window.toggleProdPanel = function(e) {
                   <td style="text-align:center">${row.일수||0}</td>
                   <td style="text-align:center">${escProd(row.예약일||'-')}</td>
                   <td style="text-align:center">
-                    ${scheduleStatusLabel(e.status)}${e._src==='legacy' ? ' <span title="이관 전 원본 kimpro 예약 — 읽기 전용" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>' : ''}
+                    ${scheduleStatusLabel(e.status)}
                   </td>
                 </tr>`;
               }).join('')}
@@ -5599,7 +5599,7 @@ window.toggleProdPanel = function(e) {
     if (st.open && !st.gradeGroups && !st.loading) {
       st.loading = true;
       renderSplitScheduleList();
-      const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
+      const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
       const targetItems = st.selectedKeys.size ? items.filter(e => st.selectedKeys.has(e._key)) : items;
       const sample = targetItems[0] || items[0];
       const groupSrc = sample?._src === 'kp' ? 'kp' : 'ha';
@@ -5646,7 +5646,7 @@ window.toggleProdPanel = function(e) {
   // 같은 sendAt끼리 묶어 비율대로 나누고, 조각이 최소수량 미만이면 조용히 버리지 않고 violations로
   // 보고해 실행을 막는다(안 그러면 그 등급분 수량이 표시 없이 증발).
   function computeResplitBuckets(slotKey, grades, targetKeys) {
-    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
+    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
     const byTime = new Map();
     items.forEach(e => {
@@ -5672,7 +5672,7 @@ window.toggleProdPanel = function(e) {
   // 같은 sendAt에 묶인 항목을 일부만 재분류하면 그 시각의 목표가 반쪽만 재분배돼 수량이 어긋남 —
   // 걸치는 시각이 있으면 실행 자체를 막는다.
   function scheduleResplitPartialSendAts(slotKey, targetKeys) {
-    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
+    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     const bySendAt = new Map();
     allItems.forEach(e => {
       const t = e.sendAt || '';
@@ -5834,7 +5834,7 @@ window.toggleProdPanel = function(e) {
   // 대기중 일괄취소 — 전송 전이라 비즈핏 API 없이 예약 항목만 삭제, scheduled_batches/total도 같이
   // 줄여야 서버가 그룹 완료를 정확히 판정. 강제종료와 동일하게 실제로 나간 날짜만 인정해 일수/종료일 축소.
   window.cancelAllSchedulePending = async function(slotKey) {
-    const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
+    const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     if (!targets.length) return;
     if (!confirm(`대기중 ${targets.length}건을 취소합니다. 캠페인은 실제로 나간 날짜까지만 인정되고 종료 처리됩니다. 계속할까요?`)) return;
 
@@ -5956,7 +5956,7 @@ window.toggleProdPanel = function(e) {
     if (!groups.length) return; // 적용 버튼이 이미 막혀있어 정상 흐름에서 도달 안 함 — 방어적으로만 남겨둠(팝업 없음)
 
     const pendingItems = Object.values(_ssEntries)
-      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy')
+      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status))
       .sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||''));
     const targets = pendingItems.slice(0, groups.length);
     if (!targets.length) return;
@@ -5986,7 +5986,7 @@ window.toggleProdPanel = function(e) {
   // 검색키워드 변경 — 실제 접수 시 서버에 그대로 전송되는 값이라 payload.rowData[0]만 patch하면 충분
   window.saveScheduleKeyword = async function(key, inputEl) {
     const entry = _ssEntries[key];
-    if (isScheduleDone(entry?.status) || entry?._src === 'legacy') { inputEl.disabled = true; return; } // 완료/레거시 항목은 수정 불가
+    if (isScheduleDone(entry?.status)) { inputEl.disabled = true; return; } // 완료 항목은 수정 불가
     const val = inputEl.value.trim();
     inputEl.disabled = true;
     try {
@@ -6008,7 +6008,7 @@ window.toggleProdPanel = function(e) {
   window.editScheduleGrade = async function(key) {
     const e = _ssEntries[key];
     const cell = document.getElementById(`ss-grade-${key}`);
-    if (!e || !cell || isScheduleDone(e.status) || e._src === 'legacy') return; // 완료/레거시 항목은 수정 불가
+    if (!e || !cell || isScheduleDone(e.status)) return; // 완료 항목은 수정 불가
     cell.innerHTML = '<span style="font-size:11px;color:var(--muted);">불러오는 중...</span>';
     const groupSrc = e._src === 'kp' ? 'kp' : 'ha';
     const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
