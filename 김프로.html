@@ -3329,6 +3329,17 @@ document.addEventListener('keydown', function(e) {
   .kp-row-status { font-size:10px; font-weight:700; padding:2px 7px; border-radius:8px; white-space:nowrap; display:inline-block; }
   .kp-row-ok  { background:rgba(16,185,129,.1); color:#059669; }
   .kp-row-err { background:rgba(239,68,68,.1);  color:var(--danger,#ef4444); }
+  /* 영업점 선택 카드 — 접수관리 엑셀 접수 팝업(rex-branch-*)과 동일 디자인 */
+  .kp-uex-branch-card{background:#fff;border:2px solid var(--kp-accent);border-radius:14px;padding:18px 20px;margin-bottom:16px;box-shadow:0 4px 16px rgba(16,185,129,.08);}
+  .kp-uex-branch-hd{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .kp-uex-branch-icon{width:32px;height:32px;border-radius:50%;background:rgba(16,185,129,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--kp-accent);}
+  .kp-uex-branch-title{font-size:14px;font-weight:800;color:var(--text);}
+  .kp-uex-branch-desc{font-size:11px;color:var(--text2);margin-top:1px;}
+  .kp-uex-branch-input-wrap{position:relative;display:flex;align-items:center;border:1.5px solid var(--border);border-radius:9px;background:#fff;transition:.2s;cursor:text;}
+  .kp-uex-branch-input-wrap input{flex:1;padding:10px;border:none;outline:none;font-size:13px;font-family:inherit;color:var(--text);background:transparent;cursor:text;}
+  .kp-uex-branch-info{display:none;margin-top:10px;padding:9px 14px;background:#f1f5f9;border-radius:8px;font-size:12px;align-items:center;gap:8px;}
+  .kp-uex-branch-list{display:none;position:fixed;background:#fff;border:1.5px solid var(--kp-accent);border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;max-height:240px;overflow-y:auto;}
+  .kp-uex-branch-option{padding:10px 16px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center;transition:.15s;}
 </style>
 
 <div id="kp-uex-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
@@ -3340,7 +3351,29 @@ document.addEventListener('keydown', function(e) {
         <button onclick="closeKpUexModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
       </div>
     </div>
-    <div style="padding:20px 24px;">
+    <div style="padding:20px 24px;position:relative;">
+      <div class="kp-uex-branch-card">
+        <div class="kp-uex-branch-hd">
+          <div class="kp-uex-branch-icon"><i data-lucide="building-2" size="16"></i></div>
+          <div>
+            <div class="kp-uex-branch-title">영업점 선택</div>
+            <div class="kp-uex-branch-desc">캠페인을 접수할 영업점을 선택해주세요.</div>
+          </div>
+        </div>
+        <div style="position:relative;">
+          <div class="kp-uex-branch-input-wrap" id="kp-uex-branch-input-wrap">
+            <i data-lucide="search" size="14" style="color:var(--muted);flex-shrink:0;margin-left:12px;"></i>
+            <input id="kp-uex-branch-search" type="text" placeholder="영업점명 또는 아이디 검색..." autocomplete="off">
+            <div id="kp-uex-branch-clear" style="display:none;padding:0 10px;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;">×</div>
+            <i data-lucide="chevron-down" id="kp-uex-branch-chevron" size="14" style="color:var(--muted);margin-right:10px;flex-shrink:0;transition:.2s;"></i>
+          </div>
+        </div>
+        <div id="kp-uex-branch-info" class="kp-uex-branch-info">
+          <i data-lucide="check-circle" size="13" style="color:var(--kp-accent);flex-shrink:0"></i>
+          <span id="kp-uex-branch-info-text"></span>
+        </div>
+      </div>
+
       <div class="kp-uex-zone" id="kp-uex-zone" onclick="document.getElementById('kp-uex-file').click()">
         <input type="file" id="kp-uex-file" accept=".xlsx,.xls" onchange="handleKpUexFile(this)">
         <div style="font-size:28px;margin-bottom:8px;">📊</div>
@@ -3351,7 +3384,7 @@ document.addEventListener('keydown', function(e) {
         <div class="kp-uex-preview-wrap">
           <table class="kp-uex-table">
             <thead><tr>
-              <th style="width:30px">#</th><th>대행사</th><th>업체명</th><th>URL</th><th style="width:100px">MID</th>
+              <th style="width:30px">#</th><th>업체명</th><th>URL</th><th style="width:100px">MID</th>
               <th>순위키워드</th><th style="width:50px">일수</th><th style="width:86px">시작일</th>
               <th style="width:86px">종료일</th><th style="width:70px">일목표</th><th>검색키워드</th><th style="width:160px">상태</th>
             </tr></thead>
@@ -3363,6 +3396,11 @@ document.addEventListener('keydown', function(e) {
           <button class="kp-btn-save" id="kp-uex-submit-btn" onclick="submitKpUex()">접수 등록</button>
         </div>
       </div>
+
+      <div id="kp-uex-branch-list" class="kp-uex-branch-list">
+        <div id="kp-uex-branch-list-inner"></div>
+        <div id="kp-uex-branch-no-result" style="display:none;padding:14px 16px;font-size:13px;color:var(--muted);text-align:center;">검색 결과가 없습니다.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -3371,19 +3409,22 @@ document.addEventListener('keydown', function(e) {
 (function() {
   let uexRows = [];
 
-  // 대행사명이 회원관리(ha/users) 계정명과 일치하는지 검증 — addKpSlot이 agencyId==username으로
-  // 단가를 자동 조회하는데(2026-09-10), 오타 등으로 안 맞으면 단가 0원으로 조용히 접수돼버리는
-  // 문제가 있어 엑셀 접수 단계에서 미리 막음(사용자 요청).
-  let _kpUexAgencySet = null;
-  async function kpEnsureAgencySet() {
-    if (_kpUexAgencySet) return _kpUexAgencySet;
-    try {
-      const snap = await window.HA.getDoc('ha/users');
-      const val = snap.exists() ? snap.val() : {};
-      const list = Array.isArray(val) ? val : Object.values(val||{});
-      _kpUexAgencySet = new Set(list.map(u => (u.username||'').trim()).filter(Boolean));
-    } catch (e) { _kpUexAgencySet = new Set(); }
-    return _kpUexAgencySet;
+  // 영업점 선택 — 접수관리 엑셀 접수 팝업(rexSelected)과 동일 방식, 엑셀 대행사 컬럼 대신 여기서 고정
+  let kpUexUsers = [];
+  let kpUexSelected = null;
+  let kpUexDropdownOpen = false;
+
+  const KP_UEX_CHOSEONG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  function kpUexToChoseong(str) {
+    return [...str].map(ch => {
+      const code = ch.charCodeAt(0);
+      if (code >= 0xAC00 && code <= 0xD7A3) return KP_UEX_CHOSEONG[Math.floor((code - 0xAC00) / 588)];
+      return ch;
+    }).join('');
+  }
+  function kpUexMatchSearch(target, q) {
+    const t = target.toLowerCase();
+    return t.includes(q) || kpUexToChoseong(t).includes(q);
   }
 
   function uexFmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -3426,8 +3467,18 @@ document.addEventListener('keydown', function(e) {
     s.onload = cb; document.head.appendChild(s);
   }
 
-  window.openKpUexModal = function() { document.getElementById('kp-uex-modal').style.display = 'flex'; };
-  window.closeKpUexModal = function() { document.getElementById('kp-uex-modal').style.display = 'none'; };
+  window.openKpUexModal = async function() {
+    document.getElementById('kp-uex-modal').style.display = 'flex';
+    kpUexUsers = await window.HA.getUsers();
+    kpUexSelected = null;
+    kpUexDropdownOpen = false;
+    const searchEl = document.getElementById('kp-uex-branch-search');
+    searchEl.value = '';
+    document.getElementById('kp-uex-branch-clear').style.display = 'none';
+    document.getElementById('kp-uex-branch-info').style.display = 'none';
+    resetKpUex();
+  };
+  window.closeKpUexModal = function() { document.getElementById('kp-uex-modal').style.display = 'none'; kpUexCloseDropdown(); };
 
   (function initZone() {
     const zone = document.getElementById('kp-uex-zone');
@@ -3436,14 +3487,101 @@ document.addEventListener('keydown', function(e) {
     zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag'); const f=e.dataTransfer.files[0]; if (f) processKpUexExcel(f); });
   })();
 
+  let kpUexCloseDropdown = () => {};
+  (function initBranchSelect() {
+    const modal     = document.getElementById('kp-uex-modal');
+    const inputWrap = document.getElementById('kp-uex-branch-input-wrap');
+    const searchEl  = document.getElementById('kp-uex-branch-search');
+    const clearBtn  = document.getElementById('kp-uex-branch-clear');
+    const listEl    = document.getElementById('kp-uex-branch-list');
+    const chevronEl = document.getElementById('kp-uex-branch-chevron');
+
+    function positionBranchList() {
+      const rect = inputWrap.getBoundingClientRect();
+      listEl.style.top   = (rect.bottom + 4) + 'px';
+      listEl.style.left  = rect.left + 'px';
+      listEl.style.width = rect.width + 'px';
+    }
+    function setFocusStyle(focused) {
+      inputWrap.style.borderColor = focused ? 'var(--kp-accent)' : 'var(--border)';
+      inputWrap.style.boxShadow   = focused ? '0 0 0 3px rgba(16,185,129,.1)' : 'none';
+      chevronEl.style.transform   = focused ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+    function renderBranchList(query) {
+      const q = query.trim().toLowerCase();
+      const filtered = q
+        ? kpUexUsers.filter(u => kpUexMatchSearch(u.agency||'', q) || kpUexMatchSearch(u.username||'', q))
+        : kpUexUsers;
+      const inner = document.getElementById('kp-uex-branch-list-inner');
+      const noRes = document.getElementById('kp-uex-branch-no-result');
+      if (!filtered.length) { inner.innerHTML = ''; noRes.style.display = 'block'; return; }
+      noRes.style.display = 'none';
+      inner.innerHTML = filtered.map(u => {
+        const label = u.agency || u.username;
+        const isSelected = kpUexSelected && kpUexSelected.username === u.username;
+        return `<div class="kp-uex-branch-option" data-username="${kpUexEsc(u.username)}"
+                     style="${isSelected?'background:rgba(16,185,129,.08);color:var(--kp-accent);font-weight:700;':''}">
+                  <span>${kpUexEsc(label)} <span style="color:var(--muted);font-weight:400;font-size:12px">(${kpUexEsc(u.username)})</span></span>
+                  ${isSelected ? '<i data-lucide="check" size="13"></i>' : ''}
+                </div>`;
+      }).join('');
+      if (window.lucide) window.lucide.createIcons();
+    }
+    function openDropdown() {
+      if (kpUexDropdownOpen) return;
+      kpUexDropdownOpen = true;
+      setFocusStyle(true);
+      renderBranchList(searchEl.value);
+      positionBranchList();
+      listEl.style.display = 'block';
+    }
+    function closeDropdown() {
+      kpUexDropdownOpen = false;
+      listEl.style.display = 'none';
+      setFocusStyle(false);
+    }
+    kpUexCloseDropdown = closeDropdown;
+    function selectBranch(username) {
+      kpUexSelected = kpUexUsers.find(u => u.username === username) || null;
+      closeDropdown();
+      const infoEl = document.getElementById('kp-uex-branch-info');
+      const infoText = document.getElementById('kp-uex-branch-info-text');
+      if (kpUexSelected) {
+        const label = kpUexSelected.agency || kpUexSelected.username;
+        searchEl.value = `${label}  (${kpUexSelected.username})`;
+        searchEl.style.color = 'var(--text)';
+        clearBtn.style.display = 'block';
+        infoEl.style.display = 'flex';
+        infoText.textContent = `${label}(으)로 접수됩니다`;
+      }
+    }
+    inputWrap.addEventListener('click', openDropdown);
+    searchEl.addEventListener('focus', openDropdown);
+    searchEl.addEventListener('input', () => renderBranchList(searchEl.value));
+    clearBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      kpUexSelected = null;
+      searchEl.value = '';
+      clearBtn.style.display = 'none';
+      document.getElementById('kp-uex-branch-info').style.display = 'none';
+      setFocusStyle(false);
+    });
+    listEl.addEventListener('click', e => {
+      const opt = e.target.closest('.kp-uex-branch-option');
+      if (opt) selectBranch(opt.dataset.username);
+    });
+    modal.addEventListener('click', e => {
+      if (kpUexDropdownOpen && !inputWrap.contains(e.target) && !listEl.contains(e.target)) closeDropdown();
+    });
+  })();
+
   window.handleKpUexFile = function(input) { if (input.files[0]) processKpUexExcel(input.files[0]); };
 
   function processKpUexExcel(file) {
     uexEnsureXLSX(() => {
       const reader = new FileReader();
-      reader.onload = async e => {
+      reader.onload = e => {
         try {
-          const agencySet = await kpEnsureAgencySet();
           const wb = window.XLSX.read(e.target.result, { type:'array', cellDates:false });
           const ws = wb.Sheets[wb.SheetNames[0]];
           const uexRange = window.XLSX.utils.decode_range(ws['!ref'] || 'A1');
@@ -3452,8 +3590,8 @@ document.addEventListener('keydown', function(e) {
           if (!raw.length) { alert('빈 파일입니다.'); return; }
 
           // 컬럼 위치를 고정 순서 대신 첫 행(헤더) 텍스트로 자동 인식 — 접수관리 rexProcessExcel과 동일 방식
+          // (대행사는 엑셀 컬럼이 아니라 위 영업점 선택 드롭다운으로 고정 — 접수관리와 동일)
           const hdr = raw[0].map(h => String(h||'').replace(/\s+/g, ''));
-          const agencyCol = hdr.findIndex(h => /대행사|영업점/.test(h));
           const storeCol  = hdr.findIndex(h => /업체명|상호명/.test(h));
           const urlCol    = hdr.findIndex(h => /url/i.test(h));
           const midCol    = hdr.findIndex(h => /mid|pid/i.test(h));
@@ -3463,7 +3601,6 @@ document.addEventListener('keydown', function(e) {
           const startCol  = hdr.findIndex(h => /시작일/.test(h));
           const searchCol = hdr.findIndex(h => /검색키워드/.test(h));
           const missing = [];
-          if (agencyCol < 0) missing.push('대행사');
           if (storeCol  < 0) missing.push('업체명');
           if (urlCol    < 0) missing.push('URL');
           if (midCol    < 0) missing.push('MID');
@@ -3476,9 +3613,8 @@ document.addEventListener('keydown', function(e) {
             return;
           }
 
-          const dataRows = raw.slice(1).filter(r => r[agencyCol] || r[urlCol]);
+          const dataRows = raw.slice(1).filter(r => r[storeCol] || r[urlCol]);
           uexRows = dataRows.map(r => {
-            const agencyId  = String(r[agencyCol]??'').trim();
             const storeName = String(r[storeCol]??'').trim();
             const url       = uexNormalizeUrl(r[urlCol]) || null;
             const mid       = String(r[midCol]??'').trim();
@@ -3495,8 +3631,6 @@ document.addEventListener('keydown', function(e) {
             }
             const errors = [];
             const urlMid = url ? uexExtractMid(url) : null;
-            if (!agencyId) errors.push('대행사 누락');
-            else if (!agencySet.has(agencyId)) errors.push('회원정보에 없는 대행사명');
             if (!storeName) errors.push('업체명 누락');
             if (!url) errors.push('URL 누락'); else if (!urlMid) errors.push('유효하지 않은 플레이스 주소');
             if (!rankKeyword) errors.push('순위키워드 누락');
@@ -3506,7 +3640,7 @@ document.addEventListener('keydown', function(e) {
             if (!mid) errors.push('MID 누락');
             if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
             if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 0) errors.push('일 목표 오류');
-            return { agencyId, storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, searchKeyword, valid: errors.length===0, error: errors.join(' / ') };
+            return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, searchKeyword, valid: errors.length===0, error: errors.join(' / ') };
           });
           renderKpUexPreview();
         } catch (err) {
@@ -3530,7 +3664,6 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-uex-preview-body').innerHTML = uexRows.map((r,i) => `
       <tr>
         <td style="color:var(--muted)">${i+1}</td>
-        <td style="font-weight:600">${kpUexEsc(r.agencyId)||'-'}</td>
         <td style="font-weight:500">${kpUexEsc(r.storeName)||'-'}</td>
         <td style="color:var(--text2);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${kpUexEsc(r.url)||'-'}</td>
         <td style="color:var(--text2)">${kpUexEsc(r.mid)||'-'}</td>
@@ -3560,25 +3693,27 @@ document.addEventListener('keydown', function(e) {
       const wb = window.XLSX.utils.book_new();
       const todayStr = uexFmt(new Date());
       const ws = window.XLSX.utils.aoa_to_sheet([
-        ['대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드'],
-        ['예시대행사','테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,''],
+        ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드'],
+        ['테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,''],
       ]);
-      ws['!cols'] = [{wch:14},{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:20}];
+      ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:20}];
       window.XLSX.utils.book_append_sheet(wb, ws, '접수');
       window.XLSX.writeFile(wb, '김프로_유저엑셀접수_양식.xlsx');
     });
   };
 
   window.submitKpUex = async function() {
+    if (!kpUexSelected) { alert('영업점을 먼저 선택해주세요.'); return; }
     if (uexRows.some(r=>!r.valid)) { alert('오류가 있는 행이 있습니다. 오류를 수정한 후 다시 업로드해주세요.'); return; }
     const validRows = uexRows.filter(r=>r.valid);
     if (!validRows.length) { alert('등록 가능한 데이터가 없습니다.'); return; }
     const btn = document.getElementById('kp-uex-submit-btn');
     btn.disabled = true; btn.textContent = '등록 중...';
 
+    const agencyId = kpUexSelected.agency || kpUexSelected.username;
     const uexBaseTs = Date.now();
     const results = await Promise.allSettled(validRows.map((row, i) => window.HA.addKpSlot({
-      agencyId: row.agencyId, storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
+      agencyId, storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
       startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget,
       searchKeyword: row.searchKeyword || '', memo: '', unitPrice: 0,
       createdAt: new Date(uexBaseTs + i).toISOString(),
