@@ -5851,6 +5851,8 @@ document.addEventListener('keydown', function(e) {
   };
   window.kpToggleScheduleDoneView = function() {
     ssShowDone = !ssShowDone;
+    renderKpSplitScheduleList(); // ssLastGroups를 전환된 뷰 기준으로 채움
+    ssCollapsed = new Set(ssLastGroups.map(g => g.gid)); // 뷰 전환 시 항상 접힌 상태로 시작
     renderKpSplitScheduleList();
   };
   window.kpRunScheduleSearch = function() { renderKpSplitScheduleList(); };
