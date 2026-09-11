@@ -5593,7 +5593,7 @@ document.addEventListener('keydown', function(e) {
             style="width:100%;box-sizing:border-box;padding:7px 28px 7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
         </div>
         <button onclick="kpRunScheduleSearch()" style="padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">검색</button>
-        <button onclick="kpToggleAllScheduleGroups()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">펼치기/접기</button>
+        <button id="kp-ss-done-toggle-btn" onclick="kpToggleScheduleDoneView()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">완료 목록</button>
       </div>
       <div id="kp-ss-list"></div>
     </div>
@@ -5624,6 +5624,7 @@ document.addEventListener('keydown', function(e) {
   let ssEntries = {};
   let ssCollapsed = new Set();
   let ssLastGroups = [];
+  let ssShowDone = false; // false=대기 항목 있는 캠페인만, true=전부 완료된 캠페인만(완료 목록)
   let kpSsResplit = {}; // slotKey -> { open, loading, gradeGroups, sel, selectedKeys } — 잔여 재분류 패널 상태
   let kpSsKwSplit = {}; // slotKey -> { open, kwText, chunk } — 키워드 일괄분배 패널 상태
   const KP_SCHEDULE_MIN_PORTION = 10;
@@ -5756,6 +5757,7 @@ document.addEventListener('keydown', function(e) {
     ssCollapsed = new Set();
     kpSsResplit = {};
     kpSsKwSplit = {};
+    ssShowDone = false;
     await reloadKpScheduleEntries();
     renderKpSplitScheduleList();
     ssCollapsed = new Set(ssLastGroups.map(g => g.gid)); // 처음엔 전체 접힌 상태로
@@ -5847,9 +5849,8 @@ document.addEventListener('keydown', function(e) {
     if (ssCollapsed.has(g.gid)) ssCollapsed.delete(g.gid); else ssCollapsed.add(g.gid);
     renderKpSplitScheduleList();
   };
-  window.kpToggleAllScheduleGroups = function() {
-    const allCollapsed = ssLastGroups.length > 0 && ssLastGroups.every(g => ssCollapsed.has(g.gid));
-    if (allCollapsed) ssCollapsed.clear(); else ssLastGroups.forEach(g => ssCollapsed.add(g.gid));
+  window.kpToggleScheduleDoneView = function() {
+    ssShowDone = !ssShowDone;
     renderKpSplitScheduleList();
   };
   window.kpRunScheduleSearch = function() { renderKpSplitScheduleList(); };
@@ -5862,27 +5863,30 @@ document.addEventListener('keydown', function(e) {
     const listEl = document.getElementById('kp-ss-list');
     const total = Object.keys(ssEntries).length;
     const filtered = filterScheduleEntries(Object.values(ssEntries));
-    const groups = groupScheduleEntries(filtered);
+    const allGroups = groupScheduleEntries(filtered);
+    // 캠페인(그룹) 전체가 완료됐는지 기준으로 대기/완료 뷰를 나눔 — 접수관리.html과 동일 패턴
+    const doneGroups   = allGroups.filter(g => g.items.every(e => isScheduleDone(e.status)));
+    const activeGroups = allGroups.filter(g => !g.items.every(e => isScheduleDone(e.status)));
+    const groups = ssShowDone ? doneGroups : activeGroups;
     ssLastGroups = groups;
     // 카드 섹션(kp-stat-split)과 동일 기준 — MID/캠페인 단위 건수(필터 무관, 전체)
     const allGroupCount = groupScheduleEntries(Object.values(ssEntries)).length;
 
+    const doneBtn = document.getElementById('kp-ss-done-toggle-btn');
+    if (doneBtn) doneBtn.textContent = ssShowDone ? `◀ 대기 목록으로` : `완료 목록 (${doneGroups.length})`;
+
     if (!groups.length) {
-      listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">조건에 맞는 항목이 없습니다.</div>';
+      listEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">${ssShowDone ? '완료된 캠페인이 없습니다.' : '조건에 맞는 항목이 없습니다.'}</div>`;
     } else {
       listEl.innerHTML = groups.map((g,i) => {
         const collapsed = ssCollapsed.has(g.gid);
         const doneCount = g.items.filter(e => isScheduleDone(e.status)).length;
         const pendCount = g.items.length - doneCount;
-        // 레거시(구 kimpro/scheduled_dispatch) 항목은 kimpro-access 인증이 따로 필요해 읽기만 가능 —
-        // 취소/재분류/키워드 일괄분배 등 쓰기 액션은 신규 경로(ha/kimproScheduledDispatch) 대기건만 대상으로 함
         const editablePendCount = g.items.filter(e => !isScheduleDone(e.status)).length;
         const groupSrc = g.items.find(e => e._src === 'ha') ? 'ha' : 'kp';
         const srcBadge = groupSrc === 'ha'
           ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">하이어애드</span>'
-          : groupSrc === 'kp'
-          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>'
-          : ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;" title="이관 전 원본 kimpro 예약 — 읽기 전용">김프로</span>';
+          : ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>';
         const selCount = (kpSsResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">

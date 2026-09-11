@@ -5268,7 +5268,8 @@ window.toggleProdPanel = function(e) {
 
   let _ssEntries = {};   // key -> entry, 등급 변경 시 저장된 계정정보(loginId/pwd) 조회용
   let _ssCollapsed = new Set(); // 접힌 그룹의 gid(slotKey 기준) 집합
-  let _ssLastGroups = []; // 직전 렌더의 그룹 배열(펼치기/접기 클릭이 index로 이 배열을 참조)
+  let _ssLastGroups = []; // 직전 렌더에 실제로 표시된 그룹 배열(카드 클릭이 index로 이 배열을 참조) — 대기/완료 뷰 중 현재 보이는 쪽만 담김
+  let _ssShowDone = false; // false=대기 항목 있는 캠페인만, true=전부 완료된 캠페인만(완료 목록)
   let _ssResplit = {}; // slotKey -> { open, loading, gradeGroups, sel:{gradeName:pct} } — 잔여 재분류 패널 상태
   let _ssKwSplit = {}; // slotKey -> { open, kwText, chunk } — 검색키워드 일괄분배 패널 상태
 
@@ -5276,7 +5277,7 @@ window.toggleProdPanel = function(e) {
   // 한 화면에 합쳐서 관리(사용자 요청, 2026-09-10 — "서로 다른 서버라서 막아뒀던 것"이었는데
   // 지금은 같은 프로젝트/DB라 저장은 분리 유지하면서 화면만 합침, 정산관리.html과 동일한 패턴).
   // 항목의 _src('ha'|'kp')로 쓰기 액션을 올바른 저장소로 라우팅. 구 kimpro/scheduled_dispatch(레거시)
-  // 구 kimpro/scheduled_dispatch(레거시) 병합은 kimpro.kro.kr 접속 차단(2026-09-11)으로 제거됨.
+  // 병합은 kimpro.kro.kr 접속 차단(2026-09-11)으로 제거됨.
   // ha/ 루트 아래 상대 경로 — 두 노드 다 'ha' 밑이라 fbUpdate('ha', patch) 하나로 같이 갱신 가능
   function scheduleDispatchSuffix(src) { return src === 'kp' ? 'kimproScheduledDispatch' : 'scheduled_dispatch'; }
   function scheduleBatchSuffix(src)    { return src === 'kp' ? 'kimproScheduledBatches'  : 'scheduled_batches'; }
@@ -5329,6 +5330,7 @@ window.toggleProdPanel = function(e) {
     _ssCollapsed = new Set();
     _ssResplit = {};
     _ssKwSplit = {};
+    _ssShowDone = false;
 
     await reloadScheduleEntries(); // _ssLastGroups 채우기
     _ssCollapsed = new Set(_ssLastGroups.map(g => g.gid)); // 처음엔 전체 접힌 상태로
@@ -5397,10 +5399,8 @@ window.toggleProdPanel = function(e) {
     renderSplitScheduleList();
   };
 
-  window.toggleAllScheduleGroups = function() {
-    const allCollapsed = _ssLastGroups.length > 0 && _ssLastGroups.every(g => _ssCollapsed.has(g.gid));
-    if (allCollapsed) _ssCollapsed.clear();
-    else _ssLastGroups.forEach(g => _ssCollapsed.add(g.gid));
+  window.toggleScheduleDoneView = function() {
+    _ssShowDone = !_ssShowDone;
     renderSplitScheduleList();
   };
 
@@ -5431,27 +5431,31 @@ window.toggleProdPanel = function(e) {
     const listEl = document.getElementById('ss-list');
     const total = Object.keys(_ssEntries).length;
     const filtered = filterScheduleEntries(Object.values(_ssEntries));
-    const groups = groupScheduleEntries(filtered);
+    const allGroups = groupScheduleEntries(filtered);
+    // 캠페인(그룹) 전체가 완료됐는지 기준으로 대기/완료 뷰를 나눔 — 대기 항목이 하나라도 남아있으면 대기 뷰,
+    // 전부 완료면 완료 목록으로 분리해 기본 화면에서 안 보이게 함(사용자 요청)
+    const doneGroups   = allGroups.filter(g => g.items.every(e => isScheduleDone(e.status)));
+    const activeGroups = allGroups.filter(g => !g.items.every(e => isScheduleDone(e.status)));
+    const groups = _ssShowDone ? doneGroups : activeGroups;
     _ssLastGroups = groups;
     // 카드 섹션(stat-split)과 동일 기준 — MID/캠페인 단위 건수(필터 무관, 전체)
     const allGroupCount = groupScheduleEntries(Object.values(_ssEntries)).length;
 
+    const doneBtn = document.getElementById('ss-done-toggle-btn');
+    if (doneBtn) doneBtn.textContent = _ssShowDone ? `◀ 대기 목록으로` : `완료 목록 (${doneGroups.length})`;
+
     if (!groups.length) {
-      listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">조건에 맞는 항목이 없습니다.</div>';
+      listEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">${_ssShowDone ? '완료된 캠페인이 없습니다.' : '조건에 맞는 항목이 없습니다.'}</div>`;
     } else {
       listEl.innerHTML = groups.map((g, i) => {
         const collapsed = _ssCollapsed.has(g.gid);
         const doneCount = g.items.filter(e => isScheduleDone(e.status)).length;
         const pendCount = g.items.length - doneCount;
-        // 레거시(구 kimpro/scheduled_dispatch)는 kimpro-access 인증이 따로 필요해 읽기만 가능 —
-        // 취소/재분류/키워드 일괄분배는 신규 경로(ha/scheduled_dispatch·ha/kimproScheduledDispatch) 대기건만 대상
         const editablePendCount = g.items.filter(e => !isScheduleDone(e.status)).length;
         const groupSrc = g.items.find(e => e._src === 'kp') ? 'kp' : 'ha';
         const srcBadge = groupSrc === 'kp'
           ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>'
-          : groupSrc === 'ha'
-          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">하이어애드</span>'
-          : ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;" title="이관 전 원본 kimpro 예약 — 읽기 전용">김프로</span>';
+          : ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">하이어애드</span>';
         const selCount = (_ssResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
@@ -6201,7 +6205,7 @@ window.toggleProdPanel = function(e) {
         <button onclick="clearScheduleSearch()" title="검색어 지우기" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:13px;color:var(--muted);padding:2px 4px;line-height:1;">✕</button>
       </div>
       <button onclick="runScheduleSearch()" style="padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">검색</button>
-      <button onclick="toggleAllScheduleGroups()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">펼치기/접기</button>
+      <button id="ss-done-toggle-btn" onclick="toggleScheduleDoneView()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">완료 목록</button>
     </div>
     <div id="ss-list"></div>
     <div style="display:flex;justify-content:flex-end;margin-top:16px;">
