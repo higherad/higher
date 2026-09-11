@@ -983,7 +983,7 @@
       <table class="sp-tbl"><thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>유입플액(VAT 별도)</th><th>전체 목표 차감</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody>${mRows||`<tr><td colspan="${isAdmin?8:5}" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>`}</tbody></table>
       <div class="sp-section">일별 합산</div>
-      <table class="sp-tbl"><thead><tr><th>날짜</th><th>캠페인 수</th><th>전체목표합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>유입플액(VAT 별도)</th><th>전체 목표 차감</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
+      <table class="sp-tbl"><thead><tr><th>날짜</th><th>캠페인 수</th><th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th>${isAdmin?'<th>유입플액(VAT 별도)</th><th>전체 목표 차감</th><th>차감액(VAT 별도)</th>':''}</tr></thead>
         <tbody id="ag-day-tbody"></tbody></table>
       <div id="ag-day-pg" class="pagination" style="margin-top:12px;"></div>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
