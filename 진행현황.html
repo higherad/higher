@@ -268,12 +268,7 @@
   };
 
   window.goP = n => { page=n; renderSlots(false); };
-  window.toggleAll = cb => { document.querySelectorAll('.s-check').forEach(c=>c.checked=cb.checked); updateSelCount(); };
-  window.updateSelCount = () => {
-    const n = document.querySelectorAll('.s-check:checked').length;
-    const el = document.getElementById('s-sel-count');
-    if(el) el.textContent = `선택: ${n}건`;
-  };
+  window.toggleAll = cb => { document.querySelectorAll('.s-check').forEach(c=>c.checked=cb.checked); };
   window.resetFilter = () => {
     document.getElementById('f-status').value='';
     document.getElementById('f-kw').value='';
