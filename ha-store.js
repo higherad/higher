@@ -27,19 +27,6 @@ const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
 const auth = getAuth(app);
 
-// ── kimpro/slots 미러링 전용 계정 ────────────────────────────
-// kimpro RTDB 규칙이 kimpro-access 계정만 허용(higher 로그인 세션은 permission denied) — 별도 App으로 로그인, 필요 시점까지 지연
-const kimproMirrorApp = initializeApp(firebaseConfig, 'kimproMirror');
-const kimproDb        = getDatabase(kimproMirrorApp);
-const kimproMirrorAuth = getAuth(kimproMirrorApp);
-let _kimproAuthReady = null;
-function ensureKimproAuth() {
-  if (!_kimproAuthReady) {
-    _kimproAuthReady = signInWithEmailAndPassword(kimproMirrorAuth, 'kimpro-access@higherad.app', 'm0N7anwQIcPTIarfhWvkpBN0');
-  }
-  return _kimproAuthReady;
-}
-
 // ── 인증 상태 복원 대기 래퍼 ─────────────────────────────────
 // 새로고침 직후 세션 복원 전 get/onValue가 먼저 돌면 RTDB 규칙(auth != null)에 걸려 permission denied 발생 가능
 const authReady = auth.authStateReady();
@@ -84,8 +71,6 @@ const PATHS = {
   refunds:         'ha/refunds',
   adClassify:      'ha/ad_classify',
   settleSnapshots: 'ha/settle_snapshots',
-  kimproSlots:     'kimpro/slots',
-  kimproUsers:     'kimpro/users',
 };
 
 // ha/slots <-> ha/kimproSlots 양방향 동기화 시 상태값 매핑 — 두 시스템 상태값 어휘가 서로 달라서
@@ -270,31 +255,6 @@ const HA = {
     const offChanged = onChildChanged(base,   snap => onChanged && onChanged({ ...snap.val(), _key: snap.key }));
     const offRemoved = onChildRemoved(base,   snap => onRemoved && onRemoved(snap.key));
     return () => { offAdded(); offChanged(); offRemoved(); };
-  },
-
-  // kimpro/slots에서 같은 MID 슬롯 조회(fullKeywordHistory용) — kimpro RTDB는 kimpro-access 계정만 허용해 kimproDb로 읽어야 함
-  async getKimproSlotsByMid(mid) {
-    try {
-      await ensureKimproAuth();
-      const snap = await _get(query(ref(kimproDb, PATHS.kimproSlots), orderByChild('mid'), equalTo(mid)));
-      return snapToArray(snap);
-    } catch (e) {
-      console.error('kimpro/slots 조회 오류:', e);
-      return [];
-    }
-  },
-
-  // 구 kimpro/scheduled_dispatch(레거시) 조회 — bizfit-direct-proxy가 지금도 이 경로를 폴링해 실제로
-  // 전송 중인 예약 항목이라 김프로 예약 분할 현황 화면에서 같이 보여줘야 함(읽기 전용, kimpro-access 인증 필요).
-  async getKimproLegacyScheduledDispatch() {
-    try {
-      await ensureKimproAuth();
-      const snap = await _get(ref(kimproDb, 'kimpro/scheduled_dispatch'));
-      return snapToArray(snap);
-    } catch (e) {
-      console.error('kimpro/scheduled_dispatch 조회 오류:', e);
-      return [];
-    }
   },
 
   // ── 김프로(kimpro.kro.kr) 기능 데이터 전용 네임스페이스 ──────
@@ -516,10 +476,6 @@ const HA = {
     // 실패를 조용히 삼키면 누락을 못 알아채므로 콘솔 로그 필수, fire-and-forget 금지.
     const kpMirrorData = { ...newSlot, searchKeyword: newSlot.searchKeyword || '' };
     try {
-      await ensureKimproAuth();
-      await set(ref(kimproDb, `${PATHS.kimproSlots}/${newRef.key}`), kpMirrorData);
-    } catch (e) { console.error('kimpro/slots 신규 미러 오류:', e); }
-    try {
       await set(ref(db, `${KP_PATHS.slots}/${newRef.key}`), kpMirrorData);
     } catch (e) { console.error('ha/kimproSlots 신규 미러 오류:', e); }
 
@@ -575,40 +531,8 @@ const HA = {
   async updateSlot(key, patch) {
     await update(ref(db, `${PATHS.slots}/${key}`), patch);
     dispatch('ha:slots:updated');
-    // kimpro/slots 동기화(편도) — kimpro RTDB는 kimpro-access 계정만 허용해 kimproDb로 써야 함.
-    // 실패를 조용히 삼키면 누락을 못 알아채므로 콘솔 로그 필수. fire-and-forget 금지, 반드시 await
-    try {
-      await ensureKimproAuth();
-      const kpSnap = await get(ref(kimproDb, `${PATHS.kimproSlots}/${key}`));
-      if (kpSnap.exists()) {
-        if (patch.status === 'deleted') {
-          // 접수관리에서 삭제(취소) — kimpro 쪽도 즉시 제거 (kimpro 자체 삭제와 동일하게 완전삭제)
-          await remove(ref(kimproDb, `${PATHS.kimproSlots}/${key}`));
-        } else if (!('status' in patch) || HA_KP_SHARED_STATUSES.has(patch.status)) {
-          // 상태값이 없거나 서로 이해하는 공유 상태값(HA_KP_SHARED_STATUSES)일 때만 필드를 그대로 반영.
-          // ha 전용 상태값으로의 전환은 status만 막고 나머지 필드(endDate 등)를 그대로 넘기면 안 됨 —
-          // kimpro가 그 필드만 보고 자기 상태를 오판할 수 있어(반대편 사례: 김프로 강제종료→종료 처리
-          // 시 endDate가 당겨지며 접수관리가 자체 만료 로직으로 잘못 종료 처리한 것과 대칭되는 문제),
-          // 그래서 status가 전용값이면 patch 전체를 무시한다.
-          await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), patch);
-        }
-      } else if (patch.status !== 'deleted') {
-        // addSlot이 접수 시점에 이미 미러를 만드므로 보통 여기 안 옴 — 이 change 이전에 생성된
-        // 레거시 슬롯, 또는 삭제(하드 제거)→복구로 미러가 없어진 슬롯을 위한 자가치유 폴백(전체 복사)
-        const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
-        if (slotSnap.exists()) {
-          const slot = slotSnap.val();
-          await set(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), {
-            ...slot,
-            searchKeyword: slot.searchKeyword || '',
-          });
-        }
-      }
-    } catch (e) { console.error('kimpro/slots 동기화 오류:', e); }
 
-    // ha/kimproSlots 동기화(편도, 신규) — 위 kimpro/slots 미러와 동일한 목적(접수관리 승인 시 김프로
-    // 어드민 쪽에서도 리스트로 보이게)이지만 대상이 새 격리 노드(ha/kimproSlots). 같은 db/인증이라
-    // kimproDb/ensureKimproAuth 불필요. 기존 kimpro/slots 미러는 그대로 유지(제거하지 않음).
+    // ha/kimproSlots 동기화(편도) — 접수관리 승인 시 김프로 어드민 쪽에서도 리스트로 보이게 함.
     try {
       const kpSnap = await get(ref(db, `${KP_PATHS.slots}/${key}`));
       if (kpSnap.exists()) {
@@ -620,7 +544,7 @@ const HA = {
           await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
         }
       } else if (patch.status !== 'deleted') {
-        // addSlot이 접수 시점에 이미 미러를 만드므로 보통 여기 안 옴 — 레거시/복구 슬롯 자가치유 폴백(위 블록과 동일)
+        // addSlot이 접수 시점에 이미 미러를 만드므로 보통 여기 안 옴 — 레거시/복구 슬롯 자가치유 폴백
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
           const slot = slotSnap.val();

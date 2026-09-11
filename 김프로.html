@@ -2581,13 +2581,6 @@ document.addEventListener('keydown', function(e) {
       });
       addAll(kpSnap && kpSnap.exists() ? kpSnap.val() : {});
       addAll(haSnap && haSnap.exists() ? haSnap.val() : {});
-      try {
-        const legacyList = await window.HA.getKimproLegacyScheduledDispatch();
-        legacyList.forEach(e => {
-          const row = (e.payload?.rowData || [])[0] || {};
-          gids.add(e.slotKey || row.PID번호 || row.업체명 || 'unknown');
-        });
-      } catch (err) { console.error('구 예약 항목 조회 오류:', err); }
       return gids.size;
     };
   }
@@ -5703,10 +5696,6 @@ document.addEventListener('keydown', function(e) {
     Object.entries(kpVal).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'kp' }; });
     const haVal = (haSnap && haSnap.exists()) ? haSnap.val() : {};
     Object.entries(haVal).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'ha' }; });
-    try {
-      const legacyList = await window.HA.getKimproLegacyScheduledDispatch();
-      legacyList.forEach(e => { entries[e._key] = { ...e, _src:'legacy' }; });
-    } catch (err) { console.error('구 예약 항목 조회 오류:', err); }
     return groupScheduleEntries(Object.values(entries)).length;
   };
 
@@ -5720,14 +5709,6 @@ document.addEventListener('keydown', function(e) {
     Object.entries(kpVal).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'kp' }; });
     const haVal = (haSnap && haSnap.exists()) ? haSnap.val() : {};
     Object.entries(haVal).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'ha' }; });
-    // 마이그레이션 이전부터 있던 구 kimpro/scheduled_dispatch(레거시) 항목도 합쳐서 보여줌 —
-    // bizfit-direct-proxy가 지금도 이 경로를 같이 폴링해 실제로 전송되는 예약이라 화면에 안 보이면
-    // "예약" 통계 카드 숫자와 목록이 어긋나 보임. 레거시 항목은 kimpro-access 인증이 따로 필요해
-    // 읽기만 가능 — 취소/재분류/등급변경/키워드 수정 버튼은 _src==='legacy' 항목에서 숨김.
-    try {
-      const legacyList = await window.HA.getKimproLegacyScheduledDispatch();
-      legacyList.forEach(e => { ssEntries[e._key] = { ...e, _src:'legacy' }; });
-    } catch (err) { console.error('구 예약 항목 조회 오류:', err); }
   }
 
   function filterScheduleEntries(entries) {
