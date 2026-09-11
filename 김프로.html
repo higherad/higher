@@ -905,9 +905,11 @@ async function downloadRankTable() {
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:#fff;border-radius:16px 16px 0 0;">
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="font-size:15px;font-weight:700;">🛑 강제종료</div>
-        <span class="bs-srv-badge bs-srv-chk" id="bs-srv-badge">⏳ 서버 확인 중</span>
       </div>
-      <button id="bs-close-btn" onclick="closeStopModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="bs-srv-badge bs-srv-chk" id="bs-srv-badge">⏳ 서버 확인 중</span>
+        <button id="bs-close-btn" onclick="closeStopModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+      </div>
     </div>
   <div style="padding:20px 24px;">
     <style>
@@ -1335,7 +1337,6 @@ window.closeStopModal = function() {
         if (res.ok) {
           badge.textContent = '✅ 서버 연결됨';
           badge.className = 'bs-srv-badge bs-srv-ok';
-          bsLog('✅ 서버 연결됨', 'success');
           return;
         }
       } catch(_) {}
@@ -1445,9 +1446,15 @@ window.closeStopModal = function() {
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:#fff;border-radius:16px 16px 0 0;">
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="font-size:15px;font-weight:700;">🔤 키워드 변경</div>
-        <span class="kw-srv-badge kw-srv-chk" id="kw-srv-badge">⏳ 서버 확인 중</span>
+        <div style="display:flex;gap:6px;">
+          <button type="button" id="kw-tab-btn-normal" class="kw-tab-btn active" onclick="kwSwitchTab('normal')">일반</button>
+          <button type="button" id="kw-tab-btn-sched" class="kw-tab-btn" onclick="kwSwitchTab('sched')">예약</button>
+        </div>
       </div>
-      <button id="kw-close-btn" onclick="closeKwModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="kw-srv-badge kw-srv-chk" id="kw-srv-badge">⏳ 서버 확인 중</span>
+        <button id="kw-close-btn" onclick="closeKwModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+      </div>
     </div>
   <div style="padding:20px 24px;">
     <style>
@@ -1526,11 +1533,6 @@ window.closeStopModal = function() {
       .kw-tab-btn { padding:7px 16px; border:1px solid var(--border); background:#fff; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--text2); }
       .kw-tab-btn.active { color:#0277bd; border-color:#0277bd; }
     </style>
-
-    <div style="display:flex;gap:6px;margin-bottom:14px;">
-      <button type="button" id="kw-tab-btn-normal" class="kw-tab-btn active" onclick="kwSwitchTab('normal')">일반</button>
-      <button type="button" id="kw-tab-btn-sched" class="kw-tab-btn" onclick="kwSwitchTab('sched')">예약</button>
-    </div>
 
     <div class="kw-grid">
 
@@ -2091,7 +2093,6 @@ document.addEventListener('keydown', function(e) {
         if (res.ok) {
           badge.textContent = '✅ 서버 연결됨';
           badge.className = 'kw-srv-badge kw-srv-ok';
-          kwLog('✅ 서버 연결됨', 'success');
           return;
         }
       } catch(_) {}
