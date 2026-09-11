@@ -3319,8 +3319,6 @@ document.addEventListener('keydown', function(e) {
      비즈핏 실제 배분·제출(allocate 엔진)은 별도 단계, 아직 미이식)
 ══════════════════════════════════════════ -->
 <style>
-  .kp-uex-info { background:rgba(59,130,246,.05); border:1px solid rgba(59,130,246,.2); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:12px; color:var(--text2); line-height:1.6; }
-  .kp-uex-info strong { color:#1d4ed8; }
   .kp-uex-zone { border:2px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; transition:.2s; margin-bottom:4px; }
   .kp-uex-zone:hover, .kp-uex-zone.drag { border-color:var(--kp-accent); background:rgba(16,185,129,.03); }
   .kp-uex-zone input[type=file] { display:none; }
@@ -3343,7 +3341,6 @@ document.addEventListener('keydown', function(e) {
       </div>
     </div>
     <div style="padding:20px 24px;">
-      <div class="kp-uex-info"><strong>엑셀 양식 컬럼 순서</strong><br>대행사 / 업체명 / URL / MID / 순위키워드 / 일 수 / 시작일 / 일 목표 / 검색키워드</div>
       <div class="kp-uex-zone" id="kp-uex-zone" onclick="document.getElementById('kp-uex-file').click()">
         <input type="file" id="kp-uex-file" accept=".xlsx,.xls" onchange="handleKpUexFile(this)">
         <div style="font-size:28px;margin-bottom:8px;">📊</div>
@@ -3453,19 +3450,46 @@ document.addEventListener('keydown', function(e) {
           const uexRange = window.XLSX.utils.decode_range(ws['!ref'] || 'A1');
           if (uexRange.e.r > 5000) uexRange.e.r = 5000;
           const raw = window.XLSX.utils.sheet_to_json(ws, { header:1, defval:'', range: uexRange });
-          const dataRows = raw.slice(1).filter(r => r[0] || r[2]);
+          if (!raw.length) { alert('빈 파일입니다.'); return; }
+
+          // 컬럼 위치를 고정 순서 대신 첫 행(헤더) 텍스트로 자동 인식 — 접수관리 rexProcessExcel과 동일 방식
+          const hdr = raw[0].map(h => String(h||'').replace(/\s+/g, ''));
+          const agencyCol = hdr.findIndex(h => /대행사|영업점/.test(h));
+          const storeCol  = hdr.findIndex(h => /업체명|상호명/.test(h));
+          const urlCol    = hdr.findIndex(h => /url/i.test(h));
+          const midCol    = hdr.findIndex(h => /mid|pid/i.test(h));
+          const kwCol     = hdr.findIndex(h => /순위키워드/.test(h));
+          const daysCol   = hdr.findIndex(h => /일수/.test(h));
+          const targetCol = hdr.findIndex(h => /일목표/.test(h));
+          const startCol  = hdr.findIndex(h => /시작일/.test(h));
+          const searchCol = hdr.findIndex(h => /검색키워드/.test(h));
+          const missing = [];
+          if (agencyCol < 0) missing.push('대행사');
+          if (storeCol  < 0) missing.push('업체명');
+          if (urlCol    < 0) missing.push('URL');
+          if (midCol    < 0) missing.push('MID');
+          if (kwCol     < 0) missing.push('순위키워드');
+          if (daysCol   < 0) missing.push('일 수');
+          if (targetCol < 0) missing.push('일 목표');
+          if (startCol  < 0) missing.push('시작일');
+          if (missing.length) {
+            alert(`엑셀 첫 행(헤더)에서 다음 항목을 찾을 수 없습니다: ${missing.join(', ')}\n헤더에 해당 항목명이 포함돼 있는지 확인해주세요.`);
+            return;
+          }
+
+          const dataRows = raw.slice(1).filter(r => r[agencyCol] || r[urlCol]);
           uexRows = dataRows.map(r => {
-            const agencyId  = String(r[0]??'').trim();
-            const storeName = String(r[1]??'').trim();
-            const url       = uexNormalizeUrl(r[2]) || null;
-            const mid       = String(r[3]??'').trim();
-            const rankKeyword = String(r[4]??'').trim().replace(/\s+/g,'');
-            const daysRaw = String(r[5]??'').trim();
+            const agencyId  = String(r[agencyCol]??'').trim();
+            const storeName = String(r[storeCol]??'').trim();
+            const url       = uexNormalizeUrl(r[urlCol]) || null;
+            const mid       = String(r[midCol]??'').trim();
+            const rankKeyword = String(r[kwCol]??'').trim().replace(/\s+/g,'');
+            const daysRaw = String(r[daysCol]??'').trim();
             const days = daysRaw !== '' ? Number(daysRaw) : null;
-            const startDate = uexNormalizeDate(r[6]) || null;
-            const dailyTargetRaw = String(r[7]??'').trim();
+            const startDate = uexNormalizeDate(r[startCol]) || null;
+            const dailyTargetRaw = String(r[targetCol]??'').trim();
             const dailyTarget = dailyTargetRaw !== '' ? Number(dailyTargetRaw) : null;
-            const searchKeyword = String(r[8]??'').trim();
+            const searchKeyword = searchCol >= 0 ? String(r[searchCol]??'').trim() : '';
             let endDate = null;
             if (startDate && days !== null && !isNaN(days) && days > 0) {
               const endD = new Date(startDate); endD.setDate(endD.getDate()+days-1); endDate = uexFmt(endD);
@@ -3552,17 +3576,16 @@ document.addEventListener('keydown', function(e) {
     if (!validRows.length) { alert('등록 가능한 데이터가 없습니다.'); return; }
     const btn = document.getElementById('kp-uex-submit-btn');
     btn.disabled = true; btn.textContent = '등록 중...';
-    let success = 0, fail = 0;
-    for (const row of validRows) {
-      try {
-        await window.HA.addKpSlot({
-          agencyId: row.agencyId, storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
-          startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget,
-          searchKeyword: row.searchKeyword || '', memo: '', unitPrice: 0,
-        });
-        success++;
-      } catch { fail++; }
-    }
+
+    const uexBaseTs = Date.now();
+    const results = await Promise.allSettled(validRows.map((row, i) => window.HA.addKpSlot({
+      agencyId: row.agencyId, storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
+      startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget,
+      searchKeyword: row.searchKeyword || '', memo: '', unitPrice: 0,
+      createdAt: new Date(uexBaseTs + i).toISOString(),
+    })));
+    const success = results.filter(r => r.status === 'fulfilled').length;
+    const fail    = results.length - success;
     if (window.kpRenderReceipts) window.kpRenderReceipts(true, true);
     alert(`총 ${validRows.length}건 중 ${success}건 등록 완료${fail ? ` / ${fail}건 실패` : ''}`);
     resetKpUex();

@@ -171,9 +171,6 @@
   .rex-btn-cancel{padding:11px 22px;border:1.5px solid var(--border);border-radius:10px;background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;}
   .rex-btn-next{padding:11px 26px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(16,185,129,.25);display:flex;align-items:center;gap:6px;}
   .rex-btn-next:disabled{background:var(--muted);box-shadow:none;cursor:not-allowed;}
-  .rex-info{background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
-  .rex-info .t-text{font-size:13px;color:var(--text2);}
-  .rex-info .t-text strong{color:var(--info);}
   .rex-btn-template{padding:7px 16px;background:var(--info);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;}
   .rex-zone{border:2px dashed var(--border);border-radius:14px;padding:40px;text-align:center;cursor:pointer;transition:.2s;}
   .rex-zone:hover,.rex-zone.drag{border-color:var(--accent);background:rgba(16,185,129,.03);}
@@ -2963,12 +2960,8 @@ window.toggleProdPanel = function(e) {
         </div>
 
         <div id="rex-mode-excel" class="rex-card">
-          <div class="rex-card-title" style="margin-bottom:20px;">엑셀 일괄 업로드</div>
-          <div class="rex-info">
-            <div class="t-text">
-              <strong>엑셀 필수 컬럼</strong><br>
-              업체명(상호명) / URL / MID(PID) / 순위키워드 / 일 수 / 시작일 / 일 목표
-            </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+            <div class="rex-card-title" style="margin-bottom:0;">엑셀 일괄 업로드</div>
             <button class="rex-btn-template" id="rex-tmpl-btn">양식 다운로드</button>
           </div>
           <div class="rex-zone" id="rex-zone">

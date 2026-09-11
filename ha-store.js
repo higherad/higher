@@ -301,7 +301,7 @@ const HA = {
     }
     const newSlot = {
       status:        'pending',
-      createdAt:     new Date().toISOString(),
+      createdAt:     data.createdAt || new Date().toISOString(),
       origin:        'kp', // 접수 출처(김프로 네이티브) — 진행현황 휴지통 분류에 사용, 절대 덮어쓰지 않음
       agencyId:      data.agencyId      || '',
       userId:        resolvedUserId,
