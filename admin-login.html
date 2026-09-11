@@ -202,16 +202,12 @@
 <script type="module">
   import HA from './ha-store.js';
 
-  // index.html에서 미인증으로 넘어올 때 전달된 쿼리(예: ?page=kimpro)는 로그인 후 그대로 되돌려준다
-  // — kimpro/reception.html "통합 완료" 팝업 삭제 시 이 블록과 아래 두 location.href 변경분도 같이 되돌릴 것
-  const redirectQuery = location.search;
-
   // URL에서 파일명 숨기기 — 항상 / 로만 표시
   history.replaceState(null, '', '/');
 
   // 이미 인증된 경우 바로 이동
   if (sessionStorage.getItem('ha_admin_auth') === '1') {
-    location.href = 'index.html' + redirectQuery;
+    location.href = 'index.html';
   }
 
   // Enter 키 처리
@@ -252,7 +248,7 @@
 
     if (result.ok && (result.user.role === 'admin' || result.user.role === 'staff')) {
       sessionStorage.setItem('ha_admin_auth', '1');
-      location.href = 'index.html' + redirectQuery;
+      location.href = 'index.html';
     } else {
       document.getElementById('login-error').textContent =
         result.ok ? '관리자 계정이 아닙니다.' : '아이디 또는 비밀번호가 올바르지 않습니다.';

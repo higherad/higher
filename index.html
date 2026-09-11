@@ -753,8 +753,7 @@
   // ── 앱 시작 ───────────────────────────────────────────────
   async function init() {
     if (sessionStorage.getItem('ha_admin_auth') !== '1') {
-      // ?page=kimpro 딥링크 유지(미인증 -> 로그인 -> index 복귀까지) — kimpro 통합 팝업 삭제 시 이 줄도 같이 되돌릴 것
-      location.href = 'admin-login.html' + location.search;
+      location.href = 'admin-login.html';
       return;
     }
     // 사이드바 유저 정보 표시
@@ -773,12 +772,7 @@
     // seedIfEmpty를 기다리는 사이 사용자가 이미 다른 메뉴를 클릭했다면(navGen 증가)
     // 기본 랜딩 화면(대시보드/진행현황) 렌더는 건너뛴다 — 클릭 결과를 덮어쓰지 않도록.
     if (navGen === 0) {
-      // kimpro/reception.html "통합 완료" 안내 팝업의 이동 버튼(?page=kimpro)용 딥링크 — 그 팝업 삭제 시 같이 제거
-      if (new URLSearchParams(location.search).get('page') === 'kimpro') {
-        enterKimpro(document.getElementById('nav-kimpro'));
-      } else {
-        await renderDashboard();
-      }
+      await renderDashboard();
     }
     lucide.createIcons();
   }
