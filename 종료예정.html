@@ -102,9 +102,10 @@
 
   // 진행현황과 동일한 기준 — status는 active로 유지되지만 시작 전이면 '예약'으로 표시
   function statusBadge(s) {
-    if (s.status !== 'active') return `<span class="status-badge s-expired">종료</span>`;
-    if (!hasStarted(s))        return `<span class="status-badge s-reserved">예약</span>`;
-    return `<span class="status-badge s-active">진행</span>`;
+    const tag = s._src==='kp' ? '<span class="kp-tag">김프로</span>' : '';
+    if (s.status !== 'active') return `<span class="status-badge s-expired">종료</span>${tag}`;
+    if (!hasStarted(s))        return `<span class="status-badge s-reserved">예약</span>${tag}`;
+    return `<span class="status-badge s-active">진행</span>${tag}`;
   }
 
   function renderSummary(slots, range) {
@@ -196,7 +197,7 @@
         <td style="color:var(--text2)">${i+1}</td>
         <td style="font-weight:600">${s.agencyId||'-'}</td>
         <td>${s.userId||'-'}</td>
-        <td style="font-weight:500">${s.storeName||'-'}${s._src==='kp' ? '<span class="kp-tag">김프로</span>' : ''}</td>
+        <td style="font-weight:500">${s.storeName||'-'}</td>
         <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
         <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
         <td style="color:var(--text2)">${s.startDate}</td>
