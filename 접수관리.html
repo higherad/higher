@@ -143,6 +143,19 @@
   .submit-tab.active{color:var(--info);border-bottom-color:var(--info);}
   .submit-tab:disabled{opacity:.3;cursor:not-allowed;}
   .stab-warn-ico{color:#dc2626;margin-left:4px;font-size:11px;}
+  /* 엑셀 접수 모달 */
+  .rex-info{background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.6;}
+  .rex-info strong{color:#1d4ed8;}
+  .rex-zone{border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:4px;}
+  .rex-zone:hover,.rex-zone.drag{border-color:var(--accent);background:rgba(16,185,129,.03);}
+  .rex-zone input[type=file]{display:none;}
+  .rex-preview-wrap{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:320px;}
+  .rex-preview-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .rex-preview-table thead th{background:#1e293b;color:#fff;padding:9px 10px;font-weight:500;text-align:left;white-space:nowrap;position:sticky;top:0;}
+  .rex-preview-table tbody td{padding:8px 10px;border-bottom:1px solid var(--border);}
+  .rex-row-status{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;white-space:nowrap;display:inline-block;}
+  .rex-row-ok{background:rgba(16,185,129,.1);color:#059669;}
+  .rex-row-err{background:rgba(239,68,68,.1);color:var(--danger);}
   /* 상품 설정 모달 */
   .prod-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:none;align-items:center;justify-content:center;}
   .prod-modal-bg.show{display:flex;}
@@ -2823,6 +2836,337 @@ window.toggleProdPanel = function(e) {
     closeBtn.disabled = false;
     window.reacceptRunning = false;
   }
+
+  // ── 엑셀 접수 (김프로 kp-uex-modal과 동일한 구조 — 신규 캠페인을 pending 상태로 등록) ──
+  let rexUsers = [];
+  let rexRows  = [];
+
+  function rexFmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  function rexNormalizeUrl(url) {
+    const clean = String(url||'').split('?')[0].trim();
+    const match = clean.match(/(https?:\/\/(?:m\.)?place\.naver\.com\/(?:restaurant|hospital|place|hairshop|nailshop|accommodation)\/\d+)/);
+    return match ? match[1] : clean;
+  }
+  const REX_PLACE_URL_REGEX = /(?:place\.naver\.com|m\.place\.naver\.com)\/(?:restaurant|hospital|place|hairshop|nailshop|accommodation)\/([0-9]+)/;
+  function rexExtractMid(url) {
+    const m = rexNormalizeUrl(url).match(REX_PLACE_URL_REGEX);
+    return m ? m[1] : '';
+  }
+  function rexNormalizeDate(value) {
+    if (typeof value === 'number' && value > 0) {
+      const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+      return Number.isNaN(d.getTime()) ? '' : rexFmt(d);
+    }
+    const raw = String(value||'').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const nums = raw.replace(/[^\d]/g,'-').split('-').filter(Boolean);
+    if (nums.length === 3) {
+      let [y,m,d] = nums;
+      if (y.length === 2) y = `20${y}`;
+      if (y.length !== 4) return '';
+      return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    if (nums.length === 2) {
+      const y = String(new Date().getFullYear());
+      const [m,d] = nums;
+      return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    return '';
+  }
+
+  window.openReceiptExcelModal = async function() {
+    rexUsers = await HA.getUsers();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.zIndex = '9100';
+    overlay.style.alignItems = 'flex-start';
+    overlay.style.overflowY = 'auto';
+    overlay.style.padding = '40px 16px';
+    const agencyOptions = rexUsers
+      .slice()
+      .sort((a,b) => (a.agency||a.username).localeCompare(b.agency||b.username, 'ko'))
+      .map(u => `<option value="${escProd(u.username)}">${escProd(u.agency||u.username)} (${escProd(u.username)})</option>`)
+      .join('');
+    overlay.innerHTML = `
+      <div class="modal-box" style="width:min(96vw,680px);">
+        <div class="modal-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>📊 엑셀 접수</span>
+          <button id="rex-close-btn" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+        </div>
+        <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;">
+          <button class="submit-tab active" id="rex-tab-single">개별 신청</button>
+          <button class="submit-tab" id="rex-tab-excel">엑셀 일괄 업로드</button>
+        </div>
+
+        <div id="rex-mode-single">
+          <div class="modal-field">
+            <label>대행사</label>
+            <select id="rex-s-agency"><option value="">선택하세요</option>${agencyOptions}</select>
+          </div>
+          <div class="modal-row">
+            <div class="modal-field"><label>업체명 (네이버 상호명)</label><input id="rex-s-store" type="text" placeholder="네이버 상호명"></div>
+            <div class="modal-field"><label>순위 키워드</label><input id="rex-s-kw" type="text" placeholder="예: 홍대맛집"></div>
+          </div>
+          <div class="modal-row">
+            <div class="modal-field"><label>URL</label><input id="rex-s-url" type="url" placeholder="https://m.place.naver.com/..." oninput="rexOnUrlInput()"></div>
+            <div class="modal-field"><label>MID (자동 추출)</label><input id="rex-s-mid" type="text" readonly style="background:#f8fafc;color:var(--text2);"></div>
+          </div>
+          <div class="modal-row">
+            <div class="modal-field"><label>일 수</label><input id="rex-s-days" type="number" min="1" placeholder="예: 7" oninput="rexAutoCalcEndDate()"></div>
+            <div class="modal-field"><label>일 목표</label><input id="rex-s-target" type="number" min="0" placeholder="예: 1000"></div>
+          </div>
+          <div class="modal-row">
+            <div class="modal-field"><label>시작일</label><input id="rex-s-start" type="date" oninput="rexAutoCalcEndDate()"></div>
+            <div class="modal-field"><label>종료일 (자동 계산)</label><input id="rex-s-end" type="text" readonly style="background:#f8fafc;color:var(--text2);"></div>
+          </div>
+          <div class="modal-field"><label>메모</label><textarea id="rex-s-memo" rows="2"></textarea></div>
+          <div class="modal-footer">
+            <button class="btn-cancel" id="rex-s-cancel-btn">닫기</button>
+            <button class="btn-save" id="rex-s-submit-btn">접수하기</button>
+          </div>
+        </div>
+
+        <div id="rex-mode-excel" style="display:none">
+          <div class="rex-info"><strong>엑셀 양식 컬럼 순서</strong><br>대행사(아이디) / 업체명 / URL / MID / 순위키워드 / 일 수 / 시작일 / 일 목표</div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button class="action-btn" style="background:#475569;color:#fff;" onclick="downloadRexTemplate()">📥 양식 다운로드</button>
+          </div>
+          <div class="rex-zone" id="rex-zone">
+            <input type="file" id="rex-file" accept=".xlsx,.xls" onchange="handleRexFile(this)">
+            <div style="font-size:28px;margin-bottom:8px;">📊</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px;">엑셀 파일을 여기에 끌어다 놓거나 클릭하여 선택</div>
+            <div style="font-size:11px;color:var(--text2);">.xlsx, .xls 파일 지원</div>
+          </div>
+          <div id="rex-preview" style="display:none">
+            <div id="rex-preview-info" style="font-size:12px;color:var(--text2);margin:10px 0;"></div>
+            <div class="rex-preview-wrap">
+              <table class="rex-preview-table">
+                <thead><tr>
+                  <th style="width:30px">#</th><th>대행사</th><th>업체명</th><th>URL</th><th style="width:100px">MID</th>
+                  <th>순위키워드</th><th style="width:50px">일수</th><th style="width:86px">시작일</th><th style="width:70px">일목표</th><th style="width:160px">상태</th>
+                </tr></thead>
+                <tbody id="rex-preview-body"></tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-cancel" id="rex-e-reset-btn">다시 선택</button>
+              <button class="btn-save" id="rex-e-submit-btn">일괄 접수하기</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    overlay.querySelector('#rex-close-btn').onclick = closeModal;
+    overlay.querySelector('#rex-s-cancel-btn').onclick = closeModal;
+    overlay.querySelector('#rex-tab-single').onclick = () => rexSwitchTab(overlay, 'single');
+    overlay.querySelector('#rex-tab-excel').onclick  = () => rexSwitchTab(overlay, 'excel');
+    overlay.querySelector('#rex-s-submit-btn').onclick = () => rexSubmitSingle(overlay);
+    overlay.querySelector('#rex-e-reset-btn').onclick  = () => rexResetExcel(overlay);
+    overlay.querySelector('#rex-e-submit-btn').onclick = () => rexSubmitExcel(overlay);
+
+    const todayStr = rexFmt(new Date());
+    overlay.querySelector('#rex-s-start').value = todayStr;
+    overlay.querySelector('#rex-s-start').min   = todayStr;
+    overlay.querySelector('#rex-s-end').value   = todayStr;
+
+    const zone = overlay.querySelector('#rex-zone');
+    zone.addEventListener('click', () => overlay.querySelector('#rex-file').click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag');
+      const f = e.dataTransfer.files[0];
+      if (f) rexProcessExcel(overlay, f);
+    });
+  };
+
+  function rexSwitchTab(overlay, mode) {
+    const single = mode === 'single';
+    overlay.querySelector('#rex-mode-single').style.display = single ? 'block' : 'none';
+    overlay.querySelector('#rex-mode-excel').style.display  = single ? 'none'  : 'block';
+    overlay.querySelector('#rex-tab-single').classList.toggle('active', single);
+    overlay.querySelector('#rex-tab-excel').classList.toggle('active', !single);
+  }
+
+  window.rexOnUrlInput = function() {
+    const overlay = document.getElementById('rex-s-url').closest('.modal-overlay');
+    const url = overlay.querySelector('#rex-s-url').value.trim();
+    overlay.querySelector('#rex-s-mid').value = rexExtractMid(url) || '';
+  };
+
+  window.rexAutoCalcEndDate = function() {
+    const overlay = document.getElementById('rex-s-days').closest('.modal-overlay');
+    const days  = Number(overlay.querySelector('#rex-s-days').value);
+    const start = overlay.querySelector('#rex-s-start').value;
+    if (days > 0 && start) {
+      const s = new Date(start);
+      s.setDate(s.getDate() + days - 1);
+      overlay.querySelector('#rex-s-end').value = rexFmt(s);
+    } else if (start) {
+      overlay.querySelector('#rex-s-end').value = start;
+    }
+  };
+
+  async function rexSubmitSingle(overlay) {
+    const username = overlay.querySelector('#rex-s-agency').value;
+    const user = rexUsers.find(u => u.username === username);
+    if (!user) { alert('대행사를 선택해주세요.'); return; }
+    const storeName   = overlay.querySelector('#rex-s-store').value.trim();
+    const rankKeyword = overlay.querySelector('#rex-s-kw').value.trim().replace(/\s+/g,'');
+    const url         = overlay.querySelector('#rex-s-url').value.trim();
+    const mid         = overlay.querySelector('#rex-s-mid').value.trim();
+    const days        = Number(overlay.querySelector('#rex-s-days').value) || 0;
+    const dailyTarget = Number(overlay.querySelector('#rex-s-target').value) || 0;
+    const startDate   = overlay.querySelector('#rex-s-start').value;
+    const endDate     = overlay.querySelector('#rex-s-end').value;
+    const memo        = overlay.querySelector('#rex-s-memo').value;
+    if (!storeName || !rankKeyword || !url || !mid || days <= 0 || dailyTarget <= 0 || !startDate) {
+      alert('필수 항목을 모두 입력해주세요. (업체명/순위키워드/URL/일 수/일 목표/시작일)');
+      return;
+    }
+    const btn = overlay.querySelector('#rex-s-submit-btn');
+    btn.disabled = true; btn.textContent = '처리 중...';
+    try {
+      const result = await HA.addSlot({
+        agencyId: user.agency || user.username, userId: user.username,
+        storeName, rankKeyword, url: rexNormalizeUrl(url), mid,
+        startDate, endDate, days, dailyTarget, memo,
+      });
+      HA.notifySingle(result).catch(() => {});
+      renderReceipts(true, true);
+      overlay.remove();
+    } catch (e) {
+      alert('접수 중 오류가 발생했습니다.');
+      btn.disabled = false; btn.textContent = '접수하기';
+    }
+  }
+
+  function rexProcessExcel(overlay, file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const uploadTodayStr = rexFmt(new Date());
+        const wb = XLSX.read(e.target.result, { type:'array', cellDates:false });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        const dataRows = raw.slice(1).filter(r => r[0] || r[1] || r[2]);
+        const usersByName = new Map(rexUsers.map(u => [u.username, u]));
+        rexRows = dataRows.map(r => {
+          const username    = String(r[0]??'').trim();
+          const storeName    = String(r[1]??'').trim();
+          const url          = rexNormalizeUrl(r[2]) || null;
+          const mid          = String(r[3]??'').trim();
+          const rankKeyword  = String(r[4]??'').trim().replace(/\s+/g,'');
+          const daysRaw      = String(r[5]??'').trim();
+          const days         = daysRaw !== '' ? Number(daysRaw) : null;
+          const startDate    = rexNormalizeDate(r[6]) || null;
+          const targetRaw    = String(r[7]??'').trim();
+          const dailyTarget  = targetRaw !== '' ? Number(targetRaw) : null;
+          let endDate = null;
+          if (startDate && days !== null && !isNaN(days) && days > 0) {
+            const endD = new Date(startDate); endD.setDate(endD.getDate()+days-1); endDate = rexFmt(endD);
+          }
+          const user = usersByName.get(username);
+          const errors = [];
+          const urlMid = url ? rexExtractMid(url) : null;
+          if (!username)        errors.push('대행사 누락');
+          else if (!user)       errors.push('회원정보에 없는 아이디');
+          if (!storeName)       errors.push('업체명 누락');
+          if (!url)             errors.push('URL 누락'); else if (!urlMid) errors.push('유효하지 않은 플레이스 주소');
+          if (!rankKeyword)     errors.push('순위키워드 누락');
+          if (days === null || isNaN(days) || days <= 0) errors.push('일 수 오류');
+          if (!startDate)       errors.push('시작일 형식 오류');
+          else if (startDate < uploadTodayStr) errors.push('오늘 이전 시작일');
+          if (!mid)             errors.push('MID 누락');
+          if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
+          if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
+          return { username, user, storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, valid: errors.length===0, error: errors.join(' / ') };
+        });
+        rexRenderPreview(overlay);
+      } catch (err) {
+        alert('파일을 읽는 중 오류가 발생했습니다. 양식을 확인해주세요.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  window.handleRexFile = function(input) {
+    const overlay = input.closest('.modal-overlay');
+    if (input.files[0]) rexProcessExcel(overlay, input.files[0]);
+  };
+
+  function rexRenderPreview(overlay) {
+    const validCount = rexRows.filter(r => r.valid).length;
+    const errorCount = rexRows.length - validCount;
+    overlay.querySelector('#rex-preview-info').innerHTML =
+      `총 <strong>${rexRows.length}건</strong> 중 <strong style="color:var(--accent)">${validCount}건</strong> 접수 가능 / <strong style="color:var(--danger)">${errorCount}건</strong> 오류`;
+    const submitBtn = overlay.querySelector('#rex-e-submit-btn');
+    submitBtn.disabled = errorCount > 0;
+    submitBtn.textContent = errorCount > 0 ? `오류를 수정해주세요 (${errorCount}건)` : '일괄 접수하기';
+    overlay.querySelector('#rex-preview-body').innerHTML = rexRows.map((r,i) => `
+      <tr>
+        <td style="color:var(--muted)">${i+1}</td>
+        <td style="font-weight:600">${escProd(r.username)||'-'}</td>
+        <td style="font-weight:500">${escProd(r.storeName)||'-'}</td>
+        <td style="color:var(--text2);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escProd(r.url)||'-'}</td>
+        <td style="color:var(--text2)">${escProd(r.mid)||'-'}</td>
+        <td>${escProd(r.rankKeyword)||'-'}</td>
+        <td style="color:var(--text2)">${r.days ?? '-'}</td>
+        <td style="color:var(--text2)">${r.startDate||'-'}</td>
+        <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
+        <td>${r.valid ? '<span class="rex-row-status rex-row-ok">정상</span>' : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
+      </tr>`).join('');
+    overlay.querySelector('#rex-zone').style.display = 'none';
+    overlay.querySelector('#rex-preview').style.display = 'block';
+  }
+
+  window.rexResetExcel = function(overlay) {
+    rexRows = [];
+    overlay.querySelector('#rex-file').value = '';
+    overlay.querySelector('#rex-zone').style.display = 'block';
+    overlay.querySelector('#rex-preview').style.display = 'none';
+  };
+
+  async function rexSubmitExcel(overlay) {
+    if (rexRows.some(r => !r.valid)) { alert('오류가 있는 행이 있습니다. 오류를 수정한 후 다시 업로드해주세요.'); return; }
+    const validRows = rexRows.filter(r => r.valid);
+    if (!validRows.length) { alert('접수 가능한 데이터가 없습니다.'); return; }
+    const btn = overlay.querySelector('#rex-e-submit-btn');
+    btn.disabled = true; btn.textContent = '처리 중...';
+    let success = 0, fail = 0;
+    const succeededSlots = [];
+    for (const row of validRows) {
+      try {
+        const result = await HA.addSlot({
+          agencyId: row.user.agency || row.user.username, userId: row.user.username,
+          storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
+          startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget, memo: '',
+        });
+        succeededSlots.push(result);
+        success++;
+      } catch { fail++; }
+    }
+    if (succeededSlots.length) HA.notifyExcelBatch(succeededSlots).catch(() => {});
+    renderReceipts(true, true);
+    alert(`총 ${validRows.length}건 중 ${success}건 접수 완료${fail ? ` / ${fail}건 실패` : ''}`);
+    overlay.remove();
+  }
+
+  window.downloadRexTemplate = function() {
+    const wb = XLSX.utils.book_new();
+    const todayStr = rexFmt(new Date());
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['대행사(아이디)','업체명','URL','MID','순위키워드','일 수','시작일','일 목표'],
+      ['예시아이디','테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000],
+    ]);
+    ws['!cols'] = [{wch:14},{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws, '접수');
+    XLSX.writeFile(wb, '접수관리_엑셀접수_양식.xlsx');
+  };
 
   // ── 애드로그 대량등록 접수 (그룹/키워드/URL/메모) ────────────
   // 프론트(SheetJS) xlsx를 그대로 릴레이 — 서버에서 새로 생성한 xlsx(openpyxl 등)는 adlog.kr이 거부함(실측 확인)

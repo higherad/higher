@@ -174,53 +174,13 @@
     @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
     .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
     .page-heading { font-size:22px; font-weight:800; color:var(--text); }
-    .top-right { display:flex; align-items:center; gap:12px; }
-    /* 김프로 화면: 자체 헤더바를 쓰므로 공용 타이틀/상태pill/알림벨 숨김(햄버거는 모바일용으로 유지) */
+    /* 김프로 화면: 자체 헤더바를 쓰므로 공용 타이틀 숨김(햄버거는 모바일용으로 유지) */
     body.kp-mode .top-bar { margin-bottom:0; min-height:0; }
-    body.kp-mode #page-heading, body.kp-mode .top-right { display:none; }
+    body.kp-mode #page-heading, body.kp-mode #page-actions { display:none; }
     body.kp-mode main { padding:0 10px 20px; }
-
-    /* 상태 pill */
-    .status-pill { padding:5px 14px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.5px; border:1px solid; transition:.3s; }
-    .status-pill.ok      { background:rgba(16,185,129,.08); color:var(--accent); border-color:rgba(16,185,129,.3); }
-    .status-pill.loading { background:rgba(245,158,11,.08); color:var(--warn); border-color:rgba(245,158,11,.3); }
-    .status-pill.error   { background:rgba(239,68,68,.08); color:var(--danger); border-color:rgba(239,68,68,.3); }
-
-    /* 알림 버튼 */
-    .icon-btn {
-      width:34px; height:34px; border-radius:8px; background:var(--card);
-      border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
-      cursor:pointer; transition:.2s; color:var(--text2); position:relative;
-    }
-    .icon-btn:hover { background:var(--bg); color:var(--text); }
-    .notif-dot {
-      position:absolute; top:-3px; right:-3px;
-      width:16px; height:16px; border-radius:50%;
-      background:var(--danger); color:#fff;
-      font-size:9px; font-weight:700;
-      display:none; align-items:center; justify-content:center;
-      border:2px solid var(--bg);
-    }
-    .notif-dot.show { display:flex; }
-
-    /* 알림 드롭다운 */
-    .notif-panel {
-      position:absolute; top:calc(100% + 8px); right:0;
-      width:320px; background:#fff; border:1px solid var(--border);
-      border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.12);
-      z-index:200; display:none;
-    }
-    .notif-panel.show { display:block; }
-    .notif-header { padding:14px 16px; border-bottom:1px solid var(--border); font-size:13px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
-    .notif-clear { font-size:11px; color:var(--accent); cursor:pointer; font-weight:600; }
-    .notif-list { max-height:280px; overflow-y:auto; }
-    .notif-item { padding:12px 16px; border-bottom:1px solid #f8fafc; cursor:pointer; transition:.15s; }
-    .notif-item:hover { background:#f8fafc; }
-    .notif-item:last-child { border-bottom:none; }
-    .notif-item-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:3px; }
-    .notif-item-desc  { font-size:11px; color:var(--text2); }
-    .notif-empty { padding:28px 16px; text-align:center; color:var(--muted); font-size:12px; }
-    .notif-wrap { position:relative; }
+    /* 페이지별 상단 액션 버튼(접수관리의 엑셀 접수 등) — loadPage()가 페이지에 맞게 채움 */
+    #page-actions:empty { display:none; }
+    #page-actions button { padding:7px 16px; border:none; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
 
     .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px; }
     .stat-card { background:var(--card); border-radius:14px; padding:20px; border:1px solid var(--border); position:relative; overflow:hidden; transition:.2s; }
@@ -325,7 +285,6 @@
 
       .top-bar { margin-bottom:16px; }
       .page-heading { font-size:17px; }
-      .status-pill { display:none; }
 
       .hamburger { display:flex; }
 
@@ -358,9 +317,6 @@
       /* 현황 카드 (접수관리, 전체캠페인) */
       .stat-bar { grid-template-columns:1fr 1fr !important; gap:8px; }
       .sb-val { font-size:18px !important; }
-
-      /* 알림 패널 */
-      .notif-panel { width:280px; right:-60px; }
     }
   </style>
 </head>
@@ -411,27 +367,7 @@
       </div>
       <div class="page-heading" id="page-heading">운영 현황 대시보드</div>
     </div>
-    <div class="top-right">
-      <!-- Firebase 연결 상태 -->
-      <div class="status-pill loading" id="status-pill">● 연결 중...</div>
-
-      <!-- 알림 버튼 -->
-      <div class="notif-wrap">
-        <div class="icon-btn" onclick="toggleNotif()">
-          <i data-lucide="bell" size="16"></i>
-          <div class="notif-dot" id="notif-dot"></div>
-        </div>
-        <div class="notif-panel" id="notif-panel">
-          <div class="notif-header">
-            알림
-            <span class="notif-clear" onclick="clearNotifs()">모두 지우기</span>
-          </div>
-          <div class="notif-list" id="notif-list">
-            <div class="notif-empty">새 알림이 없습니다.</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="page-actions"></div>
   </div>
   <div id="content-area">
     <div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>
@@ -455,60 +391,6 @@
     sessionStorage.removeItem('ha_admin_auth');
     location.href = 'admin-login.html';
   };
-
-  // ── 알림 관련 ─────────────────────────────────────────────
-  let notifications = JSON.parse(sessionStorage.getItem('ha_notifs') || '[]');
-  let notifOpen     = false;
-
-  function saveNotifs() {
-    sessionStorage.setItem('ha_notifs', JSON.stringify(notifications.slice(0, 20)));
-  }
-  function commitNotifs() { saveNotifs(); renderNotifPanel(); }
-
-  function renderNotifPanel() {
-    const dot  = document.getElementById('notif-dot');
-    const list = document.getElementById('notif-list');
-    if (!notifications.length) {
-      dot.classList.remove('show');
-      list.innerHTML = '<div class="notif-empty">새 알림이 없습니다.</div>';
-      return;
-    }
-    dot.textContent = notifications.length > 9 ? '9+' : notifications.length;
-    dot.classList.add('show');
-    list.innerHTML = notifications.map((n, i) => `
-      <div class="notif-item" onclick="handleNotif(${i})">
-        <div class="notif-item-title">${n.title}</div>
-        <div class="notif-item-desc">${n.desc}</div>
-      </div>`).join('');
-  }
-
-  window.toggleNotif = function() {
-    const panel = document.getElementById('notif-panel');
-    notifOpen = !notifOpen;
-    panel.classList.toggle('show', notifOpen);
-  };
-
-  window.clearNotifs = function() {
-    notifications = [];
-    commitNotifs();
-  };
-
-  window.handleNotif = function(i) {
-    document.getElementById('notif-panel').classList.remove('show');
-    notifOpen = false;
-    const n = notifications[i];
-    const page = n?.page || '접수관리.html';
-    const navId = n?.navId || 'nav-pending';
-    loadPage(page, document.getElementById(navId));
-  };
-
-  // 패널 외부 클릭 시 닫기
-  document.addEventListener('click', e => {
-    if (notifOpen && !e.target.closest('.notif-wrap')) {
-      document.getElementById('notif-panel').classList.remove('show');
-      notifOpen = false;
-    }
-  });
 
   // ── 대시보드 렌더 ─────────────────────────────────────────
   window.renderDashboard = async function() {
@@ -797,6 +679,9 @@
     document.getElementById('page-heading').textContent = PAGE_TITLES[page] || page;
     // 김프로 화면은 자체 헤더바(kp-header)를 쓰므로 상단 공용 타이틀/상태pill/알림벨은 숨김
     document.body.classList.toggle('kp-mode', page === '김프로.html');
+    document.getElementById('page-actions').innerHTML = page === '접수관리.html'
+      ? '<button style="background:#0d9488;color:#fff;" onclick="openReceiptExcelModal()">📊 엑셀 접수</button>'
+      : '';
 
     const area = document.getElementById('content-area');
     area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>';
@@ -839,11 +724,6 @@
   };
 
   // ── Firebase 실시간 리스너 ────────────────────────────────
-  // 전체 캠페인 _key를 seenSlotKeys로 누적 관리 — 처음 보는 key만 알림(상태 변경은 key가 그대로라 무시)
-  let notifTimer    = null;
-  let seenSlotKeys  = null;  // null = 첫 스냅샷 수신 전
-  let pendingDiff   = 0;
-
   // 접수관리 배지와 동일한 방식 — 김프로 쪽 pending 건수(subscribeKpSlotsLive는 공유 캐시라 별도 재조회 없음)
   HA.subscribeKpSlotsLive(slots => {
     const n = slots.filter(s => s.status === 'pending').length;
@@ -852,97 +732,16 @@
   });
 
   HA.onSlotsChange(slots => {
-    const pendingSlots = slots.filter(s => s.status === 'pending');
-    const n = pendingSlots.length;
-
-    // 배지 업데이트
+    const n = slots.filter(s => s.status === 'pending').length;
     const el = document.getElementById('pending-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
-
-    // Firebase 연결 성공 표시
-    const pill = document.getElementById('status-pill');
-    if (pill) { pill.textContent = '● 연결됨'; pill.className = 'status-pill ok'; }
-
-    // 전체 캠페인 key 집합 (status 무관)
-    const allKeys = new Set(slots.map(s => s._key));
-
-    if (seenSlotKeys === null) {
-      // 첫 스냅샷: 현재 존재하는 모든 key를 기준으로 저장, 알림 없음
-      seenSlotKeys = allKeys;
-      renderNotifPanel();
-      return;
-    }
-
-    // 지금까지 한 번도 본 적 없는 key = 진짜 신규 접수
-    const brandNewKeys = [...allKeys].filter(k => !seenSlotKeys.has(k));
-
-    // 새로 본 key는 누적 등록 (삭제하지 않음 — 승인해도 key 기억 유지)
-    brandNewKeys.forEach(k => seenSlotKeys.add(k));
-
-    // 신규 key 중 pending 상태인 것만 알림 대상
-    const newPendingCount = brandNewKeys.filter(k => {
-      const s = slots.find(sl => sl._key === k);
-      return s && s.status === 'pending';
-    }).length;
-
-    if (newPendingCount > 0) {
-      pendingDiff += newPendingCount;
-      if (notifTimer) clearTimeout(notifTimer);
-      notifTimer = setTimeout(() => {
-        notifications.unshift({
-          title: `📥 새 캠페인 접수 ${pendingDiff}건`,
-          desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
-          page:  '접수관리.html',
-          navId: 'nav-pending',
-        });
-        pendingDiff = 0;
-        notifTimer  = null;
-        commitNotifs();
-      }, 1500);
-    }
-
-    renderNotifPanel();
   });
 
   // ── 회원관리 배지 (신규 미승인 회원) ──────────────────────
-  let newUserTimer  = null;
-  let knownUserKeys = null;  // 초기화 전: null
-  let pendingUserDiff = 0;
-
   HA.onUsersChange && HA.onUsersChange(users => {
-    const pendingUsers = users.filter(u => u.approved === false || u.approved === undefined);
-    const n = pendingUsers.length;
-
+    const n = users.filter(u => u.approved === false || u.approved === undefined).length;
     const el = document.getElementById('users-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
-
-    const currentKeys = new Set(pendingUsers.map(u => u._key));
-
-    if (knownUserKeys === null) {
-      // 첫 스냅샷: 기준값만 저장
-      knownUserKeys = currentKeys;
-      return;
-    }
-
-    // 이전에 없던 _key 가 새로 생긴 경우만 → 진짜 신규 가입
-    const addedCount = [...currentKeys].filter(k => !knownUserKeys.has(k)).length;
-    knownUserKeys = currentKeys;
-
-    if (addedCount > 0) {
-      pendingUserDiff += addedCount;
-      if (newUserTimer) clearTimeout(newUserTimer);
-      newUserTimer = setTimeout(() => {
-        notifications.unshift({
-          title: `👤 신규 회원 가입 ${pendingUserDiff}건`,
-          desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
-          page:  '회원관리.html',
-          navId: 'nav-users',
-        });
-        pendingUserDiff = 0;
-        newUserTimer    = null;
-        commitNotifs();
-      }, 1500);
-    }
   });
 
   // ── 정산관리 배지 (미정산 건) ──────────────────────────────

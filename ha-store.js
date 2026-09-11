@@ -59,6 +59,22 @@ function onValue(r, cb, ...args) {
 // ── Cloud Run 엔드포인트 ─────────────────────────────────────
 const CLOUD_RUN = 'https://higherad-auto-938928195180.asia-northeast3.run.app';
 
+// higher_user 포털의 sendTelegram과 동일한 /notify 엔드포인트 — 같은 Firebase 프로젝트라
+// 관리자 로그인 idToken도 그대로 통과됨.
+async function sendTelegram(message) {
+  try {
+    await authReady;
+    const idToken = await auth.currentUser.getIdToken();
+    await fetch(`${CLOUD_RUN}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({ message }),
+    });
+  } catch (e) {
+    console.warn('텔레그램 알림 실패:', e);
+  }
+}
+
 // ── DB 경로 상수 ─────────────────────────────────────────────
 const PATHS = {
   slots:           'ha/slots',
@@ -498,6 +514,52 @@ const HA = {
     const result = { ...newSlot, _key: newRef.key };
     dispatch('ha:slots:updated');
     return result;
+  },
+
+  // ── 개별접수 텔레그램 알림 (higher_user 포털 notifySingle과 동일 포맷) ──
+  async notifySingle(slot) {
+    const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+    const unitPrice   = slot.unitPrice || 0;
+    const totalTarget = (slot.dailyTarget || 0) * (slot.days || 0);
+    const amount      = totalTarget * unitPrice;
+    const amountVat   = Math.round(amount * 1.1);
+    await sendTelegram(
+`📥 <b>새 캠페인 접수 (관리자 등록)</b>
+━━━━━━━━━━━━━━━━
+• 대행사: ${slot.agencyId}
+• 캠페인 수: 1건
+• 전체 목표: ${totalTarget.toLocaleString()}개
+• 단가: ${unitPrice.toLocaleString()}원
+• 금액: ${amount.toLocaleString()}원(VAT 별도)
+• 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)
+⏰ 접수시간: ${now}
+━━━━━━━━━━━━━━━━
+👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
+    );
+  },
+
+  // ── 엑셀 일괄접수 텔레그램 알림 (higher_user 포털 notifyExcelBatch와 동일 포맷) ──
+  async notifyExcelBatch(slots) {
+    if (!slots.length) return;
+    const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+    const agencyId    = slots[0].agencyId || '-';
+    const totalTarget = slots.reduce((sum, s) => sum + (s.dailyTarget || 0) * (s.days || 0), 0);
+    const amount      = slots.reduce((sum, s) => sum + (s.dailyTarget || 0) * (s.days || 0) * (s.unitPrice || 0), 0);
+    const unitPrice   = slots[0].unitPrice || 0;
+    const amountVat   = Math.round(amount * 1.1);
+    await sendTelegram(
+`📊 <b>새 캠페인 접수 (관리자 엑셀)</b>
+━━━━━━━━━━━━━━━━
+• 대행사: ${agencyId}
+• 캠페인 수: ${slots.length}건
+• 전체 목표: ${totalTarget.toLocaleString()}개
+• 단가: ${unitPrice.toLocaleString()}원
+• 금액: ${amount.toLocaleString()}원(VAT 별도)
+• 입금액: ${amountVat.toLocaleString()}원 (VAT 포함)
+⏰ 접수시간: ${now}
+━━━━━━━━━━━━━━━━
+👉 <a href="https://higherad.kro.kr/">어드민에서 확인하세요</a>`
+    );
   },
 
   async updateSlot(key, patch) {
