@@ -137,9 +137,9 @@
     return allSlots.filter(s => s.userId === username && s.status === 'active').length;
   }
 
-  // 최종 접수일 — 상태 무관하게(취소돼도 접수 이력은 이력이므로) 가장 최근 createdAt
+  // 최종 접수일 — 휴지통(삭제)으로 간 건 제외하고 가장 최근 createdAt
   function getUserLastReceiptDate(username) {
-    const dates = allSlots.filter(s => s.userId === username && s.createdAt).map(s => s.createdAt);
+    const dates = allSlots.filter(s => s.userId === username && s.createdAt && s.status !== 'deleted').map(s => s.createdAt);
     return dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : null;
   }
 
