@@ -3718,10 +3718,10 @@ document.addEventListener('keydown', function(e) {
       searchKeyword: row.searchKeyword || '', memo: '', unitPrice: 0,
       createdAt: new Date(uexBaseTs + i).toISOString(),
     })));
-    const success = results.filter(r => r.status === 'fulfilled').length;
-    const fail    = results.length - success;
+    const succeededSlots = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+    if (succeededSlots.length) window.HA.notifyExcelBatch(succeededSlots, { label: '김프로 엑셀' }).catch(() => {});
     if (window.kpRenderReceipts) window.kpRenderReceipts(true, true);
-    alert(`총 ${validRows.length}건 중 ${success}건 등록 완료${fail ? ` / ${fail}건 실패` : ''}`);
+    alert(`총 ${succeededSlots.length}건 등록 완료`);
     resetKpUex();
     btn.disabled = false; btn.textContent = '접수 등록';
     closeKpUexModal();

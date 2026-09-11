@@ -478,14 +478,15 @@ const HA = {
   },
 
   // ── 개별접수 텔레그램 알림 (higher_user 포털 notifySingle과 동일 포맷) ──
-  async notifySingle(slot) {
+  async notifySingle(slot, opts = {}) {
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     const unitPrice   = slot.unitPrice || 0;
     const totalTarget = (slot.dailyTarget || 0) * (slot.days || 0);
     const amount      = totalTarget * unitPrice;
     const amountVat   = Math.round(amount * 1.1);
+    const label = opts.label || '개별';
     await sendTelegram(
-`📥 <b>새 캠페인 접수 (개별)</b>
+`📥 <b>새 캠페인 접수 (${label})</b>
 ━━━━━━━━━━━━━━━━
 • 대행사: ${slot.agencyId}
 • 캠페인 수: 1건
@@ -500,7 +501,7 @@ const HA = {
   },
 
   // ── 엑셀 일괄접수 텔레그램 알림 (higher_user 포털 notifyExcelBatch와 동일 포맷) ──
-  async notifyExcelBatch(slots) {
+  async notifyExcelBatch(slots, opts = {}) {
     if (!slots.length) return;
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     const agencyId    = slots[0].agencyId || '-';
@@ -508,8 +509,9 @@ const HA = {
     const amount      = slots.reduce((sum, s) => sum + (s.dailyTarget || 0) * (s.days || 0) * (s.unitPrice || 0), 0);
     const unitPrice   = slots[0].unitPrice || 0;
     const amountVat   = Math.round(amount * 1.1);
+    const label = opts.label || '엑셀';
     await sendTelegram(
-`📊 <b>새 캠페인 접수 (엑셀)</b>
+`📊 <b>새 캠페인 접수 (${label})</b>
 ━━━━━━━━━━━━━━━━
 • 대행사: ${agencyId}
 • 캠페인 수: ${slots.length}건

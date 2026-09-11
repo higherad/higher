@@ -3300,15 +3300,10 @@ window.toggleProdPanel = function(e) {
       createdAt: new Date(excelBaseTs + i).toISOString(),
     })));
 
-    let success = 0, fail = 0;
-    const succeededSlots = [];
-    results.forEach(r => {
-      if (r.status === 'fulfilled') { succeededSlots.push(r.value); success++; }
-      else fail++;
-    });
+    const succeededSlots = results.filter(r => r.status === 'fulfilled').map(r => r.value);
     if (succeededSlots.length) HA.notifyExcelBatch(succeededSlots).catch(() => {});
     renderReceipts(true, true);
-    alert(`총 ${validRows.length}건 중 ${success}건 접수 완료${fail ? ` / ${fail}건 실패` : ''}`);
+    alert(`총 ${succeededSlots.length}건 접수 완료`);
     overlay.remove();
   }
 
