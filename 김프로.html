@@ -2641,9 +2641,9 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-stat-requeue-active').textContent = requeueActive.toLocaleString();
     document.getElementById('kp-stat-paused').textContent = paused.toLocaleString();
     document.getElementById('kp-stat-force').textContent = forceStopped.toLocaleString();
-    // 예약(split) 카드는 ha/kimproSlots만 봐선 정확한 값이 아니라(접수관리 쪽 예약은 별도 소스) '-'로
-    // 뒀다가 예약 분할 현황 팝업과 완전히 동일한 계산(computeKpScheduleGroupCount)이 끝나면 채움
-    document.getElementById('kp-stat-split').textContent = '-';
+    // 예약(split) 카드는 ha/kimproSlots만 봐선 정확한 값이 아니라(접수관리 쪽 예약은 별도 소스) 예약
+    // 분할 현황 팝업과 완전히 동일한 계산(computeKpScheduleGroupCount)으로 별도 조회 — 무관한 슬롯
+    // 변경으로도 렌더가 자주 다시 불리므로, 재조회 중엔 기존 값을 지우지 않고 그대로 둬 깜빡임 방지
     window.computeKpScheduleGroupCount().then(n => {
       const el = document.getElementById('kp-stat-split');
       if (el) el.textContent = n.toLocaleString();

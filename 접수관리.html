@@ -725,9 +725,9 @@ window.toggleProdPanel = function(e) {
     document.getElementById('stat-pending').textContent  = pending.toLocaleString();
     document.getElementById('stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('stat-active').textContent   = active.toLocaleString();
-    // 예약(split) 카드는 ha/slots만 봐선 정확한 값이 아니라(김프로 쪽 예약은 별도 소스) '-'로 뒀다가
-    // 예약 분할 현황 팝업과 완전히 동일한 계산(computeScheduleGroupCount)이 끝나면 그 값으로 채움
-    document.getElementById('stat-split').textContent = '-';
+    // 예약(split) 카드는 ha/slots만 봐선 정확한 값이 아니라(김프로 쪽 예약은 별도 소스) 예약 분할
+    // 현황 팝업과 완전히 동일한 계산(computeScheduleGroupCount)으로 별도 조회 — 무관한 슬롯 변경으로도
+    // renderReceipts가 자주 다시 불리므로, 재조회 중엔 기존 값을 지우지 않고 그대로 둬 깜빡임 방지
     computeScheduleGroupCount().then(n => {
       const el = document.getElementById('stat-split');
       if (el) el.textContent = n.toLocaleString();
