@@ -145,11 +145,12 @@
     const usersPromise = HA.getUsers();
     if (!_slotsLoaded || forceReload) {
       const haSlots = await HA.getSlotsLive();
-      // 김프로 캠페인은 userId가 비어있고 agencyId에 대행사 로그인 username이 그대로 들어감(addKpSlot과
-      // 동일한 매칭 규칙) — userId를 agencyId로 덮어써서 기존 userId 기준 필터링에 그대로 합류시킴
+      // addKpSlot이 접수 시점에 agencyId(대행사 표시명)를 ha/users와 매칭해 userId를 이미 채워둠
+      // (2026-09-10 단가 0원 버그 수정과 동일 로직) — 여기서 agencyId로 다시 덮어쓰면 그 매칭이
+      // 무효화돼 카운트가 항상 0이 됨. userId가 비어있는 구데이터만 agencyId로 대체.
       let kpSlots = [];
       try {
-        kpSlots = (await HA.getKpSlotsLive()).map(s => ({ ...s, _src:'kp', userId: s.agencyId || '' }));
+        kpSlots = (await HA.getKpSlotsLive()).map(s => ({ ...s, _src:'kp', userId: s.userId || s.agencyId || '' }));
       } catch (e) { console.error('김프로 슬롯 로딩 실패:', e); }
       allSlots = [...haSlots, ...kpSlots];
       _slotsLoaded = true;
