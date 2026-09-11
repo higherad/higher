@@ -4584,24 +4584,30 @@ document.addEventListener('keydown', function(e) {
     return { scheduledCount, failTotal };
   }
 
-  function kpMakeGate(hasNormal, hasFixed, hasCharlie=false, hasDelta=false, hasNavy=false) {
-    const required = [];
-    if (hasNormal) required.push('normalKeys');
-    if (hasFixed) required.push('fixedKeys');
-    if (hasCharlie) required.push('charlieKeys');
-    if (hasDelta) required.push('deltaKeys');
-    if (hasNavy) required.push('navyKeys');
+  // 슬롯별로 실제 필요한 레그만 요구(requiredLegsByKey) — 배치 전체에 유입플이 섞여 있어도
+  // 그 슬롯 자체가 유입플 대상이 아니면 기다리지 않음. 재접수(isRequeue) 슬롯은 유입플을 실제
+  // 접수 안 하고 배분값 확인용으로만 켜둘 수 있어 fixedKeys는 무조건 면제(kimpro reception.html과 동일).
+  function kpMakeGate(requiredLegsByKey, slotMapAll) {
     return {
-      required, normalKeys: null, fixedKeys: null, charlieKeys: null, deltaKeys: null, navyKeys: null,
+      normalKeys: null, fixedKeys: null, charlieKeys: null, deltaKeys: null, navyKeys: null,
       async tryApprove() {
-        if (!required.length || !required.every(k => this[k] instanceof Set)) return;
-        let common = null;
-        for (const k of required) common = common === null ? new Set(this[k]) : new Set([...common].filter(x => this[k].has(x)));
-        if (!common || !common.size) return;
-        await Promise.all([...common].map(key => window.HA.updateKpSlot(key, { status:'active' })));
-        const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
-        common.forEach(key => { const s = allSlots.find(x=>x._key===key); if (s) s.status='active'; });
-        if (window.kpRenderReceipts) window.kpRenderReceipts(false);
+        try {
+          const ready = [...requiredLegsByKey.entries()]
+            .filter(([k, req]) => {
+              const s = slotMapAll.get(k);
+              if (s?.status === 'active') return false;
+              const need = s?.isRequeue ? [...req].filter(l => l !== 'fixedKeys') : [...req];
+              return need.length > 0 && need.every(leg => this[leg] instanceof Set && this[leg].has(k));
+            })
+            .map(([k]) => k);
+          if (!ready.length) return;
+          await Promise.all(ready.map(key => window.HA.updateKpSlot(key, { status:'active' })));
+          const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+          ready.forEach(key => { const s = allSlots.find(x=>x._key===key); if (s) s.status='active'; });
+          if (window.kpRenderReceipts) window.kpRenderReceipts(false);
+        } catch (e) {
+          console.error('승인 게이트 처리 오류(다음 완료 시 또는 팝업 재오픈 시 재시도됨):', e);
+        }
       },
     };
   }
@@ -4808,7 +4814,21 @@ document.addEventListener('keydown', function(e) {
       : hasCharlie ? charliePlan.flatMap(p=>p.rows)
       : [...deltaPlan.flatMap(p=>p.rows), ...navyPlan.flatMap(p=>p.rows)];
 
-    const gate = kpMakeGate(hasNormal, hasFixed, hasCharlie, hasDelta, hasNavy);
+    // 슬롯별 실제 필요 레그 계산(kimpro reception.html과 동일) — 배치 전체 hasFixed와 무관하게
+    // 그 슬롯이 진짜 등장한 레그만 요구해야 재접수 유입플 면제가 슬롯 단위로 정확히 적용됨.
+    const requiredLegsByKey = new Map();
+    const addRequired = (rows, leg) => rows.forEach(r => {
+      if (!r._slotKey) return;
+      if (!requiredLegsByKey.has(r._slotKey)) requiredLegsByKey.set(r._slotKey, new Set());
+      requiredLegsByKey.get(r._slotKey).add(leg);
+    });
+    addRequired(normalPlan.flatMap(p=>p.rows), 'normalKeys');
+    addRequired(charliePlan.flatMap(p=>p.rows), 'charlieKeys');
+    addRequired(deltaPlan.flatMap(p=>p.rows), 'deltaKeys');
+    addRequired(navyPlan.flatMap(p=>p.rows), 'navyKeys');
+    addRequired(yupflRows, 'fixedKeys');
+    const slotMapAll = new Map((window.getKpAllSlots ? window.getKpAllSlots() : []).map(s => [s._key, s]));
+    const gate = kpMakeGate(requiredLegsByKey, slotMapAll);
     const defaultTab = hasNormal ? 'normal' : hasFixed ? 'fixed' : hasCharlie ? 'charlie' : 'blog';
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
