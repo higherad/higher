@@ -5899,8 +5899,8 @@ document.addEventListener('keydown', function(e) {
         const srcBadge = groupSrc === 'ha'
           ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">접수관리</span>'
           : groupSrc === 'kp'
-          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#f1f5f9;color:#0f172a;">김프로</span>'
-          : ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#f1f5f9;color:#0f172a;" title="이관 전 원본 kimpro 예약 — 읽기 전용">김프로</span>';
+          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>'
+          : ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;" title="이관 전 원본 kimpro 예약 — 읽기 전용">김프로</span>';
         const selCount = (kpSsResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
@@ -5959,7 +5959,7 @@ document.addEventListener('keydown', function(e) {
                   <td>${(row.일목표||0).toLocaleString()}</td>
                   <td>${row.일수||0}</td>
                   <td>${ssEsc(row.예약일||'-')}</td>
-                  <td>${scheduleStatusLabel(e.status)}${e._src === 'legacy' ? ' <span title="이관 전 원본 kimpro 예약 — 읽기 전용" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#f1f5f9;color:#0f172a;">김프로</span>' : ''}</td>
+                  <td>${scheduleStatusLabel(e.status)}${e._src === 'legacy' ? ' <span title="이관 전 원본 kimpro 예약 — 읽기 전용" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>' : ''}</td>
                 </tr>`;
               }).join('')}
             </tbody>
