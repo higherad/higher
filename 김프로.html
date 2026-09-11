@@ -3340,40 +3340,44 @@ document.addEventListener('keydown', function(e) {
   .kp-uex-branch-info{display:none;margin-top:10px;padding:9px 14px;background:#f1f5f9;border-radius:8px;font-size:12px;align-items:center;gap:8px;}
   .kp-uex-branch-list{display:none;position:fixed;background:#fff;border:1.5px solid var(--kp-accent);border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;max-height:240px;overflow-y:auto;}
   .kp-uex-branch-option{padding:10px 16px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center;transition:.15s;}
+  /* 접수관리 엑셀 접수 팝업(rex-shell 등)과 동일한 전체 레이아웃 — 상단 헤더바 없이 카드형 */
+  .kp-uex-shell{width:min(96vw,820px);max-height:92vh;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border-radius:24px;padding:24px;box-shadow:0 24px 64px rgba(0,0,0,.3);}
+  .kp-uex-close-btn{border:none;background:rgba(255,255,255,.95);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+  .kp-uex-card{background:#fff;border:1px solid var(--border);border-radius:20px;padding:28px;box-shadow:0 4px 24px rgba(0,0,0,.04);}
+  .kp-uex-card-title{font-size:18px;font-weight:800;}
+  .kp-uex-btn-template{padding:7px 16px;background:var(--info);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;}
 </style>
 
 <div id="kp-uex-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
-  <div style="background:#fff;border-radius:16px;width:860px;max-width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);">
-      <div style="font-size:15px;font-weight:700;">📊 엑셀 접수</div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button class="kp-action-btn" style="background:#475569;color:#fff;font-size:11px;padding:4px 10px;" onclick="downloadKpUexTemplate()">📥 양식 다운로드</button>
-        <button onclick="closeKpUexModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+  <div class="kp-uex-shell">
+    <div class="kp-uex-branch-card" style="position:relative;">
+      <button class="kp-uex-close-btn" style="position:absolute;top:16px;right:20px;" onclick="closeKpUexModal()">✕</button>
+      <div class="kp-uex-branch-hd">
+        <div class="kp-uex-branch-icon"><i data-lucide="building-2" size="16"></i></div>
+        <div>
+          <div class="kp-uex-branch-title">영업점 선택</div>
+          <div class="kp-uex-branch-desc">캠페인을 접수할 영업점을 선택해주세요.</div>
+        </div>
+      </div>
+      <div style="position:relative;">
+        <div class="kp-uex-branch-input-wrap" id="kp-uex-branch-input-wrap">
+          <i data-lucide="search" size="14" style="color:var(--muted);flex-shrink:0;margin-left:12px;"></i>
+          <input id="kp-uex-branch-search" type="text" placeholder="영업점명 또는 아이디 검색..." autocomplete="off">
+          <div id="kp-uex-branch-clear" style="display:none;padding:0 10px;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;">×</div>
+          <i data-lucide="chevron-down" id="kp-uex-branch-chevron" size="14" style="color:var(--muted);margin-right:10px;flex-shrink:0;transition:.2s;"></i>
+        </div>
+      </div>
+      <div id="kp-uex-branch-info" class="kp-uex-branch-info">
+        <i data-lucide="check-circle" size="13" style="color:var(--kp-accent);flex-shrink:0"></i>
+        <span id="kp-uex-branch-info-text"></span>
       </div>
     </div>
-    <div style="padding:20px 24px;position:relative;">
-      <div class="kp-uex-branch-card">
-        <div class="kp-uex-branch-hd">
-          <div class="kp-uex-branch-icon"><i data-lucide="building-2" size="16"></i></div>
-          <div>
-            <div class="kp-uex-branch-title">영업점 선택</div>
-            <div class="kp-uex-branch-desc">캠페인을 접수할 영업점을 선택해주세요.</div>
-          </div>
-        </div>
-        <div style="position:relative;">
-          <div class="kp-uex-branch-input-wrap" id="kp-uex-branch-input-wrap">
-            <i data-lucide="search" size="14" style="color:var(--muted);flex-shrink:0;margin-left:12px;"></i>
-            <input id="kp-uex-branch-search" type="text" placeholder="영업점명 또는 아이디 검색..." autocomplete="off">
-            <div id="kp-uex-branch-clear" style="display:none;padding:0 10px;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;">×</div>
-            <i data-lucide="chevron-down" id="kp-uex-branch-chevron" size="14" style="color:var(--muted);margin-right:10px;flex-shrink:0;transition:.2s;"></i>
-          </div>
-        </div>
-        <div id="kp-uex-branch-info" class="kp-uex-branch-info">
-          <i data-lucide="check-circle" size="13" style="color:var(--kp-accent);flex-shrink:0"></i>
-          <span id="kp-uex-branch-info-text"></span>
-        </div>
-      </div>
 
+    <div class="kp-uex-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div class="kp-uex-card-title">엑셀 일괄 업로드</div>
+        <button class="kp-uex-btn-template" onclick="downloadKpUexTemplate()">양식 다운로드</button>
+      </div>
       <div class="kp-uex-zone" id="kp-uex-zone" onclick="document.getElementById('kp-uex-file').click()">
         <input type="file" id="kp-uex-file" accept=".xlsx,.xls" onchange="handleKpUexFile(this)">
         <div style="font-size:28px;margin-bottom:8px;">📊</div>
@@ -3396,11 +3400,11 @@ document.addEventListener('keydown', function(e) {
           <button class="kp-btn-save" id="kp-uex-submit-btn" onclick="submitKpUex()">접수 등록</button>
         </div>
       </div>
+    </div>
 
-      <div id="kp-uex-branch-list" class="kp-uex-branch-list">
-        <div id="kp-uex-branch-list-inner"></div>
-        <div id="kp-uex-branch-no-result" style="display:none;padding:14px 16px;font-size:13px;color:var(--muted);text-align:center;">검색 결과가 없습니다.</div>
-      </div>
+    <div id="kp-uex-branch-list" class="kp-uex-branch-list">
+      <div id="kp-uex-branch-list-inner"></div>
+      <div id="kp-uex-branch-no-result" style="display:none;padding:14px 16px;font-size:13px;color:var(--muted);text-align:center;">검색 결과가 없습니다.</div>
     </div>
   </div>
 </div>
