@@ -1274,8 +1274,13 @@ window.closeStopModal = function() {
       const reader = new FileReader();
       reader.onload = e => {
         try {
-          const wb   = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-          const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'' });
+          const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          // 시트 !ref가 실제 데이터보다 훨씬 크게(서식만 적용된 빈 셀까지) 잡혀있으면 defval:''가
+          // 그 행을 다 채우며 몇 초씩 걸림 — 넉넉히 잡아 범위를 잘라서 읽는다
+          const bsRange = window.XLSX.utils.decode_range(ws['!ref'] || 'A1');
+          if (bsRange.e.r > 5000) bsRange.e.r = 5000;
+          const rows = window.XLSX.utils.sheet_to_json(ws, { header:1, defval:'', range: bsRange });
           if (!rows.length) { bsLog('⚠️ 빈 파일입니다.', 'warn'); return; }
           const hdr       = rows[0].map(h => String(h||'').trim());
           const hasHdr    = isNaN(Number(hdr[0]));
@@ -2033,8 +2038,11 @@ document.addEventListener('keydown', function(e) {
       const reader = new FileReader();
       reader.onload = e => {
         try {
-          const wb   = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-          const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'' });
+          const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const kwRange = window.XLSX.utils.decode_range(ws['!ref'] || 'A1');
+          if (kwRange.e.r > 5000) kwRange.e.r = 5000;
+          const rows = window.XLSX.utils.sheet_to_json(ws, { header:1, defval:'', range: kwRange });
           if (!rows.length) { kwLog('⚠️ 빈 파일입니다.', 'warn'); return; }
           const hdr       = rows[0].map(h => String(h||'').trim());
           const hasHdr    = isNaN(Number(hdr[0]));
@@ -3442,7 +3450,9 @@ document.addEventListener('keydown', function(e) {
           const agencySet = await kpEnsureAgencySet();
           const wb = window.XLSX.read(e.target.result, { type:'array', cellDates:false });
           const ws = wb.Sheets[wb.SheetNames[0]];
-          const raw = window.XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+          const uexRange = window.XLSX.utils.decode_range(ws['!ref'] || 'A1');
+          if (uexRange.e.r > 5000) uexRange.e.r = 5000;
+          const raw = window.XLSX.utils.sheet_to_json(ws, { header:1, defval:'', range: uexRange });
           const dataRows = raw.slice(1).filter(r => r[0] || r[2]);
           uexRows = dataRows.map(r => {
             const agencyId  = String(r[0]??'').trim();

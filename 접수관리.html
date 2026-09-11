@@ -3181,7 +3181,14 @@ window.toggleProdPanel = function(e) {
         const uploadTodayStr = rexFmt(new Date());
         const wb = XLSX.read(e.target.result, { type:'array', cellDates:false });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        // 실제 데이터는 몇 줄 안 되는데 시트 전체에 서식만 적용돼 있으면 !ref가 A1:N1048576처럼
+        // 부풀려져 있는 경우가 있음 — defval:''로 빈 셀까지 다 채우며 100만 행을 순회하면 그것만으로
+        // 몇 초씩 걸려 "드래그해서 올리면 멈춘 것 같은" 지연의 원인이 됨. 실사용 엑셀은 이보다 훨씬
+        // 적으니 안전하게 넉넉히 잡아 범위를 잘라서 읽는다(user-apply.html과 동일 조치).
+        const MAX_EXCEL_ROWS = 5000;
+        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+        if (range.e.r > MAX_EXCEL_ROWS) range.e.r = MAX_EXCEL_ROWS;
+        const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', range });
         if (!raw.length) { alert('빈 파일입니다.'); return; }
 
         // 컬럼 위치를 고정 순서 대신 첫 행(헤더) 텍스트로 자동 인식 — 순서가 바뀌거나 줄바꿈/공백/
