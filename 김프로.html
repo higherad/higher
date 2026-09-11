@@ -5577,20 +5577,42 @@ document.addEventListener('keydown', function(e) {
       </div>
       <button onclick="closeKpSplitScheduleModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">✕</button>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
-      <select id="kp-ss-status-filter" onchange="kpRunScheduleSearch()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
-        <option value="all" selected>전체</option>
-        <option value="done">완료</option>
-        <option value="pending">대기중</option>
-      </select>
-      <div style="position:relative;flex:1;min-width:200px;">
-        <input type="text" id="kp-ss-search" placeholder="🔍 업체명 / PID / 키워드 검색" onkeydown="if(event.key==='Enter')kpRunScheduleSearch()"
-          style="width:100%;box-sizing:border-box;padding:7px 28px 7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
-      </div>
-      <button onclick="kpRunScheduleSearch()" style="padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">검색</button>
-      <button onclick="kpToggleAllScheduleGroups()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">펼치기/접기</button>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">
+      <button type="button" id="kp-ss-tab-btn-accept" class="kw-tab-btn active" onclick="kpSwitchScheduleTab('accept')">접수</button>
+      <button type="button" id="kp-ss-tab-btn-keyword" class="kw-tab-btn" onclick="kpSwitchScheduleTab('keyword')">키워드</button>
     </div>
-    <div id="kp-ss-list"></div>
+    <div id="kp-ss-tab-accept-body">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+        <select id="kp-ss-status-filter" onchange="kpRunScheduleSearch()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
+          <option value="all" selected>전체</option>
+          <option value="done">완료</option>
+          <option value="pending">대기중</option>
+        </select>
+        <div style="position:relative;flex:1;min-width:200px;">
+          <input type="text" id="kp-ss-search" placeholder="🔍 업체명 / PID / 키워드 검색" onkeydown="if(event.key==='Enter')kpRunScheduleSearch()"
+            style="width:100%;box-sizing:border-box;padding:7px 28px 7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
+        </div>
+        <button onclick="kpRunScheduleSearch()" style="padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">검색</button>
+        <button onclick="kpToggleAllScheduleGroups()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">펼치기/접기</button>
+      </div>
+      <div id="kp-ss-list"></div>
+    </div>
+    <div id="kp-ss-tab-keyword-body" style="display:none;">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+        <select id="kp-ss-kw-status-filter" onchange="kpRenderScheduleKwList()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
+          <option value="all" selected>전체</option>
+          <option value="pending">대기중</option>
+          <option value="done">완료</option>
+          <option value="failed">실패</option>
+        </select>
+        <div style="position:relative;flex:1;min-width:200px;">
+          <input type="text" id="kp-ss-kw-search" placeholder="🔍 MID / Pcode / 영업점 검색" onkeydown="if(event.key==='Enter')kpRenderScheduleKwList()"
+            style="width:100%;box-sizing:border-box;padding:7px 28px 7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
+        </div>
+        <button onclick="kpRenderScheduleKwList()" style="padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">검색</button>
+      </div>
+      <div id="kp-ss-kw-list"></div>
+    </div>
     <div style="display:flex;justify-content:flex-end;margin-top:16px;">
       <button onclick="closeKpSplitScheduleModal()" style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;">닫기</button>
     </div>
@@ -5737,6 +5759,7 @@ document.addEventListener('keydown', function(e) {
   window.openKpSplitScheduleModal = async function() {
     const modal = document.getElementById('kp-ss-modal');
     modal.style.display = 'flex';
+    kpSwitchScheduleTab('accept'); // 열 때마다 접수 탭부터 시작
     document.getElementById('kp-ss-search').value = '';
     document.getElementById('kp-ss-status-filter').value = 'all';
     document.getElementById('kp-ss-list').innerHTML = '<div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div>';
@@ -5751,6 +5774,77 @@ document.addEventListener('keydown', function(e) {
   };
   window.closeKpSplitScheduleModal = function() {
     document.getElementById('kp-ss-modal').style.display = 'none';
+  };
+
+  // ── 키워드 변경 예약 탭 — ha/kimproKeywordDispatch 단순 목록(그룹핑 없음, 접수 탭과 별개) ──
+  let ssKwEntries = {};
+  window.kpSwitchScheduleTab = function(tab) {
+    document.getElementById('kp-ss-tab-btn-accept').classList.toggle('active', tab === 'accept');
+    document.getElementById('kp-ss-tab-btn-keyword').classList.toggle('active', tab === 'keyword');
+    document.getElementById('kp-ss-tab-accept-body').style.display = tab === 'accept' ? '' : 'none';
+    document.getElementById('kp-ss-tab-keyword-body').style.display = tab === 'keyword' ? '' : 'none';
+    if (tab === 'keyword') kpLoadScheduleKwEntries();
+  };
+  async function kpLoadScheduleKwEntries() {
+    document.getElementById('kp-ss-kw-list').innerHTML = '<div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div>';
+    ssKwEntries = {};
+    try {
+      const snap = await window.HA.getKpDoc('ha/kimproKeywordDispatch');
+      if (snap && snap.exists()) {
+        Object.entries(snap.val()).forEach(([k, v]) => { ssKwEntries[k] = { ...v, _key: k }; });
+      }
+    } catch (e) { console.error('키워드 예약 조회 오류:', e); }
+    kpRenderScheduleKwList();
+  }
+  window.kpRenderScheduleKwList = function() {
+    const listEl = document.getElementById('kp-ss-kw-list');
+    const q = (document.getElementById('kp-ss-kw-search')?.value || '').trim().toLowerCase();
+    const statusFilter = document.getElementById('kp-ss-kw-status-filter')?.value || 'all';
+    let list = Object.values(ssKwEntries);
+    if (statusFilter !== 'all') list = list.filter(e => (e.status || 'pending') === statusFilter);
+    if (q) list = list.filter(e => [e.mid, e.pcode, e.agency].some(v => String(v || '').toLowerCase().includes(q)));
+    list.sort((a, b) => (a.sendAt || '').localeCompare(b.sendAt || ''));
+
+    if (!list.length) {
+      listEl.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">등록된 예약이 없습니다.</div>';
+      return;
+    }
+    const stLabel = {
+      pending:    '<span style="color:#3b82f6;font-weight:600;">대기중</span>',
+      processing: '<span style="color:#f59e0b;font-weight:600;">처리중</span>',
+      done:       '<span style="color:#16a34a;font-weight:600;">완료</span>',
+      failed:     '<span style="color:#ef4444;font-weight:600;">실패</span>',
+    };
+    listEl.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="padding:8px 10px;text-align:left;">시각</th>
+          <th style="padding:8px 10px;text-align:left;">MID</th>
+          <th style="padding:8px 10px;text-align:left;">영업점</th>
+          <th style="padding:8px 10px;text-align:left;">키워드</th>
+          <th style="padding:8px 10px;text-align:left;">상태</th>
+          <th style="padding:8px 10px;"></th>
+        </tr></thead>
+        <tbody>
+          ${list.map(e => `
+            <tr style="border-bottom:1px solid var(--border);" title="${e.resultMessage ? ssEsc(e.resultMessage) : ''}">
+              <td style="padding:8px 10px;">${fmtScheduleTime(e.sendAt)}</td>
+              <td style="padding:8px 10px;font-family:monospace;">${ssEsc(e.mid || '-')}</td>
+              <td style="padding:8px 10px;">${ssEsc(e.agency || '-')}</td>
+              <td style="padding:8px 10px;">${ssKwCountBadge(e.keywords)}</td>
+              <td style="padding:8px 10px;">${stLabel[e.status] || stLabel.pending}</td>
+              <td style="padding:8px 10px;text-align:right;">${(e.status || 'pending') === 'pending' ? `<button onclick="kpCancelScheduleKwEntry('${e._key}')" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:12px;">취소</button>` : ''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  };
+  window.kpCancelScheduleKwEntry = async function(key) {
+    if (!confirm('이 예약을 취소하시겠습니까?')) return;
+    try {
+      await window.HA.updateKpDoc('ha/kimproKeywordDispatch', { [key]: null });
+      delete ssKwEntries[key];
+      kpRenderScheduleKwList();
+    } catch (e) { alert('취소 실패: ' + e.message); }
   };
   window.kpToggleScheduleGroupAt = function(i) {
     const g = ssLastGroups[i]; if (!g) return;
