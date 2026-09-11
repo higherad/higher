@@ -2771,7 +2771,7 @@ document.addEventListener('keydown', function(e) {
   window.kpDeleteSlot = async function(key) {
     const s = allSlots.find(x=>x._key===key);
     if (s?.status === 'split') { alert('시간대 분할 예약 진행 중에는 삭제할 수 없습니다.'); return; }
-    if (!confirm('이 항목을 삭제하시겠습니까? (되돌릴 수 없습니다)')) return;
+    if (!confirm('이 항목을 삭제하시겠습니까?\n(휴지통으로 이동합니다)')) return;
     await HA.deleteKpSlot(key);
     allSlots = allSlots.filter(s=>s._key!==key);
     kpRenderReceipts(false);
