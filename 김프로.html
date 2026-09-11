@@ -1523,7 +1523,14 @@ window.closeStopModal = function() {
       .kw-switch .kw-slider::before { position:absolute; content:""; height:15px; width:15px; left:2px; bottom:2px; background-color:#fff; transition:.2s; border-radius:50%; }
       .kw-switch input:checked + .kw-slider { background-color:#0277bd; }
       .kw-switch input:checked + .kw-slider::before { transform:translateX(15px); }
+      .kw-tab-btn { padding:7px 16px; border:1px solid var(--border); background:#fff; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--text2); }
+      .kw-tab-btn.active { background:#0277bd; color:#fff; border-color:#0277bd; }
     </style>
+
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button type="button" id="kw-tab-btn-normal" class="kw-tab-btn active" onclick="kwSwitchTab('normal')">일반</button>
+      <button type="button" id="kw-tab-btn-sched" class="kw-tab-btn" onclick="kwSwitchTab('sched')">⏰ 예약</button>
+    </div>
 
     <div class="kw-grid">
 
@@ -1577,7 +1584,7 @@ window.closeStopModal = function() {
         </div>
       </div>
 
-      <div class="kw-run-col kw-card">
+      <div class="kw-run-col kw-card" id="kw-run-normal">
         <div class="kw-card-head">
           <span class="kw-card-title">⚡ 실행</span>
           <div class="kw-switch-wrap" title="MID 캠페인 수만큼 키워드 균등 배분">
@@ -1611,6 +1618,20 @@ window.closeStopModal = function() {
         </div>
       </div>
 
+      <div class="kw-run-col kw-card" id="kw-run-sched" style="display:none;">
+        <div class="kw-card-head">
+          <span class="kw-card-title">⏰ 예약 등록</span>
+        </div>
+        <div class="kw-card-body">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">선택 항목의 비즈핏 키워드를 시각 개수만큼 균등하게 나눠(중복 없음) 오늘 하루 각 시각에 자동 변경합니다.</div>
+          <div id="kw-sched-rows"></div>
+          <button type="button" class="kw-btn-add" onclick="kwSchedAddTime()">+ 시각 추가</button>
+          <hr class="kw-divider">
+          <div id="kw-sched-preview" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>
+          <button class="kw-btn-run" id="kw-sched-btn-run" onclick="kwSchedRegister()" disabled>⏰ 예약 등록</button>
+        </div>
+      </div>
+
     </div>
   </div>
   </div>
@@ -1636,6 +1657,7 @@ document.addEventListener('keydown', function(e) {
   const SERVER = 'https://macro-3-bizfit-keyword-938928195180.asia-northeast3.run.app';
   let kwEntries = [];
   let kwSearchQ = '';
+  let kwSchedTimes = ['09:00']; // "예약" 탭 — 시각 목록(하루치만), sendAt은 등록 시점에 오늘 날짜로 계산
 
   function kwEsc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function kwSave() { if (window.kwFbSave) window.kwFbSave(kwEntries); }
@@ -1668,6 +1690,7 @@ document.addEventListener('keydown', function(e) {
     ca.indeterminate = checked > 0 && checked < total;
     document.getElementById('kw-sel-count').textContent = `${checked}개 선택됨`;
     kwUpdateSummary();
+    kwSchedUpdatePreview();
   }
 
   function kwUpdateSummary() {
@@ -1794,6 +1817,113 @@ document.addEventListener('keydown', function(e) {
     entry.status = allOk ? 'success' : 'fail';
     entry.result = parts.join(' / ');
   }
+
+  // ── 예약 탭: 일반/예약 전환 + 시각 목록 편집 + 키워드 균등분할 등록 ──────────
+  // 시간대분할예약(kpScheduleTimeToIso 등)과 동일한 패턴이지만 이 파일 내 다른 <script> 블록이라
+  // 함수를 공유할 수 없어(로직맵 "예약 분할 현황" 항목 참고) 이 IIFE 안에 축소판으로 새로 둔다.
+  window.kwSwitchTab = function(tab) {
+    document.getElementById('kw-tab-btn-normal').classList.toggle('active', tab === 'normal');
+    document.getElementById('kw-tab-btn-sched').classList.toggle('active', tab === 'sched');
+    document.getElementById('kw-run-normal').style.display = tab === 'normal' ? '' : 'none';
+    document.getElementById('kw-run-sched').style.display  = tab === 'sched'  ? '' : 'none';
+    if (tab === 'sched') kwSchedRenderRows();
+  };
+
+  function kwSchedTimeOptions(max, selected) {
+    return Array.from({length:max}, (_,n) => String(n).padStart(2,'0'))
+      .map(v => `<option value="${v}"${v===selected?' selected':''}>${v}</option>`).join('');
+  }
+  function kwSchedRenderRows() {
+    const wrap = document.getElementById('kw-sched-rows');
+    if (!wrap) return;
+    const selStyle = 'padding:3px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;';
+    wrap.innerHTML = kwSchedTimes.map((t,i) => {
+      const [hh,mm] = t.split(':');
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <select id="kw-sch-hh-${i}" onchange="kwSchedSetTime(${i},this.value+':'+document.getElementById('kw-sch-mm-${i}').value)" style="${selStyle}">${kwSchedTimeOptions(24,hh)}</select>
+        :
+        <select id="kw-sch-mm-${i}" onchange="kwSchedSetTime(${i},document.getElementById('kw-sch-hh-${i}').value+':'+this.value)" style="${selStyle}">${kwSchedTimeOptions(60,mm)}</select>
+        ${kwSchedTimes.length>1 ? `<button type="button" onclick="kwSchedRemoveTime(${i})" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>` : ''}
+      </div>`;
+    }).join('');
+    kwSchedUpdatePreview();
+  }
+  window.kwSchedAddTime    = function() { kwSchedTimes.push('12:00'); kwSchedRenderRows(); };
+  window.kwSchedRemoveTime = function(i) { kwSchedTimes.splice(i,1); kwSchedRenderRows(); };
+  window.kwSchedSetTime    = function(i, value) { kwSchedTimes[i] = value; kwSchedRenderRows(); };
+
+  function kwCountKeywords(str) { return String(str||'').split(',').map(k=>k.trim()).filter(Boolean).length; }
+  // 키워드를 n그룹으로 최대한 균등 분배(나머지는 앞쪽 그룹에 1개씩) — macro-3-bizfit-keyword
+  // split_keywords_even()과 동일 알고리즘, 그룹 간 중복 없음(원본을 자르기만 함).
+  function kwSplitEven(str, n) {
+    const kws = String(str||'').split(',').map(k=>k.trim()).filter(Boolean);
+    if (n <= 0 || !kws.length) return [];
+    const base = Math.floor(kws.length / n), rem = kws.length % n;
+    const groups = []; let idx = 0;
+    for (let i=0; i<n; i++) { const size = base + (i<rem?1:0); groups.push(kws.slice(idx, idx+size)); idx += size; }
+    return groups;
+  }
+  function kwSchedUpdatePreview() {
+    const el = document.getElementById('kw-sched-preview');
+    const btn = document.getElementById('kw-sched-btn-run');
+    if (!el || !btn) return;
+    const n = kwSchedTimes.length;
+    const sel = kwEntries.filter(e => e.checked && e.keywords);
+    if (!sel.length) { el.textContent = '비즈핏 키워드가 있는 선택 항목이 없습니다.'; btn.disabled = true; return; }
+    const short = sel.filter(e => kwCountKeywords(e.keywords) < n);
+    const ok = sel.length - short.length;
+    let html = `선택 ${sel.length}건 · 시각 ${n}개 — 등록 가능 ${ok}건`;
+    if (short.length) {
+      html += `<div style="color:#dc2626;margin-top:4px;">⚠️ 키워드 수가 시각 수(${n}개)보다 적어 제외되는 항목 ${short.length}건: ${short.slice(0,5).map(e=>e.mid).join(', ')}${short.length>5?' 외':''}</div>`;
+    }
+    el.innerHTML = html;
+    btn.disabled = ok === 0;
+  }
+
+  window.kwSchedRegister = async function() {
+    const n = kwSchedTimes.length;
+    const sel = kwEntries.filter(e => e.checked && e.keywords);
+    const targets = sel.filter(e => kwCountKeywords(e.keywords) >= n);
+    const skipped = sel.length - targets.length;
+    if (!targets.length) { alert('예약 등록 가능한 항목이 없습니다.'); return; }
+
+    const now = new Date();
+    const pastTimes = kwSchedTimes.filter(t => {
+      const [hh,mm] = t.split(':').map(Number);
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh||0, mm||0, 0) <= now;
+    });
+    if (pastTimes.length) { alert(`이미 지난 시각은 등록할 수 없습니다: ${pastTimes.join(', ')}`); return; }
+
+    if (!confirm(`${targets.length}건 × ${n}개 시각 예약을 등록합니다.${skipped ? `\n(키워드 부족 ${skipped}건 제외)` : ''}\n계속할까요?`)) return;
+
+    const btn = document.getElementById('kw-sched-btn-run');
+    btn.disabled = true; btn.textContent = '⏳ 등록 중...';
+
+    const sortedTimes = [...kwSchedTimes].sort();
+    const patch = {};
+    targets.forEach(e => {
+      const groups = kwSplitEven(e.keywords, n);
+      sortedTimes.forEach((t, i) => {
+        const [hh, mm] = t.split(':').map(Number);
+        const sendAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh||0, mm||0, 0).toISOString();
+        const key = `kw${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}${i}`;
+        patch[key] = {
+          pcode: e.pcode || '', mid: e.mid, agency: e.agency || '',
+          keywords: groups[i].join(','), sendAt, status: 'pending', createdAt: new Date().toISOString(),
+        };
+      });
+    });
+
+    try {
+      await window.HA.updateKpDoc('ha/kimproKeywordDispatch', patch);
+      kwLog(`⏰ 예약 등록 완료 — ${targets.length}건 × ${n}개 시각`, 'success');
+      alert(`${targets.length}건 × ${n}개 시각 예약이 등록되었습니다.`);
+    } catch (e) {
+      kwLog(`❌ 예약 등록 실패: ${e.message}`, 'fail');
+      alert('예약 등록 실패: ' + e.message);
+    }
+    btn.disabled = false; btn.textContent = '⏰ 예약 등록';
+  };
 
   window.kwStartProcess = async function() {
     const checked = kwEntries.filter(e => e.checked);
