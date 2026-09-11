@@ -342,6 +342,7 @@ const HA = {
     const newSlot = {
       status:        'pending',
       createdAt:     new Date().toISOString(),
+      origin:        'kp', // 접수 출처(김프로 네이티브) — 진행현황 휴지통 분류에 사용, 절대 덮어쓰지 않음
       agencyId:      data.agencyId      || '',
       userId:        resolvedUserId,
       startDate:     data.startDate     || '',
@@ -406,7 +407,8 @@ const HA = {
     const kpSnap = await get(ref(db, `${KP_PATHS.slots}/${key}`));
     if (!kpSnap.exists()) return;
     const slot = kpSnap.val();
-    await update(ref(db, `${KP_PATHS.slots}/${key}`), { status: slot.originalStatus || 'pending', deletedAt: null, originalStatus: null });
+    // updateKpSlot을 거쳐야 ha/slots 역방향 동기화(deleteKpSlot의 소프트삭제와 대칭)까지 같이 반영됨
+    await this.updateKpSlot(key, { status: slot.originalStatus || 'pending', deletedAt: null, originalStatus: null });
   },
 
   // 휴지통 보관기간 만료/수동 영구삭제용 — 되돌릴 수 없음
@@ -489,6 +491,7 @@ const HA = {
     const newSlot = {
       status:        'pending',
       createdAt:     new Date().toISOString(),
+      origin:        'ha', // 접수 출처(접수관리) — 김프로 미러/휴지통 분류에 사용, 절대 덮어쓰지 않음
       agencyId:      data.agencyId      || '',
       userId:        data.userId        || '',
       startDate:     data.startDate     || '',
@@ -505,6 +508,19 @@ const HA = {
     const newRef = await push(ref(db, PATHS.slots), newSlot);
     const result = { ...newSlot, _key: newRef.key };
     dispatch('ha:slots:updated');
+
+    // 신규 접수를 즉시 김프로에도 미러 — pending도 ha/kp 공유 상태값(HA_KP_SHARED_STATUSES)이라
+    // 승인/분할 시점까지 기다릴 필요 없이 대기 단계부터 바로 보이게 함(updateSlot의 기존 미러와 동일 대상).
+    // 실패를 조용히 삼키면 누락을 못 알아채므로 콘솔 로그 필수, fire-and-forget 금지.
+    const kpMirrorData = { ...newSlot, searchKeyword: newSlot.searchKeyword || '' };
+    try {
+      await ensureKimproAuth();
+      await set(ref(kimproDb, `${PATHS.kimproSlots}/${newRef.key}`), kpMirrorData);
+    } catch (e) { console.error('kimpro/slots 신규 미러 오류:', e); }
+    try {
+      await set(ref(db, `${KP_PATHS.slots}/${newRef.key}`), kpMirrorData);
+    } catch (e) { console.error('ha/kimproSlots 신규 미러 오류:', e); }
+
     return result;
   },
 
@@ -567,15 +583,17 @@ const HA = {
           // 접수관리에서 삭제(취소) — kimpro 쪽도 즉시 제거 (kimpro 자체 삭제와 동일하게 완전삭제)
           await remove(ref(kimproDb, `${PATHS.kimproSlots}/${key}`));
         } else {
-          // 이미 kimpro에 있는 슬롯 — status는 최초 승인(active) 상태로 고정, 그 외 필드만 반영
-          // (접수관리에서 이후 종료/일시중단 등으로 상태가 바뀌어도 kimpro 쪽 상태는 안 건드림)
-          const { status, ...rest } = patch;
-          if (Object.keys(rest).length) {
-            await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), rest);
+          // 상태값은 ha/kp 어휘가 겹치는 것만 반영(HA_KP_SHARED_STATUSES), 그 외 필드는 항상 반영 —
+          // kp 전용 상태값(force_stopped/paused/ended/requeue 등)은 kimpro 자체 관리라 덮어쓰지 않음
+          const patchForKp = { ...patch };
+          if ('status' in patchForKp && !HA_KP_SHARED_STATUSES.has(patchForKp.status)) delete patchForKp.status;
+          if (Object.keys(patchForKp).length) {
+            await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), patchForKp);
           }
         }
-      } else if (patch.status === 'active' || patch.status === 'split') {
-        // 접수관리에서 승인(active) 또는 시간대 분할 예약(split) 처리된 시점에 최초로 kimpro에 전체 데이터 복사 — 접수관리에 있는 그대로 전달
+      } else if (patch.status !== 'deleted') {
+        // addSlot이 접수 시점에 이미 미러를 만드므로 보통 여기 안 옴 — 이 change 이전에 생성된
+        // 레거시 슬롯, 또는 삭제(하드 제거)→복구로 미러가 없어진 슬롯을 위한 자가치유 폴백(전체 복사)
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
           const slot = slotSnap.val();
@@ -603,7 +621,8 @@ const HA = {
             await update(ref(db, `${KP_PATHS.slots}/${key}`), patchForKp);
           }
         }
-      } else if (patch.status === 'active' || patch.status === 'split') {
+      } else if (patch.status !== 'deleted') {
+        // addSlot이 접수 시점에 이미 미러를 만드므로 보통 여기 안 옴 — 레거시/복구 슬롯 자가치유 폴백(위 블록과 동일)
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
           const slot = slotSnap.val();

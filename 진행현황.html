@@ -365,12 +365,15 @@
 
     if (!kpTrashLoaded) {
       try {
-        kpTrashSlots = (await HA.getKpSlots()).filter(s => s.status === 'deleted');
+        // origin==='ha'(접수관리에서 접수된 캠페인의 김프로 미러)는 하이어애드 탭에서 이미 보이므로 제외
+        // — 접수한 메뉴 기준으로 휴지통이 나뉘도록(사용자 요청)
+        kpTrashSlots = (await HA.getKpSlots()).filter(s => s.status === 'deleted' && s.origin !== 'ha');
       } catch (e) { console.error('김프로 휴지통 로딩 오류:', e); kpTrashSlots = []; }
       kpTrashLoaded = true;
     }
 
-    const haTrashed = allSlots.filter(s => s.status === 'deleted');
+    // origin==='kp'(김프로 네이티브 캠페인의 ha 역미러)는 김프로 탭에서 보여야 하므로 제외
+    const haTrashed = allSlots.filter(s => s.status === 'deleted' && s.origin !== 'kp');
     const kpTrashed = kpTrashSlots;
 
     // 30일 초과 항목 자동 영구삭제(양쪽 다)
