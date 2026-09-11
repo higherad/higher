@@ -145,7 +145,6 @@
   .stab-warn-ico{color:#dc2626;margin-left:4px;font-size:11px;}
   /* 엑셀 접수 모달 — higher_user 포털(user-apply.html)과 동일한 디자인 */
   .rex-shell{width:min(96vw,720px);max-height:92vh;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border-radius:24px;padding:24px;box-shadow:0 24px 64px rgba(0,0,0,.3);}
-  .rex-close-row{display:flex;justify-content:flex-end;margin-bottom:4px;}
   .rex-close-btn{border:none;background:rgba(255,255,255,.95);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .rex-branch-card{background:#fff;border:2px solid var(--accent);border-radius:16px;padding:24px 28px;margin-bottom:20px;box-shadow:0 4px 16px rgba(16,185,129,.08);}
   .rex-branch-hd{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
@@ -2936,9 +2935,8 @@ window.toggleProdPanel = function(e) {
     overlay.style.padding = '40px 16px';
     overlay.innerHTML = `
       <div class="rex-shell">
-        <div class="rex-close-row"><button class="rex-close-btn" id="rex-close-btn">✕</button></div>
-
-        <div class="rex-branch-card">
+        <div class="rex-branch-card" style="position:relative;">
+          <button class="rex-close-btn" id="rex-close-btn" style="position:absolute;top:14px;right:14px;">✕</button>
           <div class="rex-branch-hd">
             <div class="rex-branch-icon"><i data-lucide="building-2" size="18"></i></div>
             <div>
@@ -5306,8 +5304,6 @@ window.toggleProdPanel = function(e) {
   // ha/ 루트 아래 상대 경로 — 두 노드 다 'ha' 밑이라 fbUpdate('ha', patch) 하나로 같이 갱신 가능
   function scheduleDispatchSuffix(src) { return src === 'kp' ? 'kimproScheduledDispatch' : 'scheduled_dispatch'; }
   function scheduleBatchSuffix(src)    { return src === 'kp' ? 'kimproScheduledBatches'  : 'scheduled_batches'; }
-  function scheduleDispatchNode(src) { return `ha/${scheduleDispatchSuffix(src)}`; }
-  function scheduleBatchNode(src)    { return `ha/${scheduleBatchSuffix(src)}`; }
 
   function fmtScheduleTime(iso) {
     if (!iso) return '-';
