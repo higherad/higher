@@ -3224,6 +3224,7 @@ window.toggleProdPanel = function(e) {
           if (!url)             errors.push('URL 누락'); else if (!urlMid) errors.push('유효하지 않은 플레이스 주소');
           if (!rankKeyword)     errors.push('순위키워드 누락');
           if (days === null || isNaN(days) || days <= 0) errors.push('일 수 오류');
+          else if (days >= 50)  errors.push('일 수 50 이상');
           if (!startDate)       errors.push('시작일 형식 오류');
           else if (startDate < uploadTodayStr) errors.push('오늘 이전 시작일');
           if (!mid)             errors.push('MID 누락');
