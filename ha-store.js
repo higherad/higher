@@ -426,14 +426,6 @@ const HA = {
     return () => { offAdded(); offChanged(); offRemoved(); };
   },
 
-  // kimpro/users가 실제로는 항상 비어있었던 것과 동일한 실사용 결과(강제종료 배치 재접수 시 단가 스냅샷 0원) — 별도 저장소 없이 고정
-  // ha/users(회원관리)를 그대로 사용 — 김프로 전용 단가 테이블은 따로 없고 회원관리 데이터와 동일하게 맞춤(username 기준)
-  async getKpUnitPriceMap() {
-    const snap = await get(ref(db, PATHS.users));
-    const users = snapToArray(snap);
-    return users.reduce((m, u) => { if (u.username) m[u.username] = u.unitPrice || 0; return m; }, {});
-  },
-
   // 강제종료/키워드변경 처리 목록(ha/kimproBizfitStop, ha/kimproBizfitKeyword) — raw snapshot 반환
   async getKpDoc(path) {
     return get(ref(db, path));
