@@ -26,6 +26,7 @@
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
   .kw-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:#eff6ff; color:#1d4ed8; display:inline-block; }
+  .kp-tag { display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:6px; background:#f1f5f9; color:#0f172a; margin-left:4px; vertical-align:1px; }
 
   /* ── 반응형 ── */
   @media (max-width: 768px) {
@@ -142,7 +143,14 @@
     if (!_slotsLoaded || forceReload) {
       document.getElementById('expire-body').innerHTML =
         '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-      allSlots = await HA.getSlotsLive();
+      const haSlots = await HA.getSlotsLive();
+      // 김프로 캠페인도 함께 표시(진행현황과 동일 패턴) — 읽기 전용 병합만, 접수관리에 미러된(같은 key) 캠페인은 한 번만 보이도록 제외
+      let kpSlots = [];
+      try {
+        const haKeySet = new Set(haSlots.map(s => s._key));
+        kpSlots = (await HA.getKpSlotsLive()).filter(s => !haKeySet.has(s._key)).map(s => ({ ...s, _src:'kp' }));
+      } catch (e) { console.error('김프로 슬롯 로딩 실패:', e); }
+      allSlots = [...haSlots, ...kpSlots];
       _slotsLoaded = true;
     }
     if (!document.getElementById('expire-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
@@ -188,7 +196,7 @@
         <td style="color:var(--text2)">${i+1}</td>
         <td style="font-weight:600">${s.agencyId||'-'}</td>
         <td>${s.userId||'-'}</td>
-        <td style="font-weight:500">${s.storeName||'-'}</td>
+        <td style="font-weight:500">${s.storeName||'-'}${s._src==='kp' ? '<span class="kp-tag">김프로</span>' : ''}</td>
         <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
         <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
         <td style="color:var(--text2)">${s.startDate}</td>
