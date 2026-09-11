@@ -5568,18 +5568,23 @@ document.addEventListener('keydown', function(e) {
   .kp-ss-table tbody td { padding:7px 6px; border-bottom:1px solid var(--border); text-align:center; }
 </style>
 
+<style>
+  .kp-ss-tab-btn { padding:4px 12px; border:1px solid var(--border); background:#fff; border-radius:100px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--text2); }
+  .kp-ss-tab-btn.active { color:#0277bd; border-color:#0277bd; }
+</style>
 <div id="kp-ss-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div style="font-size:15px;font-weight:700;">⏰ 예약 분할 현황</div>
-        <span id="kp-ss-count" style="font-size:12px;color:var(--text2);"></span>
+        <div style="display:flex;gap:4px;">
+          <button type="button" id="kp-ss-tab-btn-accept" class="kp-ss-tab-btn active" onclick="kpSwitchScheduleTab('accept')">접수</button>
+          <button type="button" id="kp-ss-tab-btn-keyword" class="kp-ss-tab-btn" onclick="kpSwitchScheduleTab('keyword')">키워드</button>
+        </div>
+        <span id="kp-ss-count-accept" style="font-size:12px;color:var(--text2);"></span>
+        <span id="kp-ss-count-keyword" style="font-size:12px;color:var(--text2);display:none;"></span>
       </div>
       <button onclick="closeKpSplitScheduleModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">✕</button>
-    </div>
-    <div style="display:flex;gap:6px;margin-bottom:12px;">
-      <button type="button" id="kp-ss-tab-btn-accept" class="kw-tab-btn active" onclick="kpSwitchScheduleTab('accept')">접수</button>
-      <button type="button" id="kp-ss-tab-btn-keyword" class="kw-tab-btn" onclick="kpSwitchScheduleTab('keyword')">키워드</button>
     </div>
     <div id="kp-ss-tab-accept-body">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
@@ -5763,7 +5768,8 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-ss-search').value = '';
     document.getElementById('kp-ss-status-filter').value = 'all';
     document.getElementById('kp-ss-list').innerHTML = '<div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div>';
-    document.getElementById('kp-ss-count').textContent = '';
+    document.getElementById('kp-ss-count-accept').textContent = '';
+    document.getElementById('kp-ss-count-keyword').textContent = '';
     ssCollapsed = new Set();
     kpSsResplit = {};
     kpSsKwSplit = {};
@@ -5783,6 +5789,8 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-ss-tab-btn-keyword').classList.toggle('active', tab === 'keyword');
     document.getElementById('kp-ss-tab-accept-body').style.display = tab === 'accept' ? '' : 'none';
     document.getElementById('kp-ss-tab-keyword-body').style.display = tab === 'keyword' ? '' : 'none';
+    document.getElementById('kp-ss-count-accept').style.display = tab === 'accept' ? '' : 'none';
+    document.getElementById('kp-ss-count-keyword').style.display = tab === 'keyword' ? '' : 'none';
     if (tab === 'keyword') kpLoadScheduleKwEntries();
   };
   async function kpLoadScheduleKwEntries() {
@@ -5800,10 +5808,15 @@ document.addEventListener('keydown', function(e) {
     const listEl = document.getElementById('kp-ss-kw-list');
     const q = (document.getElementById('kp-ss-kw-search')?.value || '').trim().toLowerCase();
     const statusFilter = document.getElementById('kp-ss-kw-status-filter')?.value || 'all';
-    let list = Object.values(ssKwEntries);
-    if (statusFilter !== 'all') list = list.filter(e => (e.status || 'pending') === statusFilter);
+    const allEntries = Object.values(ssKwEntries);
+    const pendingCount = allEntries.filter(e => (e.status || 'pending') === 'pending').length;
+    let list = statusFilter !== 'all' ? allEntries.filter(e => (e.status || 'pending') === statusFilter) : allEntries;
     if (q) list = list.filter(e => [e.mid, e.pcode, e.agency].some(v => String(v || '').toLowerCase().includes(q)));
     list.sort((a, b) => (a.sendAt || '').localeCompare(b.sendAt || ''));
+
+    // 전체=등록된 전체 건수, 예약=아직 실행 안 된(대기중) 건수 — 접수 탭(그룹수/행수)과 달리
+    // 여기는 그룹 개념이 없어 상태 필터·검색과 무관하게 항상 이 두 숫자만 보여줌
+    document.getElementById('kp-ss-count-keyword').textContent = `전체 ${allEntries.length}건 예약 ${pendingCount}건`;
 
     if (!list.length) {
       listEl.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">등록된 예약이 없습니다.</div>';
@@ -5953,7 +5966,7 @@ document.addEventListener('keydown', function(e) {
         </div>`;
       }).join('');
     }
-    document.getElementById('kp-ss-count').textContent = filtered.length === total
+    document.getElementById('kp-ss-count-accept').textContent = filtered.length === total
       ? `전체 ${allGroupCount}건 예약 ${total}건`
       : `전체 ${allGroupCount}건 예약 ${total}건 (검색결과 ${filtered.length}건)`;
   }
