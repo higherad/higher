@@ -5210,11 +5210,14 @@ document.addEventListener('keydown', function(e) {
           <div style="font-size:11px;color:var(--muted);margin-top:6px;">비율 합계는 100%여야 하며, 일수만큼 매일 하루 단위로 나눠 이 시각에 접수됩니다. 일반·찰리·블로그(델타/네이비) 중 지금 활성화된 탭 하나에만 적용됩니다(유입플은 항상 즉시 제출).</div>
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
             <input type="checkbox" id="kp-sch-kwsplit-on" ${kpScheduleKwSplitDraft.on?'checked':''} onchange="kpOnScheduleKwSplitToggle(this.checked)">
-            🔀 키워드도 시간대별로 분할 — 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)
+            🔀 키워드 분할
           </label>
-          <div id="kp-sch-kwsplit-chunk-wrap" style="display:${kpScheduleKwSplitDraft.on?'flex':'none'};align-items:center;gap:6px;margin-top:4px;">
-            <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
-            <input type="number" id="kp-sch-kwsplit-chunk" min="1" max="50" value="${kpScheduleKwSplitDraft.chunk}" oninput="kpOnScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+          <div id="kp-sch-kwsplit-chunk-wrap" style="display:${kpScheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
+              <input type="number" id="kp-sch-kwsplit-chunk" min="1" max="50" value="${kpScheduleKwSplitDraft.chunk}" oninput="kpOnScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+            </div>
           </div>
         </div>` : ''}
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;margin-top:10px;">
@@ -6597,20 +6600,22 @@ document.addEventListener('keydown', function(e) {
               }).join('')}
             </div>
           </div>`).join('')}
+          <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
             <input type="checkbox" ${kpSsBulk.kwMode?'checked':''} onchange="kpOnBulkKwModeToggle(this.checked)">
-            🔀 키워드도 재분할 — 각 그룹 자신의 상세 키워드를 사용합니다(끄면 원본 그대로 복제)
+            🔀 키워드 분할
           </label>
           ${kpSsBulk.kwMode ? `
           <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
+            <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 각 그룹 자신의 상세 키워드를 사용합니다(끄면 원본 그대로 복제) · 선택 그룹이 많아 목록으로 안 보여줌 — 실행 시 그룹마다 자동으로 읽어 나눕니다.</div>
             <div style="display:flex;gap:14px;margin-bottom:6px;">
               <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
                 <input type="radio" name="kp-ss-bulk-kwmethod" ${kpSsBulk.kwMethod==='ratio'?'checked':''} onchange="kpOnBulkKwMethod('ratio')">
-                (a) 위 "키워드" 비율로 재분할
+                (a) 그룹당 "비율"로 재분할
               </label>
               <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
                 <input type="radio" name="kp-ss-bulk-kwmethod" ${kpSsBulk.kwMethod==='chunk'?'checked':''} onchange="kpOnBulkKwMethod('chunk')">
-                (b) 그룹당 개수로 잘라 새로 채움
+                (b) 그룹당 "개수"로 재분할
               </label>
             </div>
             ${kpSsBulk.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;">
@@ -6618,12 +6623,12 @@ document.addEventListener('keydown', function(e) {
               <input type="number" min="1" max="50" value="${kpSsBulk.kwChunk}" oninput="kpOnBulkKwChunk(this.value)"
                 style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>` : ''}
-            <div style="font-size:11px;color:var(--text2);margin-top:6px;">📋 선택 그룹이 많아 목록으로 안 보여줌 — 실행 시 그룹마다 자기 상세 키워드를 자동으로 읽어 나눕니다.</div>
           </div>` : ''}
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
             <input type="checkbox" ${kpSsBulk.timeMode?'checked':''} onchange="kpOnBulkTimeModeToggle(this.checked)">
-            ⏰ 예약 시각도 다시 설정 — 켜면 선택한 그룹 전체 잔여를 새 시각·비율로 재구성합니다
+            ⏰ 예약 시각 재설정
           </label>
+          ${kpSsBulk.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 선택한 그룹 전체 잔여를 새 시각·비율로 재구성합니다</div>` : ''}
           ${kpSsBulk.timeMode ? `
           <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
             ${kpSsBulk.timeRows.map((r,i) => `
@@ -6947,20 +6952,22 @@ document.addEventListener('keydown', function(e) {
             }).join('')}
           </div>
         </div>`).join('')}
+        <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
           <input type="checkbox" ${st.kwMode?'checked':''} onchange="kpOnScheduleResplitKwModeToggle('${slotKey}',this.checked)">
-          🔀 키워드도 재분할 — 끄면 지금처럼 원본 키워드를 그대로 복제
+          🔀 키워드 분할
         </label>
         ${st.kwMode ? (st.kwLoading ? '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">상세 키워드 불러오는 중...</div>' : `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 끄면 지금처럼 원본 키워드를 그대로 복제</div>
           <div style="display:flex;gap:14px;margin-bottom:6px;">
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
               <input type="radio" name="kp-ss-resplit-kwmethod-${slotKey}" ${st.kwMethod==='ratio'?'checked':''} onchange="kpOnScheduleResplitKwMethod('${slotKey}','ratio')">
-              (a) 위 "키워드" 비율로 재분할
+              (a) 그룹당 "비율"로 재분할
             </label>
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
               <input type="radio" name="kp-ss-resplit-kwmethod-${slotKey}" ${st.kwMethod==='chunk'?'checked':''} onchange="kpOnScheduleResplitKwMethod('${slotKey}','chunk')">
-              (b) 그룹당 개수로 잘라 새로 채움
+              (b) 그룹당 "개수"로 재분할
             </label>
           </div>
           ${st.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
@@ -6968,17 +6975,18 @@ document.addEventListener('keydown', function(e) {
             <input type="number" min="1" max="50" value="${st.kwChunk}" oninput="kpOnScheduleResplitKwChunk('${slotKey}',this.value)"
               style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
           </div>` : ''}
-          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드를 불러옴 — 직접 수정 가능</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드를 불러옴 — 수정 가능</div>
           <textarea id="kp-ss-resplit-kwtext-${slotKey}" oninput="kpOnScheduleResplitKwTextInput('${slotKey}',this.value)"
             style="width:100%;height:44px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;background:#f8fafc;">${ssEsc(st.kwText)}</textarea>
           <div id="kp-ss-resplit-kwpreview-${slotKey}" style="font-size:11px;color:#92400e;margin-top:6px;">${v.grades.length ? v.grades.map(gr=>`${ssEsc(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : ''}</div>
         </div>`) : ''}
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
           <input type="checkbox" ${st.timeMode?'checked':''} onchange="kpOnScheduleResplitTimeModeToggle('${slotKey}',this.checked)">
-          ⏰ 예약 시각도 다시 설정 — 켜면 전체 잔여 항목을 새 시각·비율로 재구성합니다
+          ⏰ 예약 시각 재설정
         </label>
         ${st.timeMode ? `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 설정시 전체 잔여 항목을 새 시각·비율로 재구성합니다</div>
           ${st.timeRows.map((r,i) => `
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <input type="time" value="${r.time}" onchange="kpOnResplitTimeRowInput('${slotKey}',${i},'time',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">
