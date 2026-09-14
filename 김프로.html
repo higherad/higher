@@ -5207,15 +5207,15 @@ document.addEventListener('keydown', function(e) {
             <button id="kp-schedule-apply-btn" type="button" onclick="kpApplyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
             <button type="button" onclick="kpClearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">끄기</button>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;">비율 합계는 100%여야 하며, 일수만큼 매일 하루 단위로 나눠 이 시각에 접수됩니다. 일반·찰리·블로그(델타/네이비) 중 지금 활성화된 탭 하나에만 적용됩니다(유입플은 항상 즉시 제출).</div>
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
-            <input type="checkbox" id="kp-sch-kwsplit-on" ${kpScheduleKwSplitDraft.on?'checked':''} onchange="kpOnScheduleKwSplitToggle(this.checked)">
-            🔀 키워드 분할
+          <div id="kp-schedule-editor-warn" style="font-size:11px;color:#dc2626;font-weight:600;margin-top:6px;display:none;"></div>
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
+            <span>🔀 키워드 분할</span>
+            <span class="ha-switch"><input type="checkbox" id="kp-sch-kwsplit-on" ${kpScheduleKwSplitDraft.on?'checked':''} onchange="kpOnScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           <div id="kp-sch-kwsplit-chunk-wrap" style="display:${kpScheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
+              <span style="font-size:12px;color:var(--text2);">현재 키워드 ${(kpScheduleValidationRows.find(r=>(r.검색키워드||'').trim())?.검색키워드||'').split(',').map(k=>k.trim()).filter(Boolean).length}개 / 그룹당 개수(최대 50)</span>
               <input type="number" id="kp-sch-kwsplit-chunk" min="1" max="50" value="${kpScheduleKwSplitDraft.chunk}" oninput="kpOnScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>
           </div>
@@ -5435,6 +5435,11 @@ document.addEventListener('keydown', function(e) {
     const sum = kpScheduleDraftRows.reduce((a,r)=>a+(Number(r.pct)||0),0);
     const note = overlay.querySelector('#kp-schedule-sum-note');
     if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum===100 ? 'var(--kp-accent)' : '#dc2626'; }
+    const warnEl = overlay.querySelector('#kp-schedule-editor-warn');
+    if (warnEl) {
+      if (sum !== 100) { warnEl.style.display = 'block'; warnEl.textContent = `⚠ 비율 합계는 100%여야 합니다 (현재 ${sum}%)`; }
+      else { warnEl.style.display = 'none'; warnEl.textContent = ''; }
+    }
     const btn = overlay.querySelector('#kp-schedule-apply-btn');
     if (btn) { const blocked = sum!==100; btn.disabled = blocked; btn.style.background = blocked?'#94a3b8':'#f59e0b'; btn.style.cursor = blocked?'not-allowed':'pointer'; }
   }
@@ -5469,7 +5474,7 @@ document.addEventListener('keydown', function(e) {
   window.kpOnScheduleKwSplitToggle = function(checked) {
     kpScheduleKwSplitDraft.on = checked;
     const wrap = document.getElementById('kp-sch-kwsplit-chunk-wrap');
-    if (wrap) wrap.style.display = checked ? 'flex' : 'none';
+    if (wrap) wrap.style.display = checked ? 'block' : 'none';
   };
   window.kpOnScheduleKwSplitChunk = function(val) {
     kpScheduleKwSplitDraft.chunk = Math.max(1, Math.min(50, parseInt(val)||1));
@@ -5938,6 +5943,12 @@ document.addEventListener('keydown', function(e) {
 <style>
   .kp-ss-tab-btn { padding:4px 12px; border:1px solid var(--border); background:#fff; border-radius:100px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--text2); }
   .kp-ss-tab-btn.active { color:#0277bd; border-color:#0277bd; }
+  .ha-switch { position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
+  .ha-switch input { opacity:0; width:0; height:0; position:absolute; }
+  .ha-switch .ha-switch-track { position:absolute; inset:0; background:#cbd5e1; border-radius:999px; transition:.15s; cursor:pointer; }
+  .ha-switch .ha-switch-track::before { content:''; position:absolute; width:16px; height:16px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
+  .ha-switch input:checked + .ha-switch-track { background:#f59e0b; }
+  .ha-switch input:checked + .ha-switch-track::before { transform:translateX(14px); }
 </style>
 <div id="kp-ss-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
@@ -6601,9 +6612,9 @@ document.addEventListener('keydown', function(e) {
             </div>
           </div>`).join('')}
           <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
-            <input type="checkbox" ${kpSsBulk.kwMode?'checked':''} onchange="kpOnBulkKwModeToggle(this.checked)">
-            🔀 키워드 분할
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+            <span>🔀 키워드 분할</span>
+            <span class="ha-switch"><input type="checkbox" ${kpSsBulk.kwMode?'checked':''} onchange="kpOnBulkKwModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           ${kpSsBulk.kwMode ? `
           <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
@@ -6624,9 +6635,9 @@ document.addEventListener('keydown', function(e) {
                 style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>` : ''}
           </div>` : ''}
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
-            <input type="checkbox" ${kpSsBulk.timeMode?'checked':''} onchange="kpOnBulkTimeModeToggle(this.checked)">
-            ⏰ 예약 시각 재설정
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+            <span>⏰ 예약 시각 재설정</span>
+            <span class="ha-switch"><input type="checkbox" ${kpSsBulk.timeMode?'checked':''} onchange="kpOnBulkTimeModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           ${kpSsBulk.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 선택한 그룹 전체 잔여를 새 시각·비율로 재구성합니다</div>` : ''}
           ${kpSsBulk.timeMode ? `
@@ -6878,9 +6889,10 @@ document.addEventListener('keydown', function(e) {
     const { violations } = grades.length ? kpComputeResplitBuckets(slotKey, grades, targetKeys, timeRows) : { violations: [] };
     const messages = [];
     if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
+    let kwRatioWarn = '';
     if (st.kwMode) {
       if (!(st.kwText||'').trim()) messages.push('재분할할 키워드를 입력해주세요');
-      if (st.kwMethod === 'ratio' && grades.length && kwPctSum !== 100) messages.push(`키워드 비율 합계는 100%여야 합니다 (현재 ${kwPctSum}%)`);
+      if (st.kwMethod === 'ratio' && grades.length && kwPctSum !== 100) kwRatioWarn = `키워드 비율 합계는 100%여야 합니다 (현재 ${kwPctSum}%)`;
     }
     if (st.timeMode && timePctSum !== 100) messages.push(`시각 비율 합계는 100%여야 합니다 (현재 ${timePctSum}%)`);
     if (partialSendAts.length) {
@@ -6891,7 +6903,7 @@ document.addEventListener('keydown', function(e) {
       const detail = [...new Set(violations.map(v => `${v.gradeName}(${v.amt})`))].join(', ');
       messages.push(`최소 접수 수량(${KP_SCHEDULE_MIN_PORTION}) 미만 조각 발생: ${detail}`);
     }
-    return { grades, pctSum, kwPctSum, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !grades.length };
+    return { grades, pctSum, kwPctSum, kwRatioWarn, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !!kwRatioWarn || !grades.length };
   }
   function kpUpdateScheduleResplitSum(slotKey) {
     const v = kpComputeResplitValidity(slotKey);
@@ -6905,7 +6917,9 @@ document.addEventListener('keydown', function(e) {
     if (kwPreviewEl) {
       const kwList = st && st.kwMode ? (st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean) : [];
       const kwByGrade = kwList.length && v.grades.length ? kpAssignKeywordsForResplit(kwList, v.grades, st) : {};
-      kwPreviewEl.textContent = (st && st.kwMode && v.grades.length) ? v.grades.map(gr=>`${gr.gradeName} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : '';
+      const previewText = (st && st.kwMode && v.grades.length) ? v.grades.map(gr=>`${ssEsc(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : '';
+      const warnHtml = v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${ssEsc(v.kwRatioWarn)}</span>` : '';
+      kwPreviewEl.innerHTML = previewText + warnHtml;
     }
     const warnEl = document.getElementById(`kp-ss-resplit-warn-${slotKey}`);
     if (warnEl) {
@@ -6953,9 +6967,9 @@ document.addEventListener('keydown', function(e) {
           </div>
         </div>`).join('')}
         <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
-          <input type="checkbox" ${st.kwMode?'checked':''} onchange="kpOnScheduleResplitKwModeToggle('${slotKey}',this.checked)">
-          🔀 키워드 분할
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+          <span>🔀 키워드 분할</span>
+          <span class="ha-switch"><input type="checkbox" ${st.kwMode?'checked':''} onchange="kpOnScheduleResplitKwModeToggle('${slotKey}',this.checked)"><span class="ha-switch-track"></span></span>
         </label>
         ${st.kwMode ? (st.kwLoading ? '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">상세 키워드 불러오는 중...</div>' : `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
@@ -6978,11 +6992,11 @@ document.addEventListener('keydown', function(e) {
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드를 불러옴 — 수정 가능</div>
           <textarea id="kp-ss-resplit-kwtext-${slotKey}" oninput="kpOnScheduleResplitKwTextInput('${slotKey}',this.value)"
             style="width:100%;height:44px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;background:#f8fafc;">${ssEsc(st.kwText)}</textarea>
-          <div id="kp-ss-resplit-kwpreview-${slotKey}" style="font-size:11px;color:#92400e;margin-top:6px;">${v.grades.length ? v.grades.map(gr=>`${ssEsc(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : ''}</div>
+          <div id="kp-ss-resplit-kwpreview-${slotKey}" style="font-size:11px;color:#92400e;margin-top:6px;">${v.grades.length ? v.grades.map(gr=>`${ssEsc(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : ''}${v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${ssEsc(v.kwRatioWarn)}</span>` : ''}</div>
         </div>`) : ''}
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
-          <input type="checkbox" ${st.timeMode?'checked':''} onchange="kpOnScheduleResplitTimeModeToggle('${slotKey}',this.checked)">
-          ⏰ 예약 시각 재설정
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+          <span>⏰ 예약 시각 재설정</span>
+          <span class="ha-switch"><input type="checkbox" ${st.timeMode?'checked':''} onchange="kpOnScheduleResplitTimeModeToggle('${slotKey}',this.checked)"><span class="ha-switch-track"></span></span>
         </label>
         ${st.timeMode ? `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">

@@ -1,5 +1,11 @@
 <div id="receipt-page">
 <style>
+  #receipt-page .ha-switch { position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
+  #receipt-page .ha-switch input { opacity:0; width:0; height:0; position:absolute; }
+  #receipt-page .ha-switch .ha-switch-track { position:absolute; inset:0; background:#cbd5e1; border-radius:999px; transition:.15s; cursor:pointer; }
+  #receipt-page .ha-switch .ha-switch-track::before { content:''; position:absolute; width:16px; height:16px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
+  #receipt-page .ha-switch input:checked + .ha-switch-track { background:#f59e0b; }
+  #receipt-page .ha-switch input:checked + .ha-switch-track::before { transform:translateX(14px); }
   #receipt-page .filter-bar {
     background:#fff; border:1px solid var(--border); border-radius:10px;
     padding:14px 16px; display:flex; gap:10px; align-items:center; margin-bottom:14px;
@@ -4017,15 +4023,15 @@ window.toggleProdPanel = function(e) {
             <button id="schedule-apply-btn" type="button" onclick="applyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
             <button type="button" onclick="clearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">끄기</button>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;">비율 합계는 100%여야 하며, 일수만큼 매일 하루 단위(일수:1)로 나눠 이 시각에 접수됩니다. 다중 상품(승인 게이트) 슬롯이 섞여 있으면 사용할 수 없습니다.</div>
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
-            <input type="checkbox" id="sch-kwsplit-on" ${scheduleKwSplitDraft.on?'checked':''} onchange="onScheduleKwSplitToggle(this.checked)">
-            🔀 키워드 분할
+          <div id="schedule-editor-warn" style="font-size:11px;color:var(--danger);font-weight:600;margin-top:6px;display:none;"></div>
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
+            <span>🔀 키워드 분할</span>
+            <span class="ha-switch"><input type="checkbox" id="sch-kwsplit-on" ${scheduleKwSplitDraft.on?'checked':''} onchange="onScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           <div id="sch-kwsplit-chunk-wrap" style="display:${scheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
+              <span style="font-size:12px;color:var(--text2);">현재 키워드 ${(scheduleValidationRows.find(r=>(r.검색키워드||'').trim())?.검색키워드||'').split(',').map(k=>k.trim()).filter(Boolean).length}개 / 그룹당 개수(최대 50)</span>
               <input type="number" id="sch-kwsplit-chunk" min="1" max="50" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>
           </div>
@@ -4683,6 +4689,11 @@ window.toggleProdPanel = function(e) {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
     const note = document.getElementById('schedule-sum-note');
     if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum === 100 ? 'var(--accent)' : 'var(--danger)'; }
+    const warnEl = document.getElementById('schedule-editor-warn');
+    if (warnEl) {
+      if (sum !== 100) { warnEl.style.display = 'block'; warnEl.textContent = `⚠ 비율 합계는 100%여야 합니다 (현재 ${sum}%)`; }
+      else { warnEl.style.display = 'none'; warnEl.textContent = ''; }
+    }
     const btn = document.getElementById('schedule-apply-btn');
     if (btn) {
       const blocked = sum !== 100;
@@ -4742,7 +4753,7 @@ window.toggleProdPanel = function(e) {
   window.onScheduleKwSplitToggle = function(checked) {
     scheduleKwSplitDraft.on = checked;
     const wrap = document.getElementById('sch-kwsplit-chunk-wrap');
-    if (wrap) wrap.style.display = checked ? 'flex' : 'none';
+    if (wrap) wrap.style.display = checked ? 'block' : 'none';
   };
   window.onScheduleKwSplitChunk = function(val) {
     scheduleKwSplitDraft.chunk = Math.max(1, Math.min(50, parseInt(val)||1));
@@ -5844,7 +5855,7 @@ window.toggleProdPanel = function(e) {
             <div style="display:flex;flex-wrap:wrap;gap:4px 18px;">
               ${_ssBulk.gradeGroups.filter(gg => gg.category === cat).map(gg => {
                 const checked = _ssBulk.sel[gg.ckey] != null;
-                const kwEnabled = checked && _ssBulk.kwMode && _ssBulk.kwMethod === 'ratio';
+                const kwPctVisible = _ssBulk.kwMode && _ssBulk.kwMethod === 'ratio';
                 return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
                   <input type="checkbox" ${checked?'checked':''} onchange="onBulkResplitCheck('${escJs(gg.ckey)}',this.checked)">
                   <span style="min-width:60px;">${escProd(gg.gradeName)}</span>
@@ -5852,18 +5863,18 @@ window.toggleProdPanel = function(e) {
                   <input type="number" id="ss-bulk-pct-${idSafe(gg.ckey)}" value="${checked?_ssBulk.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                     oninput="onBulkResplitPctInput('${escJs(gg.ckey)}',this.value)" min="0" max="100"
                     style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
-                  ${_ssBulk.kwMode ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
-                  <input type="number" id="ss-bulk-kwpct-${idSafe(gg.ckey)}" value="${checked?(_ssBulk.kwPct[gg.ckey]||0):''}" ${kwEnabled?'':'disabled'}
+                  ${kwPctVisible ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
+                  <input type="number" id="ss-bulk-kwpct-${idSafe(gg.ckey)}" value="${checked?(_ssBulk.kwPct[gg.ckey]||0):''}" ${checked?'':'disabled'}
                     oninput="onBulkResplitKwPctInput('${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                    style="width:52px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${kwEnabled?'#fffbeb':'#f1f5f9'};">%` : ''}
+                    style="width:52px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
                 </label>`;
               }).join('')}
             </div>
           </div>`).join('')}
           <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
-            <input type="checkbox" ${_ssBulk.kwMode?'checked':''} onchange="onBulkKwModeToggle(this.checked)">
-            🔀 키워드 분할
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+            <span>🔀 키워드 분할</span>
+            <span class="ha-switch"><input type="checkbox" ${_ssBulk.kwMode?'checked':''} onchange="onBulkKwModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           ${_ssBulk.kwMode ? `
           <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
@@ -5884,9 +5895,9 @@ window.toggleProdPanel = function(e) {
                 style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>` : ''}
           </div>` : ''}
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
-            <input type="checkbox" ${_ssBulk.timeMode?'checked':''} onchange="onBulkTimeModeToggle(this.checked)">
-            ⏰ 예약 시각 재설정
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+            <span>⏰ 예약 시각 재설정</span>
+            <span class="ha-switch"><input type="checkbox" ${_ssBulk.timeMode?'checked':''} onchange="onBulkTimeModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           ${_ssBulk.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 선택한 그룹 전체 잔여를 새 시각·비율로 재구성합니다</div>` : ''}
           ${_ssBulk.timeMode ? `
@@ -6192,9 +6203,10 @@ window.toggleProdPanel = function(e) {
 
     const messages = [];
     if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
+    let kwRatioWarn = '';
     if (st.kwMode) {
       if (!(st.kwText||'').trim()) messages.push('재분할할 키워드를 입력해주세요');
-      if (st.kwMethod === 'ratio' && grades.length && kwPctSum !== 100) messages.push(`키워드 비율 합계는 100%여야 합니다 (현재 ${kwPctSum}%)`);
+      if (st.kwMethod === 'ratio' && grades.length && kwPctSum !== 100) kwRatioWarn = `키워드 비율 합계는 100%여야 합니다 (현재 ${kwPctSum}%)`;
     }
     if (st.timeMode && timePctSum !== 100) messages.push(`시각 비율 합계는 100%여야 합니다 (현재 ${timePctSum}%)`);
     if (partialSendAts.length) {
@@ -6205,7 +6217,7 @@ window.toggleProdPanel = function(e) {
       const detail = [...new Set(violations.map(v => `${v.gradeName}(${v.amt})`))].join(', ');
       messages.push(`최소 접수 수량(${SCHEDULE_MIN_PORTION}) 미만 조각 발생: ${detail}`);
     }
-    return { grades, pctSum, kwPctSum, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !grades.length };
+    return { grades, pctSum, kwPctSum, kwRatioWarn, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !!kwRatioWarn || !grades.length };
   }
 
   function updateScheduleResplitSum(slotKey) {
@@ -6220,7 +6232,9 @@ window.toggleProdPanel = function(e) {
     if (kwPreviewEl) {
       const kwList = st && st.kwMode ? (st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean) : [];
       const kwByGrade = kwList.length && v.grades.length ? assignKeywordsForResplit(kwList, v.grades, st) : {};
-      kwPreviewEl.textContent = (st && st.kwMode && v.grades.length) ? v.grades.map(gr=>`${gr.gradeName} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : '';
+      const previewText = (st && st.kwMode && v.grades.length) ? v.grades.map(gr=>`${escProd(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : '';
+      const warnHtml = v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${escProd(v.kwRatioWarn)}</span>` : '';
+      kwPreviewEl.innerHTML = previewText + warnHtml;
     }
     const warnEl = document.getElementById(`ss-resplit-warn-${slotKey}`);
     if (warnEl) {
@@ -6256,7 +6270,7 @@ window.toggleProdPanel = function(e) {
           <div style="display:flex;flex-wrap:wrap;gap:4px 18px;">
             ${st.gradeGroups.filter(gg => gg.category === cat).map(gg => {
               const checked = st.sel[gg.ckey] != null;
-              const kwEnabled = checked && st.kwMode && st.kwMethod === 'ratio';
+              const kwPctVisible = st.kwMode && st.kwMethod === 'ratio';
               return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
                 <input type="checkbox" ${checked?'checked':''} onchange="onScheduleResplitCheck('${slotKey}','${escJs(gg.ckey)}',this.checked)">
                 <span style="min-width:60px;">${escProd(gg.gradeName)}</span>
@@ -6264,18 +6278,18 @@ window.toggleProdPanel = function(e) {
                 <input type="number" id="ss-resplit-pct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?st.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                   oninput="onScheduleResplitPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
                   style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
-                ${st.kwMode ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
-                <input type="number" id="ss-resplit-kwpct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?(st.kwPct[gg.ckey]||0):''}" ${kwEnabled?'':'disabled'}
+                ${kwPctVisible ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
+                <input type="number" id="ss-resplit-kwpct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?(st.kwPct[gg.ckey]||0):''}" ${checked?'':'disabled'}
                   oninput="onScheduleResplitKwPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:52px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${kwEnabled?'#fffbeb':'#f1f5f9'};">%` : ''}
+                  style="width:52px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
               </label>`;
             }).join('')}
           </div>
         </div>`).join('')}
         <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
-          <input type="checkbox" ${st.kwMode?'checked':''} onchange="onScheduleResplitKwModeToggle('${slotKey}',this.checked)">
-          🔀 키워드 분할
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+          <span>🔀 키워드 분할</span>
+          <span class="ha-switch"><input type="checkbox" ${st.kwMode?'checked':''} onchange="onScheduleResplitKwModeToggle('${slotKey}',this.checked)"><span class="ha-switch-track"></span></span>
         </label>
         ${st.kwMode ? (st.kwLoading ? '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">상세 키워드 불러오는 중...</div>' : `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
@@ -6298,11 +6312,11 @@ window.toggleProdPanel = function(e) {
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드를 불러옴 — 수정 가능</div>
           <textarea id="ss-resplit-kwtext-${slotKey}" oninput="onScheduleResplitKwTextInput('${slotKey}',this.value)"
             style="width:100%;height:44px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;background:#f8fafc;">${escProd(st.kwText)}</textarea>
-          <div id="ss-resplit-kwpreview-${slotKey}" style="font-size:11px;color:#92400e;margin-top:6px;">${v.grades.length ? v.grades.map(gr=>`${escProd(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : ''}</div>
+          <div id="ss-resplit-kwpreview-${slotKey}" style="font-size:11px;color:#92400e;margin-top:6px;">${v.grades.length ? v.grades.map(gr=>`${escProd(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : ''}${v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${escProd(v.kwRatioWarn)}</span>` : ''}</div>
         </div>`) : ''}
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
-          <input type="checkbox" ${st.timeMode?'checked':''} onchange="onScheduleResplitTimeModeToggle('${slotKey}',this.checked)">
-          ⏰ 예약 시각 재설정
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+          <span>⏰ 예약 시각 재설정</span>
+          <span class="ha-switch"><input type="checkbox" ${st.timeMode?'checked':''} onchange="onScheduleResplitTimeModeToggle('${slotKey}',this.checked)"><span class="ha-switch-track"></span></span>
         </label>
         ${st.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 전체 잔여 항목을 새 시각·비율로 재구성합니다</div>` : ''}
         ${st.timeMode ? `
