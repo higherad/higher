@@ -2364,17 +2364,20 @@ window.toggleProdPanel = function(e) {
   function splitRowBySchedule(row, schedule) {
     const portions = lrm(schedule.map((s, i) => ({ id: i, ratio: s.pct })), row.일목표 || 0);
     const minPortion = row._daysMultiplied ? 100 : 10; // 비즈핏 최소 수량 — NP위치저장은 전체목표 100, 그 외는 10
-    // 키워드 분할 켜져 있으면 이 행 자신의 검색키워드를 그룹당 개수로 잘라 시간대(i)마다 하나씩 배정.
-    // 그룹 수 < 시간대 수(부족)면 modulo로 처음부터 순환 재사용, 그룹 수 > 시간대 수(초과)면 남는
-    // 그룹은 애초에 인덱싱 안 돼 자연히 버려짐(2026-09-14 확정).
-    const kwGroups = scheduleKwSplit ? chunkKeywords(row.검색키워드, scheduleKwSplit.chunk) : null;
+    const days = Math.max(1, row._days || 0);
+    // 키워드 분할 켜져 있으면 이 행 자신의 검색키워드를 (일수×시간대 수)만큼 자동으로 그룹 개수를
+    // 역산해서 잘라(그룹당 개수 = ceil(키워드 수/필요 그룹 수)) 매일·매 시간대 조합마다 하나씩 배정.
+    // 등록된 키워드가 필요 그룹 수보다 적으면 처음부터 순환 재사용(2026-09-14 자동계산으로 확정).
+    const neededGroups = schedule.length * days;
+    const kwGroups = scheduleKwSplit
+      ? chunkKeywords(row.검색키워드, Math.max(1, Math.ceil((row.검색키워드||'').split(',').filter(k=>k.trim()).length / neededGroups) || 1))
+      : null;
     const out = [];
     schedule.forEach((s, i) => {
       const portionTotal = portions[i] || 0;
       if (portionTotal < minPortion) return; // 최소값 미만이면 그 조각은 버림
-      const days = Math.max(1, row._days || 0);
-      const kwOverride = kwGroups && kwGroups.length ? { 검색키워드: kwGroups[i % kwGroups.length].join(',') } : {};
       for (let d = 0; d < days; d++) {
+        const kwOverride = kwGroups && kwGroups.length ? { 검색키워드: kwGroups[(i*days+d) % kwGroups.length].join(',') } : {};
         out.push({
           ...row, ...kwOverride,
           일목표: portionTotal,
@@ -3948,8 +3951,8 @@ window.toggleProdPanel = function(e) {
     gradeMatchOn = true;
     scheduleConfig = null;
     scheduleDraftRows = [{ time: '10:00', pct: 100 }];
-    scheduleKwSplit = null;
-    scheduleKwSplitDraft = { on:false, chunk:5 };
+    scheduleKwSplit = false;
+    scheduleKwSplitDraft = { on:false };
     return renderSubmitModal(target);
   }
   // 각 탭의 plan/rows만 계산하는 순수 데이터 빌더 — renderSubmitModal의 최초 렌더/토글 재계산 양쪽에서 재사용.
@@ -4034,15 +4037,7 @@ window.toggleProdPanel = function(e) {
             <span>🔀 키워드 분할</span>
             <span class="ha-switch"><input type="checkbox" id="sch-kwsplit-on" ${scheduleKwSplitDraft.on?'checked':''} onchange="onScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
-          <div id="sch-kwsplit-chunk-wrap" style="display:${scheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
-            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정</div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">· 그룹당 개수(최대 50)</span>
-              <input type="number" id="sch-kwsplit-chunk" class="no-spin" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:32px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
-              <span style="font-size:12px;color:var(--text2);">개</span>
-            </div>
-            <div id="sch-kwsplit-chunk-warn" style="color:var(--danger);font-size:11px;margin-top:4px;${(scheduleKwSplitDraft.chunk>=1&&scheduleKwSplitDraft.chunk<=50)?'display:none;':''}">값은 1~50 사이여야 합니다.</div>
-          </div>
+          <div id="sch-kwsplit-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${scheduleKwSplitDraft.on?'block':'none'};">※ 각 캠페인의 검색키워드를 (일수×시간대 수)만큼 자동으로 나눠 하루에 하나씩 배정(모자라면 처음부터 순환)</div>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
@@ -4639,11 +4634,12 @@ window.toggleProdPanel = function(e) {
 
   // ── 시간대 분할 예약 편집기 (접수 확인 모달 상단, kimpro/reception.html과 동일 구현) ────────────
   let scheduleDraftRows = [{ time: '10:00', pct: 100 }];
-  // 키워드 분할 설정(2026-09-14) — 켜져 있으면 각 캠페인 자신의 검색키워드를 그룹당 개수만큼 잘라
-  // 시간대별로 하나씩 배정(splitRowBySchedule 참고). scheduleKwSplit=커밋된 값(null=꺼짐),
-  // scheduleKwSplitDraft=편집 중인 체크박스/입력값(적용 누르기 전)
-  let scheduleKwSplit = null;
-  let scheduleKwSplitDraft = { on:false, chunk:5 };
+  // 키워드 분할 설정(2026-09-14, 2026-09-14 자동계산으로 변경) — 켜져 있으면 각 캠페인 자신의
+  // 검색키워드를 (일수×시간대 수)만큼 자동으로 나눠 하루씩 다른 그룹 배정(splitRowBySchedule 참고,
+  // 그룹당 개수 수동입력 없음 — 필요 그룹 수만큼 역산해서 자름). scheduleKwSplit=커밋된 on/off,
+  // scheduleKwSplitDraft=편집 중인 체크박스(적용 누르기 전)
+  let scheduleKwSplit = false;
+  let scheduleKwSplitDraft = { on:false };
   // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량
   // 미달 조각은 scheduleMinViolations가 applyScheduleConfig에서 이미 막아 항상 100%대로 되므로 정확한 값.
   function scheduleSplitCount() {
@@ -4710,12 +4706,9 @@ window.toggleProdPanel = function(e) {
       if (sum !== 100) { warnEl.style.display = 'block'; warnEl.textContent = `⚠ 비율 합계는 100%여야 합니다 (현재 ${sum}%)`; }
       else { warnEl.style.display = 'none'; warnEl.textContent = ''; }
     }
-    const chunkInvalid = scheduleKwSplitDraft.on && !(scheduleKwSplitDraft.chunk >= 1 && scheduleKwSplitDraft.chunk <= 50);
-    const chunkWarnEl = document.getElementById('sch-kwsplit-chunk-warn');
-    if (chunkWarnEl) chunkWarnEl.style.display = chunkInvalid ? 'block' : 'none';
     const btn = document.getElementById('schedule-apply-btn');
     if (btn) {
-      const blocked = sum !== 100 || chunkInvalid;
+      const blocked = sum !== 100;
       btn.disabled = blocked;
       btn.style.background = blocked ? 'var(--muted)' : '#f59e0b';
       btn.style.cursor = blocked ? 'not-allowed' : 'pointer';
@@ -4771,19 +4764,13 @@ window.toggleProdPanel = function(e) {
 
   window.onScheduleKwSplitToggle = function(checked) {
     scheduleKwSplitDraft.on = checked;
-    const wrap = document.getElementById('sch-kwsplit-chunk-wrap');
-    if (wrap) wrap.style.display = checked ? 'block' : 'none';
-    updateScheduleSumNote();
-  };
-  window.onScheduleKwSplitChunk = function(val) {
-    scheduleKwSplitDraft.chunk = parseInt(val) || 0;
-    updateScheduleSumNote();
+    const note = document.getElementById('sch-kwsplit-note');
+    if (note) note.style.display = checked ? 'block' : 'none';
   };
 
   window.applyScheduleConfig = function() {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
     if (sum !== 100) return; // 적용 버튼이 이미 막혀있어 정상 흐름에서 도달 안 함 — 방어적으로만 남겨둠(팝업 없음)
-    if (scheduleKwSplitDraft.on && !(scheduleKwSplitDraft.chunk >= 1 && scheduleKwSplitDraft.chunk <= 50)) return; // 위와 동일한 이유로 방어적 체크만
     const pastViolations = schedulePastViolations(scheduleValidationRows, scheduleDraftRows);
     if (pastViolations.length) {
       const lines = pastViolations.slice(0, 5).map(v => `- ${v.name} ${v.date} ${v.time}`);
@@ -4799,7 +4786,7 @@ window.toggleProdPanel = function(e) {
       return;
     }
     scheduleConfig = scheduleDraftRows.map(r => ({ time: r.time, pct: Number(r.pct)||0 }));
-    scheduleKwSplit = scheduleKwSplitDraft.on ? { chunk: scheduleKwSplitDraft.chunk } : null;
+    scheduleKwSplit = scheduleKwSplitDraft.on;
     const icon = document.getElementById('schedule-toggle-icon');
     if (icon) icon.style.background = '#f59e0b';
     alert(`시간대 분할 예약이 설정되었습니다. 이제 각 탭의 "접수 신청" 버튼을 누르면 즉시 전송 대신 예약 저장됩니다(일수만큼 매일 이 시각에 나눠 접수).${scheduleKwSplit ? ' 키워드도 시간대별로 나눠 배정됩니다.' : ''}`);
@@ -4807,7 +4794,7 @@ window.toggleProdPanel = function(e) {
 
   window.clearScheduleConfig = function() {
     scheduleConfig = null;
-    scheduleKwSplit = null;
+    scheduleKwSplit = false;
     const icon = document.getElementById('schedule-toggle-icon');
     if (icon) icon.style.background = '#94a3b8';
     const panel = document.getElementById('schedule-editor');

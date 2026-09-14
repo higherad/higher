@@ -4802,10 +4802,11 @@ document.addEventListener('keydown', function(e) {
   let kpScheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34}, ...]
   let kpScheduleDraftRows = [{ time: '10:00', pct: 100 }];
   let kpScheduleValidationRows = [];
-  // 키워드 분할 설정(2026-09-14, 접수관리.html과 동일) — 커밋된 값(kpScheduleKwSplit)과
-  // 편집 중인 체크박스/입력값(kpScheduleKwSplitDraft)을 분리, 적용 버튼 눌러야 커밋
-  let kpScheduleKwSplit = null;
-  let kpScheduleKwSplitDraft = { on:false, chunk:5 };
+  // 키워드 분할 설정(2026-09-14 자동계산으로 확정, 접수관리.html과 동일) — 커밋된 on/off값
+  // (kpScheduleKwSplit)과 편집 중인 체크박스(kpScheduleKwSplitDraft) 분리, 적용 버튼 눌러야 커밋.
+  // 그룹당 개수 수동입력 없음 — kpSplitRowBySchedule이 필요 그룹 수만큼 역산해서 자름.
+  let kpScheduleKwSplit = false;
+  let kpScheduleKwSplitDraft = { on:false };
   // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량
   // 미달 조각은 kpScheduleMinViolations가 kpApplyScheduleConfig에서 이미 막아 항상 정확한 값.
   function kpScheduleSplitCount() {
@@ -4846,14 +4847,19 @@ document.addEventListener('keydown', function(e) {
   function kpSplitRowBySchedule(row, schedule) {
     const portions = lrm(schedule.map((s,i)=>({id:i, ratio:s.pct})), row.일목표||0);
     const minPortion = row._daysMultiplied ? 100 : 10;
-    const kwGroups = kpScheduleKwSplit ? kpChunkKeywords(row.검색키워드, kpScheduleKwSplit.chunk) : null;
+    const days = Math.max(1, row._days||0);
+    // 키워드 분할 켜져 있으면 (일수×시간대 수)만큼 자동으로 그룹 개수를 역산해서 잘라 매일·매
+    // 시간대 조합마다 하나씩 배정 — 접수관리.html과 동일(2026-09-14 자동계산으로 확정)
+    const neededGroups = schedule.length * days;
+    const kwGroups = kpScheduleKwSplit
+      ? kpChunkKeywords(row.검색키워드, Math.max(1, Math.ceil((row.검색키워드||'').split(',').filter(k=>k.trim()).length / neededGroups) || 1))
+      : null;
     const out = [];
     schedule.forEach((s,i) => {
       const portionTotal = portions[i]||0;
       if (portionTotal < minPortion) return;
-      const days = Math.max(1, row._days||0);
-      const kwOverride = kwGroups && kwGroups.length ? { 검색키워드: kwGroups[i % kwGroups.length].join(',') } : {};
       for (let d=0; d<days; d++) {
+        const kwOverride = kwGroups && kwGroups.length ? { 검색키워드: kwGroups[(i*days+d) % kwGroups.length].join(',') } : {};
         out.push({ ...row, ...kwOverride, 일목표: portionTotal, 일수: row._daysMultiplied ? portionTotal : 1,
           예약일: kpScheduleDateForOffset(row.예약일, d), _sendAt: kpScheduleTimeToIso(s.time, row.예약일, d) });
       }
@@ -5255,15 +5261,7 @@ document.addEventListener('keydown', function(e) {
             <span>🔀 키워드 분할</span>
             <span class="ha-switch"><input type="checkbox" id="kp-sch-kwsplit-on" ${kpScheduleKwSplitDraft.on?'checked':''} onchange="kpOnScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
-          <div id="kp-sch-kwsplit-chunk-wrap" style="display:${kpScheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
-            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정</div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">· 그룹당 개수(최대 50)</span>
-              <input type="number" id="kp-sch-kwsplit-chunk" class="no-spin" value="${kpScheduleKwSplitDraft.chunk}" oninput="kpOnScheduleKwSplitChunk(this.value)" style="width:32px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
-              <span style="font-size:12px;color:var(--text2);">개</span>
-            </div>
-            <div id="kp-sch-kwsplit-chunk-warn" style="color:#dc2626;font-size:11px;margin-top:4px;${(kpScheduleKwSplitDraft.chunk>=1&&kpScheduleKwSplitDraft.chunk<=50)?'display:none;':''}">값은 1~50 사이여야 합니다.</div>
-          </div>
+          <div id="kp-sch-kwsplit-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${kpScheduleKwSplitDraft.on?'block':'none'};">※ 각 캠페인의 검색키워드를 (일수×시간대 수)만큼 자동으로 나눠 하루에 하나씩 배정(모자라면 처음부터 순환)</div>
         </div>` : ''}
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;margin-top:10px;">
           <button id="kp-stab-normal" class="kp-submit-tab${defaultTab==='normal'?' active':''}" onclick="kpSwitchSubmitTab('normal')" style="${hasNormal?'':'display:none;'}">일반</button>
@@ -5487,11 +5485,8 @@ document.addEventListener('keydown', function(e) {
       if (sum !== 100) { warnEl.style.display = 'block'; warnEl.textContent = `⚠ 비율 합계는 100%여야 합니다 (현재 ${sum}%)`; }
       else { warnEl.style.display = 'none'; warnEl.textContent = ''; }
     }
-    const chunkInvalid = kpScheduleKwSplitDraft.on && !(kpScheduleKwSplitDraft.chunk >= 1 && kpScheduleKwSplitDraft.chunk <= 50);
-    const chunkWarnEl = overlay.querySelector('#kp-sch-kwsplit-chunk-warn');
-    if (chunkWarnEl) chunkWarnEl.style.display = chunkInvalid ? 'block' : 'none';
     const btn = overlay.querySelector('#kp-schedule-apply-btn');
-    if (btn) { const blocked = sum!==100 || chunkInvalid; btn.disabled = blocked; btn.style.background = blocked?'#94a3b8':'#f59e0b'; btn.style.cursor = blocked?'not-allowed':'pointer'; }
+    if (btn) { const blocked = sum!==100; btn.disabled = blocked; btn.style.background = blocked?'#94a3b8':'#f59e0b'; btn.style.cursor = blocked?'not-allowed':'pointer'; }
   }
   function kpRenderScheduleRows(overlay) {
     const wrap = overlay.querySelector('#kp-schedule-rows');
@@ -5523,18 +5518,12 @@ document.addEventListener('keydown', function(e) {
   };
   window.kpOnScheduleKwSplitToggle = function(checked) {
     kpScheduleKwSplitDraft.on = checked;
-    const wrap = document.getElementById('kp-sch-kwsplit-chunk-wrap');
-    if (wrap) wrap.style.display = checked ? 'block' : 'none';
-    kpUpdateScheduleSumNote(document.querySelector('.modal-overlay'));
-  };
-  window.kpOnScheduleKwSplitChunk = function(val) {
-    kpScheduleKwSplitDraft.chunk = parseInt(val) || 0;
-    kpUpdateScheduleSumNote(document.querySelector('.modal-overlay'));
+    const note = document.getElementById('kp-sch-kwsplit-note');
+    if (note) note.style.display = checked ? 'block' : 'none';
   };
   window.kpApplyScheduleConfig = function() {
     const sum = kpScheduleDraftRows.reduce((a,r)=>a+(Number(r.pct)||0),0);
     if (sum !== 100) return;
-    if (kpScheduleKwSplitDraft.on && !(kpScheduleKwSplitDraft.chunk >= 1 && kpScheduleKwSplitDraft.chunk <= 50)) return; // 방어적 체크만(버튼이 이미 막혀있음)
     const pastViolations = kpSchedulePastViolations(kpScheduleValidationRows, kpScheduleDraftRows);
     if (pastViolations.length) {
       const lines = pastViolations.slice(0,5).map(v => `- ${v.name} ${v.date} ${v.time}`);
@@ -5550,14 +5539,14 @@ document.addEventListener('keydown', function(e) {
       return;
     }
     kpScheduleConfig = kpScheduleDraftRows.map(r => ({ time:r.time, pct:Number(r.pct)||0 }));
-    kpScheduleKwSplit = kpScheduleKwSplitDraft.on ? { chunk: kpScheduleKwSplitDraft.chunk } : null;
+    kpScheduleKwSplit = kpScheduleKwSplitDraft.on;
     const icon = document.getElementById('kp-schedule-toggle-icon');
     if (icon) icon.style.background = '#f59e0b';
     alert(`시간대 분할 예약이 설정되었습니다. 이제 "접수 신청" 버튼을 누르면 즉시 전송 대신 예약 저장됩니다(일수만큼 매일 이 시각에 나눠 접수).${kpScheduleKwSplit ? ' 키워드도 시간대별로 나눠 배정됩니다.' : ''}`);
   };
   window.kpClearScheduleConfig = function() {
     kpScheduleConfig = null;
-    kpScheduleKwSplit = null;
+    kpScheduleKwSplit = false;
     const icon = document.getElementById('kp-schedule-toggle-icon');
     if (icon) icon.style.background = '#94a3b8';
     const panel = document.getElementById('kp-schedule-editor');
