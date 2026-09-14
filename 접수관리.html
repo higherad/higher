@@ -4020,8 +4020,6 @@ window.toggleProdPanel = function(e) {
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
             <button type="button" onclick="addScheduleRow()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">+ 시간 추가</button>
             <span id="schedule-sum-note" style="font-size:12px;color:var(--muted);"></span>
-            <button id="schedule-apply-btn" type="button" onclick="applyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
-            <button type="button" onclick="clearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">끄기</button>
           </div>
           <div id="schedule-editor-warn" style="font-size:11px;color:var(--danger);font-weight:600;margin-top:6px;display:none;"></div>
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
@@ -4031,9 +4029,13 @@ window.toggleProdPanel = function(e) {
           <div id="sch-kwsplit-chunk-wrap" style="display:${scheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">현재 키워드 ${(scheduleValidationRows.find(r=>(r.검색키워드||'').trim())?.검색키워드||'').split(',').map(k=>k.trim()).filter(Boolean).length}개 / 그룹당 개수(최대 50)</span>
+              <span style="font-size:12px;color:var(--text2);">현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${currentSubmitKwCount()}</span>개 / 그룹당 개수(최대 50)</span>
               <input type="number" id="sch-kwsplit-chunk" min="1" max="50" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+            <button id="schedule-apply-btn" type="button" onclick="applyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
+            <button type="button" onclick="clearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">끄기</button>
           </div>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
@@ -4636,6 +4638,12 @@ window.toggleProdPanel = function(e) {
   // scheduleKwSplitDraft=편집 중인 체크박스/입력값(적용 누르기 전)
   let scheduleKwSplit = null;
   let scheduleKwSplitDraft = { on:false, chunk:5 };
+  // 지금 제출 대상 행들(상세에 등록된 검색키워드)에 실제로 들어있는 고유 키워드 개수 — 스케줄 편집기의 "현재 키워드 N개" 표시용
+  function currentSubmitKwCount() {
+    const kws = new Set();
+    scheduleValidationRows.forEach(r => (r.검색키워드||'').split(',').forEach(k => { k = k.trim(); if (k) kws.add(k); }));
+    return kws.size;
+  }
   // 키워드 목록을 "그룹당 개수"만큼 순서대로 잘라 그룹 배열로 반환
   function chunkKeywords(kwText, chunk) {
     const kws = (kwText||'').split(',').map(k=>k.trim()).filter(Boolean);

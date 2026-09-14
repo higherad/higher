@@ -4797,6 +4797,12 @@ document.addEventListener('keydown', function(e) {
   // 편집 중인 체크박스/입력값(kpScheduleKwSplitDraft)을 분리, 적용 버튼 눌러야 커밋
   let kpScheduleKwSplit = null;
   let kpScheduleKwSplitDraft = { on:false, chunk:5 };
+  // 지금 제출 대상 행들(상세에 등록된 검색키워드)에 실제로 들어있는 고유 키워드 개수 — 스케줄 편집기의 "현재 키워드 N개" 표시용
+  function kpCurrentSubmitKwCount() {
+    const kws = new Set();
+    kpScheduleValidationRows.forEach(r => (r.검색키워드||'').split(',').forEach(k => { k = k.trim(); if (k) kws.add(k); }));
+    return kws.size;
+  }
   // 이 스크립트 블록은 예약 분할 현황 블록과 스코프가 분리돼 있어(SPA 블록별 실행) 그쪽의
   // kpChunkKeywords를 재사용 못 함 — 동일 로직을 이 블록에도 따로 둠(의도된 중복)
   function kpChunkKeywords(kwText, chunk) {
@@ -5204,8 +5210,6 @@ document.addEventListener('keydown', function(e) {
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
             <button type="button" onclick="kpAddScheduleRow()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">+ 시간 추가</button>
             <span id="kp-schedule-sum-note" style="font-size:12px;color:var(--muted);"></span>
-            <button id="kp-schedule-apply-btn" type="button" onclick="kpApplyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
-            <button type="button" onclick="kpClearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">끄기</button>
           </div>
           <div id="kp-schedule-editor-warn" style="font-size:11px;color:#dc2626;font-weight:600;margin-top:6px;display:none;"></div>
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
@@ -5215,9 +5219,13 @@ document.addEventListener('keydown', function(e) {
           <div id="kp-sch-kwsplit-chunk-wrap" style="display:${kpScheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">현재 키워드 ${(kpScheduleValidationRows.find(r=>(r.검색키워드||'').trim())?.검색키워드||'').split(',').map(k=>k.trim()).filter(Boolean).length}개 / 그룹당 개수(최대 50)</span>
+              <span style="font-size:12px;color:var(--text2);">현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${kpCurrentSubmitKwCount()}</span>개 / 그룹당 개수(최대 50)</span>
               <input type="number" id="kp-sch-kwsplit-chunk" min="1" max="50" value="${kpScheduleKwSplitDraft.chunk}" oninput="kpOnScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+            <button id="kp-schedule-apply-btn" type="button" onclick="kpApplyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
+            <button type="button" onclick="kpClearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">끄기</button>
           </div>
         </div>` : ''}
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;margin-top:10px;">
