@@ -6711,7 +6711,7 @@ document.addEventListener('keydown', function(e) {
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <span style="font-size:11px;color:var(--text2);">합계 <b id="kp-ss-bulk-sum" style="color:${v.pctSum===100?'var(--kp-accent)':'#dc2626'};">${v.pctSum}</b>%</span>
             <button id="kp-ss-bulk-apply-btn" onclick="kpApplyBulkResplitClick()" ${v.blocked?'disabled':''}
-              style="padding:6px 14px;border:none;border-radius:7px;background:${v.blocked?'#94a3b8':'#4338ca'};color:#fff;cursor:${v.blocked?'not-allowed':'pointer'};font-size:12px;font-weight:700;font-family:inherit;">선택 ${selCount}개 그룹 일괄 재분류</button>
+              style="padding:6px 14px;border:none;border-radius:7px;background:${v.blocked?'#94a3b8':'#4338ca'};color:#fff;cursor:${v.blocked?'not-allowed':'pointer'};font-size:12px;font-weight:700;font-family:inherit;">${selCount}개 일괄 재분류</button>
           </div>
           <div id="kp-ss-bulk-warn" style="margin-top:6px;font-size:11px;color:#dc2626;font-weight:600;${v.messages.length?'':'display:none;'}">${v.messages.length?'⚠ '+ssEsc(v.messages.join(' · ')):''}</div>
         </div>`;
@@ -6725,7 +6725,7 @@ document.addEventListener('keydown', function(e) {
         </label>
         <span style="font-size:12px;color:var(--text2);">${selCount}개 그룹 선택됨</span>
         <button onclick="kpToggleBulkResplitPanel()" ${selCount?'':'disabled'}
-          style="margin-left:auto;padding:6px 14px;border:none;border-radius:7px;background:${selCount?'#4338ca':'#94a3b8'};color:#fff;cursor:${selCount?'pointer':'not-allowed'};font-size:12px;font-weight:700;font-family:inherit;">🔀 선택 그룹 일괄 잔여 재분류</button>
+          style="margin-left:auto;padding:6px 14px;border:none;border-radius:7px;background:${selCount?'#4338ca':'#94a3b8'};color:#fff;cursor:${selCount?'pointer':'not-allowed'};font-size:12px;font-weight:700;font-family:inherit;">🔀 일괄 재분류</button>
       </div>
       ${panel}
     </div>`;
