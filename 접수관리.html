@@ -6240,9 +6240,12 @@ window.toggleProdPanel = function(e) {
     if (sumEl) { sumEl.textContent = v.pctSum; sumEl.style.color = v.pctSum>100 ? 'var(--danger)' : (v.pctSum===100 ? 'var(--accent)' : '#b45309'); }
     const timeSumEl = document.getElementById(`ss-resplit-timesum-${slotKey}`);
     if (timeSumEl && v.timePctSum != null) { timeSumEl.textContent = v.timePctSum; timeSumEl.style.color = v.timePctSum===100 ? 'var(--accent)' : 'var(--danger)'; }
+    const kwCountEl = document.getElementById(`ss-resplit-kwcount-${slotKey}`);
+    const kwList0 = st && st.kwMode ? (st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean) : [];
+    if (kwCountEl) kwCountEl.textContent = kwList0.length;
     const kwPreviewEl = document.getElementById(`ss-resplit-kwpreview-${slotKey}`);
     if (kwPreviewEl) {
-      const kwList = st && st.kwMode ? (st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean) : [];
+      const kwList = kwList0;
       const kwByGrade = kwList.length && v.grades.length ? assignKeywordsForResplit(kwList, v.grades, st) : {};
       const previewText = (st && st.kwMode && v.grades.length) ? v.grades.map(gr=>`${escProd(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : '';
       const warnHtml = v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${escProd(v.kwRatioWarn)}</span>` : '';
@@ -6321,7 +6324,7 @@ window.toggleProdPanel = function(e) {
             <input type="number" min="1" max="50" value="${st.kwChunk}" oninput="onScheduleResplitKwChunk('${slotKey}',this.value)"
               style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
           </div>` : ''}
-          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드를 불러옴 — 수정 가능</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드 <span id="ss-resplit-kwcount-${slotKey}" style="color:#1d4ed8;font-weight:700;">${(st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean).length}</span>개</div>
           <textarea id="ss-resplit-kwtext-${slotKey}" oninput="onScheduleResplitKwTextInput('${slotKey}',this.value)"
             style="width:100%;height:44px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;background:#f8fafc;">${escProd(st.kwText)}</textarea>
           <div id="ss-resplit-kwpreview-${slotKey}" style="font-size:11px;color:#92400e;margin-top:6px;">${v.grades.length ? v.grades.map(gr=>`${escProd(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : ''}${v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${escProd(v.kwRatioWarn)}</span>` : ''}</div>
