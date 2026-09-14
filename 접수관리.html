@@ -5804,7 +5804,7 @@ window.toggleProdPanel = function(e) {
     renderSplitScheduleList();
   };
   window.onBulkKwChunk = function(val) {
-    _ssBulk.kwChunk = Math.max(1, Math.min(50, parseInt(val)||1));
+    _ssBulk.kwChunk = parseInt(val) || 0;
     updateBulkResplitSum();
   };
   window.onBulkTimeModeToggle = function(checked) {
@@ -5835,6 +5835,7 @@ window.toggleProdPanel = function(e) {
     const messages = [];
     if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
     if (_ssBulk.kwMode && _ssBulk.kwMethod === 'ratio' && grades.length && kwPctSum !== 100) messages.push(`키워드 비율 합계는 100%여야 합니다 (현재 ${kwPctSum}%)`);
+    if (_ssBulk.kwMode && _ssBulk.kwMethod === 'chunk' && !(_ssBulk.kwChunk >= 1 && _ssBulk.kwChunk <= 50)) messages.push('그룹당 개수는 1~50 사이여야 합니다');
     if (_ssBulk.timeMode && timePctSum !== 100) messages.push(`시각 비율 합계는 100%여야 합니다 (현재 ${timePctSum}%)`);
     return { grades, pctSum, kwPctSum, timeRows, timePctSum, messages, blocked: messages.length > 0 || !grades.length };
   }
@@ -5910,7 +5911,7 @@ window.toggleProdPanel = function(e) {
             </div>
             ${_ssBulk.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
-              <input type="number" min="1" max="50" value="${_ssBulk.kwChunk}" oninput="onBulkKwChunk(this.value)"
+              <input type="number" value="${_ssBulk.kwChunk}" oninput="onBulkKwChunk(this.value)"
                 style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>` : ''}
           </div>` : ''}
@@ -6097,7 +6098,7 @@ window.toggleProdPanel = function(e) {
   };
   window.onScheduleResplitKwChunk = function(slotKey, val) {
     const st = _ssResplit[slotKey]; if (!st) return;
-    st.kwChunk = Math.max(1, Math.min(50, parseInt(val)||1));
+    st.kwChunk = parseInt(val) || 0;
     updateScheduleResplitSum(slotKey);
   };
 
@@ -6223,9 +6224,11 @@ window.toggleProdPanel = function(e) {
     const messages = [];
     if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
     let kwRatioWarn = '';
+    let kwChunkWarn = '';
     if (st.kwMode) {
       if (!(st.kwText||'').trim()) messages.push('재분할할 키워드를 입력해주세요');
       if (st.kwMethod === 'ratio' && grades.length && kwPctSum !== 100) kwRatioWarn = `키워드 비율 합계는 100%여야 합니다 (현재 ${kwPctSum}%)`;
+      if (st.kwMethod === 'chunk' && !(st.kwChunk >= 1 && st.kwChunk <= 50)) kwChunkWarn = '그룹당 개수는 1~50 사이여야 합니다';
     }
     if (st.timeMode && timePctSum !== 100) messages.push(`시각 비율 합계는 100%여야 합니다 (현재 ${timePctSum}%)`);
     if (partialSendAts.length) {
@@ -6236,7 +6239,7 @@ window.toggleProdPanel = function(e) {
       const detail = [...new Set(violations.map(v => `${v.gradeName}(${v.amt})`))].join(', ');
       messages.push(`최소 접수 수량(${SCHEDULE_MIN_PORTION}) 미만 조각 발생: ${detail}`);
     }
-    return { grades, pctSum, kwPctSum, kwRatioWarn, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !!kwRatioWarn || !grades.length };
+    return { grades, pctSum, kwPctSum, kwRatioWarn, kwChunkWarn, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !!kwRatioWarn || !!kwChunkWarn || !grades.length };
   }
 
   function updateScheduleResplitSum(slotKey) {
@@ -6252,11 +6255,8 @@ window.toggleProdPanel = function(e) {
     if (kwCountEl) kwCountEl.textContent = kwList0.length;
     const kwPreviewEl = document.getElementById(`ss-resplit-kwpreview-${slotKey}`);
     if (kwPreviewEl) {
-      const kwList = kwList0;
-      const kwByGrade = kwList.length && v.grades.length ? assignKeywordsForResplit(kwList, v.grades, st) : {};
-      const previewText = (st && st.kwMode && v.grades.length) ? v.grades.map(gr=>`${escProd(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : '';
-      const warnHtml = v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${escProd(v.kwRatioWarn)}</span>` : '';
-      kwPreviewEl.innerHTML = previewText + warnHtml;
+      const warnMsg = v.kwRatioWarn || v.kwChunkWarn;
+      kwPreviewEl.innerHTML = warnMsg ? `<span style="color:#dc2626;font-weight:700;">⚠ ${escProd(warnMsg)}</span>` : '';
     }
     const warnEl = document.getElementById(`ss-resplit-warn-${slotKey}`);
     if (warnEl) {
@@ -6283,8 +6283,6 @@ window.toggleProdPanel = function(e) {
     } else {
       const categories = [...new Set(st.gradeGroups.map(gg => gg.category))];
       const v = computeResplitValidity(slotKey);
-      const kwList = st.kwMode ? (st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean) : [];
-      const kwByGrade = kwList.length && v.grades.length ? assignKeywordsForResplit(kwList, v.grades, st) : {};
       body = `
         ${categories.map(cat => `
         <div style="margin-bottom:8px;">
@@ -6328,13 +6326,13 @@ window.toggleProdPanel = function(e) {
           </div>
           ${st.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
-            <input type="number" min="1" max="50" value="${st.kwChunk}" oninput="onScheduleResplitKwChunk('${slotKey}',this.value)"
+            <input type="number" value="${st.kwChunk}" oninput="onScheduleResplitKwChunk('${slotKey}',this.value)"
               style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
           </div>` : ''}
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드 <span id="ss-resplit-kwcount-${slotKey}" style="color:#1d4ed8;font-weight:700;">${(st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean).length}</span>개</div>
           <textarea id="ss-resplit-kwtext-${slotKey}" oninput="onScheduleResplitKwTextInput('${slotKey}',this.value)"
             style="width:100%;height:44px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;background:#f8fafc;">${escProd(st.kwText)}</textarea>
-          <div id="ss-resplit-kwpreview-${slotKey}" style="font-size:11px;color:#92400e;margin-top:6px;">${v.grades.length ? v.grades.map(gr=>`${escProd(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : ''}${v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${escProd(v.kwRatioWarn)}</span>` : ''}</div>
+          <div id="ss-resplit-kwpreview-${slotKey}" style="font-size:11px;margin-top:6px;">${(v.kwRatioWarn||v.kwChunkWarn) ? `<span style="color:#dc2626;font-weight:700;">⚠ ${escProd(v.kwRatioWarn||v.kwChunkWarn)}</span>` : ''}</div>
         </div>`) : ''}
         <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
           <span>⏰ 예약 시각 재설정</span>
