@@ -4033,7 +4033,6 @@ window.toggleProdPanel = function(e) {
           </label>
           <div id="sch-kwsplit-chunk-wrap" style="display:${scheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">· 현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${currentSubmitKwCount()}</span>개</div>
             <div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:12px;color:var(--text2);">· 그룹당 개수(최대 50)</span>
               <input type="number" id="sch-kwsplit-chunk" min="1" max="50" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
@@ -4646,12 +4645,6 @@ window.toggleProdPanel = function(e) {
   function scheduleSplitCount() {
     const totalDays = scheduleValidationRows.reduce((a,r) => a + Math.max(1, r._days||0), 0);
     return totalDays * scheduleDraftRows.length;
-  }
-  // 지금 제출 대상 행들(상세에 등록된 검색키워드)에 실제로 들어있는 고유 키워드 개수 — 스케줄 편집기의 "현재 키워드 N개" 표시용
-  function currentSubmitKwCount() {
-    const kws = new Set();
-    scheduleValidationRows.forEach(r => (r.검색키워드||'').split(',').forEach(k => { k = k.trim(); if (k) kws.add(k); }));
-    return kws.size;
   }
   // 키워드 목록을 "그룹당 개수"만큼 순서대로 잘라 그룹 배열로 반환
   function chunkKeywords(kwText, chunk) {

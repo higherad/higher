@@ -4803,12 +4803,6 @@ document.addEventListener('keydown', function(e) {
     const totalDays = kpScheduleValidationRows.reduce((a,r) => a + Math.max(1, r._days||0), 0);
     return totalDays * kpScheduleDraftRows.length;
   }
-  // 지금 제출 대상 행들(상세에 등록된 검색키워드)에 실제로 들어있는 고유 키워드 개수 — 스케줄 편집기의 "현재 키워드 N개" 표시용
-  function kpCurrentSubmitKwCount() {
-    const kws = new Set();
-    kpScheduleValidationRows.forEach(r => (r.검색키워드||'').split(',').forEach(k => { k = k.trim(); if (k) kws.add(k); }));
-    return kws.size;
-  }
   // 이 스크립트 블록은 예약 분할 현황 블록과 스코프가 분리돼 있어(SPA 블록별 실행) 그쪽의
   // kpChunkKeywords를 재사용 못 함 — 동일 로직을 이 블록에도 따로 둠(의도된 중복)
   function kpChunkKeywords(kwText, chunk) {
@@ -5229,7 +5223,6 @@ document.addEventListener('keydown', function(e) {
           </label>
           <div id="kp-sch-kwsplit-chunk-wrap" style="display:${kpScheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">· 현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${kpCurrentSubmitKwCount()}</span>개</div>
             <div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:12px;color:var(--text2);">· 그룹당 개수(최대 50)</span>
               <input type="number" id="kp-sch-kwsplit-chunk" min="1" max="50" value="${kpScheduleKwSplitDraft.chunk}" oninput="kpOnScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
