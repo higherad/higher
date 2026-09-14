@@ -698,7 +698,8 @@ window.toggleProdPanel = function(e) {
     if (!_slotsLoaded || forceReload) {
       document.getElementById('receipt-body').innerHTML =
         '<tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-      allSlots = await HA.getSlotsLive();
+      // origin==='kp'는 김프로에서 승인돼 넘어온 자가치유 미러 — 접수관리는 관리 대상이 아니므로 목록에서 제외
+      allSlots = (await HA.getSlotsLive()).filter(s => s.origin !== 'kp');
       _slotsLoaded = true;
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
@@ -814,11 +815,13 @@ window.toggleProdPanel = function(e) {
     };
     HA.subscribeSlots(allSlots, {
       onAdded(slot) {
+        if (slot.origin === 'kp') return; // 김프로 자가치유 미러는 목록에서 계속 제외
         if (allSlots.some(s => s._key === slot._key)) return; // 안전장치(정상 흐름에선 중복 없음)
         allSlots.push(slot);
         scheduleRerender();
       },
       onChanged(slot) {
+        if (slot.origin === 'kp') return; // 김프로 자가치유 미러는 목록에서 계속 제외(애초에 안 들어있음)
         const idx = allSlots.findIndex(s => s._key === slot._key);
         if (idx === -1) allSlots.push(slot); else allSlots[idx] = slot;
         scheduleRerender();
