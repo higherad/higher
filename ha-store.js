@@ -907,10 +907,12 @@ const HA = {
     }
 
     function notify() {
-      // 정산관리.html의 isBillableSlot()과 동일 기준으로 집계 대상을 삼는다.
-      // (재접수(isRequeue) 슬롯은 정산 대상이 아니라 테이블/paidSet에 안 잡히므로, 여기서도
-      //  빼지 않으면 테이블은 전부 정산완료로 보여도 배지만 미정산으로 계속 남는 버그가 있었음)
-      const base = latestSlots.filter(s => !s.isRequeue && ['active','accepted','expired','pending'].includes(s.status));
+      // 정산관리.html의 isBillableSlot()/allSlots 구성과 동일 기준으로 집계 대상을 삼는다.
+      // - 재접수(isRequeue) 슬롯은 정산 대상이 아니라 테이블/paidSet에 안 잡힘
+      // - origin==='kp'는 김프로 원본이 ha/slots에 자가치유 미러된 것으로, 입금 처리는
+      //   김프로 전용 저장소(kimproPaidSlots)에만 기록돼 ha쪽 paid_slots엔 절대 안 잡힘
+      // 둘 다 안 빼면 테이블은 전부 정산완료로 보여도 배지만 미정산으로 계속 남는 버그가 생김
+      const base = latestSlots.filter(s => !s.isRequeue && s.origin !== 'kp' && ['active','accepted','expired','pending'].includes(s.status));
       const map = {};
       base.forEach(s => {
         const t = getMinuteKey(s.createdAt);
