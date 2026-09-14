@@ -6054,7 +6054,7 @@ document.addEventListener('keydown', function(e) {
   let kpSsResplit = {}; // slotKey -> { open, loading, gradeGroups, sel, selectedKeys } — 잔여 재분류 패널 상태
   // 일괄 잔여 재분류(2026-09-14, 접수관리.html과 동일) — 여러 그룹에 같은 등급/비율 설정 하나를 일괄 적용
   let kpSsBulkSelected = new Set();
-  let kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
+  let kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
   const KP_SCHEDULE_MIN_PORTION = 10;
   function kpIdSafe(s) { return encodeURIComponent(String(s)); }
   function kpEscJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
@@ -6472,7 +6472,7 @@ document.addEventListener('keydown', function(e) {
   }
 
   function kpEnsureResplitState(slotKey) {
-    return kpSsResplit[slotKey] || (kpSsResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{}, selectedKeys:new Set(), kwMode:false, kwLoading:false, kwText:'', kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] });
+    return kpSsResplit[slotKey] || (kpSsResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{}, selectedKeys:new Set(), kwMode:false, kwLoading:false, kwText:'', timeMode:false, timeRows:[{time:'10:00',pct:100}] });
   }
 
   // 슬롯(상세)에 저장된 검색키워드를 그대로 가져옴 — 대기중 항목마다 흩어진 값이 아니라
@@ -6486,29 +6486,20 @@ document.addEventListener('keydown', function(e) {
     return snap.exists() ? (snap.val().searchKeyword || '') : '';
   }
 
-  // 키워드 목록을 등급별 kwPct 비율로 나눔(kpLrm으로 개수 배분 후 순서대로 자름)
-  function kpAssignKeywordsByRatio(kwList, grades) {
-    if (!kwList.length || !grades.length) return {};
-    const counts = window.kpLrm(grades.map(g => ({ id: g.ckey, ratio: g.kwPct||0 })), kwList.length);
+  // 키워드 재분할(2026-09-14 자동계산으로 확정, 접수관리.html과 동일 — (a)/(b) 선택 없이 이 방식
+  // 하나만 씀): 1단계로 등급 수만큼 키워드 풀을 나눠 등급별 전용 슬라이스를 만들고(등급 수 < 그룹
+  // 수면 순환), 2단계로 그 슬라이스를 다시 bucketCount(재분류로 새로 만들 "일수")만큼 나눠 등급별로
+  // 매 회차(대략 하루)마다 다른 키워드 그룹을 쓰게 함. 결과는 {ckey: [그룹,그룹,...]}(배열의 배열).
+  function kpAssignKeywordsForResplit(kwList, grades, bucketCount) {
+    if (!grades.length) return {};
+    const outerGroups = kpAutoChunkKeywords(kwList.join(','), grades.length);
+    if (!outerGroups.length) return {};
     const result = {};
-    let idx = 0;
-    grades.forEach(g => {
-      const n = counts[g.ckey] || 0;
-      result[g.ckey] = kwList.slice(idx, idx+n);
-      idx += n;
+    grades.forEach((g, i) => {
+      const gradeKw = outerGroups[i % outerGroups.length];
+      result[g.ckey] = kpAutoChunkKeywords(gradeKw.join(','), Math.max(1, bucketCount||1));
     });
     return result;
-  }
-  // (b) 그룹당 개수로 잘라 등급마다 하나씩 배정 — 부족하면 modulo로 순환, 초과분은 인덱싱 안 돼 버려짐
-  function kpAssignKeywordsByChunk(kwList, grades, chunk) {
-    const groups = kpChunkKeywords(kwList.join(','), chunk);
-    if (!groups.length || !grades.length) return {};
-    const result = {};
-    grades.forEach((g, i) => { result[g.ckey] = groups[i % groups.length]; });
-    return result;
-  }
-  function kpAssignKeywordsForResplit(kwList, grades, st) {
-    return st.kwMethod === 'chunk' ? kpAssignKeywordsByChunk(kwList, grades, st.kwChunk) : kpAssignKeywordsByRatio(kwList, grades);
   }
 
   // ── 일괄 잔여 재분류(2026-09-14) — 체크된 여러 그룹에 동일한 등급/비율 설정 하나를 한 번에 적용 ──
@@ -6538,15 +6529,12 @@ document.addEventListener('keydown', function(e) {
   };
   window.kpOnBulkResplitCheck = function(ckey, checked) {
     const pctInput = document.getElementById(`kp-ss-bulk-pct-${kpIdSafe(ckey)}`);
-    const kwPctInput = document.getElementById(`kp-ss-bulk-kwpct-${kpIdSafe(ckey)}`);
     if (checked) {
       if (kpSsBulk.sel[ckey] == null) kpSsBulk.sel[ckey] = 0;
       if (pctInput) pctInput.disabled = false;
-      if (kwPctInput) kwPctInput.disabled = !(kpSsBulk.kwMode && kpSsBulk.kwMethod === 'ratio');
     } else {
-      delete kpSsBulk.sel[ckey]; delete kpSsBulk.kwPct[ckey];
+      delete kpSsBulk.sel[ckey];
       if (pctInput) { pctInput.disabled = true; pctInput.value = ''; }
-      if (kwPctInput) { kwPctInput.disabled = true; kwPctInput.value = ''; }
     }
     kpUpdateBulkResplitSum();
   };
@@ -6554,21 +6542,9 @@ document.addEventListener('keydown', function(e) {
     kpSsBulk.sel[ckey] = Math.max(0, parseInt(val)||0);
     kpUpdateBulkResplitSum();
   };
-  window.kpOnBulkResplitKwPctInput = function(ckey, val) {
-    kpSsBulk.kwPct[ckey] = Math.max(0, parseInt(val)||0);
-    kpUpdateBulkResplitSum();
-  };
   window.kpOnBulkKwModeToggle = function(checked) {
     kpSsBulk.kwMode = checked;
     renderKpSplitScheduleList();
-  };
-  window.kpOnBulkKwMethod = function(method) {
-    kpSsBulk.kwMethod = method;
-    renderKpSplitScheduleList();
-  };
-  window.kpOnBulkKwChunk = function(val) {
-    kpSsBulk.kwChunk = parseInt(val) || 0;
-    kpUpdateBulkResplitSum();
   };
   window.kpOnBulkTimeModeToggle = function(checked) {
     kpSsBulk.timeMode = checked;
@@ -6589,18 +6565,15 @@ document.addEventListener('keydown', function(e) {
   function kpComputeBulkValidity() {
     const grades = Object.entries(kpSsBulk.sel).filter(([,pct]) => pct > 0).map(([ckey,pct]) => {
       const gg = (kpSsBulk.gradeGroups||[]).find(x => x.ckey === ckey);
-      return gg ? { ckey, gradeName: gg.gradeName, pct, kwPct: kpSsBulk.kwPct[ckey]||0 } : null;
+      return gg ? { ckey, gradeName: gg.gradeName, pct } : null;
     }).filter(Boolean);
     const pctSum = grades.reduce((a,g) => a+g.pct, 0);
-    const kwPctSum = grades.reduce((a,g) => a+(g.kwPct||0), 0);
     const timeRows = kpSsBulk.timeMode ? kpSsBulk.timeRows : null;
     const timePctSum = timeRows ? timeRows.reduce((a,r) => a+(Number(r.pct)||0), 0) : null;
     const messages = [];
     if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
-    if (kpSsBulk.kwMode && kpSsBulk.kwMethod === 'ratio' && grades.length && kwPctSum !== 100) messages.push(`키워드 비율 합계는 100%여야 합니다 (현재 ${kwPctSum}%)`);
-    if (kpSsBulk.kwMode && kpSsBulk.kwMethod === 'chunk' && !(kpSsBulk.kwChunk >= 1 && kpSsBulk.kwChunk <= 50)) messages.push('그룹당 개수는 1~50 사이여야 합니다');
     if (kpSsBulk.timeMode && timePctSum !== 100) messages.push(`시각 비율 합계는 100%여야 합니다 (현재 ${timePctSum}%)`);
-    return { grades, pctSum, kwPctSum, timeRows, timePctSum, messages, blocked: messages.length > 0 || !grades.length };
+    return { grades, pctSum, timeRows, timePctSum, messages, blocked: messages.length > 0 || !grades.length };
   }
   function kpUpdateBulkResplitSum() {
     const v = kpComputeBulkValidity();
@@ -6638,7 +6611,6 @@ document.addEventListener('keydown', function(e) {
             <div style="display:flex;flex-wrap:wrap;gap:4px 18px;">
               ${kpSsBulk.gradeGroups.filter(gg => gg.category === cat).map(gg => {
                 const checked = kpSsBulk.sel[gg.ckey] != null;
-                const kwPctVisible = kpSsBulk.kwMode && kpSsBulk.kwMethod === 'ratio';
                 return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
                   <input type="checkbox" ${checked?'checked':''} onchange="kpOnBulkResplitCheck('${kpEscJs(gg.ckey)}',this.checked)">
                   <span style="min-width:60px;">${ssEsc(gg.gradeName)}</span>
@@ -6646,10 +6618,6 @@ document.addEventListener('keydown', function(e) {
                   <input type="number" id="kp-ss-bulk-pct-${kpIdSafe(gg.ckey)}" value="${checked?kpSsBulk.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                     oninput="kpOnBulkResplitPctInput('${kpEscJs(gg.ckey)}',this.value)" min="0" max="100"
                     style="width:36px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;text-align:center;">%
-                  ${kwPctVisible ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
-                  <input type="number" id="kp-ss-bulk-kwpct-${kpIdSafe(gg.ckey)}" value="${checked?(kpSsBulk.kwPct[gg.ckey]||0):''}" ${checked?'':'disabled'}
-                    oninput="kpOnBulkResplitKwPctInput('${kpEscJs(gg.ckey)}',this.value)" min="0" max="100"
-                    style="width:36px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;text-align:center;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
                 </label>`;
               }).join('')}
             </div>
@@ -6659,26 +6627,7 @@ document.addEventListener('keydown', function(e) {
             <span>🔀 키워드 분할</span>
             <span class="ha-switch"><input type="checkbox" ${kpSsBulk.kwMode?'checked':''} onchange="kpOnBulkKwModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
-          ${kpSsBulk.kwMode ? `
-          <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
-            <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 각 그룹 자신의 상세 키워드를 사용합니다.</div>
-            <div style="display:flex;gap:14px;margin-bottom:6px;">
-              <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
-                <input type="radio" name="kp-ss-bulk-kwmethod" ${kpSsBulk.kwMethod==='chunk'?'checked':''} onchange="kpOnBulkKwMethod('chunk')">
-                (a) 그룹당 "개수"로 재분할
-              </label>
-              <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
-                <input type="radio" name="kp-ss-bulk-kwmethod" ${kpSsBulk.kwMethod==='ratio'?'checked':''} onchange="kpOnBulkKwMethod('ratio')">
-                (b) 그룹당 "비율"로 재분할
-              </label>
-            </div>
-            ${kpSsBulk.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
-              <input type="number" class="no-spin" value="${kpSsBulk.kwChunk}" oninput="kpOnBulkKwChunk(this.value)"
-                style="width:32px;padding:4px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
-              <span style="font-size:12px;color:var(--text2);">개</span>
-            </div>` : ''}
-          </div>` : ''}
+          ${kpSsBulk.kwMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 각 그룹 자신의 상세 키워드를 등급 수×남은 일수만큼 자동으로 나눠 배정합니다(모자라면 처음부터 순환)</div>` : ''}
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
             <span>⏰ 예약 시각 재설정</span>
             <span class="ha-switch"><input type="checkbox" ${kpSsBulk.timeMode?'checked':''} onchange="kpOnBulkTimeModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
@@ -6720,8 +6669,8 @@ document.addEventListener('keydown', function(e) {
     </div>`;
   }
   // 그룹마다 자기 계정으로 등급 재조회 → 이름이 일치하는(같은 ckey) 등급만 채택, 하나라도 없으면
-  // 그 그룹은 건너뜀(일부 등급만 반영되는 어중간한 결과 방지). 키워드는 그룹마다 자기 상세값을
-  // (a)비율 또는 (b)그룹당 개수 방식으로 재분할 — 방식/비율은 공용, 값은 그룹별로 다시 읽음.
+  // 그 그룹은 건너뜀(일부 등급만 반영되는 어중간한 결과 방지). 키워드 재분할이 켜져 있으면 그룹마다
+  // 자기 상세 키워드를 읽어 등급×일수 자동계산으로 재분할(kpApplyScheduleResplit 내부에서 계산).
   window.kpApplyBulkResplitClick = async function() {
     const v = kpComputeBulkValidity();
     if (v.blocked) return;
@@ -6742,20 +6691,19 @@ document.addEventListener('keydown', function(e) {
         const curStructs = new Set(items.map(e => kpGradeStructKey(e.payload?.gradeName || '', prodsList)));
         const applicable = v.grades.map(g => {
           const gg = groupGrades.find(x => x.ckey === g.ckey && curStructs.has(x.structKey));
-          return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct: g.pct, kwPct: g.kwPct } : null;
+          return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct: g.pct } : null;
         }).filter(Boolean);
         if (applicable.length !== v.grades.length) { skipped.push(gid); continue; }
-        let kwByGrade = null;
+        let kwList = null;
         if (kpSsBulk.kwMode) {
           const kwText = await kpFetchSourceKeyword(groupSrc, gid);
-          const kwList = kwText.split(',').map(k=>k.trim()).filter(Boolean);
-          kwByGrade = kwList.length ? (kpSsBulk.kwMethod === 'chunk' ? kpAssignKeywordsByChunk(kwList, applicable, kpSsBulk.kwChunk) : kpAssignKeywordsByRatio(kwList, applicable)) : null;
+          kwList = kwText.split(',').map(k=>k.trim()).filter(Boolean);
         }
-        await kpApplyScheduleResplit(gid, applicable, null, kwByGrade, v.timeRows);
+        await kpApplyScheduleResplit(gid, applicable, null, kwList, v.timeRows);
         okCount++;
       } catch(e) { skipped.push(gid); }
     }
-    kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
+    kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
     kpSsBulkSelected.clear();
     await reloadKpScheduleEntries();
     renderKpSplitScheduleList();
@@ -6790,15 +6738,12 @@ document.addEventListener('keydown', function(e) {
   window.kpOnScheduleResplitCheck = function(slotKey, ckey, checked) {
     const st = kpSsResplit[slotKey]; if (!st) return;
     const pctInput = document.getElementById(`kp-ss-resplit-pct-${slotKey}-${kpIdSafe(ckey)}`);
-    const kwPctInput = document.getElementById(`kp-ss-resplit-kwpct-${slotKey}-${kpIdSafe(ckey)}`);
     if (checked) {
       if (st.sel[ckey] == null) st.sel[ckey] = 0;
       if (pctInput) pctInput.disabled = false;
-      if (kwPctInput) kwPctInput.disabled = !(st.kwMode && st.kwMethod === 'ratio');
     } else {
-      delete st.sel[ckey]; delete st.kwPct[ckey];
+      delete st.sel[ckey];
       if (pctInput) pctInput.disabled = true;
-      if (kwPctInput) { kwPctInput.disabled = true; kwPctInput.value = ''; }
     }
     kpUpdateScheduleResplitSum(slotKey);
   };
@@ -6825,21 +6770,6 @@ document.addEventListener('keydown', function(e) {
   window.kpOnScheduleResplitKwTextInput = function(slotKey, val) {
     const st = kpSsResplit[slotKey]; if (!st) return;
     st.kwText = val;
-    kpUpdateScheduleResplitSum(slotKey);
-  };
-  window.kpOnScheduleResplitKwPctInput = function(slotKey, ckey, val) {
-    const st = kpSsResplit[slotKey]; if (!st) return;
-    st.kwPct[ckey] = Math.max(0, parseInt(val)||0);
-    kpUpdateScheduleResplitSum(slotKey);
-  };
-  window.kpOnScheduleResplitKwMethod = function(slotKey, method) {
-    const st = kpSsResplit[slotKey]; if (!st) return;
-    st.kwMethod = method;
-    renderKpSplitScheduleList();
-  };
-  window.kpOnScheduleResplitKwChunk = function(slotKey, val) {
-    const st = kpSsResplit[slotKey]; if (!st) return;
-    st.kwChunk = parseInt(val) || 0;
     kpUpdateScheduleResplitSum(slotKey);
   };
   window.kpOnScheduleResplitTimeModeToggle = function(slotKey, checked) {
@@ -6922,10 +6852,9 @@ document.addEventListener('keydown', function(e) {
     if (!st) return null;
     const grades = Object.entries(st.sel).filter(([,pct]) => pct > 0).map(([ckey,pct]) => {
       const gg = (st.gradeGroups||[]).find(x => x.ckey === ckey);
-      return gg ? { ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct, kwPct: st.kwPct[ckey]||0 } : null;
+      return gg ? { ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct } : null;
     }).filter(Boolean);
     const pctSum = grades.reduce((a,g) => a+g.pct, 0);
-    const kwPctSum = grades.reduce((a,g) => a+(g.kwPct||0), 0);
     const timeRows = st.timeMode ? st.timeRows : null;
     const timePctSum = timeRows ? timeRows.reduce((a,r) => a+(Number(r.pct)||0), 0) : null;
     const targetKeys = st.timeMode ? null : (st.selectedKeys && st.selectedKeys.size ? st.selectedKeys : null);
@@ -6933,13 +6862,7 @@ document.addEventListener('keydown', function(e) {
     const { violations } = grades.length ? kpComputeResplitBuckets(slotKey, grades, targetKeys, timeRows) : { violations: [] };
     const messages = [];
     if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
-    let kwRatioWarn = '';
-    let kwChunkWarn = '';
-    if (st.kwMode) {
-      if (!(st.kwText||'').trim()) messages.push('재분할할 키워드를 입력해주세요');
-      if (st.kwMethod === 'ratio' && grades.length && kwPctSum !== 100) kwRatioWarn = `키워드 비율 합계는 100%여야 합니다 (현재 ${kwPctSum}%)`;
-      if (st.kwMethod === 'chunk' && !(st.kwChunk >= 1 && st.kwChunk <= 50)) kwChunkWarn = '그룹당 개수는 1~50 사이여야 합니다';
-    }
+    if (st.kwMode && !(st.kwText||'').trim()) messages.push('재분할할 키워드를 입력해주세요');
     if (st.timeMode && timePctSum !== 100) messages.push(`시각 비율 합계는 100%여야 합니다 (현재 ${timePctSum}%)`);
     if (partialSendAts.length) {
       const times = [...new Set(partialSendAts)].map(t => fmtScheduleTime(t)).join(', ');
@@ -6949,7 +6872,7 @@ document.addEventListener('keydown', function(e) {
       const detail = [...new Set(violations.map(v => `${v.gradeName}(${v.amt})`))].join(', ');
       messages.push(`최소 접수 수량(${KP_SCHEDULE_MIN_PORTION}) 미만 조각 발생: ${detail}`);
     }
-    return { grades, pctSum, kwPctSum, kwRatioWarn, kwChunkWarn, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !!kwRatioWarn || !!kwChunkWarn || !grades.length };
+    return { grades, pctSum, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !grades.length };
   }
   function kpUpdateScheduleResplitSum(slotKey) {
     const v = kpComputeResplitValidity(slotKey);
@@ -6962,11 +6885,6 @@ document.addEventListener('keydown', function(e) {
     const kwCountEl = document.getElementById(`kp-ss-resplit-kwcount-${slotKey}`);
     const kwList0 = st && st.kwMode ? (st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean) : [];
     if (kwCountEl) kwCountEl.textContent = kwList0.length;
-    const kwPreviewEl = document.getElementById(`kp-ss-resplit-kwpreview-${slotKey}`);
-    if (kwPreviewEl) {
-      const warnMsg = v.kwRatioWarn || v.kwChunkWarn;
-      kwPreviewEl.innerHTML = warnMsg ? `<span style="color:#dc2626;font-weight:700;">⚠ ${ssEsc(warnMsg)}</span>` : '';
-    }
     const warnEl = document.getElementById(`kp-ss-resplit-warn-${slotKey}`);
     if (warnEl) {
       if (v.messages.length) { warnEl.style.display = 'block'; warnEl.textContent = '⚠ ' + v.messages.join(' · '); }
@@ -6994,7 +6912,6 @@ document.addEventListener('keydown', function(e) {
           <div style="display:flex;flex-wrap:wrap;gap:4px 18px;">
             ${st.gradeGroups.filter(gg => gg.category === cat).map(gg => {
               const checked = st.sel[gg.ckey] != null;
-              const kwPctVisible = st.kwMode && st.kwMethod === 'ratio';
               return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;">
                 <input type="checkbox" ${checked?'checked':''} onchange="kpOnScheduleResplitCheck('${slotKey}','${kpEscJs(gg.ckey)}',this.checked)">
                 <span style="min-width:60px;">${ssEsc(gg.gradeName)}</span>
@@ -7002,10 +6919,6 @@ document.addEventListener('keydown', function(e) {
                 <input type="number" id="kp-ss-resplit-pct-${slotKey}-${kpIdSafe(gg.ckey)}" value="${checked?st.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                   oninput="kpOnScheduleResplitPctInput('${slotKey}','${kpEscJs(gg.ckey)}',this.value)" min="0" max="100"
                   style="width:36px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;text-align:center;">%
-                ${kwPctVisible ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
-                <input type="number" id="kp-ss-resplit-kwpct-${slotKey}-${kpIdSafe(gg.ckey)}" value="${checked?(st.kwPct[gg.ckey]||0):''}" ${checked?'':'disabled'}
-                  oninput="kpOnScheduleResplitKwPctInput('${slotKey}','${kpEscJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:36px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;text-align:center;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
               </label>`;
             }).join('')}
           </div>
@@ -7017,27 +6930,10 @@ document.addEventListener('keydown', function(e) {
         </label>
         ${st.kwMode ? (st.kwLoading ? '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">상세 키워드 불러오는 중...</div>' : `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 끄면 지금처럼 원본 키워드를 그대로 복제</div>
-          <div style="display:flex;gap:14px;margin-bottom:6px;">
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
-              <input type="radio" name="kp-ss-resplit-kwmethod-${slotKey}" ${st.kwMethod==='chunk'?'checked':''} onchange="kpOnScheduleResplitKwMethod('${slotKey}','chunk')">
-              (a) 그룹당 "개수"로 재분할
-            </label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
-              <input type="radio" name="kp-ss-resplit-kwmethod-${slotKey}" ${st.kwMethod==='ratio'?'checked':''} onchange="kpOnScheduleResplitKwMethod('${slotKey}','ratio')">
-              (b) 그룹당 "비율"로 재분할
-            </label>
-          </div>
-          ${st.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-            <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
-            <input type="number" class="no-spin" value="${st.kwChunk}" oninput="kpOnScheduleResplitKwChunk('${slotKey}',this.value)"
-              style="width:32px;padding:4px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
-            <span style="font-size:12px;color:var(--text2);">개</span>
-          </div>` : ''}
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 끄면 지금처럼 원본 키워드를 그대로 복제, 켜면 등급 수×남은 일수만큼 자동으로 나눠 배정(모자라면 처음부터 순환)</div>
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드 <span id="kp-ss-resplit-kwcount-${slotKey}" style="color:#1d4ed8;font-weight:700;">${(st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean).length}</span>개</div>
           <textarea id="kp-ss-resplit-kwtext-${slotKey}" oninput="kpOnScheduleResplitKwTextInput('${slotKey}',this.value)"
             style="width:100%;height:44px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;background:#f8fafc;">${ssEsc(st.kwText)}</textarea>
-          <div id="kp-ss-resplit-kwpreview-${slotKey}" style="font-size:11px;margin-top:6px;">${(v.kwRatioWarn||v.kwChunkWarn) ? `<span style="color:#dc2626;font-weight:700;">⚠ ${ssEsc(v.kwRatioWarn||v.kwChunkWarn)}</span>` : ''}</div>
         </div>`) : ''}
         <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
           <span>⏰ 예약 시각 재설정</span>
@@ -7074,12 +6970,11 @@ document.addEventListener('keydown', function(e) {
     if (!v || v.blocked) return;
     const st = kpSsResplit[slotKey];
     const kwList = st?.kwMode ? (st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean) : [];
-    const kwByGrade = st?.kwMode ? kpAssignKeywordsForResplit(kwList, v.grades, st) : null;
     const scopeLabel = v.targetKeys ? `선택한 ${v.targetKeys.size}건` : '남은 예약 항목';
     const extra = [st?.kwMode && '키워드도 재분할', st?.timeMode && '시각도 재설정'].filter(Boolean).join(', ');
     if (!confirm(`${scopeLabel}을 다시 나눕니다${extra ? ` (${extra})` : ''}. 계속할까요?`)) return;
     try {
-      const result = await kpApplyScheduleResplit(slotKey, v.grades, v.targetKeys, kwByGrade, v.timeRows);
+      const result = await kpApplyScheduleResplit(slotKey, v.grades, v.targetKeys, kwList, v.timeRows);
       delete kpSsResplit[slotKey];
       await reloadKpScheduleEntries();
       renderKpSplitScheduleList();
@@ -7088,12 +6983,16 @@ document.addEventListener('keydown', function(e) {
       alert('재분류 실패: ' + (e.message||e));
     }
   };
-  // kwByGrade: {ckey: [키워드,...]} — 켜져 있으면 등급별로 배정된 키워드로 검색키워드를 덮어씀,
-  // null/미전달이면 기존 동작 그대로(원본 sampleRow 값 복제). timeRows 있으면 sendAt도 새로 계산.
-  async function kpApplyScheduleResplit(slotKey, grades, targetKeys, kwByGrade, timeRows) {
+  // kwList: 재분할할 원본 키워드 배열 — 있으면 등급×버킷(일수)별로 자동 배정해 검색키워드를 덮어씀,
+  // 비었거나 미전달이면 기존 동작 그대로(원본 sampleRow 값 복제). timeRows 있으면 sendAt도 새로 계산.
+  async function kpApplyScheduleResplit(slotKey, grades, targetKeys, kwList, timeRows) {
     const { buckets, violations, cancelItems } = kpComputeResplitBuckets(slotKey, grades, targetKeys, timeRows);
     if (!buckets.length) return { created: 0, removed: 0 };
     if (violations.length) throw new Error('최소 접수 수량 미만인 조각이 있어 중단했습니다.');
+    // buckets(=재분류로 새로 만들 "일수")가 나온 다음에야 등급별로 몇 그룹이 필요한지 알 수 있어
+    // 키워드 그룹 계산을 여기서 함(호출부에서 미리 만들어 넘기지 않음).
+    const kwByGrade = kwList && kwList.length ? kpAssignKeywordsForResplit(kwList, grades, buckets.length) : null;
+    const bucketIdxByGrade = {};
     const src = cancelItems[0]?._src === 'ha' ? 'ha' : 'kp';
     const dispatchSuffix = kpScheduleDispatchSuffix(src);
     const batchSuffix = kpScheduleBatchSuffix(src);
@@ -7106,7 +7005,15 @@ document.addEventListener('keydown', function(e) {
         const amt = amounts[g.ckey] || 0;
         if (amt <= 0) return;
         const key = window.kpGenId();
-        const kwOverride = kwByGrade ? { 검색키워드: (kwByGrade[g.ckey]||[]).join(',') } : {};
+        let kwOverride = {};
+        if (kwByGrade) {
+          const dayGroups = kwByGrade[g.ckey] || [];
+          if (dayGroups.length) {
+            const idx = bucketIdxByGrade[g.ckey] || 0;
+            kwOverride = { 검색키워드: (dayGroups[idx % dayGroups.length] || []).join(',') };
+            bucketIdxByGrade[g.ckey] = idx + 1;
+          }
+        }
         patch[`${dispatchSuffix}/${key}`] = {
           slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '', adrole: g.adrole ?? null,
           payload: { ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || sample.payload?.tab || window.KP_BIZFIT_TAB,
@@ -7123,7 +7030,7 @@ document.addEventListener('keydown', function(e) {
     return { created, removed };
   }
 
-  // kpAssignKeywordsByChunk(잔여 재분류 (b) 방식)에서도 씀
+  // kpAutoChunkKeywords(잔여 재분류 자동계산 방식)에서도 씀
   function kpChunkKeywords(kwText, chunk) {
     const kws = (kwText||'').split(',').map(k=>k.trim()).filter(Boolean);
     const c = Math.max(1, parseInt(chunk)||0);
@@ -7131,6 +7038,12 @@ document.addEventListener('keydown', function(e) {
     const groups = [];
     for (let i=0; i<kws.length; i+=c) groups.push(kws.slice(i, i+c));
     return groups;
+  }
+  // 그룹당 개수를 직접 받는 대신 "몇 개 그룹이 필요한지"만 받아 그룹 크기를 역산(ceil)해서 자름
+  function kpAutoChunkKeywords(kwText, neededGroups) {
+    const kws = (kwText||'').split(',').map(k=>k.trim()).filter(Boolean);
+    if (!kws.length || neededGroups <= 0) return [];
+    return kpChunkKeywords(kwText, Math.max(1, Math.ceil(kws.length / neededGroups)));
   }
 
   // ── 등급 변경 — gradeName만 바꾸면 안 됨(classType/gradeType/tab이 짝을 이뤄야 /register가 정확) ──
