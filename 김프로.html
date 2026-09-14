@@ -5212,7 +5212,11 @@ document.addEventListener('keydown', function(e) {
         </div>
         ${scheduleBtnVisible ? `
         <div id="kp-schedule-editor" style="display:none;margin-bottom:10px;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;">
-          <div id="kp-schedule-split-count" style="font-size:12px;color:var(--text2);margin-bottom:6px;"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span id="kp-schedule-split-count" style="font-size:12px;font-weight:700;color:#4338ca;"></span>
+            <button id="kp-schedule-apply-btn" type="button" onclick="kpApplyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
+            <button type="button" onclick="kpClearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">끄기</button>
+          </div>
           <div id="kp-schedule-rows"></div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
             <button type="button" onclick="kpAddScheduleRow()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">+ 시간 추가</button>
@@ -5225,16 +5229,12 @@ document.addEventListener('keydown', function(e) {
           </label>
           <div id="kp-sch-kwsplit-chunk-wrap" style="display:${kpScheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${kpCurrentSubmitKwCount()}</span>개</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">· 현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${kpCurrentSubmitKwCount()}</span>개</div>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
+              <span style="font-size:12px;color:var(--text2);">· 그룹당 개수(최대 50)</span>
               <input type="number" id="kp-sch-kwsplit-chunk" min="1" max="50" value="${kpScheduleKwSplitDraft.chunk}" oninput="kpOnScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
               <span style="font-size:12px;color:var(--text2);">개</span>
             </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
-            <button id="kp-schedule-apply-btn" type="button" onclick="kpApplyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
-            <button type="button" onclick="kpClearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">끄기</button>
           </div>
         </div>` : ''}
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;margin-top:10px;">
@@ -5453,7 +5453,7 @@ document.addEventListener('keydown', function(e) {
     const note = overlay.querySelector('#kp-schedule-sum-note');
     if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum===100 ? 'var(--kp-accent)' : '#dc2626'; }
     const countEl = overlay.querySelector('#kp-schedule-split-count');
-    if (countEl) countEl.textContent = `분할 수량 ${kpScheduleSplitCount()}개`;
+    if (countEl) countEl.textContent = `· 분할 수량 ${kpScheduleSplitCount()}개`;
     const warnEl = overlay.querySelector('#kp-schedule-editor-warn');
     if (warnEl) {
       if (sum !== 100) { warnEl.style.display = 'block'; warnEl.textContent = `⚠ 비율 합계는 100%여야 합니다 (현재 ${sum}%)`; }
