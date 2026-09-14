@@ -3,6 +3,8 @@
   /* 모달 등 동적으로 document.body에 붙는 요소는 #kimpro-page의 후손이 아니라 --kp-* 변수가 안 보임 —
      :root에 둬서 페이지 어디서든(모달 포함) 항상 참조되게 함 */
   :root { --kp-navy:#0f172a; --kp-accent:#10b981; }
+  input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  input[type=number] { -moz-appearance:textfield; }
   /* 김프로(kimpro.kro.kr) reception.html 상단 헤더바를 그대로 재현 — 같은 색상(--navy:#0f172a/--accent:#10b981), 같은 이모지+라벨 버튼.
      body.kp-mode main의 좌우 padding(10px)을 음수 마진으로 상쇄해 메뉴바가 좌우 꽉 차게(원본처럼 카드 여백 없이) */
   .kp-header { background:var(--kp-navy); border-radius:0; padding:6px 10px; display:flex; align-items:center; gap:0; margin:0 -10px 22px; }
