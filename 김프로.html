@@ -4797,6 +4797,12 @@ document.addEventListener('keydown', function(e) {
   // 편집 중인 체크박스/입력값(kpScheduleKwSplitDraft)을 분리, 적용 버튼 눌러야 커밋
   let kpScheduleKwSplit = null;
   let kpScheduleKwSplitDraft = { on:false, chunk:5 };
+  // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량 미달로
+  // 버려지는 조각은 반영 안 한 상한값이라 실제 생성 건수보다 같거나 많을 수 있음(대략치 안내용)
+  function kpScheduleSplitCount() {
+    const totalDays = kpScheduleValidationRows.reduce((a,r) => a + Math.max(1, r._days||0), 0);
+    return totalDays * kpScheduleDraftRows.length;
+  }
   // 지금 제출 대상 행들(상세에 등록된 검색키워드)에 실제로 들어있는 고유 키워드 개수 — 스케줄 편집기의 "현재 키워드 N개" 표시용
   function kpCurrentSubmitKwCount() {
     const kws = new Set();
@@ -5206,6 +5212,7 @@ document.addEventListener('keydown', function(e) {
         </div>
         ${scheduleBtnVisible ? `
         <div id="kp-schedule-editor" style="display:none;margin-bottom:10px;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;">
+          <div id="kp-schedule-split-count" style="font-size:12px;color:var(--text2);margin-bottom:6px;"></div>
           <div id="kp-schedule-rows"></div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
             <button type="button" onclick="kpAddScheduleRow()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">+ 시간 추가</button>
@@ -5218,9 +5225,11 @@ document.addEventListener('keydown', function(e) {
           </label>
           <div id="kp-sch-kwsplit-chunk-wrap" style="display:${kpScheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${kpCurrentSubmitKwCount()}</span>개</div>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${kpCurrentSubmitKwCount()}</span>개 / 그룹당 개수(최대 50)</span>
+              <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
               <input type="number" id="kp-sch-kwsplit-chunk" min="1" max="50" value="${kpScheduleKwSplitDraft.chunk}" oninput="kpOnScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+              <span style="font-size:12px;color:var(--text2);">개</span>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
@@ -5443,6 +5452,8 @@ document.addEventListener('keydown', function(e) {
     const sum = kpScheduleDraftRows.reduce((a,r)=>a+(Number(r.pct)||0),0);
     const note = overlay.querySelector('#kp-schedule-sum-note');
     if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum===100 ? 'var(--kp-accent)' : '#dc2626'; }
+    const countEl = overlay.querySelector('#kp-schedule-split-count');
+    if (countEl) countEl.textContent = `분할 수량 ${kpScheduleSplitCount()}개`;
     const warnEl = overlay.querySelector('#kp-schedule-editor-warn');
     if (warnEl) {
       if (sum !== 100) { warnEl.style.display = 'block'; warnEl.textContent = `⚠ 비율 합계는 100%여야 합니다 (현재 ${sum}%)`; }
@@ -6020,7 +6031,7 @@ document.addEventListener('keydown', function(e) {
   let kpSsResplit = {}; // slotKey -> { open, loading, gradeGroups, sel, selectedKeys } — 잔여 재분류 패널 상태
   // 일괄 잔여 재분류(2026-09-14, 접수관리.html과 동일) — 여러 그룹에 같은 등급/비율 설정 하나를 일괄 적용
   let kpSsBulkSelected = new Set();
-  let kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'ratio', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
+  let kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
   const KP_SCHEDULE_MIN_PORTION = 10;
   function kpIdSafe(s) { return encodeURIComponent(String(s)); }
   function kpEscJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
@@ -6438,7 +6449,7 @@ document.addEventListener('keydown', function(e) {
   }
 
   function kpEnsureResplitState(slotKey) {
-    return kpSsResplit[slotKey] || (kpSsResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{}, selectedKeys:new Set(), kwMode:false, kwLoading:false, kwText:'', kwPct:{}, kwMethod:'ratio', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] });
+    return kpSsResplit[slotKey] || (kpSsResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{}, selectedKeys:new Set(), kwMode:false, kwLoading:false, kwText:'', kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] });
   }
 
   // 슬롯(상세)에 저장된 검색키워드를 그대로 가져옴 — 대기중 항목마다 흩어진 값이 아니라
@@ -6719,7 +6730,7 @@ document.addEventListener('keydown', function(e) {
         okCount++;
       } catch(e) { skipped.push(gid); }
     }
-    kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'ratio', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
+    kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
     kpSsBulkSelected.clear();
     await reloadKpScheduleEntries();
     renderKpSplitScheduleList();

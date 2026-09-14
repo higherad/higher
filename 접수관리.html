@@ -1,11 +1,11 @@
 <div id="receipt-page">
 <style>
-  #receipt-page .ha-switch { position:relative; display:inline-block; width:28px; height:16px; flex-shrink:0; }
-  #receipt-page .ha-switch input { opacity:0; width:0; height:0; position:absolute; }
-  #receipt-page .ha-switch .ha-switch-track { position:absolute; inset:0; background:#cbd5e1; border-radius:999px; transition:.15s; cursor:pointer; }
-  #receipt-page .ha-switch .ha-switch-track::before { content:''; position:absolute; width:12px; height:12px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
-  #receipt-page .ha-switch input:checked + .ha-switch-track { background:#f59e0b; }
-  #receipt-page .ha-switch input:checked + .ha-switch-track::before { transform:translateX(12px); }
+  .ha-switch { position:relative; display:inline-block; width:28px; height:16px; flex-shrink:0; }
+  .ha-switch input { opacity:0; width:0; height:0; position:absolute; }
+  .ha-switch .ha-switch-track { position:absolute; inset:0; background:#cbd5e1; border-radius:999px; transition:.15s; cursor:pointer; }
+  .ha-switch .ha-switch-track::before { content:''; position:absolute; width:12px; height:12px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
+  .ha-switch input:checked + .ha-switch-track { background:#f59e0b; }
+  .ha-switch input:checked + .ha-switch-track::before { transform:translateX(12px); }
   #receipt-page .filter-bar {
     background:#fff; border:1px solid var(--border); border-radius:10px;
     padding:14px 16px; display:flex; gap:10px; align-items:center; margin-bottom:14px;
@@ -4016,6 +4016,7 @@ window.toggleProdPanel = function(e) {
         </div>
         <div id="submit-warn-box" style="display:none;margin-bottom:10px;"></div>
         <div id="schedule-editor" style="display:none;margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);">
+          <div id="schedule-split-count" style="font-size:12px;color:var(--text2);margin-bottom:6px;"></div>
           <div id="schedule-rows"></div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
             <button type="button" onclick="addScheduleRow()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--panel);cursor:pointer;">+ 시간 추가</button>
@@ -4028,9 +4029,11 @@ window.toggleProdPanel = function(e) {
           </label>
           <div id="sch-kwsplit-chunk-wrap" style="display:${scheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${currentSubmitKwCount()}</span>개</div>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:12px;color:var(--text2);">현재 키워드 <span style="color:#1d4ed8;font-weight:700;">${currentSubmitKwCount()}</span>개 / 그룹당 개수(최대 50)</span>
+              <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
               <input type="number" id="sch-kwsplit-chunk" min="1" max="50" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+              <span style="font-size:12px;color:var(--text2);">개</span>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
@@ -4638,6 +4641,12 @@ window.toggleProdPanel = function(e) {
   // scheduleKwSplitDraft=편집 중인 체크박스/입력값(적용 누르기 전)
   let scheduleKwSplit = null;
   let scheduleKwSplitDraft = { on:false, chunk:5 };
+  // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량 미달로
+  // 버려지는 조각은 반영 안 한 상한값이라 실제 생성 건수보다 같거나 많을 수 있음(대략치 안내용)
+  function scheduleSplitCount() {
+    const totalDays = scheduleValidationRows.reduce((a,r) => a + Math.max(1, r._days||0), 0);
+    return totalDays * scheduleDraftRows.length;
+  }
   // 지금 제출 대상 행들(상세에 등록된 검색키워드)에 실제로 들어있는 고유 키워드 개수 — 스케줄 편집기의 "현재 키워드 N개" 표시용
   function currentSubmitKwCount() {
     const kws = new Set();
@@ -4697,6 +4706,8 @@ window.toggleProdPanel = function(e) {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
     const note = document.getElementById('schedule-sum-note');
     if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum === 100 ? 'var(--accent)' : 'var(--danger)'; }
+    const countEl = document.getElementById('schedule-split-count');
+    if (countEl) countEl.textContent = `분할 수량 ${scheduleSplitCount()}개`;
     const warnEl = document.getElementById('schedule-editor-warn');
     if (warnEl) {
       if (sum !== 100) { warnEl.style.display = 'block'; warnEl.textContent = `⚠ 비율 합계는 100%여야 합니다 (현재 ${sum}%)`; }
@@ -5368,7 +5379,7 @@ window.toggleProdPanel = function(e) {
   // sel: ckey -> 목표%, kwPct: ckey -> 키워드%(개별 패널과 동일하게 분리) — 실제 적용은 항상
   // 각 그룹 자신의 상세값으로 함(apply 시점에 그룹마다 fetchSourceKeyword로 새로 읽음).
   // 선택 그룹이 많을 수 있어 미리보기 텍스트영역은 안 둠(2026-09-14, 다 못 보여줘서 의미 없음 — 사용자 확정).
-  let _ssBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'ratio', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
+  let _ssBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
 
   // ── 예약 분할 현황 — 접수관리(ha/scheduled_dispatch)와 김프로(ha/kimproScheduledDispatch)를
   // 한 화면에 합쳐서 관리(사용자 요청, 2026-09-10 — "서로 다른 서버라서 막아뒀던 것"이었는데
@@ -5685,7 +5696,7 @@ window.toggleProdPanel = function(e) {
   // 그룹당 하나만 존재하는 재분류 상태 — 패널 열기 전에 행 체크박스를 먼저 누를 수도 있어서
   // toggleScheduleResplit뿐 아니라 onScheduleRowCheck에서도 필요할 때 만든다.
   function ensureResplitState(slotKey) {
-    return _ssResplit[slotKey] || (_ssResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{}, selectedKeys:new Set(), kwMode:false, kwLoading:false, kwText:'', kwPct:{}, kwMethod:'ratio', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] });
+    return _ssResplit[slotKey] || (_ssResplit[slotKey] = { open:false, loading:false, gradeGroups:null, sel:{}, selectedKeys:new Set(), kwMode:false, kwLoading:false, kwText:'', kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] });
   }
 
   // 슬롯(상세)에 저장된 검색키워드를 그대로 가져옴 — 대기중 항목마다 흩어진 값이 아니라
@@ -5980,7 +5991,7 @@ window.toggleProdPanel = function(e) {
         okCount++;
       } catch(e) { skipped.push(gid); }
     }
-    _ssBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'ratio', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
+    _ssBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'chunk', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
     _ssBulkSelected.clear();
     await reloadScheduleEntries();
     alert(`일괄 재분류 완료 — ${okCount}개 성공${skipped.length ? `, ${skipped.length}개 건너뜀` : ''}`);
