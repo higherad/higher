@@ -5859,7 +5859,7 @@ window.toggleProdPanel = function(e) {
             <span>⏰ 예약 시각 재설정</span>
             <span class="ha-switch"><input type="checkbox" ${_ssBulk.timeMode?'checked':''} onchange="onBulkTimeModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
-          ${_ssBulk.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 선택한 그룹 전체 잔여를 새 시각·비율로 재구성합니다</div>` : ''}
+          ${_ssBulk.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 선택한 그룹 전체 잔여를 새 시각·비율로 재구성</div>` : ''}
           ${_ssBulk.timeMode ? `
           <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
             ${_ssBulk.timeRows.map((r,i) => `
@@ -6222,7 +6222,7 @@ window.toggleProdPanel = function(e) {
           <span>⏰ 예약 시각 재설정</span>
           <span class="ha-switch"><input type="checkbox" ${st.timeMode?'checked':''} onchange="onScheduleResplitTimeModeToggle('${slotKey}',this.checked)"><span class="ha-switch-track"></span></span>
         </label>
-        ${st.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 전체 잔여 항목을 새 시각·비율로 재구성합니다</div>` : ''}
+        ${st.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 전체 잔여 항목을 새 시각·비율로 재구성</div>` : ''}
         ${st.timeMode ? `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
           ${st.timeRows.map((r,i) => `
