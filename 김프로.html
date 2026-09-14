@@ -5261,7 +5261,7 @@ document.addEventListener('keydown', function(e) {
             <span>🔀 키워드 분할</span>
             <span class="ha-switch"><input type="checkbox" id="kp-sch-kwsplit-on" ${kpScheduleKwSplitDraft.on?'checked':''} onchange="kpOnScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
-          <div id="kp-sch-kwsplit-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${kpScheduleKwSplitDraft.on?'block':'none'};">※ 각 캠페인의 검색키워드를 (일수×시간대 수)만큼 자동으로 나눠 하루에 하나씩 배정(모자라면 처음부터 순환)</div>
+          <div id="kp-sch-kwsplit-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${kpScheduleKwSplitDraft.on?'block':'none'};">※ 각 캠페인의 검색키워드를 [일수×시간대 수]만큼 자동으로 나눠 배정</div>
         </div>` : ''}
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;margin-top:10px;">
           <button id="kp-stab-normal" class="kp-submit-tab${defaultTab==='normal'?' active':''}" onclick="kpSwitchSubmitTab('normal')" style="${hasNormal?'':'display:none;'}">일반</button>
@@ -6627,7 +6627,7 @@ document.addEventListener('keydown', function(e) {
             <span>🔀 키워드 분할</span>
             <span class="ha-switch"><input type="checkbox" ${kpSsBulk.kwMode?'checked':''} onchange="kpOnBulkKwModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
-          ${kpSsBulk.kwMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 각 그룹 자신의 상세 키워드를 등급 수×남은 일수만큼 자동으로 나눠 배정합니다(모자라면 처음부터 순환)</div>` : ''}
+          ${kpSsBulk.kwMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 각 그룹 자신의 상세 키워드를 [등급 수×남은 일수]만큼 자동으로 나눠 배정</div>` : ''}
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
             <span>⏰ 예약 시각 재설정</span>
             <span class="ha-switch"><input type="checkbox" ${kpSsBulk.timeMode?'checked':''} onchange="kpOnBulkTimeModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
@@ -6930,7 +6930,7 @@ document.addEventListener('keydown', function(e) {
         </label>
         ${st.kwMode ? (st.kwLoading ? '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">상세 키워드 불러오는 중...</div>' : `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 끄면 지금처럼 원본 키워드를 그대로 복제, 켜면 등급 수×남은 일수만큼 자동으로 나눠 배정(모자라면 처음부터 순환)</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ OFF - 원본 키워드를 복제, ON - [등급 수×남은 일수]만큼 자동으로 나눠 배정</div>
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드 <span id="kp-ss-resplit-kwcount-${slotKey}" style="color:#1d4ed8;font-weight:700;">${(st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean).length}</span>개</div>
           <textarea id="kp-ss-resplit-kwtext-${slotKey}" oninput="kpOnScheduleResplitKwTextInput('${slotKey}',this.value)"
             style="width:100%;height:44px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;background:#f8fafc;">${ssEsc(st.kwText)}</textarea>
