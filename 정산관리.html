@@ -575,6 +575,13 @@
       paidSet   = new Set([...haPaidSet, ...kpPaidSet]);
       refundMap = {...haRefundMap, ...kpRefundMap};
       snapshotMap = {...haSnapshotMap, ...kpSnapshotMap};
+      // 실시간 리스너 각각이 비동기로 따로 도착하는데, wireSettleLiveListeners 이후 하나만 먼저 도착해도
+      // recomputeLiveSettleData가 아직 안 도착한 나머지를 빈 값으로 간주해 방금 로드한 데이터를 통째로
+      // 덮어써버리는 레이스가 있었음(정산완료 건도 담당자 표시가 사라짐) — 도착 전까지는 방금 불러온
+      // 값으로 미리 채워둬서 부분 도착이 나머지를 비우지 않게 함.
+      _liveHaPaid = haPaidSet; _liveKpPaid = kpPaidSet;
+      _liveHaRefund = haRefundMap; _liveKpRefund = kpRefundMap;
+      _liveHaSnapshot = haSnapshotMap; _liveKpSnapshot = kpSnapshotMap;
       _settleLoaded = true;
       wireSettleLiveListeners();
     }
