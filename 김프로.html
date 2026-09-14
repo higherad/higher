@@ -2760,8 +2760,10 @@ document.addEventListener('keydown', function(e) {
   }
 
   window.kpApproveOne = async function(key) {
-    await HA.updateKpSlot(key, { status:'active' });
-    const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) allSlots[idx].status='active';
+    const targetSlot = allSlots.find(s => s._key === key);
+    const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
+    await HA.updateKpSlot(key, { status:'active', ...extra });
+    const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) Object.assign(allSlots[idx], { status:'active', ...extra });
     kpCloseModalAndRefresh();
   };
   window.kpAcceptOne = async function(key) {
@@ -4400,6 +4402,45 @@ document.addEventListener('keydown', function(e) {
     return rules.find(r => r.kw === kwCount) || null;
   }
   function yupflPctFor(yupfl, workKw) { const rule = yupflRuleFor(yupfl, workKw); return rule ? rule.fixedPct : yupfl?.fixedPct; }
+
+  // 승인 시점에 차감/유입플 배분 수량·금액을 스냅샷으로 남겨 정산관리에서 조회 가능하게 함
+  // (접수관리.html deductFieldsFor/yupflFieldsFor와 동일 기준 — BizFit 실차감과는 무관, 정산 기록용)
+  function deductFieldsFor(slot) {
+    if (!slot) return {};
+    const dp = ap().find(p => p.deductOnly);
+    if (!dp) return {};
+    const dTarget = yupflAlloc(slot.dailyTarget||0, dp.fixedPct);
+    if (dTarget <= 0) return {};
+    const unitPrice = slot.unitPrice||0;
+    const totalTarget = dTarget * (slot.days||0);
+    return { deductTarget: totalTarget, deductAmount: totalTarget * unitPrice };
+  }
+  function yupflFieldsFor(slot) {
+    if (!slot) return {};
+    const yupfl = ap().find(p => p.id === 'yupfl' && p.fixedAlloc);
+    const split = ap().find(p => p.id === 'yupfl2' && p.splitProduct);
+    if (!yupfl && !split) return {};
+    const deduct = ap().find(p => p.deductOnly);
+    const base = slot.dailyTarget||0;
+    const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
+    let target = 0;
+    if (yupfl) {
+      const workKw = (slot.yupflKeyword||'').trim();
+      const rule   = yupflRuleFor(yupfl, workKw);
+      target += Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
+    }
+    if (split && Array.isArray(split.missionRules)) {
+      split.missionRules.forEach(rule => {
+        const workKw = ((slot.splitKeywords || {})[rule.mission] || '').trim();
+        if (!workKw) return;
+        target += Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
+      });
+    }
+    if (target <= 0) return {};
+    const unitPrice = slot.unitPrice||0;
+    return { yupflTarget: target, yupflAmount: target * (slot.days||0) * unitPrice };
+  }
+
   function lrm(items, total) {
     if (!items.length) return {};
     const totalW = items.reduce((s,p)=>s+p.ratio,0) || 1;
@@ -4881,9 +4922,17 @@ document.addEventListener('keydown', function(e) {
             })
             .map(([k]) => k);
           if (!ready.length) return;
-          await Promise.all(ready.map(key => window.HA.updateKpSlot(key, { status:'active' })));
+          await Promise.all(ready.map(key => {
+            const s = slotMapAll.get(key);
+            const extra = { ...deductFieldsFor(s), ...yupflFieldsFor(s) };
+            return window.HA.updateKpSlot(key, { status:'active', ...extra });
+          }));
           const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
-          ready.forEach(key => { const s = allSlots.find(x=>x._key===key); if (s) s.status='active'; });
+          ready.forEach(key => {
+            const s = allSlots.find(x=>x._key===key);
+            const src = slotMapAll.get(key);
+            if (s) Object.assign(s, { status:'active', ...deductFieldsFor(src), ...yupflFieldsFor(src) });
+          });
           if (window.kpRenderReceipts) window.kpRenderReceipts(false);
         } catch (e) {
           console.error('승인 게이트 처리 오류(다음 완료 시 또는 팝업 재오픈 시 재시도됨):', e);
