@@ -6,6 +6,8 @@
   .ha-switch .ha-switch-track::before { content:''; position:absolute; width:12px; height:12px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
   .ha-switch input:checked + .ha-switch-track { background:#f59e0b; }
   .ha-switch input:checked + .ha-switch-track::before { transform:translateX(12px); }
+  .no-spin::-webkit-outer-spin-button, .no-spin::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  .no-spin { -moz-appearance:textfield; }
   #receipt-page .filter-bar {
     background:#fff; border:1px solid var(--border); border-radius:10px;
     padding:14px 16px; display:flex; gap:10px; align-items:center; margin-bottom:14px;
@@ -4035,7 +4037,7 @@ window.toggleProdPanel = function(e) {
             <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정</div>
             <div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:12px;color:var(--text2);">· 그룹당 개수(최대 50)</span>
-              <input type="number" id="sch-kwsplit-chunk" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+              <input type="number" id="sch-kwsplit-chunk" class="no-spin" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:32px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
               <span style="font-size:12px;color:var(--text2);">개</span>
             </div>
             <div id="sch-kwsplit-chunk-warn" style="color:var(--danger);font-size:11px;margin-top:4px;${(scheduleKwSplitDraft.chunk>=1&&scheduleKwSplitDraft.chunk<=50)?'display:none;':''}">값은 1~50 사이여야 합니다.</div>
@@ -4736,7 +4738,7 @@ window.toggleProdPanel = function(e) {
         <select id="sch-hh-${i}" onchange="updateScheduleRow(${i},'time',this.value+':'+document.getElementById('sch-mm-${i}').value)" style="${selStyle}">${scheduleTimeSelectOptions(24, hh)}</select>
         :
         <select id="sch-mm-${i}" onchange="updateScheduleRow(${i},'time',document.getElementById('sch-hh-${i}').value+':'+this.value)" style="${selStyle}">${scheduleTimeSelectOptions(60, mm)}</select>
-        <input type="number" min="1" max="100" value="${r.pct}" oninput="updateScheduleRow(${i},'pct',this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+        <input type="number" min="1" max="100" value="${r.pct}" oninput="updateScheduleRow(${i},'pct',this.value)" style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
         ${scheduleDraftRows.length > 1 ? `<button type="button" onclick="removeScheduleRow(${i})" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>` : ''}
       </div>`;
     }).join('');
@@ -5882,11 +5884,11 @@ window.toggleProdPanel = function(e) {
                   <span style="color:var(--muted);font-size:11px;">목표</span>
                   <input type="number" id="ss-bulk-pct-${idSafe(gg.ckey)}" value="${checked?_ssBulk.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                     oninput="onBulkResplitPctInput('${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                    style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+                    style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
                   ${kwPctVisible ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
                   <input type="number" id="ss-bulk-kwpct-${idSafe(gg.ckey)}" value="${checked?(_ssBulk.kwPct[gg.ckey]||0):''}" ${checked?'':'disabled'}
                     oninput="onBulkResplitKwPctInput('${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                    style="width:52px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
+                    style="width:44px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
                 </label>`;
               }).join('')}
             </div>
@@ -5911,8 +5913,8 @@ window.toggleProdPanel = function(e) {
             </div>
             ${_ssBulk.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
-              <input type="number" value="${_ssBulk.kwChunk}" oninput="onBulkKwChunk(this.value)"
-                style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+              <input type="number" class="no-spin" value="${_ssBulk.kwChunk}" oninput="onBulkKwChunk(this.value)"
+                style="width:32px;padding:4px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
             </div>` : ''}
           </div>` : ''}
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
@@ -5925,7 +5927,7 @@ window.toggleProdPanel = function(e) {
             ${_ssBulk.timeRows.map((r,i) => `
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
               <input type="time" value="${r.time}" onchange="onBulkTimeRowInput(${i},'time',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">
-              <input type="number" min="0" max="100" value="${r.pct}" oninput="onBulkTimeRowInput(${i},'pct',this.value)" style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+              <input type="number" min="0" max="100" value="${r.pct}" oninput="onBulkTimeRowInput(${i},'pct',this.value)" style="width:44px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
               ${_ssBulk.timeRows.length>1 ? `<button type="button" onclick="removeBulkTimeRow(${i})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px;">✕</button>` : ''}
             </div>`).join('')}
             <div style="display:flex;align-items:center;gap:8px;">
@@ -6297,11 +6299,11 @@ window.toggleProdPanel = function(e) {
                 <span style="color:var(--muted);font-size:11px;">목표</span>
                 <input type="number" id="ss-resplit-pct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?st.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                   oninput="onScheduleResplitPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+                  style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
                 ${kwPctVisible ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
                 <input type="number" id="ss-resplit-kwpct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?(st.kwPct[gg.ckey]||0):''}" ${checked?'':'disabled'}
                   oninput="onScheduleResplitKwPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:52px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
+                  style="width:44px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
               </label>`;
             }).join('')}
           </div>
@@ -6326,8 +6328,8 @@ window.toggleProdPanel = function(e) {
           </div>
           ${st.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
-            <input type="number" value="${st.kwChunk}" oninput="onScheduleResplitKwChunk('${slotKey}',this.value)"
-              style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+            <input type="number" class="no-spin" value="${st.kwChunk}" oninput="onScheduleResplitKwChunk('${slotKey}',this.value)"
+              style="width:32px;padding:4px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
           </div>` : ''}
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드 <span id="ss-resplit-kwcount-${slotKey}" style="color:#1d4ed8;font-weight:700;">${(st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean).length}</span>개</div>
           <textarea id="ss-resplit-kwtext-${slotKey}" oninput="onScheduleResplitKwTextInput('${slotKey}',this.value)"
@@ -6344,7 +6346,7 @@ window.toggleProdPanel = function(e) {
           ${st.timeRows.map((r,i) => `
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <input type="time" value="${r.time}" onchange="onResplitTimeRowInput('${slotKey}',${i},'time',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">
-            <input type="number" min="0" max="100" value="${r.pct}" oninput="onResplitTimeRowInput('${slotKey}',${i},'pct',this.value)" style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+            <input type="number" min="0" max="100" value="${r.pct}" oninput="onResplitTimeRowInput('${slotKey}',${i},'pct',this.value)" style="width:44px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
             ${st.timeRows.length>1 ? `<button type="button" onclick="removeResplitTimeRow('${slotKey}',${i})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px;">✕</button>` : ''}
           </div>`).join('')}
           <div style="display:flex;align-items:center;gap:8px;">
