@@ -889,11 +889,13 @@ const HA = {
     });
   },
 
-  // 정산 실시간 리스너 — slots+paid_slots를 (접수일+대행사+유저ID) 단위로 묶어 미정산 행 개수를 콜백.
-  // slots는 onSlotsChange와 같은 공유 캐시(subscribeLiveSlots) 재사용. paid_slots는 121KB로 작고 키가 push 순서가 아니라 startAfter 필터 이득이 없어 value 리스너 유지
+  // 정산 실시간 리스너 — ha/kp 슬롯+각자의 paid셋을 (접수일+대행사+유저ID) 단위로 묶어 미정산 행 개수를 콜백.
+  // slots/kp슬롯/paid셋 전부 다른 곳(kp-badge, onKpPaidSetChange 등)과 공유하는 캐시 재사용.
   onSettlementsChange(callback) {
-    let latestSlots = [];
-    let latestPaid  = new Set();
+    let latestHaSlots = [];
+    let latestKpSlots = [];
+    let latestHaPaid  = new Set();
+    let latestKpPaid  = new Set();
 
     function getMinuteKey(isoStr) {
       if (!isoStr) return 'unknown';
@@ -910,9 +912,20 @@ const HA = {
       // 정산관리.html의 isBillableSlot()/allSlots 구성과 동일 기준으로 집계 대상을 삼는다.
       // - 재접수(isRequeue) 슬롯은 정산 대상이 아니라 테이블/paidSet에 안 잡힘
       // - origin==='kp'는 김프로 원본이 ha/slots에 자가치유 미러된 것으로, 입금 처리는
-      //   김프로 전용 저장소(kimproPaidSlots)에만 기록돼 ha쪽 paid_slots엔 절대 안 잡힘
-      // 둘 다 안 빼면 테이블은 전부 정산완료로 보여도 배지만 미정산으로 계속 남는 버그가 생김
-      const base = latestSlots.filter(s => !s.isRequeue && s.origin !== 'kp' && ['active','accepted','expired','pending'].includes(s.status));
+      //   김프로 전용 저장소(kimproPaidSlots)에만 기록되고 ha쪽 paid_slots엔 절대 안 잡힘 —
+      //   그래서 ha/slots 쪽에서는 빼되(이중계상 방지), 김프로 원본(ha/kimproSlots)은
+      //   kimproPaidSlots까지 같이 합쳐서 별도로 카운트한다(전에는 통째로 빼서 김프로 미정산이
+      //   영원히 배지에 안 뜨는 버그가 있었음).
+      const haKeySet = new Set(latestHaSlots.map(s => s._key));
+      // 김프로 슬롯은 userId가 항상 빈 값이라 접수관리 쪽 그룹 키와 안 겹치게 출처 태그를 섞어 넣음
+      const kpSlots = latestKpSlots
+        .filter(s => (s.origin === 'kp' || !haKeySet.has(s._key)) && !s.isRequeue)
+        .map(s => ({ ...s, userId: `kp:${s.userId || '-'}` }));
+      const base = [
+        ...latestHaSlots.filter(s => !s.isRequeue && s.origin !== 'kp' && ['active','accepted','expired','pending'].includes(s.status)),
+        ...kpSlots,
+      ];
+      const paid = new Set([...latestHaPaid, ...latestKpPaid]);
       const map = {};
       base.forEach(s => {
         const t = getMinuteKey(s.createdAt);
@@ -922,18 +935,17 @@ const HA = {
       });
       // 그룹 중 캠페인이 하나라도 미정산이면 미정산 행으로 카운트
       const unpaidRows = Object.values(map).filter(g =>
-        !g.slots.every(s => latestPaid.has(s._key))
+        !g.slots.every(s => paid.has(s._key))
       );
       callback(unpaidRows.length);
     }
 
-    const unsubSlots = subscribeLiveSlots(slots => { latestSlots = slots; notify(); });
-    const unsubPaid = onValue(ref(db, PATHS.paid), snap => {
-      latestPaid = snap.exists() ? new Set(Object.keys(snap.val())) : new Set();
-      notify();
-    });
+    const unsubHaSlots = subscribeLiveSlots(slots => { latestHaSlots = slots; notify(); });
+    const unsubKpSlots = subscribeLiveKpSlots(slots => { latestKpSlots = slots; notify(); });
+    const unsubHaPaid  = onPaidSetChangeShared(set => { latestHaPaid = set; notify(); });
+    const unsubKpPaid  = onKpPaidSetChangeShared(set => { latestKpPaid = set; notify(); });
 
-    return () => { unsubSlots(); unsubPaid(); };
+    return () => { unsubHaSlots(); unsubKpSlots(); unsubHaPaid(); unsubKpPaid(); };
   },
 
   // 정산관리.html 전용 실시간 리스너 — 슬롯(수 MB)은 재다운로드하지 않고 정산 부가 데이터
