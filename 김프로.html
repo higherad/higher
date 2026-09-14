@@ -6687,6 +6687,7 @@ document.addEventListener('keydown', function(e) {
               <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
               <input type="number" class="no-spin" value="${kpSsBulk.kwChunk}" oninput="kpOnBulkKwChunk(this.value)"
                 style="width:32px;padding:4px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
+              <span style="font-size:12px;color:var(--text2);">개</span>
             </div>` : ''}
           </div>` : ''}
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
@@ -7042,6 +7043,7 @@ document.addEventListener('keydown', function(e) {
             <span style="font-size:12px;color:var(--text2);">그룹당 개수(최대 50)</span>
             <input type="number" class="no-spin" value="${st.kwChunk}" oninput="kpOnScheduleResplitKwChunk('${slotKey}',this.value)"
               style="width:32px;padding:4px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;">
+            <span style="font-size:12px;color:var(--text2);">개</span>
           </div>` : ''}
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📋 상세에 저장된 키워드 <span id="kp-ss-resplit-kwcount-${slotKey}" style="color:#1d4ed8;font-weight:700;">${(st.kwText||'').split(',').map(k=>k.trim()).filter(Boolean).length}</span>개</div>
           <textarea id="kp-ss-resplit-kwtext-${slotKey}" oninput="kpOnScheduleResplitKwTextInput('${slotKey}',this.value)"
