@@ -196,7 +196,10 @@
   // kp 슬롯 중 같은 key가 ha/slots에도 있으면 미러일 뿐이므로 정산 대상에서 제외.
   function dedupeKpSlots(haSlotsArr, kpSlotsRawArr) {
     const haKeySet = new Set(haSlotsArr.map(s => s._key));
-    return kpSlotsRawArr.filter(s => !haKeySet.has(s._key));
+    // origin==='kp'는 김프로가 원본이라 승인/예약 시 ha 쪽에도 자가치유 미러가 생길 수 있음(양방향 미러링) —
+    // 그 미러 존재만으로 걸러내면 김프로 원본 캠페인이 kp 쪽에서 사라져 정산 화면에 "김프로" 표시가 안 붙는다.
+    // ha가 원본이고 kp로 미러링된 것(origin!=='kp')만 여기서 제외.
+    return kpSlotsRawArr.filter(s => s.origin === 'kp' || !haKeySet.has(s._key));
   }
   function isBillableSlot(s) {
     if (s.isRequeue) return false; // 재접수는 기존 배분을 이어받는 것일 뿐 새 결제 건이 아니므로 정산 대상 아님(unitPrice 0으로 스냅샷됨)
@@ -567,7 +570,8 @@
       try { kpSnapshotMap = await HA.getAllKpSettleSnapshots(); } catch(e) { kpSnapshotMap={}; }
       // 김프로 슬롯은 userId를 센티널로 덮어써 접수관리와 그룹 키가 절대 안 겹치게 함(위 KIMPRO_USER_SENTINEL 주석 참고)
       const kpSlots = dedupeKpSlots(haSlots, kpSlotsRaw).map(s => ({...s, _src:'kp', _origUserId:s.userId, userId: KIMPRO_USER_SENTINEL}));
-      allSlots  = [...haSlots, ...kpSlots];
+      // origin==='kp' ha 미러는 위 kpSlots 쪽에서 이미 카운트되므로 여기서 빼서 이중계상 방지
+      allSlots  = [...haSlots.filter(s => s.origin !== 'kp'), ...kpSlots];
       paidSet   = new Set([...haPaidSet, ...kpPaidSet]);
       refundMap = {...haRefundMap, ...kpRefundMap};
       snapshotMap = {...haSnapshotMap, ...kpSnapshotMap};
@@ -600,7 +604,7 @@
         HA.getKpSlots().catch(()=>[]), HA.getKpRefunds().catch(()=>({})),
       ]);
       const freshKpSlots = dedupeKpSlots(freshHaSlots, freshKpSlotsRaw).map(s => ({...s, _src:'kp', _origUserId:s.userId, userId: KIMPRO_USER_SENTINEL}));
-      const freshSlots = [...freshHaSlots, ...freshKpSlots];
+      const freshSlots = [...freshHaSlots.filter(s => s.origin !== 'kp'), ...freshKpSlots];
       allSlots = freshSlots; refundMap = {...(freshHaRefundMap||{}), ...(freshKpRefundMap||{})};
       const freshRefund = (timeKey,agencyId,userId) => (refundMap)[refundKey(timeKey,agencyId,userId)]||0;
       for (const g of findNewGroups(freshSlots)) {

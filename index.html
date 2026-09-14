@@ -793,13 +793,10 @@
     localStorage.setItem('ha_sidebar_collapsed', collapsed ? '1' : '0');
   };
 
-  // 김프로 화면은 가로 공간이 더 필요해서 진입 시 사이드바를 자동으로 접음
   window.enterKimpro = function(navEl) {
     loadPage('김프로.html', navEl);
-    document.getElementById('sidebar').classList.add('collapsed');
-    localStorage.setItem('ha_sidebar_collapsed', '1');
   };
-  if (localStorage.getItem('ha_sidebar_collapsed') === '1') {
+  if (localStorage.getItem('ha_sidebar_collapsed') !== '0') {
     document.getElementById('sidebar').classList.add('collapsed');
   }
 
