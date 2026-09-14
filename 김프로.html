@@ -5923,7 +5923,7 @@ document.addEventListener('keydown', function(e) {
 
 <!-- ══════════════════════════════════════════
      예약 분할 현황 (접수관리.html 이식 — 조회+검색/필터+그룹 펼치기/접기+검색키워드 인라인수정+전체취소+
-     잔여 재분류+키워드 일괄분배+등급 변경까지 전부 포함. 배분/제출 엔진 스크립트(kpCallBizfitProxy/
+     잔여 재분류(키워드 재분할·시간 재설정 포함)+일괄 잔여 재분류+등급 변경까지 전부 포함. 배분/제출 엔진 스크립트(kpCallBizfitProxy/
      kpGenId/lrm/prods/KP_BIZFIT_DOMAIN·TAB)를 window.* 경유로 공유해서 씀)
 ══════════════════════════════════════════ -->
 <style>
@@ -5996,7 +5996,6 @@ document.addEventListener('keydown', function(e) {
   let ssLastGroups = [];
   let ssShowDone = false; // false=대기 항목 있는 캠페인만, true=전부 완료된 캠페인만(완료 목록)
   let kpSsResplit = {}; // slotKey -> { open, loading, gradeGroups, sel, selectedKeys } — 잔여 재분류 패널 상태
-  let kpSsKwSplit = {}; // slotKey -> { open, kwText, chunk } — 키워드 일괄분배 패널 상태
   // 일괄 잔여 재분류(2026-09-14, 접수관리.html과 동일) — 여러 그룹에 같은 등급/비율 설정 하나를 일괄 적용
   let kpSsBulkSelected = new Set();
   let kpSsBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, kwPct:{}, kwMethod:'ratio', kwChunk:5, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
@@ -6131,7 +6130,6 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-ss-count-keyword').textContent = '';
     ssCollapsed = new Set();
     kpSsResplit = {};
-    kpSsKwSplit = {};
     ssShowDone = false;
     await reloadKpScheduleEntries();
     renderKpSplitScheduleList();
@@ -6286,16 +6284,12 @@ document.addEventListener('keydown', function(e) {
               ${editablePendCount
                 ? `<button onclick="event.stopPropagation();kpToggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '잔여 재분류'}</button>`
                 : ''}
-              ${editablePendCount
-                ? `<button onclick="event.stopPropagation();kpToggleScheduleKwSplit('${g.gid}')" style="padding:3px 9px;border:1px solid #bbf7d0;border-radius:100px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">✂️ 키워드 일괄분배</button>`
-                : ''}
               <div onclick="kpToggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;">
                 전체 ${g.items.length}건 · <span style="color:#3b82f6;">대기중 ${pendCount}</span> · <span style="color:#ef4444;">완료 ${doneCount}</span>
               </div>
             </div>
           </div>
           ${kpRenderScheduleResplitPanel(g)}
-          ${kpRenderScheduleKwSplitPanel(g)}
           ${collapsed ? '' : `
           <table class="kp-ss-table">
             <thead><tr>
@@ -7062,15 +7056,7 @@ document.addEventListener('keydown', function(e) {
     return { created, removed };
   }
 
-  // ── 키워드 일괄분배 — 쉼표 목록을 "비율"(그룹당 개수)만큼 잘라 대기중 행에 sendAt 순서대로 채움 ──
-  function kpEnsureKwSplitState(slotKey) {
-    return kpSsKwSplit[slotKey] || (kpSsKwSplit[slotKey] = { open:false, kwText:'', chunk:5 });
-  }
-  window.kpToggleScheduleKwSplit = function(slotKey) {
-    const st = kpEnsureKwSplitState(slotKey);
-    st.open = !st.open;
-    renderKpSplitScheduleList();
-  };
+  // kpAssignKeywordsByChunk(잔여 재분류 (b) 방식)에서도 씀
   function kpChunkKeywords(kwText, chunk) {
     const kws = (kwText||'').split(',').map(k=>k.trim()).filter(Boolean);
     const c = Math.max(1, parseInt(chunk)||0);
@@ -7079,73 +7065,6 @@ document.addEventListener('keydown', function(e) {
     for (let i=0; i<kws.length; i+=c) groups.push(kws.slice(i, i+c));
     return groups;
   }
-  function kpScheduleKwSplitGroups(st) {
-    return kpChunkKeywords(st.kwText, st.chunk);
-  }
-  window.kpOnScheduleKwSplitInput = function(slotKey, field, val) {
-    const st = kpEnsureKwSplitState(slotKey);
-    st[field] = val;
-    kpUpdateScheduleKwSplitPreview(slotKey);
-  };
-  function kpUpdateScheduleKwSplitPreview(slotKey) {
-    const st = kpSsKwSplit[slotKey]; if (!st) return;
-    const groups = kpScheduleKwSplitGroups(st);
-    const pendingCount = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status)).length;
-    const previewEl = document.getElementById(`kp-ss-kwsplit-preview-${slotKey}`);
-    if (previewEl) previewEl.textContent = groups.length ? `${groups.length}그룹 생성 → 대기중 ${pendingCount}건 중 ${Math.min(groups.length, pendingCount)}건에 적용` : '';
-    const btn = document.getElementById(`kp-ss-kwsplit-apply-${slotKey}`);
-    if (btn) { const blocked = !groups.length; btn.disabled = blocked; btn.style.background = blocked ? '#94a3b8' : '#15803d'; btn.style.cursor = blocked ? 'not-allowed' : 'pointer'; }
-  }
-  function kpRenderScheduleKwSplitPanel(g) {
-    const st = kpSsKwSplit[g.gid];
-    if (!st || !st.open) return '';
-    const slotKey = g.gid;
-    const groups = kpScheduleKwSplitGroups(st);
-    const pendingCount = g.items.filter(e => !isScheduleDone(e.status)).length;
-    return `<div style="padding:12px 14px;background:#f0fdf4;border-top:1px solid #bbf7d0;border-bottom:1px solid #bbf7d0;">
-      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
-        <textarea id="kp-ss-kwsplit-kw-${slotKey}" placeholder="키워드를 쉼표로 구분해서 입력 (예: 키워드1,키워드2,키워드3...)"
-          oninput="kpOnScheduleKwSplitInput('${slotKey}','kwText',this.value)"
-          style="flex:1;min-width:260px;height:56px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;">${ssEsc(st.kwText)}</textarea>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:12px;color:var(--text2);white-space:nowrap;">비율(그룹당 개수)</span>
-          <input type="number" min="1" value="${st.chunk}" oninput="kpOnScheduleKwSplitInput('${slotKey}','chunk',this.value)"
-            style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;">
-        <span id="kp-ss-kwsplit-preview-${slotKey}" style="font-size:11px;color:var(--text2);">${groups.length ? `${groups.length}그룹 생성 → 대기중 ${pendingCount}건 중 ${Math.min(groups.length, pendingCount)}건에 적용` : ''}</span>
-        <button id="kp-ss-kwsplit-apply-${slotKey}" onclick="kpApplyScheduleKwSplit('${slotKey}')" ${groups.length?'':'disabled'}
-          style="padding:6px 14px;border:none;border-radius:7px;background:${groups.length?'#15803d':'#94a3b8'};color:#fff;cursor:${groups.length?'pointer':'not-allowed'};font-size:12px;font-weight:700;font-family:inherit;">적용</button>
-      </div>
-    </div>`;
-  }
-  window.kpApplyScheduleKwSplit = async function(slotKey) {
-    const st = kpSsKwSplit[slotKey]; if (!st) return;
-    const groups = kpScheduleKwSplitGroups(st);
-    if (!groups.length) return;
-    const pendingItems = Object.values(ssEntries)
-      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status))
-      .sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||''));
-    const targets = pendingItems.slice(0, groups.length);
-    if (!targets.length) return;
-    const leftoverPending = pendingItems.length - targets.length;
-    const leftoverGroups = groups.length - targets.length;
-    const note = leftoverPending > 0 ? `초과분 대기중 ${leftoverPending}건은 그대로 둡니다.` : (leftoverGroups > 0 ? `남는 키워드 그룹 ${leftoverGroups}개는 사용하지 않습니다.` : '');
-    if (!confirm(`대기중 ${targets.length}건에 키워드를 순서대로 채웁니다.${note ? '\n' + note : ''}\n계속할까요?`)) return;
-    const dispatchSuffix = kpScheduleDispatchSuffix(targets[0]._src === 'ha' ? 'ha' : 'kp');
-    const patch = {};
-    targets.forEach((e, i) => { patch[`${dispatchSuffix}/${e._key}/payload/rowData/0/검색키워드`] = groups[i].join(','); });
-    try {
-      await window.HA.updateKpDoc('ha', patch);
-      targets.forEach((e, i) => { const row = (e.payload.rowData||[])[0]; if (row) row.검색키워드 = groups[i].join(','); });
-      delete kpSsKwSplit[slotKey];
-      renderKpSplitScheduleList();
-      alert(`키워드 일괄분배 완료: ${targets.length}건`);
-    } catch(err) {
-      alert('일괄분배 실패: ' + (err.message||err));
-    }
-  };
 
   // ── 등급 변경 — gradeName만 바꾸면 안 됨(classType/gradeType/tab이 짝을 이뤄야 /register가 정확) ──
   window.kpEditScheduleGrade = async function(key) {
