@@ -4032,12 +4032,13 @@ window.toggleProdPanel = function(e) {
             <span class="ha-switch"><input type="checkbox" id="sch-kwsplit-on" ${scheduleKwSplitDraft.on?'checked':''} onchange="onScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           <div id="sch-kwsplit-chunk-wrap" style="display:${scheduleKwSplitDraft.on?'block':'none'};margin-top:4px;">
-            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정(모자라면 처음부터 다시 사용, 남으면 버림)</div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">※ 각 캠페인의 검색키워드를 그룹당 개수만큼 잘라 시간대에 하나씩 배정</div>
             <div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:12px;color:var(--text2);">· 그룹당 개수(최대 50)</span>
-              <input type="number" id="sch-kwsplit-chunk" min="1" max="50" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+              <input type="number" id="sch-kwsplit-chunk" value="${scheduleKwSplitDraft.chunk}" oninput="onScheduleKwSplitChunk(this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
               <span style="font-size:12px;color:var(--text2);">개</span>
             </div>
+            <div id="sch-kwsplit-chunk-warn" style="color:var(--danger);font-size:11px;margin-top:4px;${(scheduleKwSplitDraft.chunk>=1&&scheduleKwSplitDraft.chunk<=50)?'display:none;':''}">값은 1~50 사이여야 합니다.</div>
           </div>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
@@ -4706,9 +4707,12 @@ window.toggleProdPanel = function(e) {
       if (sum !== 100) { warnEl.style.display = 'block'; warnEl.textContent = `⚠ 비율 합계는 100%여야 합니다 (현재 ${sum}%)`; }
       else { warnEl.style.display = 'none'; warnEl.textContent = ''; }
     }
+    const chunkInvalid = scheduleKwSplitDraft.on && !(scheduleKwSplitDraft.chunk >= 1 && scheduleKwSplitDraft.chunk <= 50);
+    const chunkWarnEl = document.getElementById('sch-kwsplit-chunk-warn');
+    if (chunkWarnEl) chunkWarnEl.style.display = chunkInvalid ? 'block' : 'none';
     const btn = document.getElementById('schedule-apply-btn');
     if (btn) {
-      const blocked = sum !== 100;
+      const blocked = sum !== 100 || chunkInvalid;
       btn.disabled = blocked;
       btn.style.background = blocked ? 'var(--muted)' : '#f59e0b';
       btn.style.cursor = blocked ? 'not-allowed' : 'pointer';
@@ -4766,14 +4770,17 @@ window.toggleProdPanel = function(e) {
     scheduleKwSplitDraft.on = checked;
     const wrap = document.getElementById('sch-kwsplit-chunk-wrap');
     if (wrap) wrap.style.display = checked ? 'block' : 'none';
+    updateScheduleSumNote();
   };
   window.onScheduleKwSplitChunk = function(val) {
-    scheduleKwSplitDraft.chunk = Math.max(1, Math.min(50, parseInt(val)||1));
+    scheduleKwSplitDraft.chunk = parseInt(val) || 0;
+    updateScheduleSumNote();
   };
 
   window.applyScheduleConfig = function() {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
     if (sum !== 100) return; // 적용 버튼이 이미 막혀있어 정상 흐름에서 도달 안 함 — 방어적으로만 남겨둠(팝업 없음)
+    if (scheduleKwSplitDraft.on && !(scheduleKwSplitDraft.chunk >= 1 && scheduleKwSplitDraft.chunk <= 50)) return; // 위와 동일한 이유로 방어적 체크만
     const pastViolations = schedulePastViolations(scheduleValidationRows, scheduleDraftRows);
     if (pastViolations.length) {
       const lines = pastViolations.slice(0, 5).map(v => `- ${v.name} ${v.date} ${v.time}`);
