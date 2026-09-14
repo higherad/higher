@@ -5475,7 +5475,7 @@ document.addEventListener('keydown', function(e) {
         <select id="kp-sch-hh-${i}" onchange="kpUpdateScheduleRow(${i},'time',this.value+':'+document.getElementById('kp-sch-mm-${i}').value)" style="${selStyle}">${kpScheduleTimeSelectOptions(24,hh)}</select>
         :
         <select id="kp-sch-mm-${i}" onchange="kpUpdateScheduleRow(${i},'time',document.getElementById('kp-sch-hh-${i}').value+':'+this.value)" style="${selStyle}">${kpScheduleTimeSelectOptions(60,mm)}</select>
-        <input type="number" min="1" max="100" value="${r.pct}" oninput="kpUpdateScheduleRow(${i},'pct',this.value)" style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+        <input type="number" min="1" max="100" value="${r.pct}" oninput="kpUpdateScheduleRow(${i},'pct',this.value)" style="width:36px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
         ${kpScheduleDraftRows.length>1 ? `<button type="button" onclick="kpRemoveScheduleRow(${i})" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>` : ''}
       </div>`;
     }).join('');
@@ -5974,8 +5974,8 @@ document.addEventListener('keydown', function(e) {
   .ha-switch .ha-switch-track::before { content:''; position:absolute; width:12px; height:12px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
   .ha-switch input:checked + .ha-switch-track { background:#f59e0b; }
   .ha-switch input:checked + .ha-switch-track::before { transform:translateX(12px); }
-  .no-spin::-webkit-outer-spin-button, .no-spin::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-  .no-spin { -moz-appearance:textfield; }
+  input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  input[type=number] { -moz-appearance:textfield; }
 </style>
 <div id="kp-ss-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
@@ -6630,11 +6630,11 @@ document.addEventListener('keydown', function(e) {
                   <span style="color:var(--muted);font-size:11px;">목표</span>
                   <input type="number" id="kp-ss-bulk-pct-${kpIdSafe(gg.ckey)}" value="${checked?kpSsBulk.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                     oninput="kpOnBulkResplitPctInput('${kpEscJs(gg.ckey)}',this.value)" min="0" max="100"
-                    style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+                    style="width:36px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
                   ${kpSsBulk.kwMode ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
                   <input type="number" id="kp-ss-bulk-kwpct-${kpIdSafe(gg.ckey)}" value="${checked?(kpSsBulk.kwPct[gg.ckey]||0):''}" ${kwEnabled?'':'disabled'}
                     oninput="kpOnBulkResplitKwPctInput('${kpEscJs(gg.ckey)}',this.value)" min="0" max="100"
-                    style="width:44px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${kwEnabled?'#fffbeb':'#f1f5f9'};">%` : ''}
+                    style="width:36px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${kwEnabled?'#fffbeb':'#f1f5f9'};">%` : ''}
                 </label>`;
               }).join('')}
             </div>
@@ -6673,7 +6673,7 @@ document.addEventListener('keydown', function(e) {
             ${kpSsBulk.timeRows.map((r,i) => `
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
               <input type="time" value="${r.time}" onchange="kpOnBulkTimeRowInput(${i},'time',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">
-              <input type="number" min="0" max="100" value="${r.pct}" oninput="kpOnBulkTimeRowInput(${i},'pct',this.value)" style="width:44px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+              <input type="number" min="0" max="100" value="${r.pct}" oninput="kpOnBulkTimeRowInput(${i},'pct',this.value)" style="width:36px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
               ${kpSsBulk.timeRows.length>1 ? `<button type="button" onclick="kpRemoveBulkTimeRow(${i})" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;">✕</button>` : ''}
             </div>`).join('')}
             <div style="display:flex;align-items:center;gap:8px;">
@@ -6985,11 +6985,11 @@ document.addEventListener('keydown', function(e) {
                 <span style="color:var(--muted);font-size:11px;">목표</span>
                 <input type="number" id="kp-ss-resplit-pct-${slotKey}-${kpIdSafe(gg.ckey)}" value="${checked?st.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                   oninput="kpOnScheduleResplitPctInput('${slotKey}','${kpEscJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+                  style="width:36px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
                 ${st.kwMode ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
                 <input type="number" id="kp-ss-resplit-kwpct-${slotKey}-${kpIdSafe(gg.ckey)}" value="${checked?(st.kwPct[gg.ckey]||0):''}" ${kwEnabled?'':'disabled'}
                   oninput="kpOnScheduleResplitKwPctInput('${slotKey}','${kpEscJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:44px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${kwEnabled?'#fffbeb':'#f1f5f9'};">%` : ''}
+                  style="width:36px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${kwEnabled?'#fffbeb':'#f1f5f9'};">%` : ''}
               </label>`;
             }).join('')}
           </div>
@@ -7032,7 +7032,7 @@ document.addEventListener('keydown', function(e) {
           ${st.timeRows.map((r,i) => `
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <input type="time" value="${r.time}" onchange="kpOnResplitTimeRowInput('${slotKey}',${i},'time',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">
-            <input type="number" min="0" max="100" value="${r.pct}" oninput="kpOnResplitTimeRowInput('${slotKey}',${i},'pct',this.value)" style="width:44px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+            <input type="number" min="0" max="100" value="${r.pct}" oninput="kpOnResplitTimeRowInput('${slotKey}',${i},'pct',this.value)" style="width:36px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
             ${st.timeRows.length>1 ? `<button type="button" onclick="kpRemoveResplitTimeRow('${slotKey}',${i})" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;">✕</button>` : ''}
           </div>`).join('')}
           <div style="display:flex;align-items:center;gap:8px;">

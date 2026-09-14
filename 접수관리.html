@@ -6,8 +6,8 @@
   .ha-switch .ha-switch-track::before { content:''; position:absolute; width:12px; height:12px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
   .ha-switch input:checked + .ha-switch-track { background:#f59e0b; }
   .ha-switch input:checked + .ha-switch-track::before { transform:translateX(12px); }
-  .no-spin::-webkit-outer-spin-button, .no-spin::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-  .no-spin { -moz-appearance:textfield; }
+  input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  input[type=number] { -moz-appearance:textfield; }
   #receipt-page .filter-bar {
     background:#fff; border:1px solid var(--border); border-radius:10px;
     padding:14px 16px; display:flex; gap:10px; align-items:center; margin-bottom:14px;
@@ -4738,7 +4738,7 @@ window.toggleProdPanel = function(e) {
         <select id="sch-hh-${i}" onchange="updateScheduleRow(${i},'time',this.value+':'+document.getElementById('sch-mm-${i}').value)" style="${selStyle}">${scheduleTimeSelectOptions(24, hh)}</select>
         :
         <select id="sch-mm-${i}" onchange="updateScheduleRow(${i},'time',document.getElementById('sch-hh-${i}').value+':'+this.value)" style="${selStyle}">${scheduleTimeSelectOptions(60, mm)}</select>
-        <input type="number" min="1" max="100" value="${r.pct}" oninput="updateScheduleRow(${i},'pct',this.value)" style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+        <input type="number" min="1" max="100" value="${r.pct}" oninput="updateScheduleRow(${i},'pct',this.value)" style="width:36px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
         ${scheduleDraftRows.length > 1 ? `<button type="button" onclick="removeScheduleRow(${i})" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>` : ''}
       </div>`;
     }).join('');
@@ -5884,11 +5884,11 @@ window.toggleProdPanel = function(e) {
                   <span style="color:var(--muted);font-size:11px;">목표</span>
                   <input type="number" id="ss-bulk-pct-${idSafe(gg.ckey)}" value="${checked?_ssBulk.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                     oninput="onBulkResplitPctInput('${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                    style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+                    style="width:36px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
                   ${kwPctVisible ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
                   <input type="number" id="ss-bulk-kwpct-${idSafe(gg.ckey)}" value="${checked?(_ssBulk.kwPct[gg.ckey]||0):''}" ${checked?'':'disabled'}
                     oninput="onBulkResplitKwPctInput('${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                    style="width:44px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
+                    style="width:36px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
                 </label>`;
               }).join('')}
             </div>
@@ -5927,7 +5927,7 @@ window.toggleProdPanel = function(e) {
             ${_ssBulk.timeRows.map((r,i) => `
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
               <input type="time" value="${r.time}" onchange="onBulkTimeRowInput(${i},'time',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">
-              <input type="number" min="0" max="100" value="${r.pct}" oninput="onBulkTimeRowInput(${i},'pct',this.value)" style="width:44px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+              <input type="number" min="0" max="100" value="${r.pct}" oninput="onBulkTimeRowInput(${i},'pct',this.value)" style="width:36px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
               ${_ssBulk.timeRows.length>1 ? `<button type="button" onclick="removeBulkTimeRow(${i})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px;">✕</button>` : ''}
             </div>`).join('')}
             <div style="display:flex;align-items:center;gap:8px;">
@@ -6299,11 +6299,11 @@ window.toggleProdPanel = function(e) {
                 <span style="color:var(--muted);font-size:11px;">목표</span>
                 <input type="number" id="ss-resplit-pct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?st.sel[gg.ckey]:''}" ${checked?'':'disabled'}
                   oninput="onScheduleResplitPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:44px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
+                  style="width:36px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">%
                 ${kwPctVisible ? `<span style="color:#92400e;font-size:11px;font-weight:700;margin-left:6px;">키워드</span>
                 <input type="number" id="ss-resplit-kwpct-${slotKey}-${idSafe(gg.ckey)}" value="${checked?(st.kwPct[gg.ckey]||0):''}" ${checked?'':'disabled'}
                   oninput="onScheduleResplitKwPctInput('${slotKey}','${escJs(gg.ckey)}',this.value)" min="0" max="100"
-                  style="width:44px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
+                  style="width:36px;padding:3px 6px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit;font-size:12px;background:${checked?'#fffbeb':'#f1f5f9'};">%` : ''}
               </label>`;
             }).join('')}
           </div>
@@ -6346,7 +6346,7 @@ window.toggleProdPanel = function(e) {
           ${st.timeRows.map((r,i) => `
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <input type="time" value="${r.time}" onchange="onResplitTimeRowInput('${slotKey}',${i},'time',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:12px;">
-            <input type="number" min="0" max="100" value="${r.pct}" oninput="onResplitTimeRowInput('${slotKey}',${i},'pct',this.value)" style="width:44px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+            <input type="number" min="0" max="100" value="${r.pct}" oninput="onResplitTimeRowInput('${slotKey}',${i},'pct',this.value)" style="width:36px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
             ${st.timeRows.length>1 ? `<button type="button" onclick="removeResplitTimeRow('${slotKey}',${i})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px;">✕</button>` : ''}
           </div>`).join('')}
           <div style="display:flex;align-items:center;gap:8px;">
