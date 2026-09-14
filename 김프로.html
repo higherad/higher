@@ -4772,8 +4772,8 @@ document.addEventListener('keydown', function(e) {
       statusTd.innerHTML = r._fixedSubmitted ? '<span style="color:var(--kp-accent);">✅ 완료</span>' : '-';
       const hasAutoMission = r.autoMission !== null && r.autoMission !== undefined;
       const missionTd = document.createElement('td');
-      missionTd.style.cssText = 'text-align:center';
-      missionTd.innerHTML = `<input type="number" min="0" class="kp-ag-mission-input" data-key="${kpSubEsc(r._rowKey||'')}" value="${hasAutoMission?r.autoMission:''}" ${r._fixedSubmitted?'disabled':''} style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;text-align:center;">`;
+      missionTd.style.cssText = 'text-align:center;overflow:visible;';
+      missionTd.innerHTML = `<input type="number" min="0" class="kp-ag-mission-input" data-key="${kpSubEsc(r._rowKey||'')}" value="${hasAutoMission?r.autoMission:''}" ${r._fixedSubmitted?'disabled':''} style="width:32px;padding:3px 2px;border:1px solid var(--border);border-radius:5px;font-size:12px;text-align:center;">`;
       tr.innerHTML = `
         <td style="text-align:center"><span style="font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;background:${r._prodColor||'#94a3b8'}1a;color:${r._prodColor||'#64748b'};border:1px solid ${r._prodColor||'#94a3b8'}55;">${kpSubEsc(r._prodLabel||'')}</span></td>
         <td>${kpSubEsc(r.storeName||'-')}</td>
