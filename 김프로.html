@@ -4523,6 +4523,7 @@ document.addEventListener('keydown', function(e) {
         rows.push({
           _slotKey: r._key, _doneKey: prod.name,
           _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
+          _days: r.days||0, _daysMultiplied: !!prod.daysMultiplied,
           상품등급명: prod.name, 업체명: r.storeName||'', 업체URL: r.url||'', PID번호: r.mid||'',
           순위키워드: r.rankKeyword||'', 일목표: pp, 일수: daysVal, 예약일: r.startDate||'',
           검색키워드: kw,
@@ -4625,7 +4626,7 @@ document.addEventListener('keydown', function(e) {
         rows.push({
           _slotKey: r._key, _doneKey: doneKey,
           _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(doneKey)),
-          _requiresBlogUrl: true, _daysMultiplied: !!prod.daysMultiplied,
+          _requiresBlogUrl: true, _days: r.days||0, _daysMultiplied: !!prod.daysMultiplied,
           상품등급명: prod.name, 업체명: r.storeName||'', 업체URL: r.url||'', PID번호: r.mid||'',
           순위키워드: r.rankKeyword||'', 일목표: partTarget,
           일수: prod.daysMultiplied ? partTarget*(r.days||0) : (r.days||0),
@@ -5186,13 +5187,37 @@ document.addEventListener('keydown', function(e) {
     addRequired(yupflRows, 'fixedKeys');
     const slotMapAll = new Map((window.getKpAllSlots ? window.getKpAllSlots() : []).map(s => [s._key, s]));
     const gate = kpMakeGate(requiredLegsByKey, slotMapAll);
+
+    // 완료 로그(각 레그의 제출완료 필드)가 이미 다 찍혀있는 슬롯은 상태(status)만 창 열자마자 자동으로
+    // 승인 전환 — 접수관리.html과 동일 패턴인데 김프로엔 이 초기 시딩 자체가 빠져 있어서 레그가 전부
+    // 완료돼도 다시 열기 전엔 승인으로 안 바뀌었음(2026-09-14).
+    const kpRowsBySlotOf = rows => {
+      const m = new Map();
+      rows.forEach(r => { if (!r._slotKey) return; if (!m.has(r._slotKey)) m.set(r._slotKey, []); m.get(r._slotKey).push(r); });
+      return m;
+    };
+    const kpAlreadyDoneOf = (rowsBySlot, doneField) => new Set(
+      [...rowsBySlot.entries()].filter(([, rs]) => rs.every(r => r[doneField])).map(([k]) => k)
+    );
+    const normalAlreadyDone  = kpAlreadyDoneOf(kpRowsBySlotOf(normalPlan.flatMap(p => p.rows)), '_normalSubmitted');
+    const charlieAlreadyDone = kpAlreadyDoneOf(kpRowsBySlotOf(charliePlan.flatMap(p => p.rows)), '_normalSubmitted');
+    const deltaAlreadyDone   = kpAlreadyDoneOf(kpRowsBySlotOf(deltaPlan.flatMap(p => p.rows)), '_normalSubmitted');
+    const navyAlreadyDone    = kpAlreadyDoneOf(kpRowsBySlotOf(navyPlan.flatMap(p => p.rows)), '_normalSubmitted');
+    const fixedAlreadyDone   = kpAlreadyDoneOf(kpRowsBySlotOf(yupflRows), '_fixedSubmitted');
+    gate.normalKeys  = normalAlreadyDone.size  ? normalAlreadyDone  : null;
+    gate.charlieKeys = charlieAlreadyDone.size ? charlieAlreadyDone : null;
+    gate.deltaKeys   = deltaAlreadyDone.size   ? deltaAlreadyDone   : null;
+    gate.navyKeys    = navyAlreadyDone.size    ? navyAlreadyDone    : null;
+    gate.fixedKeys   = fixedAlreadyDone.size   ? fixedAlreadyDone   : null;
+    await gate.tryApprove();
+
     const defaultTab = hasNormal ? 'normal' : hasFixed ? 'fixed' : hasCharlie ? 'charlie' : 'blog';
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="kp-modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:2px;">
-          <div class="kp-modal-title" style="margin-bottom:0;">배분 제출</div>
+          <div class="kp-modal-title" style="margin-bottom:0;">접수 확인</div>
           <button id="kp-grade-match-toggle" type="button" title="진행중인 MID가 있으면 동일한 상품으로 접수 — 끄면 상품 유형 설정 비율 그대로 배분"
             style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
             <span style="font-size:12px;color:var(--text2);font-weight:600;">등급 자동매칭</span>
@@ -5223,6 +5248,7 @@ document.addEventListener('keydown', function(e) {
             <span id="kp-schedule-sum-note" style="font-size:12px;color:var(--muted);"></span>
           </div>
           <div id="kp-schedule-editor-warn" style="font-size:11px;color:#dc2626;font-weight:600;margin-top:6px;display:none;"></div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
             <span>🔀 키워드 분할</span>
             <span class="ha-switch"><input type="checkbox" id="kp-sch-kwsplit-on" ${kpScheduleKwSplitDraft.on?'checked':''} onchange="kpOnScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
