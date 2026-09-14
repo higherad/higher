@@ -281,8 +281,8 @@
       <option value="force_stopped">강제종료</option>
       <option value="ended">종료</option>
     </select>
-    <select id="kp-filter-grade" onchange="kpRenderReceipts()" disabled>
-      <option value="">⏳ 등급 로딩 중...</option>
+    <select id="kp-filter-grade" onchange="kpRenderReceipts()">
+      <option value="">전체 등급</option>
     </select>
     <div id="kp-date-filter-wrap" style="position:relative;display:flex;align-items:center;">
       <button id="kp-date-pick-btn" onclick="document.getElementById('kp-filter-date').showPicker?document.getElementById('kp-filter-date').showPicker():document.getElementById('kp-filter-date').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
