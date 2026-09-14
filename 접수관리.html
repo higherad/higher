@@ -4641,8 +4641,8 @@ window.toggleProdPanel = function(e) {
   // scheduleKwSplitDraft=편집 중인 체크박스/입력값(적용 누르기 전)
   let scheduleKwSplit = null;
   let scheduleKwSplitDraft = { on:false, chunk:5 };
-  // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량 미달로
-  // 버려지는 조각은 반영 안 한 상한값이라 실제 생성 건수보다 같거나 많을 수 있음(대략치 안내용)
+  // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량
+  // 미달 조각은 scheduleMinViolations가 applyScheduleConfig에서 이미 막아 항상 100%대로 되므로 정확한 값.
   function scheduleSplitCount() {
     const totalDays = scheduleValidationRows.reduce((a,r) => a + Math.max(1, r._days||0), 0);
     return totalDays * scheduleDraftRows.length;
