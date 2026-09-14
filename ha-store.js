@@ -907,10 +907,10 @@ const HA = {
     }
 
     function notify() {
-      // 정산관리.html의 getFiltered()와 동일한 상태만 집계 대상으로 삼는다.
-      // (그 외 상태(rejected 등)를 포함하면 같은 분+대행사+유저 그룹에 섞여 들어가
-      //  테이블엔 전부 정산완료로 보여도 배지가 미정산으로 계속 남는 버그가 있었음)
-      const base = latestSlots.filter(s => ['active','accepted','expired','pending'].includes(s.status));
+      // 정산관리.html의 isBillableSlot()과 동일 기준으로 집계 대상을 삼는다.
+      // (재접수(isRequeue) 슬롯은 정산 대상이 아니라 테이블/paidSet에 안 잡히므로, 여기서도
+      //  빼지 않으면 테이블은 전부 정산완료로 보여도 배지만 미정산으로 계속 남는 버그가 있었음)
+      const base = latestSlots.filter(s => !s.isRequeue && ['active','accepted','expired','pending'].includes(s.status));
       const map = {};
       base.forEach(s => {
         const t = getMinuteKey(s.createdAt);
