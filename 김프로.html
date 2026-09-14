@@ -2761,7 +2761,9 @@ document.addEventListener('keydown', function(e) {
 
   window.kpApproveOne = async function(key) {
     const targetSlot = allSlots.find(s => s._key === key);
-    const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
+    // deductFieldsFor/yupflFieldsFor는 다른 <script> 블록(예: 5062번째 줄 근처)에 정의돼 있어 여기서 직접
+    // 못 부르고 window 경유로 호출 — 안 그러면 ReferenceError로 승인 자체가 조용히 실패한다(2026-09-14 확인).
+    const extra = { ...window.deductFieldsFor(targetSlot), ...window.yupflFieldsFor(targetSlot) };
     await HA.updateKpSlot(key, { status:'active', ...extra });
     const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) Object.assign(allSlots[idx], { status:'active', ...extra });
     kpCloseModalAndRefresh();
@@ -4415,6 +4417,9 @@ document.addEventListener('keydown', function(e) {
     const totalTarget = dTarget * (slot.days||0);
     return { deductTarget: totalTarget, deductAmount: totalTarget * unitPrice };
   }
+  // kpApproveOne(승인 버튼)이 다른 <script> 블록(예약 분할 현황과 같은 이유로 스코프 분리)에서 이 함수를
+  // 직접 못 불러 window 경유로 노출 — 안 붙이면 ReferenceError로 승인 자체가 조용히 실패한다(2026-09-14 확인).
+  window.deductFieldsFor = deductFieldsFor;
   function yupflFieldsFor(slot) {
     if (!slot) return {};
     const yupfl = ap().find(p => p.id === 'yupfl' && p.fixedAlloc);
@@ -4440,6 +4445,7 @@ document.addEventListener('keydown', function(e) {
     const unitPrice = slot.unitPrice||0;
     return { yupflTarget: target, yupflAmount: target * (slot.days||0) * unitPrice };
   }
+  window.yupflFieldsFor = yupflFieldsFor;
 
   function lrm(items, total) {
     if (!items.length) return {};
