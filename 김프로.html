@@ -5208,7 +5208,7 @@ document.addEventListener('keydown', function(e) {
             <button type="button" onclick="kpClearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">끄기</button>
           </div>
           <div id="kp-schedule-editor-warn" style="font-size:11px;color:#dc2626;font-weight:600;margin-top:6px;display:none;"></div>
-          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
             <span>🔀 키워드 분할</span>
             <span class="ha-switch"><input type="checkbox" id="kp-sch-kwsplit-on" ${kpScheduleKwSplitDraft.on?'checked':''} onchange="kpOnScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
@@ -5943,12 +5943,12 @@ document.addEventListener('keydown', function(e) {
 <style>
   .kp-ss-tab-btn { padding:4px 12px; border:1px solid var(--border); background:#fff; border-radius:100px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--text2); }
   .kp-ss-tab-btn.active { color:#0277bd; border-color:#0277bd; }
-  .ha-switch { position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
+  .ha-switch { position:relative; display:inline-block; width:28px; height:16px; flex-shrink:0; }
   .ha-switch input { opacity:0; width:0; height:0; position:absolute; }
   .ha-switch .ha-switch-track { position:absolute; inset:0; background:#cbd5e1; border-radius:999px; transition:.15s; cursor:pointer; }
-  .ha-switch .ha-switch-track::before { content:''; position:absolute; width:16px; height:16px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
+  .ha-switch .ha-switch-track::before { content:''; position:absolute; width:12px; height:12px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
   .ha-switch input:checked + .ha-switch-track { background:#f59e0b; }
-  .ha-switch input:checked + .ha-switch-track::before { transform:translateX(14px); }
+  .ha-switch input:checked + .ha-switch-track::before { transform:translateX(12px); }
 </style>
 <div id="kp-ss-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
@@ -6296,7 +6296,7 @@ document.addEventListener('keydown', function(e) {
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
               ${editablePendCount
-                ? `<button onclick="event.stopPropagation();kpToggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '잔여 재분류'}</button>`
+                ? `<button onclick="event.stopPropagation();kpToggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '재분류'}</button>`
                 : ''}
               <div onclick="kpToggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;">
                 전체 ${g.items.length}건 · <span style="color:#3b82f6;">대기중 ${pendCount}</span> · <span style="color:#ef4444;">완료 ${doneCount}</span>
@@ -6612,21 +6612,21 @@ document.addEventListener('keydown', function(e) {
             </div>
           </div>`).join('')}
           <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
             <span>🔀 키워드 분할</span>
             <span class="ha-switch"><input type="checkbox" ${kpSsBulk.kwMode?'checked':''} onchange="kpOnBulkKwModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           ${kpSsBulk.kwMode ? `
           <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
-            <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 각 그룹 자신의 상세 키워드를 사용합니다(끄면 원본 그대로 복제) · 선택 그룹이 많아 목록으로 안 보여줌 — 실행 시 그룹마다 자동으로 읽어 나눕니다.</div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 각 그룹 자신의 상세 키워드를 사용합니다.</div>
             <div style="display:flex;gap:14px;margin-bottom:6px;">
               <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
-                <input type="radio" name="kp-ss-bulk-kwmethod" ${kpSsBulk.kwMethod==='ratio'?'checked':''} onchange="kpOnBulkKwMethod('ratio')">
-                (a) 그룹당 "비율"로 재분할
+                <input type="radio" name="kp-ss-bulk-kwmethod" ${kpSsBulk.kwMethod==='chunk'?'checked':''} onchange="kpOnBulkKwMethod('chunk')">
+                (a) 그룹당 "개수"로 재분할
               </label>
               <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
-                <input type="radio" name="kp-ss-bulk-kwmethod" ${kpSsBulk.kwMethod==='chunk'?'checked':''} onchange="kpOnBulkKwMethod('chunk')">
-                (b) 그룹당 "개수"로 재분할
+                <input type="radio" name="kp-ss-bulk-kwmethod" ${kpSsBulk.kwMethod==='ratio'?'checked':''} onchange="kpOnBulkKwMethod('ratio')">
+                (b) 그룹당 "비율"로 재분할
               </label>
             </div>
             ${kpSsBulk.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;">
@@ -6635,7 +6635,7 @@ document.addEventListener('keydown', function(e) {
                 style="width:56px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
             </div>` : ''}
           </div>` : ''}
-          <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
             <span>⏰ 예약 시각 재설정</span>
             <span class="ha-switch"><input type="checkbox" ${kpSsBulk.timeMode?'checked':''} onchange="kpOnBulkTimeModeToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
@@ -6967,7 +6967,7 @@ document.addEventListener('keydown', function(e) {
           </div>
         </div>`).join('')}
         <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-        <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
           <span>🔀 키워드 분할</span>
           <span class="ha-switch"><input type="checkbox" ${st.kwMode?'checked':''} onchange="kpOnScheduleResplitKwModeToggle('${slotKey}',this.checked)"><span class="ha-switch-track"></span></span>
         </label>
@@ -6976,12 +6976,12 @@ document.addEventListener('keydown', function(e) {
           <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">※ 끄면 지금처럼 원본 키워드를 그대로 복제</div>
           <div style="display:flex;gap:14px;margin-bottom:6px;">
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
-              <input type="radio" name="kp-ss-resplit-kwmethod-${slotKey}" ${st.kwMethod==='ratio'?'checked':''} onchange="kpOnScheduleResplitKwMethod('${slotKey}','ratio')">
-              (a) 그룹당 "비율"로 재분할
+              <input type="radio" name="kp-ss-resplit-kwmethod-${slotKey}" ${st.kwMethod==='chunk'?'checked':''} onchange="kpOnScheduleResplitKwMethod('${slotKey}','chunk')">
+              (a) 그룹당 "개수"로 재분할
             </label>
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#92400e;">
-              <input type="radio" name="kp-ss-resplit-kwmethod-${slotKey}" ${st.kwMethod==='chunk'?'checked':''} onchange="kpOnScheduleResplitKwMethod('${slotKey}','chunk')">
-              (b) 그룹당 "개수"로 재분할
+              <input type="radio" name="kp-ss-resplit-kwmethod-${slotKey}" ${st.kwMethod==='ratio'?'checked':''} onchange="kpOnScheduleResplitKwMethod('${slotKey}','ratio')">
+              (b) 그룹당 "비율"로 재분할
             </label>
           </div>
           ${st.kwMethod==='chunk' ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
@@ -6994,7 +6994,7 @@ document.addEventListener('keydown', function(e) {
             style="width:100%;height:44px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;background:#f8fafc;">${ssEsc(st.kwText)}</textarea>
           <div id="kp-ss-resplit-kwpreview-${slotKey}" style="font-size:11px;color:#92400e;margin-top:6px;">${v.grades.length ? v.grades.map(gr=>`${ssEsc(gr.gradeName)} ${(kwByGrade[gr.ckey]||[]).length}개`).join(' · ') : ''}${v.kwRatioWarn ? ` <span style="color:#dc2626;font-weight:700;">⚠ ${ssEsc(v.kwRatioWarn)}</span>` : ''}</div>
         </div>`) : ''}
-        <label style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin:8px 0 6px;">
           <span>⏰ 예약 시각 재설정</span>
           <span class="ha-switch"><input type="checkbox" ${st.timeMode?'checked':''} onchange="kpOnScheduleResplitTimeModeToggle('${slotKey}',this.checked)"><span class="ha-switch-track"></span></span>
         </label>
