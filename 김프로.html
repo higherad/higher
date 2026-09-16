@@ -266,7 +266,7 @@
 
   <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
     <button class="kp-action-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpOpenReacceptModal()">🔁 재접수</button>
-    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcelList()">📥 엑셀 다운로드</button>
+    <button class="kp-action-btn" id="kp-dl-list-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcelList()">📥 엑셀 다운로드</button>
   </div>
 
   <div class="kp-filter-bar">
@@ -3192,8 +3192,7 @@ document.addEventListener('keydown', function(e) {
   }
 
   // ── 엑셀 다운로드(접수 리스트, 접수관리.html downloadExcelList 이식) ──
-  // 원본은 히스토리에 higher(ha/slots) 이력까지 합치지만(fullKeywordHistory), 데이터 분리 원칙에 따라
-  // ha/kimproSlots 자체 이력만 사용(kpLocalKeywordHistory/kpLocalYupflKeywordHistory).
+  // 히스토리는 kpFullKeywordHistory/kpFullYupflKeywordHistory로 자체 DB + 접수관리(ha/slots) 이력을 합쳐서 씀(2026-09-16)
   function kpEnsureXLSX(cb) {
     if (window.XLSX) { cb(); return; }
     const s = document.createElement('script');
@@ -3204,7 +3203,7 @@ document.addEventListener('keydown', function(e) {
     const checkedKeys = [...document.querySelectorAll('.kp-row-check:checked')].map(c=>c.dataset.key);
     const filtered = checkedKeys.length ? allSlots.filter(s=>checkedKeys.includes(s._key)) : kpGetFiltered();
     if (!filtered.length) { alert('다운로드할 데이터가 없습니다.'); return; }
-    kpEnsureXLSX(() => {
+    kpEnsureXLSX(async () => {
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
       const statusText = { pending:'대기', accepted:'접수', active:'승인', force_stopped:'강제종료', paused:'임시중단', requeue:'재접수 | 대기', ended:'종료', expired:'종료', split:'분할' };
@@ -3219,13 +3218,20 @@ document.addEventListener('keydown', function(e) {
       ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:10},{wch:20},{wch:20}];
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
+      const btn = document.getElementById('kp-dl-list-btn');
+      if (btn) btn.disabled = true;
       const midRows = [...new Map(filtered.filter(s=>s.mid).map(s=>[s.mid,s])).values()];
       const histHeader = ['MID','업체명','날짜','키워드'];
       const kwHistRows = [], yupflHistRows = [];
-      midRows.forEach(s => {
-        kpLocalKeywordHistory(s.mid).forEach(h => kwHistRows.push([s.mid, s.storeName||'', h.date?kpFmtDate(new Date(h.date)):'', h.keyword]));
-        kpLocalYupflKeywordHistory(s.mid).forEach(h => yupflHistRows.push([s.mid, s.storeName||'', h.date?kpFmtDate(new Date(h.date)):'', h.keyword]));
+      const [kwHistories, yupflHistories] = await Promise.all([
+        Promise.all(midRows.map(s => kpFullKeywordHistory(s.mid))),
+        Promise.all(midRows.map(s => kpFullYupflKeywordHistory(s.mid))),
+      ]);
+      midRows.forEach((s, i) => {
+        kwHistories[i].forEach(h => kwHistRows.push([s.mid, s.storeName||'', h.date?kpFmtDate(new Date(h.date)):'', h.keyword]));
+        yupflHistories[i].forEach(h => yupflHistRows.push([s.mid, s.storeName||'', h.date?kpFmtDate(new Date(h.date)):'', h.keyword]));
       });
+      if (btn) btn.disabled = false;
       if (kwHistRows.length) {
         const kwHistWs = XLSX.utils.aoa_to_sheet([histHeader, ...kwHistRows]);
         kwHistWs['!cols'] = [{wch:14},{wch:22},{wch:12},{wch:40}];
@@ -3295,13 +3301,26 @@ document.addEventListener('keydown', function(e) {
     closeBtn.disabled = true; window.kpReacceptRunning = true;
     resultEl.innerHTML = '';
 
+    // 같은 MID는 한 번만 조회(엑셀 다운로드와 동일 방식) — 접수관리(ha/slots) 이력까지 합쳐서 판정
+    const uniqueMids = [...new Set(pending.map(s => s.mid))];
+    const histMap = new Map();
+    const yupflHistMap = new Map();
+    await Promise.all(uniqueMids.map(async mid => {
+      const [kwHist, yupflHist] = await Promise.all([
+        kpFullKeywordHistory(mid),
+        yupflSkip ? Promise.resolve([]) : kpFullYupflKeywordHistory(mid),
+      ]);
+      histMap.set(mid, kwHist);
+      yupflHistMap.set(mid, yupflHist);
+    }));
+
     const cutoffDayKw = kpFmtDate(new Date(Date.now() - daysKw*24*3600*1000));
     const cutoffDayYupfl = yupflSkip ? null : kpFmtDate(new Date(Date.now() - daysYupfl*24*3600*1000));
     const withinCutoff = (h, cutoffDay) => !!(h && h.date && kpFmtDate(new Date(h.date)) >= cutoffDay);
     const normKw = kw => (kw||'').split(',').map(k=>k.trim()).filter(Boolean).join(',');
     const rows = pending.map(s => {
-      const kwTop = kpLocalKeywordHistory(s.mid)[0];
-      const yTop  = kpLocalYupflKeywordHistory(s.mid)[0];
+      const kwTop = (histMap.get(s.mid) || [])[0];
+      const yTop  = (yupflHistMap.get(s.mid) || [])[0];
       const kwMatched = withinCutoff(kwTop, cutoffDayKw);
       const yMatched  = yupflSkip ? false : withinCutoff(yTop, cutoffDayYupfl);
       const ySatisfied = yupflSkip ? true : yMatched;
