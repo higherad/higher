@@ -1787,8 +1787,8 @@ document.addEventListener('keydown', function(e) {
   }
 
   // MID 일치 슬롯(ha/kimproSlots)의 검색키워드·유입플키워드를 최신화 — status는 절대 안 건드림.
-  // 키워드 히스토리는 메인 슬롯 문서가 아니라 ha/slot_kw_history/{key}에 따로 저장(2026-09-16, RTDB
-  // 대역폭 절감 — 목록 조회처럼 히스토리가 필요 없는 곳에서도 매번 같이 다운로드되는 걸 피함)
+  // 키워드 히스토리는 메인 슬롯 문서가 아니라 ha/slot_kw_history/{key}에 따로 저장(2026-09-16, 목록
+  // 조회처럼 히스토리가 필요 없는 곳까지 매번 같이 다운로드되던 것 방지)
   async function kwSyncSlotKeyword(mid, field, value) {
     const histField = field === 'searchKeyword' ? 'keywordHistory' : field === 'yupflKeyword' ? 'yupflKeywordHistory' : null;
     try {
@@ -1834,8 +1834,8 @@ document.addEventListener('keydown', function(e) {
   }
 
   // ── 예약 탭: 일반/예약 전환 + 시각 목록 편집 + 키워드 균등분할 등록 ──────────
-  // 시간대분할예약(kpScheduleTimeToIso 등)과 동일한 패턴이지만 이 파일 내 다른 <script> 블록이라
-  // 함수를 공유할 수 없어(로직맵 "예약 분할 현황" 항목 참고) 이 IIFE 안에 축소판으로 새로 둔다.
+  // 시간대분할예약과 동일 패턴이지만 스크립트 블록이 분리돼 함수 공유가 안 돼(로직맵 "예약 분할
+  // 현황" 참고) 축소판을 이 IIFE 안에 새로 둠.
   window.kwSwitchTab = function(tab) {
     document.getElementById('kw-tab-btn-normal').classList.toggle('active', tab === 'normal');
     document.getElementById('kw-tab-btn-sched').classList.toggle('active', tab === 'sched');
@@ -2579,16 +2579,9 @@ document.addEventListener('keydown', function(e) {
     kpRenderReceipts();
   };
 
-  // 예약(split) 카드 전용 — script 블록이 여러 개로 나뉘어 있어(5000번대 late block의
-  // window.computeKpScheduleGroupCount는 이 블록보다 늦게 로드돼 kpRenderReceipts 첫 실행 시점엔
-  // 아직 없음, TypeError 재현됨) 이 블록 안에 자체 완결형으로 둠. late block 버전이 나중에 로드되면
-  // 같은 동작을 하는 걸로 덮어써지므로 무해함.
-  // 2026-09-16: get()으로 매번 통째로 새로 받던 걸 ha-store.js의 onValue 공유 캐시(makeValueLiveCache)
-  // 구독으로 교체 — kpRenderReceipts가 무관한 슬롯 변경만으로도 자주 재호출되는데(원래 주석 그대로),
-  // 그때마다 이 테이블(수백KB~1MB대)을 다시 다운로드하던 게 RTDB 대역폭 폭증의 주 원인이었음.
-  // 구독은 세션당 1회만 실제 네트워크를 타고, 이후는 캐시된 값으로 즉시 resolve됨.
-  // window에 한 번만 정의 — late block(5000번대)도 같은 걸 그대로 씀(스크립트 블록끼리 스코프가 분리돼
-  // window 경유로만 공유 가능, computeKpScheduleGroupCount와 동일 이유)
+  // 예약(split) 카드 전용 — late block(5000번대) 정의보다 먼저 필요해 자체 완결형으로 둠(나중에
+  // late block이 덮어써도 동작 동일해 무해). ha-store.js의 onValue 공유 캐시 구독 사용 — 예전엔
+  // get()으로 매번 통째로 받아 RTDB 대역폭 폭증의 주 원인이었음(2026-09-16). window에 한 번만 정의.
   if (!window.kpAwaitScheduleDispatchBoth) {
     window.kpAwaitScheduleDispatchBoth = function() {
       return Promise.all([window.HA.getKpScheduleDispatchOnce(), window.HA.getScheduleDispatchOnce()]);
@@ -2665,9 +2658,8 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-stat-requeue-active').textContent = requeueActive.toLocaleString();
     document.getElementById('kp-stat-paused').textContent = paused.toLocaleString();
     document.getElementById('kp-stat-force').textContent = forceStopped.toLocaleString();
-    // 예약(split) 카드는 ha/kimproSlots만 봐선 정확한 값이 아니라(접수관리 쪽 예약은 별도 소스) 예약
-    // 분할 현황 팝업과 완전히 동일한 계산(computeKpScheduleGroupCount)으로 별도 조회 — 무관한 슬롯
-    // 변경으로도 렌더가 자주 다시 불리므로, 재조회 중엔 기존 값을 지우지 않고 그대로 둬 깜빡임 방지
+    // 예약(split) 카드는 ha/kimproSlots만 봐선 부정확해(접수관리 쪽 예약은 별도 소스) 예약 분할 현황
+    // 팝업과 동일한 계산(computeKpScheduleGroupCount)으로 별도 조회 — 재조회 중엔 깜빡임 방지로 기존 값 유지.
     window.computeKpScheduleGroupCount().then(n => {
       const el = document.getElementById('kp-stat-split');
       if (el) el.textContent = n.toLocaleString();
@@ -2941,9 +2933,8 @@ document.addEventListener('keydown', function(e) {
     }
   };
 
-  // ── MID 이전 키워드 히스토리 (접수관리.html 이식 — 데이터 분리 원칙에 따라 ha/kimproSlots 자체
-  //    이력만 사용, 접수관리 쪽 cross-app 병합은 하지 않음. LIVE 섹션은 higher 전체가 공유하는
-  //    공개 노드 ha/grades를 그대로 읽음) ──────────────────────────────────
+  // ── MID 이전 키워드 히스토리 (접수관리.html 이식 — ha/kimproSlots 자체 이력만 사용, LIVE
+  //    섹션은 공유 노드 ha/grades를 그대로 읽음) ──────────────────────────
   window.kpToggleMidHistory = async function(mid, currentKey) {
     const area = document.getElementById('kp-mid-history-area');
     const btn  = document.getElementById('kp-mid-hist-btn');
@@ -3173,8 +3164,8 @@ document.addEventListener('keydown', function(e) {
   };
 
   // ── 대기 히스토리 재접수 (kimpro/reception.html 이식) ──────────────────
-  // 같은 MID의 최근 N일 키워드 히스토리로 대기 슬롯을 자동 접수 전환. 원본은 higher(ha/slots) 이력까지
-  // 합쳐 보여주지만(fullKeywordHistory), 데이터 분리 원칙(2026-09-10)에 따라 ha/kimproSlots 자체 이력만 사용.
+  // 같은 MID의 최근 N일 키워드 히스토리로 대기 슬롯을 자동 접수 전환 — ha/kimproSlots 자체 이력만 사용
+  // (히스토리 팝업의 fullKeywordHistory는 접수관리 이력까지 합쳐 보여주지만 여긴 분리 원칙 유지).
   function kpDedupHistoryByDay(list) {
     const seen = new Set();
     return list.filter(h => h.keyword).filter(h => {
@@ -3202,10 +3193,9 @@ document.addEventListener('keydown', function(e) {
     return kpDedupHistoryByDay([...currentHistory, ...changeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
   }
 
-  // 접수관리(ha/slots)와 김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드일 뿐이라 mid로 서로 직접
-  // 조회 가능 — HA.getSlotsByMid/getSlotKwHistory(ha-store.js 공용 헬퍼, 2026-09-16)를 그대로 재사용
-  // (같은 MID가 양쪽에 등록될 수 있어 히스토리 팝업은 합쳐서 보여줌)
-  // 히스토리 팝업 전용(kpToggleMidHistory/kpToggleYupflMidHistory) — 자체 DB + 접수관리(ha/slots) 이력 합산
+  // 접수관리(ha/slots)·김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드라 mid로 직접 조회
+  // 가능 — HA.getSlotsByMid/getSlotKwHistory(ha-store.js 공용 헬퍼)로 양쪽 이력을 합쳐 보여줌.
+  // 히스토리 팝업 전용(kpToggleMidHistory/kpToggleYupflMidHistory) — 자체 DB + 접수관리 이력 합산
   async function kpFullKeywordHistory(mid) {
     const [localHistory, crossAppSlots] = await Promise.all([kpLocalKeywordHistory(mid), window.HA.getSlotsByMid(mid)]);
     const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ keyword:s.searchKeyword, date:s.createdAt }));
@@ -4873,20 +4863,15 @@ document.addEventListener('keydown', function(e) {
     return block;
   }
 
-  // ── 시간대 분할 예약 (접수관리.html과 동일 로직 — 일반/찰리/블로그(델타·네이비) 지원, 유입플은 항상 즉시
-  //    제출이라 예약 대상 아님. 예약 토글은 register-leg가 2개 이상 동시필요하거나 유입플이 아직 안
-  //    끝났으면 막힘 — kpOpenSubmitModal의 scheduleBlocked 참고) ──
-  // 백엔드는 bizfit-direct-proxy /dispatch-scheduled가 5분마다 처리(SCHEDULE_ROOTS에 'kp' 추가, 2026-09-10).
-  // BizFit 자동 캐시차감은 접수관리와 달리 걸지 않음(§7-1-3 결정 유지) — initScheduledBatches에서 생략.
-  // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(kpMakeGate.tryApprove)에서 애드로그 자동등록을 스킵.
-  // 행 단위 단건 승인 버튼(kpApproveOne)은 이 토글과 무관하게 항상 자동등록.
-  let kpAdlogAutoOn = true;
+  // ── 시간대 분할 예약 (접수관리.html과 동일 로직, register-leg 2개 이상 동시필요·유입플 미완료
+  //    시 예약 토글 막힘, scheduleBlocked 참고) ── 백엔드는 bizfit-direct-proxy /dispatch-scheduled가
+  //    5분마다 처리. BizFit 자동 캐시차감은 접수관리와 달리 안 함(§7-1-3).
+  let kpAdlogAutoOn = true; // 끄면 팝업발 승인 시 애드로그 자동등록 스킵 — 단건 승인(kpApproveOne)은 무관하게 항상 자동등록
   let kpScheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34}, ...]
   let kpScheduleDraftRows = [{ time: '10:00', pct: 100 }];
   let kpScheduleValidationRows = [];
-  // 키워드 분할 설정(2026-09-14 자동계산으로 확정, 접수관리.html과 동일) — 커밋된 on/off값
-  // (kpScheduleKwSplit)과 편집 중인 체크박스(kpScheduleKwSplitDraft) 분리, 적용 버튼 눌러야 커밋.
-  // 그룹당 개수 수동입력 없음 — kpSplitRowBySchedule이 필요 그룹 수만큼 역산해서 자름.
+  // 키워드 분할 설정(접수관리.html과 동일) — 커밋된 값(kpScheduleKwSplit)과 편집 중인 체크박스
+  // (kpScheduleKwSplitDraft) 분리, 적용 버튼 눌러야 커밋. 그룹당 개수는 수동입력 없이 자동 역산.
   let kpScheduleKwSplit = false;
   let kpScheduleKwSplitDraft = { on:false };
   // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량
@@ -5022,9 +5007,8 @@ document.addEventListener('keydown', function(e) {
     if (dispatchEntries.length) {
       await kpInitScheduledBatches(slotKeyCounts, batchGroupId);
       await Promise.all(dispatchEntries.map(kpSaveScheduledDispatch));
-      // 예약 완료(active 전환)는 서버(Cloud Scheduler)가 나중에 브라우저 없이 처리하는데, adlog.kr은
-      // 서버가 새로 만든 xlsx는 거부해서(브라우저 SheetJS로 만든 파일만 통과) 그 시점엔 등록이 불가능
-      // — 대신 지금(접수 신청 클릭 시점, 키워드/MID/메모는 이미 확정된 값) 브라우저에서 미리 등록한다.
+      // adlog.kr은 서버가 만든 xlsx를 거부해서(브라우저 SheetJS 파일만 통과) 서버가 나중에 처리하는
+      // 예약 완료(active 전환) 시점엔 등록 불가 — 그래서 지금(접수 신청 클릭 시점) 미리 등록해둠.
       if (kpAdlogAutoOn) {
         const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
         await kpAutoRegisterAdlog([...slotKeyCounts.keys()].map(k => allSlots.find(s => s._key === k)));
@@ -5033,9 +5017,8 @@ document.addEventListener('keydown', function(e) {
     return { scheduledCount, failTotal };
   }
 
-  // 슬롯별로 실제 필요한 레그만 요구(requiredLegsByKey) — 배치 전체에 유입플이 섞여 있어도
-  // 그 슬롯 자체가 유입플 대상이 아니면 기다리지 않음. 재접수(isRequeue) 슬롯은 유입플을 실제
-  // 접수 안 하고 배분값 확인용으로만 켜둘 수 있어 fixedKeys는 무조건 면제(kimpro reception.html과 동일).
+  // 슬롯별로 실제 필요한 레그만 요구(requiredLegsByKey) — 배치에 유입플이 섞여 있어도 그 슬롯이
+  // 대상 아니면 기다리지 않음. 재접수(isRequeue)는 fixedKeys 무조건 면제(kimpro reception.html과 동일).
   function kpMakeGate(requiredLegsByKey, slotMapAll) {
     return {
       normalKeys: null, fixedKeys: null, charlieKeys: null, deltaKeys: null, navyKeys: null,
@@ -5261,9 +5244,8 @@ document.addEventListener('keydown', function(e) {
     const hasNavy = navyPlan.some(p => p.rows.length > 0);
     if (!hasNormal && !hasFixed && !hasCharlie && !hasDelta && !hasNavy) { alert('배분 대상 상품이 없습니다.\n상품 유형 설정(ha/kimproProdSettings)에 활성화된 상품이 있는지 확인해주세요.'); return; }
 
-    // 접수관리.html과 동일한 예약 허용 정책: 일반/찰리/델타/네이비(=register leg) 중 2개 이상이 동시에
-    // 필요하면 예약 토글 자체를 막음(어느 탭에 적용할지 모호해짐). 유입플은 즉시 제출 전용이라 예약 대상이
-    // 아니지만, 유입플이 아직 남아있으면(먼저 접수해야 함) 다른 레그의 예약도 막는다.
+    // 접수관리.html과 동일한 예약 허용 정책: register leg(일반/찰리/델타/네이비) 중 2개 이상 동시필요면
+    // 예약 토글 자체를 막음(어느 탭에 적용할지 모호해짐). 유입플이 아직 안 끝났어도 다른 레그 예약을 막는다.
     const registerLegCount = [hasNormal, hasCharlie, (hasDelta||hasNavy)].filter(Boolean).length;
     const yupflPending = hasFixed && !yupflRows.every(r => r._fixedSubmitted);
     const scheduleBlocked = registerLegCount > 1 || yupflPending;
@@ -5288,9 +5270,8 @@ document.addEventListener('keydown', function(e) {
     const slotMapAll = new Map((window.getKpAllSlots ? window.getKpAllSlots() : []).map(s => [s._key, s]));
     const gate = kpMakeGate(requiredLegsByKey, slotMapAll);
 
-    // 완료 로그(각 레그의 제출완료 필드)가 이미 다 찍혀있는 슬롯은 상태(status)만 창 열자마자 자동으로
-    // 승인 전환 — 접수관리.html과 동일 패턴인데 김프로엔 이 초기 시딩 자체가 빠져 있어서 레그가 전부
-    // 완료돼도 다시 열기 전엔 승인으로 안 바뀌었음(2026-09-14).
+    // 완료 로그가 이미 다 찍힌 슬롯은 창 열자마자 상태만 자동 승인 전환(접수관리.html과 동일 패턴) —
+    // 김프로엔 이 초기 시딩이 빠져 있어 레그가 전부 완료돼도 다시 열기 전엔 승인 전환이 안 됐음(2026-09-14).
     const kpRowsBySlotOf = rows => {
       const m = new Map();
       rows.forEach(r => { if (!r._slotKey) return; if (!m.has(r._slotKey)) m.set(r._slotKey, []); m.get(r._slotKey).push(r); });
@@ -5476,9 +5457,8 @@ document.addEventListener('keydown', function(e) {
       return final || { success:false, message:'서버 응답 없음' };
     }
 
-    // "초기화" — 이 탭 몫만 취소+완료기록 삭제, 접수관리.html과 동일 로직(자동 캐시차감·메모는 김프로에
-    // 없으므로 그 부분만 제외). 재렌더는 접수관리처럼 fillBody/applyTabState로 부분갱신하는 대신
-    // 모달을 닫고 kpOpenSubmitModal(target)을 다시 여는 걸로 단순화(target 배열 자체를 patch로 갱신해두면 동일한 결과).
+    // "초기화" — 이 탭 몫만 취소+완료기록 삭제(접수관리.html과 동일 로직, 캐시차감·메모 부분만 제외).
+    // 재렌더는 부분갱신 대신 모달을 닫고 kpOpenSubmitModal(target)을 다시 여는 걸로 단순화.
     const kpAnyDoneOf = (rowsBySlot, doneField) => new Set(
       [...rowsBySlot.entries()].filter(([, rs]) => rs.some(r => r[doneField])).map(([k]) => k)
     );
@@ -6110,10 +6090,9 @@ document.addEventListener('keydown', function(e) {
   }
 
   // ── 접수(승인) 완료 시 애드로그 자동등록 (접수관리.html과 동일 구현) ──────
-  // 메모는 상세보기의 '애드로그' 전용 칸(s.adlogMemo, 없으면 kpBuildAdlogRows와 동일한 기본값)을 사용.
-  // 이미 등록됐거나(adlogSubmitted) 키워드/MID(필수 항목)가 없는 슬롯, 재접수(isRequeue) 슬롯은
-  // 이미 이전 등록분이 있다고 보고 건너뜀. 승인 자체는 이미 끝난 뒤라 실패해도 콘솔 로그만 남기고 계속 진행
-  // — 수동 "애드로그" 버튼(체크박스 선택)으로 재시도 가능.
+  // 메모는 상세보기의 '애드로그' 전용 칸(s.adlogMemo) 사용. 이미 등록됐거나 키워드/MID 없는 슬롯,
+  // 재접수(isRequeue, 이전 등록분 있다고 봄)는 건너뜀. 승인은 이미 끝난 뒤라 실패해도 로그만 남기고
+  // 계속 진행 — 수동 "애드로그" 버튼으로 재시도 가능.
   async function kpAutoRegisterAdlog(slots) {
     const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && !s.isRequeue && s.rankKeyword && s.mid);
     if (!targets.length) return;
@@ -6407,9 +6386,8 @@ document.addEventListener('keydown', function(e) {
     return `<span title="${ssEsc(list.join(', '))}" style="display:inline-block;padding:1px 7px;border-radius:100px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${list.length}개</span>`;
   }
 
-  // ha 루트 밑 상대 경로 — 접수관리(ha/scheduled_dispatch)/김프로(ha/kimproScheduledDispatch) 둘 다
-  // 'ha' 밑이라 updateKpDoc('ha', patch) 하나로 같이 갱신 가능. 사용자 요청(2026-09-10)으로 예약 분할
-  // 현황을 양쪽 화면에서 합쳐 관리 — 접수관리.html과 동일한 패턴(항목별 _src로 쓰기 라우팅).
+  // ha 루트 밑 상대 경로 — 접수관리/김프로 경로 둘 다 'ha' 밑이라 updateKpDoc('ha', patch) 하나로
+  // 같이 갱신 가능. 예약 분할 현황을 양쪽 화면에서 합쳐 관리(항목별 _src로 쓰기 라우팅, 2026-09-10).
   function kpScheduleDispatchSuffix(src) { return src === 'ha' ? 'scheduled_dispatch' : 'kimproScheduledDispatch'; }
   function kpScheduleBatchSuffix(src)    { return src === 'ha' ? 'scheduled_batches'  : 'kimproScheduledBatches'; }
   let _haProdsCache = null;
@@ -6427,10 +6405,9 @@ document.addEventListener('keydown', function(e) {
     return window.kpProdsRef ? window.kpProdsRef() : [];
   }
 
-  // window.kpAwaitScheduleDispatchBoth는 early block(2500번대)에서 이미 정의됨 — 스크립트 블록끼리
-  // 스코프가 분리돼도 window 경유라 여기서도 그대로 씀(2026-09-16)
-  // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 완전히 동일한 계산을 전역 상태(ssEntries)
-  // 건드리지 않고 반환. 두 화면 카드/팝업이 전부 이 하나의 계산식만 쓰도록 해서 숫자가 안 어긋나게 함.
+  // window.kpAwaitScheduleDispatchBoth는 early block(2500번대)에서 정의됨 — window 경유로 여기서도 그대로 씀.
+  // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 동일한 계산을 전역 상태(ssEntries) 안 건드리고
+  // 반환. 카드/팝업이 이 계산식 하나만 쓰게 해서 숫자가 안 어긋나게 함.
   window.computeKpScheduleGroupCount = async function() {
     const [kpVal, haVal] = await window.kpAwaitScheduleDispatchBoth();
     const entries = {};
@@ -6761,8 +6738,8 @@ document.addEventListener('keydown', function(e) {
   };
 
   // ── 잔여 재분류 — 슬롯의 남은(pending) 항목을 취소하고 등급별 비율(직접입력)로 다시 나눠 재생성 ──
-  // 시간대분할예약(kpScheduleTimeToIso 등)과 동일한 패턴이지만 이 파일 내 다른 <script> 블록이라
-  // 함수를 공유할 수 없어(로직맵 "예약 분할 현황" 항목 참고) 이 블록 안에 축소판으로 새로 둔다.
+  // 시간대분할예약과 동일 패턴이지만 스크립트 블록이 분리돼 함수 공유가 안 돼(로직맵 "예약 분할
+  // 현황" 참고) 축소판을 이 블록 안에 새로 둠.
   function kpScheduleParseBaseDate2(baseDateStr) {
     if (baseDateStr) { const d = new Date(`${String(baseDateStr).slice(0,10)}T00:00:00`); if (!isNaN(d.getTime())) return d; }
     return new Date();
@@ -6794,10 +6771,9 @@ document.addEventListener('keydown', function(e) {
     return snap.exists() ? (snap.val().searchKeyword || '') : '';
   }
 
-  // 키워드 재분할(2026-09-14 자동계산으로 확정, 접수관리.html과 동일 — (a)/(b) 선택 없이 이 방식
-  // 하나만 씀): 1단계로 등급 수만큼 키워드 풀을 나눠 등급별 전용 슬라이스를 만들고(등급 수 < 그룹
-  // 수면 순환), 2단계로 그 슬라이스를 다시 bucketCount(재분류로 새로 만들 "일수")만큼 나눠 등급별로
-  // 매 회차(대략 하루)마다 다른 키워드 그룹을 쓰게 함. 결과는 {ckey: [그룹,그룹,...]}(배열의 배열).
+  // 키워드 재분할(접수관리.html과 동일): 1단계로 등급 수만큼 키워드 풀을 나눠 전용 슬라이스를 만들고
+  // (등급 수 < 그룹 수면 순환), 2단계로 그 슬라이스를 bucketCount(회차 수)만큼 나눠 회차마다 다른
+  // 키워드 그룹을 쓰게 함. 결과는 {ckey: [그룹,그룹,...]}.
   function kpAssignKeywordsForResplit(kwList, grades, bucketCount) {
     if (!grades.length) return {};
     const outerGroups = kpAutoChunkKeywords(kwList.join(','), grades.length);
@@ -6976,9 +6952,8 @@ document.addEventListener('keydown', function(e) {
       ${panel}
     </div>`;
   }
-  // 그룹마다 자기 계정으로 등급 재조회 → 이름이 일치하는(같은 ckey) 등급만 채택, 하나라도 없으면
-  // 그 그룹은 건너뜀(일부 등급만 반영되는 어중간한 결과 방지). 키워드 재분할이 켜져 있으면 그룹마다
-  // 자기 상세 키워드를 읽어 등급×일수 자동계산으로 재분할(kpApplyScheduleResplit 내부에서 계산).
+  // 그룹마다 자기 계정으로 등급 재조회 → 이름 일치(같은 ckey) 등급만 채택, 하나라도 없으면 그
+  // 그룹은 건너뜀(어중간한 결과 방지). 키워드 재분할 켜져 있으면 등급×일수 자동계산으로 재분할.
   window.kpApplyBulkResplitClick = async function() {
     const v = kpComputeBulkValidity();
     if (v.blocked) return;

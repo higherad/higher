@@ -187,19 +187,16 @@
   let filteredRows=[];
   const selectedSnapKeys=new Set();
   const todayStr=(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-  // 김프로(ha/kimproSlots) 연동 — 데이터 저장은 ha/kimproPaidSlots·ha/kimproRefunds·ha/kimproSettleSnapshots로
-  // 접수관리와 완전히 분리하되, 화면(목록/요약/팝업/엑셀)은 하나로 합쳐서 보여줌(사용자 요청). 김프로 슬롯은
-  // userId가 항상 빈 값이라 이 센티널로 덮어써서 그룹 키(timeKey__agencyId__userId)가 접수관리 쪽과
-  // 절대 겹치지 않게 하고, 이 센티널 하나로 모든 쓰기 액션(입금/환불/메모/충전확인)의 저장소를 분기한다.
+  // 김프로(ha/kimproSlots) 연동 — 데이터 저장은 ha/kimproXxx로 접수관리와 분리하되 화면은 하나로 합침(사용자 요청).
+  // 김프로 슬롯은 userId가 항상 빈 값이라 이 센티널로 덮어써서 그룹 키가 접수관리 쪽과 안 겹치게 하고,
+  // 이 센티널 하나로 모든 쓰기 액션(입금/환불/메모/충전확인)의 저장소를 분기한다.
   const KIMPRO_USER_SENTINEL = '__kimpro__';
-  // 접수관리 승인 시 ha/kimproSlots로도 자동 미러링되는 기능(같은 key로 복사, 김프로.html 목록
-  // 노출용)이 있어 — 정산에서까지 그대로 합치면 같은 캠페인이 ha쪽/kp쪽 두 번 잡혀 이중 계상된다.
+  // 접수관리 승인 시 ha/kimproSlots로 자동 미러링되므로 그대로 합치면 같은 캠페인이 이중 계상된다 —
   // kp 슬롯 중 같은 key가 ha/slots에도 있으면 미러일 뿐이므로 정산 대상에서 제외.
   function dedupeKpSlots(haSlotsArr, kpSlotsRawArr) {
     const haKeySet = new Set(haSlotsArr.map(s => s._key));
-    // origin==='kp'는 김프로가 원본이라 승인/예약 시 ha 쪽에도 자가치유 미러가 생길 수 있음(양방향 미러링) —
-    // 그 미러 존재만으로 걸러내면 김프로 원본 캠페인이 kp 쪽에서 사라져 정산 화면에 "김프로" 표시가 안 붙는다.
-    // ha가 원본이고 kp로 미러링된 것(origin!=='kp')만 여기서 제외.
+    // origin==='kp'(김프로 원본, ha 쪽에 자가치유 미러 생성됨)는 제외하면 안 됨 — ha가 원본이고
+    // kp로 미러링된 것(origin!=='kp')만 여기서 제외.
     return kpSlotsRawArr.filter(s => s.origin === 'kp' || !haKeySet.has(s._key));
   }
   function isBillableSlot(s) {
@@ -226,10 +223,8 @@
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
   function getRefund(timeKey,agencyId,userId){return refundMap[refundKey(timeKey,agencyId,userId)]||0;}
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
-  // 김프로 슬롯의 실제 userId는 레코드마다 있을 수도 없을 수도 있음(과거 이관분은 비어있는 경우 많음) +
-  // 그룹 키 충돌 방지용 센티널(KIMPRO_USER_SENTINEL)로 화면에서 덮어써져 있어 원본은 _origUserId에
-  // 별도 보관해둠. 원본 userId 있으면 그걸로, 없으면 agencyId(대행사 표시명)를 회원관리 agencyId와
-  // 매칭 — 접수관리/김프로 둘 다 회원관리 단가를 그대로 쓰는 게 맞는 설계.
+  // 김프로 슬롯의 실제 userId는 비어있을 수 있음(과거 이관분) + 화면상 센티널로 덮어써져 있어 원본은
+  // _origUserId에 별도 보관 — 원본 userId 있으면 그걸로, 없으면 agencyId를 회원관리 agencyId와 매칭.
   function getAgencyPrice(s){
     if (s._src !== 'kp') return getPrice(s.userId);
     if (s._origUserId) { const p = getPrice(s._origUserId); if (p) return p; }
@@ -576,10 +571,9 @@
       paidSet   = new Set([...haPaidSet, ...kpPaidSet]);
       refundMap = {...haRefundMap, ...kpRefundMap};
       snapshotMap = {...haSnapshotMap, ...kpSnapshotMap};
-      // 실시간 리스너 각각이 비동기로 따로 도착하는데, wireSettleLiveListeners 이후 하나만 먼저 도착해도
-      // recomputeLiveSettleData가 아직 안 도착한 나머지를 빈 값으로 간주해 방금 로드한 데이터를 통째로
-      // 덮어써버리는 레이스가 있었음(정산완료 건도 담당자 표시가 사라짐) — 도착 전까지는 방금 불러온
-      // 값으로 미리 채워둬서 부분 도착이 나머지를 비우지 않게 함.
+      // 실시간 리스너들이 비동기로 따로 도착하는데, 하나만 먼저 도착하면 recomputeLiveSettleData가
+      // 아직 안 온 나머지를 빈 값으로 간주해 방금 로드한 데이터를 덮어쓰는 레이스가 있었음 — 도착
+      // 전까지는 방금 불러온 값으로 미리 채워둬서 부분 도착이 나머지를 비우지 않게 함.
       _liveHaPaid = haPaidSet; _liveKpPaid = kpPaidSet;
       _liveHaRefund = haRefundMap; _liveKpRefund = kpRefundMap;
       _liveHaSnapshot = haSnapshotMap; _liveKpSnapshot = kpSnapshotMap;
@@ -590,9 +584,9 @@
 
     renderSummary();
 
-    // 과거 날짜 그룹 스냅샷 저장(미저장 그룹) + 차감/유입플 금액이 실제 슬롯과 어긋난 기존 스냅샷 재동기화.
-    // 얼린 시점에 미승인이던 그룹은 차감/유입플이 0으로 영구 고정되므로 — totalTarget/amount/refund는 고정 유지, 차감/유입플만 대상.
-    // 캐시된 allSlots로 대상 그룹 유무를 먼저 싸게 확인해 렌더마다 전체 slots 재조회하는 비용을 피함
+    // 과거 날짜 그룹 스냅샷 저장(미저장 그룹) + 차감/유입플이 실제 슬롯과 어긋난 기존 스냅샷 재동기화
+    // (totalTarget/amount/refund는 고정 유지, 차감/유입플만 대상). 캐시된 allSlots로 대상 그룹 유무를
+    // 먼저 싸게 확인해 렌더마다 전체 slots 재조회하는 비용을 피함.
     const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
     const pastGroups = (slots) => groupByTimeAgency(slots.filter(isBillableSlot))
       .filter(g => g.timeKey.slice(0,10) < todayStr);

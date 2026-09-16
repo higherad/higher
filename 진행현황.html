@@ -283,8 +283,8 @@
       const haSlots = await HA.getSlotsLive();
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-      // HA.expireSlots로 status만 한 번의 multi-path 쓰기 처리(슬롯별 HA.updateSlot 대신 — 접수관리.html과 동일 이유)
-      // 김프로 슬롯을 합치기 전(ha 슬롯만 있는 시점)에 처리 — 김프로 쪽 자동만료는 김프로.html 자체가 담당
+      // HA.expireSlots로 한 번에 multi-path 쓰기(접수관리.html과 동일). 김프로 슬롯을 합치기 전(ha만
+      // 있는 시점)에 처리 — 김프로 쪽 자동만료는 김프로.html 자체가 담당.
       const toExpire = haSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
       );

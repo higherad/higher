@@ -732,9 +732,8 @@ window.toggleProdPanel = function(e) {
     document.getElementById('stat-pending').textContent  = pending.toLocaleString();
     document.getElementById('stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('stat-active').textContent   = active.toLocaleString();
-    // 예약(split) 카드는 ha/slots만 봐선 정확한 값이 아니라(김프로 쪽 예약은 별도 소스) 예약 분할
-    // 현황 팝업과 완전히 동일한 계산(computeScheduleGroupCount)으로 별도 조회 — 무관한 슬롯 변경으로도
-    // renderReceipts가 자주 다시 불리므로, 재조회 중엔 기존 값을 지우지 않고 그대로 둬 깜빡임 방지
+    // 예약(split) 카드는 ha/slots만 봐선 부정확해(김프로 쪽 예약은 별도 소스) 예약 분할 현황 팝업과
+    // 동일한 계산(computeScheduleGroupCount)으로 별도 조회 — 재조회 중엔 깜빡임 방지로 기존 값 유지.
     computeScheduleGroupCount().then(n => {
       const el = document.getElementById('stat-split');
       if (el) el.textContent = n.toLocaleString();
@@ -1233,9 +1232,8 @@ window.toggleProdPanel = function(e) {
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
   // 김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드라 mid로 직접 조회 가능 — 같은 MID가
-  // 양쪽에 등록될 수 있어 히스토리 모달/엑셀 다운로드는 합쳐서 보여줌. HA.getKpSlotsByMid/getSlotKwHistory
-  // (ha-store.js 공용 헬퍼, 2026-09-16)를 그대로 재사용. kimpro.kro.kr(레거시 외부 사이트) 자체 병합은
-  // 접속 차단(2026-09-11)으로 제거된 채 유지 — 그건 별개 프로젝트였고 지금은 ha/kimproSlots로 완전히 이관됨.
+  // 양쪽에 등록될 수 있어 히스토리 모달/엑셀 다운로드는 합쳐서 보여줌(HA.getKpSlotsByMid/getSlotKwHistory
+  // 공용 헬퍼 재사용). kimpro.kro.kr(레거시) 자체 병합은 접속 차단(2026-09-11)으로 제거됨.
   async function fullKeywordHistory(mid) {
     const crossAppSlots = await HA.getKpSlotsByMid(mid);
     const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ searchKeyword: s.searchKeyword, createdAt: s.createdAt }));
@@ -2337,9 +2335,8 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
-  // ha/grades(매시간 동기화된 진행중 등급, GRADE_CACHE)에 MID가 이미 있으면 상품 유형 설정 ratio를
-  // 무시하고 그 등급(들)로만 접수 — 목록에 없는 등급명은 가상 등록(ver.5.0/3.2). kimpro와 동일 구현,
-  // 팝업 토글(기본 on)로 끄면 상품 유형 설정값 그대로 배분.
+  // ha/grades(GRADE_CACHE)에 MID가 있으면 상품 유형 설정 ratio 무시하고 그 등급(들)로만 접수(kimpro와
+  // 동일 구현). 팝업 토글(기본 on) 끄면 상품 유형 설정값 그대로 배분.
   let gradeMatchOn = true;
 
   // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(approveReadySlots)에서 애드로그 자동등록을 스킵.
@@ -2347,9 +2344,8 @@ window.toggleProdPanel = function(e) {
   let adlogAutoOn = true;
 
   // ── 시간대 분할 예약 접수 (kimpro와 동일 구현 + higher 전용 캐시차감 스냅샷) ──
-  // /register 대신 ha/scheduled_dispatch에 페이로드만 저장, 서버(Cloud Scheduler→/dispatch-scheduled)가
-  // 지정 시각에 재생. higher는 캐시차감 필드도 같이 스냅샷(kimpro엔 없음). 다중leg 슬롯은 서버가 게이트를
-  // 모르므로 미지원(gate 있으면 토글 막음).
+  // /register 대신 ha/scheduled_dispatch에 페이로드만 저장, 서버가 지정 시각에 재생. 다중leg
+  // 슬롯은 서버가 게이트를 모르므로 미지원(gate 있으면 토글 막음).
   let scheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34}, ...]
 
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -2401,9 +2397,8 @@ window.toggleProdPanel = function(e) {
     const portions = lrm(schedule.map((s, i) => ({ id: i, ratio: s.pct })), row.일목표 || 0);
     const minPortion = row._daysMultiplied ? 100 : 10; // 비즈핏 최소 수량 — NP위치저장은 전체목표 100, 그 외는 10
     const days = Math.max(1, row._days || 0);
-    // 키워드 분할 켜져 있으면 이 행 자신의 검색키워드를 (일수×시간대 수)만큼 자동으로 그룹 개수를
-    // 역산해서 잘라(그룹당 개수 = ceil(키워드 수/필요 그룹 수)) 매일·매 시간대 조합마다 하나씩 배정.
-    // 등록된 키워드가 필요 그룹 수보다 적으면 처음부터 순환 재사용(2026-09-14 자동계산으로 확정).
+    // 키워드 분할 켜져 있으면 검색키워드를 (일수×시간대 수)만큼 그룹 개수를 역산해 잘라 매일·매
+    // 시간대 조합마다 하나씩 배정. 키워드가 필요 그룹 수보다 적으면 처음부터 순환 재사용.
     const neededGroups = schedule.length * days;
     const kwGroups = scheduleKwSplit
       ? chunkKeywords(row.검색키워드, Math.max(1, Math.ceil((row.검색키워드||'').split(',').filter(k=>k.trim()).length / neededGroups) || 1))
@@ -2484,9 +2479,8 @@ window.toggleProdPanel = function(e) {
     return result;
   }
 
-  // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 매칭된 등급이 있으면 차감/유입플/분할(고정)은
-  // 그대로 두고 나머지만 매칭된 등급끼리 균등분배(ratio:1), 없으면 기존 ratio 배분 그대로.
-  // 재접수(isRequeue) 슬롯은 신규 접수가 아니라 기존 배분을 이어받는 성격이라 이 매칭 대상에서 제외한다.
+  // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 매칭된 등급 있으면 고정 항목은 그대로
+  // 두고 나머지만 균등분배, 없으면 기존 ratio 배분. 재접수(isRequeue)는 매칭 대상에서 제외.
   function allocRowsForSlot(r) {
     const AP = ap();
     const gradeProds = (gradeMatchOn && !r.isRequeue) ? matchedGradeProds(r.mid) : [];
@@ -3230,19 +3224,16 @@ window.toggleProdPanel = function(e) {
         const uploadTodayStr = rexFmt(new Date());
         const wb = XLSX.read(e.target.result, { type:'array', cellDates:false });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        // 실제 데이터는 몇 줄 안 되는데 시트 전체에 서식만 적용돼 있으면 !ref가 A1:N1048576처럼
-        // 부풀려져 있는 경우가 있음 — defval:''로 빈 셀까지 다 채우며 100만 행을 순회하면 그것만으로
-        // 몇 초씩 걸려 "드래그해서 올리면 멈춘 것 같은" 지연의 원인이 됨. 실사용 엑셀은 이보다 훨씬
-        // 적으니 안전하게 넉넉히 잡아 범위를 잘라서 읽는다(user-apply.html과 동일 조치).
+        // 서식만 적용된 빈 셀 때문에 !ref가 A1:N1048576처럼 부풀려질 수 있음 — defval:''로 100만 행을
+        // 순회하면 그것만으로 몇 초씩 걸려 멈춘 것처럼 보임. 범위를 넉넉히 잘라서 읽는다(user-apply.html과 동일).
         const MAX_EXCEL_ROWS = 5000;
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
         if (range.e.r > MAX_EXCEL_ROWS) range.e.r = MAX_EXCEL_ROWS;
         const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', range });
         if (!raw.length) { alert('빈 파일입니다.'); return; }
 
-        // 컬럼 위치를 고정 순서 대신 첫 행(헤더) 텍스트로 자동 인식 — 순서가 바뀌거나 줄바꿈/공백/
-        // 예시문구가 섞여 있어도("시작일\n예) 2026-01-31") 부분일치로 찾히도록 공백류를 다 지우고
-        // 매칭(기존 슈퍼 계정 엑셀 접수와 동일한 방식, user-apply.html 이식)
+        // 컬럼 위치를 고정 순서 대신 첫 행(헤더) 텍스트로 자동 인식 — 줄바꿈/공백/예시문구가 섞여도
+        // 공백류를 지우고 부분일치로 찾음(user-apply.html과 동일 방식)
         const hdr = raw[0].map(h => String(h||'').replace(/\s+/g, ''));
         const storeCol  = hdr.findIndex(h => /업체명|상호명/.test(h));
         const urlCol    = hdr.findIndex(h => /url/i.test(h));
@@ -3345,10 +3336,8 @@ window.toggleProdPanel = function(e) {
     const agencyId = rexSelected.agency || rexSelected.username;
     const userId   = rexSelected.username;
 
-    // 행마다 HA.addSlot이 RTDB 왕복(+단가 조회)이라 순차 대기(for...of)면 건수만큼 지연이 쌓인다
-    // (50건이면 왕복 50번) — 서로 독립된 요청이라 병렬로 한 번에 쏨. 단, 병렬이면 서버 완료 순서가
-    // 엑셀 행 순서와 달라지므로 행 인덱스로 어긋낸 createdAt을 미리 만들어 보내 정렬을 엑셀 순서에
-    // 고정(higher_user 포털과 동일 패턴).
+    // 행마다 HA.addSlot이 RTDB 왕복이라 순차 대기면 건수만큼 지연이 쌓여 병렬로 한 번에 쏨. 병렬이면
+    // 서버 완료 순서가 엑셀 행 순서와 달라지므로 행 인덱스로 어긋낸 createdAt을 미리 만들어 정렬 고정.
     const excelBaseTs = Date.now();
     const results = await Promise.allSettled(validRows.map((row, i) => HA.addSlot({
       agencyId, userId,
@@ -3404,9 +3393,9 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 접수(승인) 완료 시 애드로그 자동등록 ──────────────────────
-  // 메모는 상세보기의 "애드로그" 전용 칸(s.adlogMemo, 없으면 buildAdlogRows와 동일한 기본값)을 사용.
-  // 이미 등록됐거나(adlogSubmitted) 키워드/MID(필수 항목)가 없는 슬롯, 재접수(isRequeue) 슬롯(이미 이전 등록분이 있다고 봄)은 조용히 건너뜀.
-  // 승인 자체는 이미 끝난 뒤라 실패해도 콘솔 로그만 남기고 계속 진행 — 수동 "애드로그" 버튼(체크박스 선택)으로 재시도 가능.
+  // 메모는 상세보기의 "애드로그" 전용 칸(s.adlogMemo) 사용. 이미 등록됐거나 키워드/MID 없는 슬롯,
+  // 재접수(isRequeue, 이전 등록분 있다고 봄)는 건너뜀. 승인은 이미 끝난 뒤라 실패해도 로그만 남기고
+  // 계속 진행 — 수동 "애드로그" 버튼으로 재시도 가능.
   async function autoRegisterAdlog(slots) {
     const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && !s.isRequeue && s.rankKeyword && s.mid);
     if (!targets.length) return;
@@ -4210,10 +4199,9 @@ window.toggleProdPanel = function(e) {
       };
     };
 
-    // "초기화" — 이 탭 몫만 취소+완료기록 삭제, 탭별 독립 버튼(reset-normal/fixed/charlie/blog-btn)이라
-    // 다른 탭은 안 건드림. 대상 판정은 slot.status==='active'가 아니라 이 탭 몫(_normalSubmitted 등)
-    // 기준 — 다른 레그를 기다리는 중이어도 이 탭만 나갔으면 되돌릴 수 있어야 함.
-    // bizfitDeducted(차감)는 안 건드림 — 차감/메모 정산은 사람이 처리.
+    // "초기화" — 이 탭 몫만 취소+완료기록 삭제, 탭별 독립 버튼이라 다른 탭은 안 건드림. 대상 판정은
+    // slot.status가 아니라 이 탭 몫(_normalSubmitted 등) 기준 — 다른 레그를 기다리는 중이어도 이
+    // 탭만 나갔으면 되돌릴 수 있어야 함. bizfitDeducted(차감)는 안 건드림(정산은 사람이 처리).
 
     // /register로 나가는 탭(일반/찰리/블로그) 공용 — /cleanup-cancel은 MID 단위 취소라 같은 MID의
     // 다른 상품도 같이 취소될 수 있음을 confirm에서 미리 알림.
@@ -4259,9 +4247,8 @@ window.toggleProdPanel = function(e) {
           window.bizfitSubmitting = false;
         }
 
-        // "관련 캠페인 없음"은 이미 okMids에 들어감 — 여기 남는 실패는 진짜 취소불가/계정오류거나,
-        // 관리자가 비즈핏 화면에서 직접 이미 지워 조회가 그 흔적을 못 찾은 경우일 수 있어 확인 후에만
-        // 취소 시도 없이 로그만 지운다.
+        // "관련 캠페인 없음"은 이미 okMids에 들어감 — 여기 남는 실패는 진짜 취소불가/계정오류거나
+        // 관리자가 비즈핏에서 직접 이미 지운 경우라 취소 시도 없이 로그만 지운다.
         let logOnlySlots = [];
         const failedSlots = candidates.filter(s => s.mid && !okMids.has(s.mid));
         if (failedSlots.length && confirm(`${failedSlots.length}건 취소 실패.${errors.length ? `\n${errors.join('\n')}` : ''}\n\n캠페인이 이미 삭제된 경우라면 로그만 지울 수 있습니다(재접수 시 중복등록 주의). 로그만 지울까요?`)) {
@@ -4719,10 +4706,9 @@ window.toggleProdPanel = function(e) {
 
   // ── 시간대 분할 예약 편집기 (접수 확인 모달 상단, kimpro/reception.html과 동일 구현) ────────────
   let scheduleDraftRows = [{ time: '10:00', pct: 100 }];
-  // 키워드 분할 설정(2026-09-14, 2026-09-14 자동계산으로 변경) — 켜져 있으면 각 캠페인 자신의
-  // 검색키워드를 (일수×시간대 수)만큼 자동으로 나눠 하루씩 다른 그룹 배정(splitRowBySchedule 참고,
-  // 그룹당 개수 수동입력 없음 — 필요 그룹 수만큼 역산해서 자름). scheduleKwSplit=커밋된 on/off,
-  // scheduleKwSplitDraft=편집 중인 체크박스(적용 누르기 전)
+  // 키워드 분할 설정 — 켜져 있으면 검색키워드를 (일수×시간대 수)만큼 나눠 하루씩 다른 그룹 배정
+  // (splitRowBySchedule 참고, 필요 그룹 수만큼 자동 역산). scheduleKwSplit=커밋된 값,
+  // scheduleKwSplitDraft=편집 중인 체크박스(적용 전)
   let scheduleKwSplit = false;
   let scheduleKwSplitDraft = { on:false };
   // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량
@@ -4752,9 +4738,8 @@ window.toggleProdPanel = function(e) {
   function flattenScheduleRows(data) {
     return [...data.normalPlan, ...data.charliePlan, ...data.deltaPlan, ...data.navyPlan].flatMap(p => p.rows);
   }
-  // schedule 시간을 각 행의 실제 예약일(row.예약일, 없으면 오늘) 기준 첫 회차(dayOffset 0)로 계산했을 때
-  // 이미 지난 시각이 되는 조합을 찾음 — 예약일이 미래(예: 9/3)면 오늘 기준으로는 지난 시각이라도 유효하므로
-  // "오늘"만 보고 일괄 차단하면 안 된다.
+  // schedule 시간을 각 행의 실제 예약일 기준 첫 회차로 계산했을 때 이미 지난 시각인 조합을 찾음 —
+  // 예약일이 미래면 오늘 기준 지난 시각이라도 유효하므로 "오늘"만 보고 일괄 차단하면 안 된다.
   function schedulePastViolations(rows, schedule) {
     const now = new Date();
     const violations = [];
@@ -5204,10 +5189,9 @@ window.toggleProdPanel = function(e) {
     return verSourceId ? prods.find(p => p.id === verSourceId)?.ver : undefined;
   }
 
-  // 검색키워드 50개 초과 시 앞 50개만 남기고 자름(사이드이펙트로 r.검색키워드 갱신) + 유효성 판정 —
-  // submitPlanRows(즉시)/submitPlanRowsScheduled(예약) 공용. 통과하면 null, 실패하면 사유 반환(DOM 표시는 호출부 몫).
-  // skipCap: 시간대 분할 키워드분할이 켜져 있으면 여기서 50개로 잘라버리면 안 됨 — 쪼개기 전 원본
-  // 키워드 풀을 그대로 둬야 splitRowBySchedule이 필요 그룹 수로 나눈 뒤 각 조각에 50개 캡을 적용함
+  // 검색키워드 50개 초과 시 앞 50개만 남기고 자름 + 유효성 판정 — 즉시/예약 제출 공용. 통과하면
+  // null, 실패하면 사유 반환. skipCap: 시간대 분할 키워드분할이 켜져 있으면 여기서 자르면 안 됨 —
+  // 원본 키워드 풀을 그대로 둬야 splitRowBySchedule이 나눈 뒤 각 조각에 50개 캡을 적용함
   function truncateAndValidateRow(r, skipCap) {
     const kwList = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k);
     if (!skipCap && kwList.length > 50) r.검색키워드 = kwList.slice(0, 50).join(',');
@@ -5218,9 +5202,9 @@ window.toggleProdPanel = function(e) {
     return null;
   }
 
-  // 한 plan(대행사별 rows)을 실제로 비즈핏에 등록 — UI(버튼/탭잠금)는 손대지 않고 결과 집계만 반환.
-  // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유한다.
-  // 대행사 1곳 처리 — 같은 BizFit 계정은 동시 요청 시 세션 충돌 위험이 있으므로 grade 단위는 순차
+  // 한 plan(대행사별 rows)을 실제로 비즈핏에 등록 — UI는 손대지 않고 결과 집계만 반환.
+  // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유. 같은 BizFit 계정은
+  // 동시 요청 시 세션 충돌 위험이 있어 grade 단위는 순차
   async function submitPlanRows(plan, overlay, gate, legKey, adrole) {
     const productVer = productVerFor(legKey);
     let okTotal = 0, failTotal = 0;
@@ -5392,8 +5376,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // submitPlanRows와 같은 검증·등급매칭을 거치되 /register 대신 ha/scheduled_dispatch에 저장 —
-  // 승인은 서버가 그룹 완료 확인 후 처리, 캐시차감은 기다리지 않고 예약 시점에 바로 실행.
-  // 유입플은 scheduleBlocked가 이미 걸러 여기 도달 시점엔 안 남아있다고 가정.
+  // 승인은 서버가 그룹 완료 확인 후 처리, 캐시차감은 예약 시점에 바로 실행.
   async function submitPlanRowsScheduled(plan, overlay, legKey, adrole, schedule) {
     const productVer = productVerFor(legKey);
     const batchGroupId = `sch_${genId()}`;
@@ -5449,17 +5432,16 @@ window.toggleProdPanel = function(e) {
         overlay._renderDeductFailures();
       }
       await Promise.all(dispatchEntries.map(saveScheduledDispatch));
-      // 예약 완료(active 전환)는 서버(Cloud Scheduler)가 나중에 브라우저 없이 처리하는데, adlog.kr은
-      // 서버가 새로 만든 xlsx는 거부해서(브라우저 SheetJS로 만든 파일만 통과) 그 시점엔 등록이 불가능
-      // — 대신 지금(접수 신청 클릭 시점, 키워드/MID/메모는 이미 확정된 값) 브라우저에서 미리 등록한다.
+      // adlog.kr은 서버가 만든 xlsx를 거부해서(브라우저 SheetJS 파일만 통과) 서버가 나중에 처리하는
+      // 예약 완료(active 전환) 시점엔 등록 불가 — 그래서 지금(접수 신청 클릭 시점) 미리 등록해둠.
       if (adlogAutoOn) await autoRegisterAdlog([...slotKeyCounts.keys()].map(k => allSlots.find(s => s._key === k)));
     }
     return { scheduledCount, failTotal };
   }
 
   // ════════════════════════════════════════════════════════
-  // 분할접수 현황 — ha/scheduled_dispatch 조회. 서버가 전송 후 항목을 안 지우고 status만
-  // pending→done으로 바꿔 완료 항목도 계속 남음(수정은 pending만 가능). kimpro와 동일 구현.
+  // 분할접수 현황 — ha/scheduled_dispatch 조회. 서버가 status만 pending→done으로 바꿔 완료
+  // 항목도 계속 남음(수정은 pending만 가능). kimpro와 동일 구현.
   // ════════════════════════════════════════════════════════
 
   let _ssEntries = {};   // key -> entry, 등급 변경 시 저장된 계정정보(loginId/pwd) 조회용
@@ -5471,16 +5453,12 @@ window.toggleProdPanel = function(e) {
   // 항상 각 그룹 자신의 상세 키워드를 이 등급 비율 그대로 재분할(그룹별 개별 % 없음, 사용자 확정).
   let _ssBulkSelected = new Set(); // 일괄 재분류 대상으로 체크된 그룹 gid 집합
   // sel: ckey -> 목표%, kwPct: ckey -> 키워드%(개별 패널과 동일하게 분리) — 실제 적용은 항상
-  // 각 그룹 자신의 상세값으로 함(apply 시점에 그룹마다 fetchSourceKeyword로 새로 읽음).
-  // 선택 그룹이 많을 수 있어 미리보기 텍스트영역은 안 둠(2026-09-14, 다 못 보여줘서 의미 없음 — 사용자 확정).
+  // 각 그룹 자신의 상세값으로 함(apply 시점에 새로 읽음). 미리보기 텍스트영역은 안 둠(다 못 보여줘서 의미 없음).
   let _ssBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
 
   // ── 예약 분할 현황 — 접수관리(ha/scheduled_dispatch)와 김프로(ha/kimproScheduledDispatch)를
-  // 한 화면에 합쳐서 관리(사용자 요청, 2026-09-10 — "서로 다른 서버라서 막아뒀던 것"이었는데
-  // 지금은 같은 프로젝트/DB라 저장은 분리 유지하면서 화면만 합침, 정산관리.html과 동일한 패턴).
-  // 항목의 _src('ha'|'kp')로 쓰기 액션을 올바른 저장소로 라우팅. 구 kimpro/scheduled_dispatch(레거시)
-  // 병합은 kimpro.kro.kr 접속 차단(2026-09-11)으로 제거됨.
-  // ha/ 루트 아래 상대 경로 — 두 노드 다 'ha' 밑이라 fbUpdate('ha', patch) 하나로 같이 갱신 가능
+  // 한 화면에 합쳐서 관리(정산관리.html과 동일 패턴, 저장은 분리 유지). 항목의 _src('ha'|'kp')로
+  // 쓰기 액션을 올바른 저장소로 라우팅 — 두 노드 다 'ha' 밑이라 fbUpdate('ha', patch)로 같이 갱신 가능.
   function scheduleDispatchSuffix(src) { return src === 'kp' ? 'kimproScheduledDispatch' : 'scheduled_dispatch'; }
   function scheduleBatchSuffix(src)    { return src === 'kp' ? 'kimproScheduledBatches'  : 'scheduled_batches'; }
 
@@ -5494,12 +5472,9 @@ window.toggleProdPanel = function(e) {
     return `${mm}.${dd} ${hh}:${mi}`;
   }
 
-  // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 완전히 동일한 계산을 DOM 렌더 없이 반환.
-  // 두 화면 카드/팝업이 전부 이 하나의 계산식만 쓰도록 해서 숫자가 어긋나지 않게 함.
-  // 2026-09-16: fbGet()으로 매번 통째로 새로 받던 걸 ha-store.js의 onValue 공유 캐시(makeValueLiveCache)
-  // 구독으로 교체 — 이 테이블(수백KB~1MB대)이 무관한 슬롯 변경만으로도 자주 다시 다운로드되던 게
-  // RTDB 대역폭 폭증의 주 원인이었음(김프로.html과 동일 조치). 구독은 세션당 1회만 네트워크를 타고,
-  // 이후는 캐시된 값으로 즉시 resolve됨.
+  // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 동일한 계산을 DOM 렌더 없이 반환.
+  // ha-store.js의 onValue 공유 캐시 구독 사용 — 예전엔 fbGet()으로 매번 통째로 받아서 무관한 슬롯
+  // 변경마다 이 테이블(수백KB~1MB)이 재다운로드되는 게 RTDB 대역폭 폭증의 주 원인이었음(김프로.html과 동일 조치).
   function awaitScheduleDispatchBoth() {
     return Promise.all([HA.getScheduleDispatchOnce(), HA.getKpScheduleDispatchOnce()]);
   }
@@ -5743,8 +5718,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 잔여 재분류 — 슬롯의 남은(pending) 항목을 취소하고 등급별 비율(직접입력)로 다시 나눠 재생성 ──
-  // 대상은 아직 서버에 안 나간 pending뿐이라 bizfit 쪽 취소 API가 필요없고, Firebase에서 지우고
-  // 다시 쓰면 끝(등급변경과 동일하게 계정으로 grade-info 재조회해 실재하는 등급만 고르게 함).
+  // 대상은 서버에 안 나간 pending뿐이라 bizfit 취소 API 불필요, Firebase에서 지우고 다시 쓰면 끝.
   function idSafe(s) { return encodeURIComponent(String(s)); }
   function escJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
@@ -5805,11 +5779,9 @@ window.toggleProdPanel = function(e) {
     return snap.exists() ? (snap.val().searchKeyword || '') : '';
   }
 
-  // 키워드 재분할(2026-09-14 자동계산으로 확정, (a)/(b) 선택 없이 이 방식 하나만 씀): 1단계로
-  // 등급 수만큼 키워드 풀을 나눠 등급별 전용 슬라이스를 만들고(등급 수 < 그룹 수면 순환), 2단계로
-  // 그 슬라이스를 다시 bucketCount(재분류로 새로 만들 "일수"에 해당 — 남은 항목을 sendAt으로 묶은
-  // buckets 수)만큼 나눠 등급별로 매 회차(대략 하루)마다 다른 키워드 그룹을 쓰게 함. 결과는
-  // {ckey: [그룹,그룹,...]}(배열의 배열) — applyScheduleResplit이 그 등급의 버킷 순번으로 인덱싱.
+  // 키워드 재분할: 1단계로 등급 수만큼 키워드 풀을 나눠 전용 슬라이스를 만들고(등급 수 < 그룹 수면
+  // 순환), 2단계로 그 슬라이스를 bucketCount(회차 수)만큼 나눠 회차마다 다른 키워드 그룹을 쓰게
+  // 함. 결과는 {ckey: [그룹,그룹,...]} — applyScheduleResplit이 버킷 순번으로 인덱싱.
   function assignKeywordsForResplit(kwList, grades, bucketCount) {
     if (!grades.length) return {};
     const outerGroups = autoChunkKeywords(kwList.join(','), grades.length);
@@ -5991,9 +5963,8 @@ window.toggleProdPanel = function(e) {
       ${panel}
     </div>`;
   }
-  // 그룹마다 자기 계정으로 등급 재조회 → 이름이 일치하는(같은 ckey) 등급만 채택, 하나라도 없으면
-  // 그 그룹은 건너뜀(일부 등급만 반영되는 어중간한 결과 방지). 키워드 재분할이 켜져 있으면 그룹마다
-  // 자기 상세 키워드를 읽어 등급×일수 자동계산으로 재분할(applyScheduleResplit 내부에서 계산).
+  // 그룹마다 자기 계정으로 등급 재조회 → 이름 일치(같은 ckey) 등급만 채택, 하나라도 없으면 그
+  // 그룹은 건너뜀(어중간한 결과 방지). 키워드 재분할 켜져 있으면 등급×일수 자동계산으로 재분할.
   window.applyBulkResplitClick = async function() {
     const v = computeBulkValidity();
     if (v.blocked) return;
@@ -6103,9 +6074,8 @@ window.toggleProdPanel = function(e) {
     updateScheduleResplitSum(slotKey);
   };
 
-  // 끄면 기존처럼 원본 키워드를 그대로 복제(변경 없음), 켜면 상세 키워드를 그 자리에서 불러와
-  // 등급별 "키워드" 비율 입력을 노출 — 기본값은 꺼짐(기존 동작 그대로 유지). 체크박스 토글이라
-  // 입력칸이 새로 나타나야 해서(disabled 전환만으론 안 됨) 여기만 전체 재렌더.
+  // 끄면 원본 키워드를 그대로 복제(변경 없음), 켜면 상세 키워드를 불러와 등급별 "키워드" 비율
+  // 입력을 노출(기본값 꺼짐). 입력칸이 새로 나타나야 해서 여기만 전체 재렌더.
   window.onScheduleResplitKwModeToggle = async function(slotKey, checked) {
     const st = _ssResplit[slotKey]; if (!st) return;
     st.kwMode = checked;
@@ -6156,12 +6126,9 @@ window.toggleProdPanel = function(e) {
   // 최소 접수 수량 — 비즈핏 최소 수량 기준, splitRowBySchedule과 동일
   const SCHEDULE_MIN_PORTION = 10;
 
-  // 같은 sendAt끼리 묶어 비율대로 나누고, 조각이 최소수량 미만이면 조용히 버리지 않고 violations로
-  // 보고해 실행을 막는다(안 그러면 그 등급분 수량이 표시 없이 증발).
-  // timeRows(선택) 있으면 원래 sendAt은 무시하고 날짜별로 묶어 새 시각·비율로 재구성(2026-09-14,
-  // 잔여 재분류 시간 재설정) — buckets는 "새로 만들 조각"(sendAt·sample·등급별 amounts) 목록,
-  // cancelItems는 "취소할 원본 항목"(중복 없이 1회씩) 목록으로 분리해 반환. timeRows 없으면 기존과
-  // 동일하게 원래 sendAt별로 그룹핑.
+  // 같은 sendAt끼리 묶어 비율대로 나누고, 조각이 최소수량 미만이면 violations로 보고해 실행을 막는다
+  // (안 그러면 그 등급분 수량이 표시 없이 증발). timeRows(선택) 있으면 원래 sendAt 무시하고 날짜별로
+  // 묶어 새 시각·비율로 재구성 — buckets(새 조각)/cancelItems(취소할 원본)로 분리 반환.
   function computeResplitBuckets(slotKey, grades, targetKeys, timeRows) {
     const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
@@ -6379,9 +6346,8 @@ window.toggleProdPanel = function(e) {
     }
   };
 
-  // kwList: 재분할할 원본 키워드 배열 — 있으면 등급×버킷(일수)별로 자동 배정해 검색키워드를 덮어씀,
-  // 비었거나 미전달이면 기존 동작 그대로(원본 sampleRow 값 복제)
-  // timeRows 있으면 sendAt도 새로 계산(2026-09-14) — 없으면 원래 sendAt 그대로 유지(기존 동작)
+  // kwList: 재분할할 원본 키워드 배열 — 있으면 등급×버킷(일수)별로 자동 배정해 덮어씀, 없으면 원본
+  // sampleRow 값 복제. timeRows 있으면 sendAt도 새로 계산, 없으면 원래 sendAt 유지.
   async function applyScheduleResplit(slotKey, grades, targetKeys, kwList, timeRows) {
     const { buckets, violations, cancelItems } = computeResplitBuckets(slotKey, grades, targetKeys, timeRows);
     if (!buckets.length) return { created: 0, removed: 0 };
@@ -6438,9 +6404,7 @@ window.toggleProdPanel = function(e) {
 
   // 대기중 일괄취소 — 전송 전이라 비즈핏 API 없이 예약 항목만 삭제, scheduled_batches/total도 같이
   // 줄여야 서버가 그룹 완료를 정확히 판정. 강제종료와 동일하게 실제로 나간 날짜만 인정해 일수/종료일 축소.
-  // ✕는 항상 그 그룹의 대기중 전체를 취소(체크박스 선택과 무관 — 부분취소는 필요 없다는 사용자 판단).
-  // 전송 전이라 API 호출 없이 예약 항목만 지우면 됨. 강제종료와 동일하게 실제로 나간 날짜만큼만
-  // 인정해 일수/종료일을 줄이고 슬롯을 종료 처리.
+  // ✕는 항상 그 그룹의 대기중 전체를 취소(체크박스 선택과 무관 — 부분취소는 불필요하다는 사용자 판단).
   window.cancelAllSchedulePending = async function(slotKey) {
     const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     if (!targets.length) return;

@@ -73,10 +73,8 @@ const PATHS = {
   settleSnapshots: 'ha/settle_snapshots',
 };
 
-// ha/slots <-> ha/kimproSlots 양방향 동기화 시 상태값 매핑 — 두 시스템 상태값 어휘가 서로 달라서
-// (ha: pending/accepted/active/expired/split/deleted, kp: pending/accepted/active/ended/paused/
-// force_stopped/requeue/split) 글자 그대로 겹치는 값만 상태값도 같이 넘기고, 한쪽 전용 상태값은
-// 반대편에 절대 안 보냄(예: kp의 force_stopped를 ha에 그대로 쓰면 ha가 모르는 값이라 필터·배지가 깨짐)
+// ha<->kp 상태값 어휘가 달라(ha: pending/accepted/active/expired/split/deleted, kp: +ended/paused/
+// force_stopped/requeue) 겹치는 값만 미러링 — 한쪽 전용 상태값을 반대편에 그대로 쓰면 필터·배지가 깨짐
 const HA_KP_SHARED_STATUSES = new Set(['pending', 'accepted', 'active', 'split']);
 
 // 김프로 기능 데이터 전용(접수관리 ha/slots와 분리, 2026-09-10)
@@ -143,9 +141,8 @@ function subscribeLiveSlots(onChange) {
   return () => { cancelled = true; _liveSlotsSubs.delete(wrapped); };
 }
 
-// ── 김프로(ha/kimproSlots) 실시간 슬롯 배열 공유 캐시 — 위쪽 패턴을 그대로 이식.
-// 목록/정산/순위표 등 여러 호출부가 각자 getKpSlots()를 부르면 페이지 전환마다 ha/kimproSlots 전체가
-// 중복 다운로드되므로, 세션 내 최초 호출자만 받고 이후는 캐시+구독으로 재사용한다.
+// ── 김프로(ha/kimproSlots) 실시간 슬롯 배열 공유 캐시 — 위쪽과 동일 패턴.
+// 여러 호출부가 각자 getKpSlots()를 부르면 중복 다운로드되므로 최초 1회만 받고 캐시+구독 재사용.
 let _liveKpSlotsPromise = null;
 let _liveKpSlots         = [];
 const _liveKpSlotsSubs   = new Set();
@@ -187,10 +184,8 @@ function subscribeLiveKpSlots(onChange) {
   return () => { cancelled = true; _liveKpSlotsSubs.delete(wrapped); };
 }
 
-// 작은 노드(입금/충전여부·환불액·정산스냅샷 등, 전부 수백KB 이하) 전용 실시간 캐시 헬퍼 —
-// onValue 리스너를 경로당 1개만 붙이고(최초 구독자가 트리거) 여러 구독자에게 공유. 정산관리.html처럼
-// SPA 재방문마다 스크립트가 새로 실행되는 페이지에서 그때마다 onValue를 새로 붙이면 리스너가 방문
-// 횟수만큼 누적되므로, 이 모듈(ha-store.js) 스코프에 한 번만 붙여 공유한다(ensureLiveKpSlots와 동일 취지).
+// 작은 노드(입금·환불·정산스냅샷 등, 수백KB 이하) 전용 실시간 캐시 헬퍼 — onValue를 경로당
+// 1개만 붙여 공유(정산관리.html은 SPA 재방문마다 스크립트가 새로 실행돼 안 그러면 리스너가 누적됨).
 function makeValueLiveCache(path, transform) {
   let started = false;
   let hasValue = false;
@@ -218,10 +213,8 @@ const onRefundsChangeShared            = makeValueLiveCache(PATHS.refunds,      
 const onKpRefundsChangeShared          = makeValueLiveCache(KP_PATHS.refunds,      v => v || {});
 const onSettleSnapshotsChangeShared    = makeValueLiveCache(PATHS.settleSnapshots, v => v || {});
 const onKpSettleSnapshotsChangeShared  = makeValueLiveCache(KP_PATHS.settleSnapshots, v => v || {});
-// 예약 분할 현황(scheduled_dispatch) 전용 — 접수관리·김프로 둘 다 "예약" 건수 배지/모달을 슬롯이 하나만
-// 바뀌어도(다른 세션 포함) 매번 다시 렌더하면서 이 테이블(수백KB~1MB대)을 get()으로 매번 통째로
-// 새로 받아오고 있었음(2026-09-16 확인, RTDB 대역폭 폭증의 주 원인). onValue 공유 캐시로 전환해
-// 최초 1회 구독 이후로는 델타만 받도록 함.
+// 예약 분할 현황(scheduled_dispatch) 전용 — 슬롯 하나만 바뀌어도 이 테이블(수백KB~1MB)을 매번
+// get()으로 통째로 새로 받던 게 RTDB 대역폭 폭증의 주 원인이었음(2026-09-16). onValue 공유 캐시로 전환.
 const onScheduleDispatchChangeShared   = makeValueLiveCache('ha/scheduled_dispatch',      v => v || {});
 const onKpScheduleDispatchChangeShared = makeValueLiveCache('ha/kimproScheduledDispatch', v => v || {});
 
@@ -283,17 +276,15 @@ const HA = {
     );
   },
 
-  // getKpSlotsByMid와 대칭 — 김프로(kpFullKeywordHistory 등)가 히스토리 팝업/엑셀다운로드/재접수 매칭에서
-  // ha/slots를 mid로 직접 조회할 때 씀(2026-09-16, 각 파일이 직접 firebase-database.js를 동적 import해
-  // 손으로 짠 조회 코드를 두던 것을 이 공용 헬퍼로 대체)
+  // getKpSlotsByMid와 대칭 — 김프로가 ha/slots를 mid로 직접 조회할 때 씀(각 파일이 손으로 짠
+  // 조회 코드를 이 공용 헬퍼로 대체, 2026-09-16)
   async getSlotsByMid(mid) {
     const snap = await get(query(ref(db, PATHS.slots), orderByChild('mid'), equalTo(mid)));
     return snapToArray(snap);
   },
 
-  // 키워드 히스토리 전용 저장소(ha/slot_kw_history/{key}) 조회 — 접수관리·김프로 공용(2026-09-16, 두 파일이
-  // 각자 getDoc/getKpDoc으로 손으로 감싸던 것을 이 공용 헬퍼로 대체). 미러링된 슬롯은 같은 _key를
-  // 공유하므로 경로 하나로 양쪽 다 커버됨
+  // 키워드 히스토리 전용 저장소(ha/slot_kw_history/{key}) — 접수관리·김프로 공용. 미러링된 슬롯은
+  // 같은 _key를 쓰므로 경로 하나로 양쪽 다 커버됨(2026-09-16)
   async getSlotKwHistory(key) {
     const snap = await get(ref(db, `ha/slot_kw_history/${key}`));
     return snap.exists() ? snap.val() : {};
@@ -312,8 +303,7 @@ const HA = {
   },
 
   // ── 김프로(kimpro.kro.kr) 기능 데이터 전용 네임스페이스 ──────
-  // ha/kimproSlots 등 — 접수관리(ha/slots)와는 완전히 분리된 별도 저장소(2026-09-10 결정: 데이터를 섞지 않고
-  // 김프로.html이 독자적으로 소유). kimpro/slots(5,547건)를 그대로 복사해 마이그레이션 완료, ha/slots는 미접촉.
+  // ha/kimproSlots 등 — 접수관리(ha/slots)와 완전히 분리된 별도 저장소, 김프로.html이 독자 소유(2026-09-10)
   async getKpSlotsByMid(mid) {
     const snap = await get(query(ref(db, KP_PATHS.slots), orderByChild('mid'), equalTo(mid)));
     return snapToArray(snap);
@@ -337,11 +327,9 @@ const HA = {
   },
 
   async addKpSlot(data) {
-    // 접수 시점 단가 스냅샷 — addSlot과 동일한 패턴(ha/users, 회원관리 데이터)을 그대로 사용.
-    // 김프로 슬롯의 agencyId는 회원관리 username이 아니라 표시명("[단독]오렌지")이므로
-    // ha/users의 agencyId/agency 필드와 매칭해야 함(예전엔 username과 잘못 비교해서 매칭이
-    // 거의 항상 실패 — 단가 0원 버그의 근본 원인, 2026-09-10 수정). userId도 같은 매칭으로
-    // 자동 채움(진행현황 등 병합 화면에서 검색·표시에 씀).
+    // 접수 시점 단가 스냅샷(addSlot과 동일 패턴) — 김프로 슬롯의 agencyId는 username이 아니라
+    // 표시명이라 ha/users의 agencyId/agency 필드로 매칭해야 함(예전엔 username과 비교해 거의 항상
+    // 실패 — 단가 0원 버그의 근본 원인, 2026-09-10 수정). userId도 같은 매칭으로 자동 채움.
     let unitPriceSnapshot = data.unitPrice || 0;
     let resolvedUserId = data.userId || '';
     if (!unitPriceSnapshot || !resolvedUserId) {
@@ -377,11 +365,9 @@ const HA = {
 
   async updateKpSlot(key, patch) {
     await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
-    // ha/slots 역방향 동기화(신규, 2026-09-10) — updateSlot()의 ha/slots -> ha/kimproSlots 미러와
-    // 반대 방향. 상태값이 없거나 공유값(HA_KP_SHARED_STATUSES)일 때만 필드 반영, kp 전용 상태
-    // 전환(강제종료→종료 등)은 patch 통째로 무시 — endDate 등 일부 필드만 넘어가면 접수관리가
-    // 자체 만료 로직으로 상태를 오판할 수 있어서(2026-09-11 수정, 강제종료가 "종료"로 잘못 보이던 문제).
-    // 순수 김프로 네이티브 캠페인은 ha/slots에 대응 항목이 없다가 active/split 전환 시점에 처음 생성됨.
+    // ha/slots 역방향 동기화 — updateSlot()의 ha->kp 미러와 반대 방향. 공유 상태값(HA_KP_SHARED_STATUSES)일
+    // 때만 반영, kp 전용 상태 전환(강제종료→종료 등)은 무시(2026-09-11, 강제종료가 "종료"로 잘못 보이던 버그 수정).
+    // 순수 김프로 네이티브 캠페인은 active/split 전환 시점에 ha/slots가 처음 생성됨.
     try {
       const haSnap = await get(ref(db, `${PATHS.slots}/${key}`));
       if (haSnap.exists()) {
@@ -595,8 +581,7 @@ const HA = {
           await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
         }
       } else if (patch.status === 'active' || patch.status === 'split') {
-        // addSlot()은 접수 시점에 미러를 안 만듦 — 승인(active)/예약(split) 시점에 여기서 처음
-        // 생성됨. 그 전(pending 상태에서의 일반 필드 수정 등)까지는 절대 만들지 않음(요청사항: 접수는
+        // addSlot()은 접수 시점에 미러를 안 만듦 — 승인(active)/예약(split) 시점에 처음 생성(요청사항:
         // 승인 전까지 김프로에 안 보여야 함).
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
@@ -632,10 +617,9 @@ const HA = {
     });
   },
 
-  // 임의 경로 조회(raw snapshot 반환) — 충전하기(ha/bizfit_charge 목록) 등 슬롯 CRUD에 안 걸리는 단순 조회용.
-  // 쓰기(set/update)는 getKpDoc과 마찬가지로 kp 쪽(setKpDoc/updateKpDoc)만 있음 — db 인스턴스가 동일해서
-  // ha/kp 구분 없이 아무 경로에나 쓸 수 있으므로 대칭 쌍을 따로 안 둠(둘 다 있으면 어느 쪽을 써야 하는지만
-  // 헷갈림, 실제로 ha 쪽 setDoc/updateDoc은 추가됐다가 호출부가 하나도 없어 삭제됨 2026-09-16)
+  // 임의 경로 조회(raw snapshot) — 슬롯 CRUD에 안 걸리는 단순 조회용. 쓰기는 setKpDoc/updateKpDoc만
+  // 있음 — db 인스턴스가 동일해 ha/kp 구분 없이 아무 경로에나 쓸 수 있으므로 대칭 쌍은 안 둠
+  // (ha 쪽 setDoc/updateDoc은 호출부가 없어 삭제됨, 2026-09-16)
   async getDoc(path) {
     return get(ref(db, path));
   },
@@ -867,8 +851,7 @@ const HA = {
   // 대시보드 집계
   // ════════════════════════════════════════════════════════
 
-  // slots: 호출부가 이미 갖고 있는 getSlots() 결과 — 여기서 다시 받으면 ha/slots(5.8MB+)가
-  // 이중으로 다운로드됨(index.html의 renderDashboard가 대시보드 진입마다 같이 getSlots()도 부름).
+  // slots: 호출부가 이미 가진 getSlots() 결과 — 여기서 다시 받으면 ha/slots(5.8MB+)가 이중 다운로드됨.
   getDashboardStats(slots) {
     const today  = new Date(); today.setHours(0,0,0,0);
     const in3    = new Date(today); in3.setDate(today.getDate() + 3);
@@ -901,8 +884,7 @@ const HA = {
   // 실시간 리스너 (어드민 접수관리 배지 등에 사용)
   // ════════════════════════════════════════════════════════
 
-  // 공유 캐시(위쪽 subscribeLiveSlots) 구독 — 콜백엔 지금까지와 동일하게 "현재 전체 슬롯 배열"을
-  // 넘겨줘서 호출부(index.html) 수정 불필요.
+  // 공유 캐시(subscribeLiveSlots) 구독 — 콜백에 "현재 전체 슬롯 배열"을 그대로 넘겨 호출부 수정 불필요.
   onSlotsChange(callback) {
     return subscribeLiveSlots(callback);
   },
@@ -934,13 +916,10 @@ const HA = {
     }
 
     function notify() {
-      // 정산관리.html의 isBillableSlot()/allSlots 구성과 동일 기준으로 집계 대상을 삼는다.
-      // - 재접수(isRequeue) 슬롯은 정산 대상이 아니라 테이블/paidSet에 안 잡힘
-      // - origin==='kp'는 김프로 원본이 ha/slots에 자가치유 미러된 것으로, 입금 처리는
-      //   김프로 전용 저장소(kimproPaidSlots)에만 기록되고 ha쪽 paid_slots엔 절대 안 잡힘 —
-      //   그래서 ha/slots 쪽에서는 빼되(이중계상 방지), 김프로 원본(ha/kimproSlots)은
-      //   kimproPaidSlots까지 같이 합쳐서 별도로 카운트한다(전에는 통째로 빼서 김프로 미정산이
-      //   영원히 배지에 안 뜨는 버그가 있었음).
+      // 정산관리.html의 isBillableSlot()/allSlots 구성과 동일 기준 — 재접수(isRequeue)는 제외.
+      // origin==='kp'(김프로 미러)는 입금이 kimproPaidSlots에만 기록되므로 ha 쪽에서는 빼고(이중계상 방지),
+      // 김프로 원본(ha/kimproSlots)은 kimproPaidSlots까지 합쳐 별도 카운트(전엔 통째로 빼서 김프로
+      // 미정산이 배지에 영원히 안 뜨는 버그가 있었음).
       const haKeySet = new Set(latestHaSlots.map(s => s._key));
       // 김프로 슬롯은 userId가 항상 빈 값이라 접수관리 쪽 그룹 키와 안 겹치게 출처 태그를 섞어 넣음
       const kpSlots = latestKpSlots
@@ -973,11 +952,9 @@ const HA = {
     return () => { unsubHaSlots(); unsubKpSlots(); unsubHaPaid(); unsubKpPaid(); };
   },
 
-  // 정산관리.html 전용 실시간 리스너 — 슬롯(수 MB)은 재다운로드하지 않고 정산 부가 데이터
-  // (입금/충전 여부·환불액·스냅샷, 전부 수백KB 이하)만 구독해 다른 세션에서 입금/충전/환불을 처리하면
-  // 새로고침 없이 반영되게 함(2026-09-11, "다른 곳에서 충전 눌렀는데 새로고침 전까지 안 보임" 수정).
-  // 리스너 자체는 makeValueLiveCache로 경로당 1개만 공유(정산관리.html은 SPA 재방문마다 스크립트가
-  // 새로 실행돼 매번 새로 구독하므로, 여기서 공유 안 하면 방문 횟수만큼 onValue가 누적됨)
+  // 정산관리.html 전용 실시간 리스너 — 슬롯(수 MB)은 재다운로드 않고 정산 부가 데이터(입금·환불·
+  // 스냅샷, 수백KB 이하)만 구독해 다른 세션 처리 결과가 새로고침 없이 반영되게 함(2026-09-11).
+  // makeValueLiveCache로 경로당 1개만 공유(안 그러면 SPA 재방문마다 리스너가 누적됨).
   onPaidSetChange(callback)           { return onPaidSetChangeShared(callback); },
   onKpPaidSetChange(callback)         { return onKpPaidSetChangeShared(callback); },
   onRefundsChange(callback)           { return onRefundsChangeShared(callback); },
@@ -986,9 +963,8 @@ const HA = {
   onKpSettleSnapshotsChange(callback) { return onKpSettleSnapshotsChangeShared(callback); },
   onScheduleDispatchChange(callback)   { return onScheduleDispatchChangeShared(callback); },
   onKpScheduleDispatchChange(callback) { return onKpScheduleDispatchChangeShared(callback); },
-  // 위 두 구독을 "현재 캐시된 값 한 번만" 받는 형태로 감싼 것 — 예약 분할 현황 배지/모달(접수관리·김프로
-  // 양쪽, 스크립트 블록이 여러 개라 호출부도 여러 곳)이 매번 각자 new Promise 래퍼를 새로 짜지 않도록
-  // 공용으로 제공(2026-09-16)
+  // 위 구독을 "캐시된 값 한 번만" 받는 형태로 감싼 것 — 여러 호출부가 각자 Promise 래퍼를 안 짜도 되게
+  // 공용 제공(2026-09-16)
   async getScheduleDispatchOnce() {
     return new Promise(resolve => {
       const unsub = onScheduleDispatchChangeShared(v => { resolve(v); setTimeout(() => unsub(), 0); });
