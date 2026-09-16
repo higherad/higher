@@ -941,17 +941,12 @@
             onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         </div>
         <div id="charge-amount-status" style="font-size:12px;color:var(--danger);margin-bottom:12px;display:none;"></div>
-        <div style="display:flex;gap:8px;">
-          <button id="charge-amount-confirm-btn"
-            style="flex:1;padding:9px 0;border:none;border-radius:8px;background:#4f46e5;color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">충전</button>
-          <button id="charge-amount-done-btn" title="비즈핏 등에서 이미 직접 충전한 경우 — API는 호출하지 않고 금액·담당자만 기록"
-            style="flex:1;padding:9px 0;border:none;border-radius:8px;background:#64748b;color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">완료</button>
-        </div>
+        <button id="charge-amount-confirm-btn"
+          style="width:100%;padding:9px 0;border:none;border-radius:8px;background:#4f46e5;color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">충전</button>
       </div>`;
     document.body.appendChild(modal);
     const input=document.getElementById('charge-amount-input');
     const confirmBtn=document.getElementById('charge-amount-confirm-btn');
-    const doneBtn=document.getElementById('charge-amount-done-btn');
     const cancelBtn=document.getElementById('charge-amount-cancel-btn');
     const statusEl=document.getElementById('charge-amount-status');
     input.focus();
@@ -960,28 +955,17 @@
       const amount=Number(input.value)||0;
       if(amount<=0){statusEl.style.display='block';statusEl.textContent='금액을 입력해주세요.';return;}
       // 처리 중엔 입력창을 비활성화(금액은 계속 보이도록)하여 중복 클릭·수정 방지
-      input.disabled=true;confirmBtn.disabled=true;doneBtn.disabled=true;cancelBtn.disabled=true;
+      input.disabled=true;confirmBtn.disabled=true;cancelBtn.disabled=true;
       confirmBtn.textContent='⏳ 처리 중...';statusEl.style.display='none';
       const {ok,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
       if(!ok){
         statusEl.style.display='block';statusEl.textContent=`❌ ${resultMsg}`;
-        input.disabled=false;confirmBtn.disabled=false;doneBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전';
+        input.disabled=false;confirmBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전';
         return;
       }
       await stampCharge(snapKey,userId,snap,{chargeApiDone:true,chargeApiAmount:amount});
       modal.remove();
       alert(confirmOk?`✅ 충전+입금완료 · ${amount.toLocaleString()}원`:`⚠️ 충전은 완료됐으나 입금완료 자동처리 실패 — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
-      renderSettle(false);
-    };
-    doneBtn.onclick=async()=>{
-      // 비즈핏 등에서 이미 직접(수동) 충전한 경우 — API는 호출하지 않고 입력한 금액을 참고용으로만
-      // 기록하면서 담당자 도장을 찍는다(2026-09-16, 사용자 요청)
-      const amount=Number(input.value)||0;
-      if(amount<=0){statusEl.style.display='block';statusEl.textContent='금액을 입력해주세요.';return;}
-      input.disabled=true;confirmBtn.disabled=true;doneBtn.disabled=true;cancelBtn.disabled=true;
-      doneBtn.textContent='⏳ 처리 중...';statusEl.style.display='none';
-      await stampCharge(snapKey,userId,snap,{chargeApiDone:true,chargeApiAmount:amount});
-      modal.remove();
       renderSettle(false);
     };
     input.addEventListener('keydown',e=>{if(e.key==='Enter')confirmBtn.click();});
@@ -994,7 +978,7 @@
     const snap=snapshotMap[snapKey];
     const isCharged=!!snap?.chargeConfirmedByName;
     if(isCharged){
-      // 도장만 제거. chargeApiDone/chargeApiAmount는 남겨둬서 재클릭 시 재충전을 막는다(중복 충전 방어)
+      // 도장만 제거
       delete snap.chargeConfirmedAt;
       delete snap.chargeConfirmedBy;
       delete snap.chargeConfirmedByName;
@@ -1003,13 +987,11 @@
       return;
     }
     if(snap?.chargeApiDone){
-      // 이미 충전(API 충전이든 '완료'로 기록한 직접 충전이든) 완료된 건 — 모달 없이 도장만 다시 찍는다
+      // 한 번이라도 실제 충전 API가 나간 적 있으면(도장을 껐다 켜도) 재충전 팝업은 막고 도장만 다시 찍는다
       await stampCharge(snapKey,userId,snap);
       renderSettle(false);
       return;
     }
-    // 아직 한 번도 충전 기록이 없는 건만 모달을 띄운다 — '충전'(API 실제 실행)/'완료'(직접 충전 기록)
-    // 둘 다 여기서 선택 가능, 어느 쪽이 맞는지는 담당자가 판단
     const ensuredSnap=ensureSnapshot(timeKey,agencyId,userId);
     openChargeAmountModal(timeKey,agencyId,userId,snapKey,ensuredSnap);
   };
@@ -1357,7 +1339,7 @@
 
     const cBtn=document.getElementById('settle-charge-btn');
     if(!window.settleCharging){
-      const allCharged=rows.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeApiDone);
+      const allCharged=rows.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName);
       if(allCharged){cBtn.disabled=true;cBtn.textContent='✅ 충전 완료';cBtn.style.background='#475569';cBtn.style.cursor='default';}
       else{cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#4f46e5';cBtn.style.cursor='pointer';}
     }
@@ -1376,12 +1358,12 @@
       const agencyId=cell.dataset.agency;
       const amount=parseInt(cell.dataset.amount);
       const rowsData=JSON.parse(cell.closest('.agency-block').dataset.rows||'[]');
-      // chargeApiDone(실제 충전 API 실행 여부)로 판정 — 건별 충전 버튼으로 이미 충전된 항목도 여기서 다시 잡아낸다
-      if(rowsData.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeApiDone)){
+      // 담당자 도장(chargeConfirmedByName) 유무로 판정 — 건별 충전 버튼으로 이미 충전·확인된 항목도 여기서 다시 잡아낸다
+      if(rowsData.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)){
         cell.innerHTML=badge('#f0fdf4','#166534','✅ 이미 충전 완료');
         continue;
       }
-      if(rowsData.some(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeApiDone)){
+      if(rowsData.some(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)){
         cell.innerHTML=badge('#fee2e2','#991b1b','❌ 일부 항목 이미 충전됨 (충전 담당자 확인 필요)');
         continue;
       }
@@ -1395,7 +1377,7 @@
         ?badge('#dcfce7','#166534',`✅ 충전+입금완료 · ${amount.toLocaleString()}원`)
         :badge('#fef9c3','#854d0e',`⚠️ 충전은 완료됐으나 입금완료 자동처리 실패(${amount.toLocaleString()}원) — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
       await Promise.all(rowsData
-        .filter(r=>!snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeApiDone)
+        .filter(r=>!snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)
         .map(r=>stampCharge(refundKey(r.timeKey,r.agencyId,r.userId),r.userId,ensureSnapshot(r.timeKey,r.agencyId,r.userId),{chargeApiDone:true})));
     }
     window.settleCharging=false;
