@@ -5921,26 +5921,41 @@ window.toggleProdPanel = function(e) {
     const v = computeBulkValidity();
     if (v.blocked) return;
     const targets = [..._ssBulkSelected];
+
+    // 사전 검증 — 선택한 상품 조합 전부에 등급 매칭이 되는 그룹만 실행 대상으로 확정. 하나라도 등급
+    // 설정이 안 맞으면 조용히 건너뛰지 않고 어떤 MID가 문제인지 알려준 뒤 전체 실행을 막는다(사용자 요청).
+    const ready = [];
+    const failed = [];
+    for (const gid of targets) {
+      const items = Object.values(_ssEntries).filter(e => e.slotKey === gid && !isScheduleDone(e.status));
+      if (!items.length) { failed.push(`${gid} : 대상 없음`); continue; }
+      const sample = items[0];
+      const row = (sample.payload?.rowData || [])[0] || {};
+      const label = `${row.업체명||gid} (${row.PID번호||gid})`;
+      const groupSrc = sample._src === 'kp' ? 'kp' : 'ha';
+      const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
+      const prodsList = prodsForSchedule(groupSrc, kpProds);
+      const groupGrades = await fetchScheduleGradeGroups(sample, prodsList);
+      const curStructs = new Set(items.map(e => gradeStructKey(e.payload?.gradeName || '', prodsList)));
+      const applicable = v.grades.map(g => {
+        const gg = groupGrades.find(x => x.ckey === g.ckey && curStructs.has(x.structKey));
+        return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct: g.pct } : null;
+      }).filter(Boolean);
+      if (applicable.length !== v.grades.length) { failed.push(`${label} : 등급 설정 필요`); continue; }
+      ready.push({ gid, groupSrc, applicable });
+    }
+    if (failed.length) {
+      alert(`아래 항목은 선택한 상품 조합에 등급이 매칭되지 않아 일괄 재분류를 실행하지 않았습니다.\n선택을 조정한 뒤 다시 시도해주세요.\n\n${failed.join('\n')}`);
+      return;
+    }
+
     const extra = [_ssBulk.kwMode && '키워드도 재분할', _ssBulk.timeMode && '시각도 재설정'].filter(Boolean).join(', ');
     if (!confirm(`선택한 ${targets.length}개 그룹을 다시 나눕니다${extra ? ` (${extra})` : ''}. 계속할까요?`)) return;
 
     let okCount = 0;
     const skipped = [];
-    for (const gid of targets) {
+    for (const { gid, groupSrc, applicable } of ready) {
       try {
-        const items = Object.values(_ssEntries).filter(e => e.slotKey === gid && !isScheduleDone(e.status));
-        if (!items.length) { skipped.push(gid); continue; }
-        const sample = items[0];
-        const groupSrc = sample._src === 'kp' ? 'kp' : 'ha';
-        const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
-        const prodsList = prodsForSchedule(groupSrc, kpProds);
-        const groupGrades = await fetchScheduleGradeGroups(sample, prodsList);
-        const curStructs = new Set(items.map(e => gradeStructKey(e.payload?.gradeName || '', prodsList)));
-        const applicable = v.grades.map(g => {
-          const gg = groupGrades.find(x => x.ckey === g.ckey && curStructs.has(x.structKey));
-          return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct: g.pct } : null;
-        }).filter(Boolean);
-        if (applicable.length !== v.grades.length) { skipped.push(gid); continue; }
         let kwList = null;
         if (_ssBulk.kwMode) {
           const kwText = await fetchSourceKeyword(groupSrc, gid);
