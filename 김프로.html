@@ -2935,7 +2935,7 @@ document.addEventListener('keydown', function(e) {
     area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);">불러오는 중...</div>';
     const [sheetKeywords, history] = await Promise.all([
       kpFetchSheetKeywordByMid(mid),
-      Promise.resolve(kpLocalKeywordHistory(mid)),
+      kpFullKeywordHistory(mid),
     ]);
     let html = '';
     const liveKwCount = sheetKeywords===null ? 0 : sheetKeywords.reduce((acc,kw)=>acc+kw.split(',').map(k=>k.trim()).filter(k=>k).length,0);
@@ -3037,7 +3037,7 @@ document.addEventListener('keydown', function(e) {
     area.style.display = 'block';
     btn.textContent = '닫기';
     area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);">불러오는 중...</div>';
-    const [entries, history] = await Promise.all([kpFetchYoupflKeywordByMid(mid), Promise.resolve(kpLocalYupflKeywordHistory(mid))]);
+    const [entries, history] = await Promise.all([kpFetchYoupflKeywordByMid(mid), kpFullYupflKeywordHistory(mid)]);
     let html = `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
       <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">LIVE</span>
       유입플 작업키워드
@@ -3164,6 +3164,31 @@ document.addEventListener('keydown', function(e) {
     const currentHistory = sortedByCreated.filter((s,i) => i===0 || s.yupflKeyword !== sortedByCreated[i-1].yupflKeyword).map(s => ({ keyword:s.yupflKeyword, date:s.createdAt }));
     const changeHistory = sameMidSlots.flatMap(s => s.yupflKeywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
     return kpDedupHistoryByDay([...currentHistory, ...changeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
+  }
+
+  // 접수관리(ha/slots)와 김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드일 뿐이라 mid로 서로 직접
+  // 조회 가능 — kimpro/reception.html의 fetchCrossAppSlots와 동일 패턴(같은 MID가 양쪽에 등록될 수 있어 히스토리 팝업은 합쳐서 보여줌)
+  async function kpFetchCrossAppSlots(path, mid) {
+    try {
+      const { getDatabase, ref, query, orderByChild, equalTo, get } = await import(
+        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
+      );
+      const snap = await get(query(ref(getDatabase(), path), orderByChild('mid'), equalTo(mid)));
+      return snap.exists() ? Object.values(snap.val()) : [];
+    } catch (e) { console.error('연동 히스토리 조회 오류:', e); return []; }
+  }
+  // 히스토리 팝업 전용(kpToggleMidHistory/kpToggleYupflMidHistory) — 자체 DB + 접수관리(ha/slots) 이력 합산
+  async function kpFullKeywordHistory(mid) {
+    const crossAppSlots = await kpFetchCrossAppSlots('ha/slots', mid);
+    const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ keyword:s.searchKeyword, date:s.createdAt }));
+    const crossAppChangeHistory = crossAppSlots.flatMap(s => s.keywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
+    return kpDedupHistoryByDay([...kpLocalKeywordHistory(mid), ...crossAppCurrent, ...crossAppChangeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
+  }
+  async function kpFullYupflKeywordHistory(mid) {
+    const crossAppSlots = await kpFetchCrossAppSlots('ha/slots', mid);
+    const crossAppCurrent = crossAppSlots.filter(s => s.yupflKeyword).map(s => ({ keyword:s.yupflKeyword, date:s.createdAt }));
+    const crossAppChangeHistory = crossAppSlots.flatMap(s => s.yupflKeywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
+    return kpDedupHistoryByDay([...kpLocalYupflKeywordHistory(mid), ...crossAppCurrent, ...crossAppChangeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
   }
 
   // ── 엑셀 다운로드(접수 리스트, 접수관리.html downloadExcelList 이식) ──

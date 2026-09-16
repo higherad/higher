@@ -1226,10 +1226,25 @@ window.toggleProdPanel = function(e) {
     return dedupHistoryByDay(dropUnchangedConsecutive(allSlots.filter(s => s.mid === mid && s.searchKeyword)))
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
-  // 히스토리 모달/엑셀 다운로드 공용 — 기존엔 kimpro(레거시) 쪽 히스토리까지 합쳤으나
-  // kimpro.kro.kr 접속 차단(2026-09-11)으로 그 연동을 제거, 이제 자체 DB 히스토리만 반환.
+  // 김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드라 mid로 직접 조회 가능 — 같은 MID가
+  // 양쪽에 등록될 수 있어 히스토리 모달/엑셀 다운로드는 합쳐서 보여줌(kimpro/reception.html의
+  // fetchCrossAppSlots와 동일 패턴). kimpro.kro.kr(레거시 외부 사이트) 자체 병합은 접속 차단(2026-09-11)으로
+  // 제거된 채 유지 — 그건 별개 프로젝트였고 지금은 ha/kimproSlots로 완전히 이관됨.
+  async function fetchCrossAppSlots(path, mid) {
+    try {
+      const { getDatabase, ref, query, orderByChild, equalTo, get } = await import(
+        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
+      );
+      const snap = await get(query(ref(getDatabase(), path), orderByChild('mid'), equalTo(mid)));
+      return snap.exists() ? Object.values(snap.val()) : [];
+    } catch (e) { console.error('연동 히스토리 조회 오류:', e); return []; }
+  }
   async function fullKeywordHistory(mid) {
-    return localKeywordHistory(mid);
+    const crossAppSlots = await fetchCrossAppSlots('ha/kimproSlots', mid);
+    const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ searchKeyword: s.searchKeyword, createdAt: s.createdAt }));
+    const crossAppChangeHistory = crossAppSlots.flatMap(s => s.keywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
+    return dedupHistoryByDay([...localKeywordHistory(mid), ...crossAppCurrent, ...crossAppChangeHistory])
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
 
   // 자체 DB 유입플 키워드 히스토리 — 같은 MID의 슬롯 기록+변경 이력(yupflKeywordHistory) 합쳐 날짜순 반환
@@ -1245,9 +1260,13 @@ window.toggleProdPanel = function(e) {
     return dedupHistoryByDay([...currentHistory, ...changeHistory])
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
-  // 일반 검색키워드의 fullKeywordHistory와 동일한 이유로 kimpro(레거시) 연동 제거, 자체 DB 히스토리만 반환.
+  // fullKeywordHistory와 동일 패턴 — 자체 DB + 김프로(ha/kimproSlots) 유입플 히스토리 합산
   async function fullYupflKeywordHistory(mid) {
-    return localYupflKeywordHistory(mid);
+    const crossAppSlots = await fetchCrossAppSlots('ha/kimproSlots', mid);
+    const crossAppCurrent = crossAppSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }));
+    const crossAppChangeHistory = crossAppSlots.flatMap(s => s.yupflKeywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
+    return dedupHistoryByDay([...localYupflKeywordHistory(mid), ...crossAppCurrent, ...crossAppChangeHistory])
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
 
   // ── MID 이전 키워드 히스토리 ──────────────────────────────
