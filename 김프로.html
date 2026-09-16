@@ -2647,6 +2647,7 @@ document.addEventListener('keydown', function(e) {
       }
     }
 
+    if (!document.getElementById('kp-filter-status')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단(접수관리.html과 동일 패턴)
     const all = kpGetFiltered();
     const pending         = allSlots.filter(s => s.status==='pending' && !s.isRequeue).length;
     const accepted        = allSlots.filter(s => s.status==='accepted' && !s.isRequeue).length;
@@ -2722,7 +2723,8 @@ document.addEventListener('keydown', function(e) {
     if (uncachedMids.length) {
       window.KpGrade.fetchGradesBatch(uncachedMids).then(() => {
         kpBuildGradeFilter(allSlots);
-        if (document.getElementById('kp-filter-grade').value) kpRenderReceipts(false);
+        const gradeFilterEl = document.getElementById('kp-filter-grade'); // 대기 중 다른 메뉴로 이동했으면 null일 수 있음
+        if (gradeFilterEl && gradeFilterEl.value) kpRenderReceipts(false);
       });
     } else {
       kpBuildGradeFilter(allSlots);
@@ -2950,10 +2952,16 @@ document.addEventListener('keydown', function(e) {
     area.style.display = 'block';
     btn.textContent = '닫기';
     area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);">불러오는 중...</div>';
-    const [sheetKeywords, history] = await Promise.all([
-      kpFetchSheetKeywordByMid(mid),
-      kpFullKeywordHistory(mid),
-    ]);
+    let sheetKeywords, history;
+    try {
+      [sheetKeywords, history] = await Promise.all([
+        kpFetchSheetKeywordByMid(mid),
+        kpFullKeywordHistory(mid),
+      ]);
+    } catch (e) {
+      area.innerHTML = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;">⚠️ 이전 키워드를 불러오지 못했습니다: ${kpEsc(e.message||e)}</div>`;
+      return;
+    }
     let html = '';
     const liveKwCount = sheetKeywords===null ? 0 : sheetKeywords.reduce((acc,kw)=>acc+kw.split(',').map(k=>k.trim()).filter(k=>k).length,0);
     html += `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
@@ -3054,7 +3062,13 @@ document.addEventListener('keydown', function(e) {
     area.style.display = 'block';
     btn.textContent = '닫기';
     area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);">불러오는 중...</div>';
-    const [entries, history] = await Promise.all([kpFetchYoupflKeywordByMid(mid), kpFullYupflKeywordHistory(mid)]);
+    let entries, history;
+    try {
+      [entries, history] = await Promise.all([kpFetchYoupflKeywordByMid(mid), kpFullYupflKeywordHistory(mid)]);
+    } catch (e) {
+      area.innerHTML = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;">⚠️ 이전 키워드를 불러오지 못했습니다: ${kpEsc(e.message||e)}</div>`;
+      return;
+    }
     let html = `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
       <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">LIVE</span>
       유입플 작업키워드

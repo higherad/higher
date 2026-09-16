@@ -1287,10 +1287,16 @@ window.toggleProdPanel = function(e) {
     area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);"><div class="spinner"></div> 시트에서 키워드 불러오는 중...</div>';
 
     // 구글 시트 Dashboard에서 실제 키워드 조회 + 자체 DB·kimpro(reception.html) 합친 전체 히스토리 병렬 조회
-    const [sheetKeywords, history] = await Promise.all([
-      fetchSheetKeywordByMid(mid),
-      fullKeywordHistory(mid),
-    ]);
+    let sheetKeywords, history;
+    try {
+      [sheetKeywords, history] = await Promise.all([
+        fetchSheetKeywordByMid(mid),
+        fullKeywordHistory(mid),
+      ]);
+    } catch (e) {
+      area.innerHTML = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;">⚠️ 이전 키워드를 불러오지 못했습니다: ${e.message||e}</div>`;
+      return;
+    }
 
     let html = '';
 
@@ -1379,10 +1385,16 @@ window.toggleProdPanel = function(e) {
     btn.textContent = '닫기';
     area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);"><div class="spinner"></div> 유입플 키워드 불러오는 중...</div>';
 
-    const [entries, history] = await Promise.all([
-      fetchYoupflKeywordByMid(mid),
-      fullYupflKeywordHistory(mid),
-    ]);
+    let entries, history;
+    try {
+      [entries, history] = await Promise.all([
+        fetchYoupflKeywordByMid(mid),
+        fullYupflKeywordHistory(mid),
+      ]);
+    } catch (e) {
+      area.innerHTML = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;">⚠️ 이전 키워드를 불러오지 못했습니다: ${e.message||e}</div>`;
+      return;
+    }
 
     let html = `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
       <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">LIVE</span>
