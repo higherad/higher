@@ -851,40 +851,148 @@
     };
   };
 
+  const CHARGE_SERVER='https://macro-1-bizfit-charge-938928195180.asia-northeast3.run.app';
+  const BIZFIT_DIRECT_PROXY='https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
+
+  // 비즈핏 실제 충전 실행 (건별/일괄 공용) — 계정 조회 → 충전 스트림 → 입금완료 자동확정
+  async function chargeAgency(agencyId,amount){
+    const {getDatabase,ref,get}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+    const db=getDatabase();
+    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+    const acctSnap=await get(ref(db,`ha/bizfit_charge/${safe(agencyId)}`));
+    const acct=acctSnap.exists()?acctSnap.val():null;
+    if(!acct) return {ok:false,noAccount:true,resultMsg:'계정 정보 미등록'};
+    let ok=false,resultMsg='';
+    try{
+      const res=await fetch(`${CHARGE_SERVER}/charge-stream`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:acct.id,pw:acct.pw,amount}),signal:AbortSignal.timeout(120000)});
+      if(!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
+      const reader=res.body.getReader();const decoder=new TextDecoder();let buffer='';
+      outer:while(true){
+        const{done:sd,value}=await reader.read();if(sd)break;
+        buffer+=decoder.decode(value,{stream:true});
+        const lines=buffer.split('\n');buffer=lines.pop();
+        for(const line of lines){
+          if(!line.startsWith('data: '))continue;
+          let data;try{data=JSON.parse(line.slice(6));}catch{continue;}
+          if(data.ping)continue;
+          if(data.done!==undefined){ok=data.done.success;resultMsg=data.done.message||(ok?'충전 완료':'실패');break outer;}
+        }
+      }
+    }catch(e){ok=false;resultMsg=`서버 연결 실패: ${e.message}`;}
+    if(!ok) return {ok:false,resultMsg};
+    let confirmOk=false,confirmMsg='';
+    try{
+      const cres=await fetch(`${BIZFIT_DIRECT_PROXY}/bizfit-charge-confirm`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({company:agencyId,amount,newStatus:'3'}),
+      });
+      const cjson=await cres.json();
+      confirmOk=!!cjson.success;confirmMsg=cjson.message||'';
+    }catch(e){confirmMsg=`서버 연결 실패: ${e.message}`;}
+    return {ok:true,resultMsg,confirmOk,confirmMsg};
+  }
+
+  function ensureSnapshot(timeKey,agencyId,userId){
+    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+    const snapKey=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
+    if(snapshotMap[snapKey]) return snapshotMap[snapKey];
+    const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
+    const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
+    const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
+    const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
+    const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
+    const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
+    const refund=getRefund(timeKey,agencyId,userId);
+    const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:getSlotPrice(slots[0])};
+    snapshotMap[snapKey]=newSnap;
+    return newSnap;
+  }
+
+  // 충전 담당자 도장만 (재)기록 — 실제 충전 API는 건드리지 않음
+  async function stampCharge(snapKey,userId,snap,extra){
+    const currentUser=HA.getCurrentUser?HA.getCurrentUser():null;
+    const staffName=currentUser?(currentUser.name||currentUser.username):'알 수 없음';
+    const staffId=currentUser?currentUser.username:'-';
+    Object.assign(snap,{chargeConfirmedAt:new Date().toISOString(),chargeConfirmedBy:staffId,chargeConfirmedByName:staffName},extra||{});
+    snapshotMap[snapKey]=snap;
+    await dispatchSaveSnapshot(snapKey,userId,snap,true);
+  }
+
+  window.openChargeAmountModal=function(timeKey,agencyId,userId,snapKey,snap){
+    const existing=document.getElementById('charge-amount-modal');
+    if(existing) existing.remove();
+    const defaultAmount=snap.amount||0;
+    const modal=document.createElement('div');
+    modal.id='charge-amount-modal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML=`
+      <div style="background:#fff;border-radius:16px;padding:28px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px;">충전 금액 입력</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">${escProd(agencyId)} · ${escProd(timeKey)}</div>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">충전 금액 (VAT 별도)</label>
+          <input id="charge-amount-input" type="text" inputmode="numeric" value="${defaultAmount||''}" placeholder=""
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <div id="charge-amount-status" style="font-size:12px;color:var(--danger);margin-bottom:12px;display:none;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button id="charge-amount-cancel-btn"
+            style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;">취소</button>
+          <button id="charge-amount-confirm-btn"
+            style="padding:9px 20px;border:none;border-radius:8px;background:#4f46e5;color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">충전 실행</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    const input=document.getElementById('charge-amount-input');
+    const confirmBtn=document.getElementById('charge-amount-confirm-btn');
+    const cancelBtn=document.getElementById('charge-amount-cancel-btn');
+    const statusEl=document.getElementById('charge-amount-status');
+    input.focus();
+    cancelBtn.onclick=()=>modal.remove();
+    confirmBtn.onclick=async()=>{
+      const amount=Number(input.value)||0;
+      if(amount<=0){statusEl.style.display='block';statusEl.textContent='금액을 입력해주세요.';return;}
+      // 처리 중엔 입력창을 비활성화(금액은 계속 보이도록)하여 중복 클릭·수정 방지
+      input.disabled=true;confirmBtn.disabled=true;cancelBtn.disabled=true;
+      confirmBtn.textContent='⏳ 처리 중...';statusEl.style.display='none';
+      const {ok,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
+      if(!ok){
+        statusEl.style.display='block';statusEl.textContent=`❌ ${resultMsg}`;
+        input.disabled=false;confirmBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전 실행';
+        return;
+      }
+      await stampCharge(snapKey,userId,snap,{chargeApiDone:true,chargeApiAmount:amount});
+      modal.remove();
+      alert(confirmOk?`✅ 충전+입금완료 · ${amount.toLocaleString()}원`:`⚠️ 충전은 완료됐으나 입금완료 자동처리 실패 — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
+      renderSettle(false);
+    };
+    input.addEventListener('keydown',e=>{if(e.key==='Enter')confirmBtn.click();});
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  };
+
   window.chargeConfirm=async function(timeKey,agencyId,userId){
     const safe=s=>s.replace(/[.#$[\]/]/g,'_');
     const snapKey=`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
     const snap=snapshotMap[snapKey];
     const isCharged=!!snap?.chargeConfirmedByName;
-    const currentUser=HA.getCurrentUser?HA.getCurrentUser():null;
-    const staffName=currentUser?(currentUser.name||currentUser.username):'알 수 없음';
-    const staffId=currentUser?currentUser.username:'-';
-    if(!isCharged){
-      const updates={chargeConfirmedAt:new Date().toISOString(),chargeConfirmedBy:staffId,chargeConfirmedByName:staffName};
-      if(snap){
-        Object.assign(snap,updates);
-        await dispatchSaveSnapshot(snapKey,userId,snap,true);
-      } else {
-        const slots=allSlots.filter(s=>getMinuteKey(s.createdAt)===timeKey&&s.agencyId===agencyId&&s.userId===userId);
-        const tot=slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
-        const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
-        const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
-        const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
-        const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
-        const refund=getRefund(timeKey,agencyId,userId);
-        const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),...updates};
-        await dispatchSaveSnapshot(snapKey,userId,newSnap,true);
-        snapshotMap[snapKey]=newSnap;
-      }
-    } else {
-      if(snap){
-        delete snap.chargeConfirmedAt;
-        delete snap.chargeConfirmedBy;
-        delete snap.chargeConfirmedByName;
-        await dispatchSaveSnapshot(snapKey,userId,snap,true);
-      }
+    if(isCharged){
+      // 도장만 제거. chargeApiDone/chargeApiAmount는 남겨둬서 재클릭 시 재충전을 막는다(중복 충전 방어)
+      delete snap.chargeConfirmedAt;
+      delete snap.chargeConfirmedBy;
+      delete snap.chargeConfirmedByName;
+      await dispatchSaveSnapshot(snapKey,userId,snap,true);
+      renderSettle(false);
+      return;
     }
-    renderSettle(false);
+    if(snap?.chargeApiDone){
+      // 이미 실제 충전을 실행한 적 있음 — 재충전 없이 도장만 다시 찍는다(중복 충전 방어)
+      await stampCharge(snapKey,userId,snap);
+      renderSettle(false);
+      return;
+    }
+    const ensuredSnap=ensureSnapshot(timeKey,agencyId,userId);
+    openChargeAmountModal(timeKey,agencyId,userId,snapKey,ensuredSnap);
   };
 
   window.bulkRow=async function(timeKey,agencyId,userId){
@@ -1230,7 +1338,7 @@
 
     const cBtn=document.getElementById('settle-charge-btn');
     if(!window.settleCharging){
-      const allCharged=rows.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName);
+      const allCharged=rows.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeApiDone);
       if(allCharged){cBtn.disabled=true;cBtn.textContent='✅ 충전 완료';cBtn.style.background='#475569';cBtn.style.cursor='default';}
       else{cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#4f46e5';cBtn.style.cursor='pointer';}
     }
@@ -1241,75 +1349,35 @@
   };
 
   window.startSettleCharge=async function(){
-    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
     const badge=(bg,fg,txt)=>`<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:${bg};color:${fg}">${txt}</span>`;
     const btn=document.getElementById('settle-charge-btn');
     window.settleCharging=true;
     btn.disabled=true;btn.textContent='⏳ 처리 중...';btn.style.background='#6b7280';btn.style.cursor='default';
-    const {getDatabase,ref,get}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-    const db=getDatabase();
-    const SERVER='https://macro-1-bizfit-charge-938928195180.asia-northeast3.run.app';
-    const BIZFIT_DIRECT_PROXY='https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
     for(const cell of document.querySelectorAll('#settle-reg-body .charge-status-cell')){
       const agencyId=cell.dataset.agency;
       const amount=parseInt(cell.dataset.amount);
       const rowsData=JSON.parse(cell.closest('.agency-block').dataset.rows||'[]');
-      if(rowsData.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)){
+      // chargeApiDone(실제 충전 API 실행 여부)로 판정 — 건별 충전 버튼으로 이미 충전된 항목도 여기서 다시 잡아낸다
+      if(rowsData.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeApiDone)){
         cell.innerHTML=badge('#f0fdf4','#166534','✅ 이미 충전 완료');
         continue;
       }
-      if(rowsData.some(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)){
+      if(rowsData.some(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeApiDone)){
         cell.innerHTML=badge('#fee2e2','#991b1b','❌ 일부 항목 이미 충전됨 (충전 담당자 확인 필요)');
         continue;
       }
-      const acctSnap=await get(ref(db,`ha/bizfit_charge/${safe(agencyId)}`));
-      const acct=acctSnap.exists()?acctSnap.val():null;
-      if(!acct){
-        cell.innerHTML=badge('#fef9c3','#854d0e','⚠️ 계정 정보 미등록');
+      cell.innerHTML=badge('#dbeafe','#1d4ed8',`⏳ 충전 중... ${amount.toLocaleString()}원`);
+      const {ok,noAccount,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
+      if(!ok){
+        cell.innerHTML=noAccount?badge('#fef9c3','#854d0e','⚠️ 계정 정보 미등록'):badge('#fee2e2','#991b1b',`❌ ${resultMsg}`);
         continue;
       }
-      cell.innerHTML=badge('#dbeafe','#1d4ed8',`⏳ 충전 중... ${amount.toLocaleString()}원`);
-      let ok=false,resultMsg='';
-      try{
-        const res=await fetch(`${SERVER}/charge-stream`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:acct.id,pw:acct.pw,amount}),signal:AbortSignal.timeout(120000)});
-        if(!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
-        const reader=res.body.getReader();const decoder=new TextDecoder();let buffer='';
-        outer:while(true){
-          const{done:sd,value}=await reader.read();if(sd)break;
-          buffer+=decoder.decode(value,{stream:true});
-          const lines=buffer.split('\n');buffer=lines.pop();
-          for(const line of lines){
-            if(!line.startsWith('data: '))continue;
-            let data;try{data=JSON.parse(line.slice(6));}catch{continue;}
-            if(data.ping)continue;
-            if(data.done!==undefined){ok=data.done.success;resultMsg=data.done.message||(ok?'충전 완료':'실패');break outer;}
-          }
-        }
-      }catch(e){ok=false;resultMsg=`서버 연결 실패: ${e.message}`;}
-      if(ok){
-        cell.innerHTML=badge('#dbeafe','#1d4ed8',`⏳ 입금완료 처리 중... ${amount.toLocaleString()}원`);
-        // 방금 넣은 충전 신청(영업점+금액 일치)을 비즈핏 충전·입금관리에서 접수→입금완료로 자동 확정 — 금액 불일치 시 서버가 이미 막아두고 실패 반환, 여기선 배지만 다르게 표시
-        let confirmOk=false,confirmMsg='';
-        try{
-          const cres=await fetch(`${BIZFIT_DIRECT_PROXY}/bizfit-charge-confirm`,{
-            method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({company:agencyId,amount,newStatus:'3'}),
-          });
-          const cjson=await cres.json();
-          confirmOk=!!cjson.success;confirmMsg=cjson.message||'';
-        }catch(e){confirmMsg=`서버 연결 실패: ${e.message}`;}
-
-        if(confirmOk){
-          cell.innerHTML=badge('#dcfce7','#166534',`✅ 충전+입금완료 · ${amount.toLocaleString()}원`);
-        }else{
-          cell.innerHTML=badge('#fef9c3','#854d0e',`⚠️ 충전은 완료됐으나 입금완료 자동처리 실패(${amount.toLocaleString()}원) — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
-        }
-        await Promise.all(rowsData
-          .filter(r=>!snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)
-          .map(r=>chargeConfirm(r.timeKey,r.agencyId,r.userId)));
-      }else{
-        cell.innerHTML=badge('#fee2e2','#991b1b',`❌ ${resultMsg}`);
-      }
+      cell.innerHTML=confirmOk
+        ?badge('#dcfce7','#166534',`✅ 충전+입금완료 · ${amount.toLocaleString()}원`)
+        :badge('#fef9c3','#854d0e',`⚠️ 충전은 완료됐으나 입금완료 자동처리 실패(${amount.toLocaleString()}원) — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
+      await Promise.all(rowsData
+        .filter(r=>!snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeApiDone)
+        .map(r=>stampCharge(refundKey(r.timeKey,r.agencyId,r.userId),r.userId,ensureSnapshot(r.timeKey,r.agencyId,r.userId),{chargeApiDone:true})));
     }
     window.settleCharging=false;
     btn.textContent='✅ 충전 완료';btn.style.background='#475569';
