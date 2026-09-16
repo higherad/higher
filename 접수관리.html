@@ -1069,8 +1069,10 @@ window.toggleProdPanel = function(e) {
           <div class="modal-field"><label>시작일</label><input type="date" id="d-startDate" value="${escProd(s.startDate)}" ${dis}></div>
           <div class="modal-field"><label>종료일</label><input type="date" id="d-endDate" value="${escProd(s.endDate)}" ${dis}></div>
         </div>
-        <div class="modal-field"><label>메모</label><textarea id="d-memo" rows="1" style="min-height:34px;" ${dis}>${escProd(s.memo||'')}</textarea></div>
-        <div class="modal-field"><label>애드로그</label><input id="d-adlogMemo" value="${escProd(s.adlogMemo ?? defaultAdlogMemo(s))}" ${dis}></div>
+        <div class="modal-row">
+          <div class="modal-field"><label>메모</label><textarea id="d-memo" rows="1" style="min-height:34px;" ${dis}>${escProd(s.memo||'')}</textarea></div>
+          <div class="modal-field"><label>애드로그</label><input id="d-adlogMemo" value="${escProd(s.adlogMemo ?? defaultAdlogMemo(s))}" ${dis}></div>
+        </div>
         <div class="modal-field">
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
