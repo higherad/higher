@@ -2584,19 +2584,26 @@ document.addEventListener('keydown', function(e) {
   // window.computeKpScheduleGroupCount는 이 블록보다 늦게 로드돼 kpRenderReceipts 첫 실행 시점엔
   // 아직 없음, TypeError 재현됨) 이 블록 안에 자체 완결형으로 둠. late block 버전이 나중에 로드되면
   // 같은 동작을 하는 걸로 덮어써지므로 무해함.
+  // 2026-09-16: get()으로 매번 통째로 새로 받던 걸 ha-store.js의 onValue 공유 캐시(makeValueLiveCache)
+  // 구독으로 교체 — kpRenderReceipts가 무관한 슬롯 변경만으로도 자주 재호출되는데(원래 주석 그대로),
+  // 그때마다 이 테이블(수백KB~1MB대)을 다시 다운로드하던 게 RTDB 대역폭 폭증의 주 원인이었음.
+  // 구독은 세션당 1회만 실제 네트워크를 타고, 이후는 캐시된 값으로 즉시 resolve됨.
+  function kpAwaitScheduleDispatchBoth() {
+    return Promise.all([
+      new Promise(resolve => { const unsub = window.HA.onKpScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
+      new Promise(resolve => { const unsub = window.HA.onScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
+    ]);
+  }
   if (!window.computeKpScheduleGroupCount) {
     window.computeKpScheduleGroupCount = async function() {
-      const [kpSnap, haSnap] = await Promise.all([
-        window.HA.getKpDoc('ha/kimproScheduledDispatch').catch(() => null),
-        window.HA.getDoc('ha/scheduled_dispatch').catch(() => null),
-      ]);
+      const [kpVal, haVal] = await kpAwaitScheduleDispatchBoth();
       const gids = new Set();
       const addAll = (val) => Object.values(val || {}).forEach(e => {
         const row = (e.payload?.rowData || [])[0] || {};
         gids.add(e.slotKey || row.PID번호 || row.업체명 || 'unknown');
       });
-      addAll(kpSnap && kpSnap.exists() ? kpSnap.val() : {});
-      addAll(haSnap && haSnap.exists() ? haSnap.val() : {});
+      addAll(kpVal);
+      addAll(haVal);
       return gids.size;
     };
   }
@@ -6355,31 +6362,29 @@ document.addEventListener('keydown', function(e) {
     return window.kpProdsRef ? window.kpProdsRef() : [];
   }
 
+  // 2026-09-16: get() 매번 재다운로드 대신 ha-store.js onValue 공유 캐시 구독 — kpAwaitScheduleDispatchBoth
+  // 참고(위쪽 early block과 동일 취지, 스크립트 블록 스코프 분리로 여기 다시 정의)
+  function kpAwaitScheduleDispatchBoth2() {
+    return Promise.all([
+      new Promise(resolve => { const unsub = window.HA.onKpScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
+      new Promise(resolve => { const unsub = window.HA.onScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
+    ]);
+  }
   // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 완전히 동일한 계산을 전역 상태(ssEntries)
   // 건드리지 않고 반환. 두 화면 카드/팝업이 전부 이 하나의 계산식만 쓰도록 해서 숫자가 안 어긋나게 함.
   window.computeKpScheduleGroupCount = async function() {
-    const [kpSnap, haSnap] = await Promise.all([
-      window.HA.getKpDoc('ha/kimproScheduledDispatch').catch(() => null),
-      window.HA.getDoc('ha/scheduled_dispatch').catch(() => null),
-    ]);
+    const [kpVal, haVal] = await kpAwaitScheduleDispatchBoth2();
     const entries = {};
-    const kpVal = (kpSnap && kpSnap.exists()) ? kpSnap.val() : {};
-    Object.entries(kpVal).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'kp' }; });
-    const haVal = (haSnap && haSnap.exists()) ? haSnap.val() : {};
-    Object.entries(haVal).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'ha' }; });
+    Object.entries(kpVal||{}).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'kp' }; });
+    Object.entries(haVal||{}).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'ha' }; });
     return groupScheduleEntries(Object.values(entries)).length;
   };
 
   async function reloadKpScheduleEntries() {
-    const [kpSnap, haSnap] = await Promise.all([
-      window.HA.getKpDoc('ha/kimproScheduledDispatch').catch(() => null),
-      window.HA.getDoc('ha/scheduled_dispatch').catch(() => null),
-    ]);
+    const [kpVal, haVal] = await kpAwaitScheduleDispatchBoth2();
     ssEntries = {};
-    const kpVal = (kpSnap && kpSnap.exists()) ? kpSnap.val() : {};
-    Object.entries(kpVal).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'kp' }; });
-    const haVal = (haSnap && haSnap.exists()) ? haSnap.val() : {};
-    Object.entries(haVal).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'ha' }; });
+    Object.entries(kpVal||{}).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'kp' }; });
+    Object.entries(haVal||{}).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'ha' }; });
   }
 
   function filterScheduleEntries(entries) {

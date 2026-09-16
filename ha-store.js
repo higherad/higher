@@ -218,6 +218,12 @@ const onRefundsChangeShared            = makeValueLiveCache(PATHS.refunds,      
 const onKpRefundsChangeShared          = makeValueLiveCache(KP_PATHS.refunds,      v => v || {});
 const onSettleSnapshotsChangeShared    = makeValueLiveCache(PATHS.settleSnapshots, v => v || {});
 const onKpSettleSnapshotsChangeShared  = makeValueLiveCache(KP_PATHS.settleSnapshots, v => v || {});
+// 예약 분할 현황(scheduled_dispatch) 전용 — 접수관리·김프로 둘 다 "예약" 건수 배지/모달을 슬롯이 하나만
+// 바뀌어도(다른 세션 포함) 매번 다시 렌더하면서 이 테이블(수백KB~1MB대)을 get()으로 매번 통째로
+// 새로 받아오고 있었음(2026-09-16 확인, RTDB 대역폭 폭증의 주 원인). onValue 공유 캐시로 전환해
+// 최초 1회 구독 이후로는 델타만 받도록 함.
+const onScheduleDispatchChangeShared   = makeValueLiveCache('ha/scheduled_dispatch',      v => v || {});
+const onKpScheduleDispatchChangeShared = makeValueLiveCache('ha/kimproScheduledDispatch', v => v || {});
 
 // ════════════════════════════════════════════════════════════
 const HA = {
@@ -966,6 +972,8 @@ const HA = {
   onKpRefundsChange(callback)         { return onKpRefundsChangeShared(callback); },
   onSettleSnapshotsChange(callback)   { return onSettleSnapshotsChangeShared(callback); },
   onKpSettleSnapshotsChange(callback) { return onKpSettleSnapshotsChangeShared(callback); },
+  onScheduleDispatchChange(callback)   { return onScheduleDispatchChangeShared(callback); },
+  onKpScheduleDispatchChange(callback) { return onKpScheduleDispatchChangeShared(callback); },
 
   // ════════════════════════════════════════════════════════
   // 초기 데이터 시드 (Firebase가 비어있을 때 한 번만 실행)

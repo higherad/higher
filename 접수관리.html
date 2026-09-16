@@ -5468,29 +5468,29 @@ window.toggleProdPanel = function(e) {
 
   // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 완전히 동일한 계산을 DOM 렌더 없이 반환.
   // 두 화면 카드/팝업이 전부 이 하나의 계산식만 쓰도록 해서 숫자가 어긋나지 않게 함.
-  async function computeScheduleGroupCount() {
-    const [haSnap, kpSnap] = await Promise.all([
-      fbGet('ha/scheduled_dispatch'),
-      fbGet('ha/kimproScheduledDispatch'),
+  // 2026-09-16: fbGet()으로 매번 통째로 새로 받던 걸 ha-store.js의 onValue 공유 캐시(makeValueLiveCache)
+  // 구독으로 교체 — 이 테이블(수백KB~1MB대)이 무관한 슬롯 변경만으로도 자주 다시 다운로드되던 게
+  // RTDB 대역폭 폭증의 주 원인이었음(김프로.html과 동일 조치). 구독은 세션당 1회만 네트워크를 타고,
+  // 이후는 캐시된 값으로 즉시 resolve됨.
+  function awaitScheduleDispatchBoth() {
+    return Promise.all([
+      new Promise(resolve => { const unsub = HA.onScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
+      new Promise(resolve => { const unsub = HA.onKpScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
     ]);
+  }
+  async function computeScheduleGroupCount() {
+    const [haVal, kpVal] = await awaitScheduleDispatchBoth();
     const entries = {};
-    const haVal = haSnap.exists() ? haSnap.val() : {};
-    Object.entries(haVal).forEach(([k, v]) => { entries[k] = { ...v, _key: k, _src: 'ha' }; });
-    const kpVal = kpSnap.exists() ? kpSnap.val() : {};
-    Object.entries(kpVal).forEach(([k, v]) => { entries[k] = { ...v, _key: k, _src: 'kp' }; });
+    Object.entries(haVal||{}).forEach(([k, v]) => { entries[k] = { ...v, _key: k, _src: 'ha' }; });
+    Object.entries(kpVal||{}).forEach(([k, v]) => { entries[k] = { ...v, _key: k, _src: 'kp' }; });
     return groupScheduleEntries(Object.values(entries)).length;
   }
 
   async function reloadScheduleEntries() {
-    const [haSnap, kpSnap] = await Promise.all([
-      fbGet('ha/scheduled_dispatch'),
-      fbGet('ha/kimproScheduledDispatch'),
-    ]);
+    const [haVal, kpVal] = await awaitScheduleDispatchBoth();
     _ssEntries = {};
-    const haVal = haSnap.exists() ? haSnap.val() : {};
-    Object.entries(haVal).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k, _src: 'ha' }; });
-    const kpVal = kpSnap.exists() ? kpSnap.val() : {};
-    Object.entries(kpVal).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k, _src: 'kp' }; });
+    Object.entries(haVal||{}).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k, _src: 'ha' }; });
+    Object.entries(kpVal||{}).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k, _src: 'kp' }; });
     renderSplitScheduleList();
   }
 
