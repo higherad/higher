@@ -990,10 +990,14 @@ const HA = {
   // 양쪽, 스크립트 블록이 여러 개라 호출부도 여러 곳)이 매번 각자 new Promise 래퍼를 새로 짜지 않도록
   // 공용으로 제공(2026-09-16)
   async getScheduleDispatchOnce() {
-    return new Promise(resolve => { const unsub = onScheduleDispatchChangeShared(v => { unsub(); resolve(v); }); });
+    return new Promise(resolve => {
+      const unsub = onScheduleDispatchChangeShared(v => { resolve(v); setTimeout(unsub, 0); });
+    });
   },
   async getKpScheduleDispatchOnce() {
-    return new Promise(resolve => { const unsub = onKpScheduleDispatchChangeShared(v => { unsub(); resolve(v); }); });
+    return new Promise(resolve => {
+      const unsub = onKpScheduleDispatchChangeShared(v => { resolve(v); setTimeout(unsub, 0); });
+    });
   },
 
   // ════════════════════════════════════════════════════════
