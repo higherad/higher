@@ -163,7 +163,9 @@
       try {
         kpSlots = (await HA.getKpSlotsLive()).map(s => ({ ...s, _src:'kp', userId: s.userId || s.agencyId || '' }));
       } catch (e) { console.error('김프로 슬롯 로딩 실패:', e); }
-      allSlots = [...haSlots, ...kpSlots];
+      // active 전환 시 ha/slots에 같은 key로 미러링되는 캠페인이 있어 그대로 합치면 2중 카운트됨 — ha 쪽에 이미 있는 key는 kp 쪽에서 제외(923줄 haKeySet과 동일 패턴)
+      const haKeySet = new Set(haSlots.map(s => s._key));
+      allSlots = [...haSlots, ...kpSlots.filter(s => !haKeySet.has(s._key))];
       _slotsLoaded = true;
     }
     allUsers = await usersPromise;
