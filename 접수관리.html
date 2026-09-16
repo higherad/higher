@@ -887,6 +887,7 @@ window.toggleProdPanel = function(e) {
     const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
     await HA.approveSlot(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
+    await autoRegisterAdlog([targetSlot]);
     const ok = await settleBizfitCash(targetSlot, extra);
     // 이 버튼엔 팝업이 없어 배너를 못 띄우니, 실패했을 때만 alert로 알림(성공/스킵은 조용히 넘어감)
     if (!ok) alert('접수는 승인됐지만 비즈핏 캐시차감에 실패했습니다.\n네트워크/세션 문제일 수 있으니 잠시 후 다시 승인해보거나 개발자에게 알려주세요.');
@@ -2248,6 +2249,7 @@ window.toggleProdPanel = function(e) {
     const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
     await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
     keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
+    await autoRegisterAdlog(keys.map(k => slotMap.get(k)));
     return groupFieldsByBizfitUid(keys.map(k => slotMap.get(k)), fieldsByKey);
   }
 
@@ -3381,6 +3383,30 @@ window.toggleProdPanel = function(e) {
       }
       return { _slotKey: s._key, group: s.agencyId||'(대행사 미지정)', keyword: s.rankKeyword||'', mid: s.mid||'', memo, _statusTd: null };
     });
+  }
+
+  // ── 접수(승인) 완료 시 애드로그 자동등록 ──────────────────────
+  // 수동 등록(buildAdlogRows)과 달리 placeholder 없이 상세보기에서 입력해둔 s.memo를 그대로 씀.
+  // 이미 등록됐거나(adlogSubmitted) 키워드/MID(필수 항목)가 없는 슬롯은 조용히 건너뜀.
+  // 승인 자체는 이미 끝난 뒤라 실패해도 콘솔 로그만 남기고 계속 진행 — 수동 "애드로그" 버튼(체크박스 선택)으로 재시도 가능.
+  async function autoRegisterAdlog(slots) {
+    const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && s.rankKeyword && s.mid);
+    if (!targets.length) return;
+    const rows = targets.map(s => ({ _slotKey: s._key, group: s.agencyId||'(대행사 미지정)', keyword: s.rankKeyword, mid: s.mid, memo: s.memo||'' }));
+    try {
+      for (let i = 0; i < rows.length; i += ADLOG_BATCH_SIZE) {
+        const chunk = rows.slice(i, i + ADLOG_BATCH_SIZE);
+        const fileBase64 = buildAdlogXlsxBase64(chunk);
+        const result = await callBizfitProxy('/adlog-register', { fileBase64 });
+        if (result.success) {
+          const keys = chunk.map(r => r._slotKey);
+          await Promise.all(keys.map(k => HA.updateSlot(k, { adlogSubmitted: true })));
+          keys.forEach(k => { const s = allSlots.find(x => x._key === k); if (s) s.adlogSubmitted = true; });
+        } else {
+          console.error('애드로그 자동등록 실패:', result.message);
+        }
+      }
+    } catch (e) { console.error('애드로그 자동등록 오류:', e); }
   }
 
   function openAdlogModal(target) {
