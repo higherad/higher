@@ -1795,11 +1795,9 @@ document.addEventListener('keydown', function(e) {
       await Promise.all(slots.filter(s => s.status !== 'ended' && s.status !== 'expired').map(async slot => {
         await window.HA.updateKpSlot(slot._key, { [field]: value });
         if (!histField) return;
-        const histPath = `ha/slot_kw_history/${slot._key}`;
-        const histSnap = await window.HA.getKpDoc(histPath);
-        const hist = histSnap.exists() ? histSnap.val() : {};
+        const hist = await window.HA.getSlotKwHistory(slot._key);
         const updated = [...(hist[histField]||[]), { keyword: value, date: new Date().toISOString() }].slice(-10);
-        await window.HA.updateKpDoc(histPath, { [histField]: updated });
+        await window.HA.updateKpDoc(`ha/slot_kw_history/${slot._key}`, { [histField]: updated });
       }));
     } catch(e) { console.error('kwSyncSlotKeyword 오류:', e); }
   }
@@ -2588,15 +2586,16 @@ document.addEventListener('keydown', function(e) {
   // 구독으로 교체 — kpRenderReceipts가 무관한 슬롯 변경만으로도 자주 재호출되는데(원래 주석 그대로),
   // 그때마다 이 테이블(수백KB~1MB대)을 다시 다운로드하던 게 RTDB 대역폭 폭증의 주 원인이었음.
   // 구독은 세션당 1회만 실제 네트워크를 타고, 이후는 캐시된 값으로 즉시 resolve됨.
-  function kpAwaitScheduleDispatchBoth() {
-    return Promise.all([
-      new Promise(resolve => { const unsub = window.HA.onKpScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
-      new Promise(resolve => { const unsub = window.HA.onScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
-    ]);
+  // window에 한 번만 정의 — late block(5000번대)도 같은 걸 그대로 씀(스크립트 블록끼리 스코프가 분리돼
+  // window 경유로만 공유 가능, computeKpScheduleGroupCount와 동일 이유)
+  if (!window.kpAwaitScheduleDispatchBoth) {
+    window.kpAwaitScheduleDispatchBoth = function() {
+      return Promise.all([window.HA.getKpScheduleDispatchOnce(), window.HA.getScheduleDispatchOnce()]);
+    };
   }
   if (!window.computeKpScheduleGroupCount) {
     window.computeKpScheduleGroupCount = async function() {
-      const [kpVal, haVal] = await kpAwaitScheduleDispatchBoth();
+      const [kpVal, haVal] = await window.kpAwaitScheduleDispatchBoth();
       const gids = new Set();
       const addAll = (val) => Object.values(val || {}).forEach(e => {
         const row = (e.payload?.rowData || [])[0] || {};
@@ -3128,13 +3127,11 @@ document.addEventListener('keydown', function(e) {
     }
     // 키워드 히스토리는 메인 슬롯 문서가 아니라 ha/slot_kw_history/{key}에 따로 저장(2026-09-16, RTDB 대역폭 절감)
     if (updates.searchKeyword || updates.yupflKeyword) {
-      const histPath = `ha/slot_kw_history/${key}`;
-      const histSnap = await window.HA.getKpDoc(histPath);
-      const hist = histSnap.exists() ? histSnap.val() : {};
+      const hist = await window.HA.getSlotKwHistory(key);
       const histPatch = {};
       if (updates.searchKeyword) histPatch.keywordHistory = [...(hist.keywordHistory||[]), { keyword: updates.searchKeyword, date: new Date().toISOString() }].slice(-10);
       if (updates.yupflKeyword) histPatch.yupflKeywordHistory = [...(hist.yupflKeywordHistory||[]), { keyword: updates.yupflKeyword, date: new Date().toISOString() }].slice(-10);
-      await window.HA.updateKpDoc(histPath, histPatch);
+      await window.HA.updateKpDoc(`ha/slot_kw_history/${key}`, histPatch);
     }
     if (Object.keys(updates).length) {
       await HA.updateKpSlot(key, updates);
@@ -3168,19 +3165,11 @@ document.addEventListener('keydown', function(e) {
       return true;
     });
   }
-  // 키워드 히스토리는 메인 슬롯 문서가 아니라 ha/slot_kw_history/{key}에 있음(2026-09-16, RTDB 대역폭
-  // 절감 — 접수관리·김프로가 미러링 시 같은 _key를 공유하므로 경로 하나로 양쪽 다 커버됨)
-  async function kpFetchSlotKwHistory(key) {
-    try {
-      const snap = await window.HA.getKpDoc(`ha/slot_kw_history/${key}`);
-      return snap.exists() ? snap.val() : {};
-    } catch (e) { return {}; }
-  }
   async function kpLocalKeywordHistory(mid) {
     const sameMidSlots = allSlots.filter(s => s.mid === mid);
     const sortedByCreated = sameMidSlots.filter(s => s.searchKeyword).sort((a,b) => new Date(a.createdAt)-new Date(b.createdAt));
     const currentHistory = sortedByCreated.filter((s,i) => i===0 || s.searchKeyword !== sortedByCreated[i-1].searchKeyword).map(s => ({ keyword:s.searchKeyword, date:s.createdAt }));
-    const histDocs = await Promise.all(sameMidSlots.map(s => kpFetchSlotKwHistory(s._key)));
+    const histDocs = await Promise.all(sameMidSlots.map(s => window.HA.getSlotKwHistory(s._key)));
     const changeHistory = histDocs.flatMap(h => h.keywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
     return kpDedupHistoryByDay([...currentHistory, ...changeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
   }
@@ -3188,34 +3177,26 @@ document.addEventListener('keydown', function(e) {
     const sameMidSlots = allSlots.filter(s => s.mid === mid);
     const sortedByCreated = sameMidSlots.filter(s => s.yupflKeyword).sort((a,b) => new Date(a.createdAt)-new Date(b.createdAt));
     const currentHistory = sortedByCreated.filter((s,i) => i===0 || s.yupflKeyword !== sortedByCreated[i-1].yupflKeyword).map(s => ({ keyword:s.yupflKeyword, date:s.createdAt }));
-    const histDocs = await Promise.all(sameMidSlots.map(s => kpFetchSlotKwHistory(s._key)));
+    const histDocs = await Promise.all(sameMidSlots.map(s => window.HA.getSlotKwHistory(s._key)));
     const changeHistory = histDocs.flatMap(h => h.yupflKeywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
     return kpDedupHistoryByDay([...currentHistory, ...changeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
   }
 
   // 접수관리(ha/slots)와 김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드일 뿐이라 mid로 서로 직접
-  // 조회 가능 — kimpro/reception.html의 fetchCrossAppSlots와 동일 패턴(같은 MID가 양쪽에 등록될 수 있어 히스토리 팝업은 합쳐서 보여줌)
-  async function kpFetchCrossAppSlots(path, mid) {
-    try {
-      const { getDatabase, ref, query, orderByChild, equalTo, get } = await import(
-        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-      );
-      const snap = await get(query(ref(getDatabase(), path), orderByChild('mid'), equalTo(mid)));
-      return snap.exists() ? Object.entries(snap.val()).map(([k,v]) => ({ ...v, _key:k })) : [];
-    } catch (e) { console.error('연동 히스토리 조회 오류:', e); return []; }
-  }
+  // 조회 가능 — HA.getSlotsByMid/getSlotKwHistory(ha-store.js 공용 헬퍼, 2026-09-16)를 그대로 재사용
+  // (같은 MID가 양쪽에 등록될 수 있어 히스토리 팝업은 합쳐서 보여줌)
   // 히스토리 팝업 전용(kpToggleMidHistory/kpToggleYupflMidHistory) — 자체 DB + 접수관리(ha/slots) 이력 합산
   async function kpFullKeywordHistory(mid) {
-    const [localHistory, crossAppSlots] = await Promise.all([kpLocalKeywordHistory(mid), kpFetchCrossAppSlots('ha/slots', mid)]);
+    const [localHistory, crossAppSlots] = await Promise.all([kpLocalKeywordHistory(mid), window.HA.getSlotsByMid(mid)]);
     const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ keyword:s.searchKeyword, date:s.createdAt }));
-    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => kpFetchSlotKwHistory(s._key)));
+    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => window.HA.getSlotKwHistory(s._key)));
     const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.keywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
     return kpDedupHistoryByDay([...localHistory, ...crossAppCurrent, ...crossAppChangeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
   }
   async function kpFullYupflKeywordHistory(mid) {
-    const [localHistory, crossAppSlots] = await Promise.all([kpLocalYupflKeywordHistory(mid), kpFetchCrossAppSlots('ha/slots', mid)]);
+    const [localHistory, crossAppSlots] = await Promise.all([kpLocalYupflKeywordHistory(mid), window.HA.getSlotsByMid(mid)]);
     const crossAppCurrent = crossAppSlots.filter(s => s.yupflKeyword).map(s => ({ keyword:s.yupflKeyword, date:s.createdAt }));
-    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => kpFetchSlotKwHistory(s._key)));
+    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => window.HA.getSlotKwHistory(s._key)));
     const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.yupflKeywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
     return kpDedupHistoryByDay([...localHistory, ...crossAppCurrent, ...crossAppChangeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
   }
@@ -6362,18 +6343,12 @@ document.addEventListener('keydown', function(e) {
     return window.kpProdsRef ? window.kpProdsRef() : [];
   }
 
-  // 2026-09-16: get() 매번 재다운로드 대신 ha-store.js onValue 공유 캐시 구독 — kpAwaitScheduleDispatchBoth
-  // 참고(위쪽 early block과 동일 취지, 스크립트 블록 스코프 분리로 여기 다시 정의)
-  function kpAwaitScheduleDispatchBoth2() {
-    return Promise.all([
-      new Promise(resolve => { const unsub = window.HA.onKpScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
-      new Promise(resolve => { const unsub = window.HA.onScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
-    ]);
-  }
+  // window.kpAwaitScheduleDispatchBoth는 early block(2500번대)에서 이미 정의됨 — 스크립트 블록끼리
+  // 스코프가 분리돼도 window 경유라 여기서도 그대로 씀(2026-09-16)
   // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 완전히 동일한 계산을 전역 상태(ssEntries)
   // 건드리지 않고 반환. 두 화면 카드/팝업이 전부 이 하나의 계산식만 쓰도록 해서 숫자가 안 어긋나게 함.
   window.computeKpScheduleGroupCount = async function() {
-    const [kpVal, haVal] = await kpAwaitScheduleDispatchBoth2();
+    const [kpVal, haVal] = await window.kpAwaitScheduleDispatchBoth();
     const entries = {};
     Object.entries(kpVal||{}).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'kp' }; });
     Object.entries(haVal||{}).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'ha' }; });
@@ -6381,7 +6356,7 @@ document.addEventListener('keydown', function(e) {
   };
 
   async function reloadKpScheduleEntries() {
-    const [kpVal, haVal] = await kpAwaitScheduleDispatchBoth2();
+    const [kpVal, haVal] = await window.kpAwaitScheduleDispatchBoth();
     ssEntries = {};
     Object.entries(kpVal||{}).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'kp' }; });
     Object.entries(haVal||{}).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'ha' }; });

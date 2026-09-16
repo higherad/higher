@@ -283,6 +283,22 @@ const HA = {
     );
   },
 
+  // getKpSlotsByMid와 대칭 — 김프로(kpFullKeywordHistory 등)가 히스토리 팝업/엑셀다운로드/재접수 매칭에서
+  // ha/slots를 mid로 직접 조회할 때 씀(2026-09-16, 각 파일이 직접 firebase-database.js를 동적 import해
+  // 손으로 짠 조회 코드를 두던 것을 이 공용 헬퍼로 대체)
+  async getSlotsByMid(mid) {
+    const snap = await get(query(ref(db, PATHS.slots), orderByChild('mid'), equalTo(mid)));
+    return snapToArray(snap);
+  },
+
+  // 키워드 히스토리 전용 저장소(ha/slot_kw_history/{key}) 조회 — 접수관리·김프로 공용(2026-09-16, 두 파일이
+  // 각자 getDoc/getKpDoc으로 손으로 감싸던 것을 이 공용 헬퍼로 대체). 미러링된 슬롯은 같은 _key를
+  // 공유하므로 경로 하나로 양쪽 다 커버됨
+  async getSlotKwHistory(key) {
+    const snap = await get(ref(db, `ha/slot_kw_history/${key}`));
+    return snap.exists() ? snap.val() : {};
+  },
+
   // getSlots() 이후 변경분만 child 이벤트로 구독(전체 재전송 방지). currentSlots의 최대 push key 이후만 "추가"로 취급해 기존 데이터 리플레이도 피함
   async subscribeSlots(currentSlots, { onAdded, onChanged, onRemoved } = {}) {
     await authReady;
@@ -616,16 +632,12 @@ const HA = {
     });
   },
 
-  // 임의 경로 조회(raw snapshot 반환) — 충전하기(ha/bizfit_charge 목록) 등 슬롯 CRUD에 안 걸리는 단순 조회용
+  // 임의 경로 조회(raw snapshot 반환) — 충전하기(ha/bizfit_charge 목록) 등 슬롯 CRUD에 안 걸리는 단순 조회용.
+  // 쓰기(set/update)는 getKpDoc과 마찬가지로 kp 쪽(setKpDoc/updateKpDoc)만 있음 — db 인스턴스가 동일해서
+  // ha/kp 구분 없이 아무 경로에나 쓸 수 있으므로 대칭 쌍을 따로 안 둠(둘 다 있으면 어느 쪽을 써야 하는지만
+  // 헷갈림, 실제로 ha 쪽 setDoc/updateDoc은 추가됐다가 호출부가 하나도 없어 삭제됨 2026-09-16)
   async getDoc(path) {
     return get(ref(db, path));
-  },
-  async setDoc(path, val) {
-    return set(ref(db, path), val);
-  },
-  // 멀티패스 업데이트(키에 '/' 허용, 값 null이면 그 위치 삭제) — getKpDoc류와 동일 패턴(ha 쪽 대응)
-  async updateDoc(path, patch) {
-    return update(ref(db, path), patch);
   },
 
   async permanentDeleteSlot(key) {
@@ -974,6 +986,15 @@ const HA = {
   onKpSettleSnapshotsChange(callback) { return onKpSettleSnapshotsChangeShared(callback); },
   onScheduleDispatchChange(callback)   { return onScheduleDispatchChangeShared(callback); },
   onKpScheduleDispatchChange(callback) { return onKpScheduleDispatchChangeShared(callback); },
+  // 위 두 구독을 "현재 캐시된 값 한 번만" 받는 형태로 감싼 것 — 예약 분할 현황 배지/모달(접수관리·김프로
+  // 양쪽, 스크립트 블록이 여러 개라 호출부도 여러 곳)이 매번 각자 new Promise 래퍼를 새로 짜지 않도록
+  // 공용으로 제공(2026-09-16)
+  async getScheduleDispatchOnce() {
+    return new Promise(resolve => { const unsub = onScheduleDispatchChangeShared(v => { unsub(); resolve(v); }); });
+  },
+  async getKpScheduleDispatchOnce() {
+    return new Promise(resolve => { const unsub = onKpScheduleDispatchChangeShared(v => { unsub(); resolve(v); }); });
+  },
 
   // ════════════════════════════════════════════════════════
   // 초기 데이터 시드 (Firebase가 비어있을 때 한 번만 실행)

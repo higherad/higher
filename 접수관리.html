@@ -1232,30 +1232,13 @@ window.toggleProdPanel = function(e) {
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
   // 김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드라 mid로 직접 조회 가능 — 같은 MID가
-  // 양쪽에 등록될 수 있어 히스토리 모달/엑셀 다운로드는 합쳐서 보여줌(kimpro/reception.html의
-  // fetchCrossAppSlots와 동일 패턴). kimpro.kro.kr(레거시 외부 사이트) 자체 병합은 접속 차단(2026-09-11)으로
-  // 제거된 채 유지 — 그건 별개 프로젝트였고 지금은 ha/kimproSlots로 완전히 이관됨.
-  async function fetchCrossAppSlots(path, mid) {
-    try {
-      const { getDatabase, ref, query, orderByChild, equalTo, get } = await import(
-        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-      );
-      const snap = await get(query(ref(getDatabase(), path), orderByChild('mid'), equalTo(mid)));
-      return snap.exists() ? Object.entries(snap.val()).map(([k,v]) => ({ ...v, _key:k })) : [];
-    } catch (e) { console.error('연동 히스토리 조회 오류:', e); return []; }
-  }
-  // 키워드 히스토리는 메인 슬롯 문서가 아니라 ha/slot_kw_history/{key}에 있음(2026-09-16, RTDB 대역폭
-  // 절감 — 접수관리·김프로가 미러링 시 같은 _key를 공유하므로 경로 하나로 양쪽 다 커버됨)
-  async function fetchSlotKwHistory(key) {
-    try {
-      const snap = await HA.getDoc(`ha/slot_kw_history/${key}`);
-      return snap.exists() ? snap.val() : {};
-    } catch (e) { return {}; }
-  }
+  // 양쪽에 등록될 수 있어 히스토리 모달/엑셀 다운로드는 합쳐서 보여줌. HA.getKpSlotsByMid/getSlotKwHistory
+  // (ha-store.js 공용 헬퍼, 2026-09-16)를 그대로 재사용. kimpro.kro.kr(레거시 외부 사이트) 자체 병합은
+  // 접속 차단(2026-09-11)으로 제거된 채 유지 — 그건 별개 프로젝트였고 지금은 ha/kimproSlots로 완전히 이관됨.
   async function fullKeywordHistory(mid) {
-    const crossAppSlots = await fetchCrossAppSlots('ha/kimproSlots', mid);
+    const crossAppSlots = await HA.getKpSlotsByMid(mid);
     const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ searchKeyword: s.searchKeyword, createdAt: s.createdAt }));
-    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => fetchSlotKwHistory(s._key)));
+    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => HA.getSlotKwHistory(s._key)));
     const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.keywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
     return dedupHistoryByDay([...localKeywordHistory(mid), ...crossAppCurrent, ...crossAppChangeHistory])
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -1268,7 +1251,7 @@ window.toggleProdPanel = function(e) {
     const currentHistory = dropUnchangedConsecutive(
       sameMidSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }))
     );
-    const histDocs = await Promise.all(sameMidSlots.map(s => fetchSlotKwHistory(s._key)));
+    const histDocs = await Promise.all(sameMidSlots.map(s => HA.getSlotKwHistory(s._key)));
     const changeHistory = histDocs
       .flatMap(h => h.yupflKeywordHistory || [])
       .map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
@@ -1277,9 +1260,9 @@ window.toggleProdPanel = function(e) {
   }
   // fullKeywordHistory와 동일 패턴 — 자체 DB + 김프로(ha/kimproSlots) 유입플 히스토리 합산
   async function fullYupflKeywordHistory(mid) {
-    const [localHistory, crossAppSlots] = await Promise.all([localYupflKeywordHistory(mid), fetchCrossAppSlots('ha/kimproSlots', mid)]);
+    const [localHistory, crossAppSlots] = await Promise.all([localYupflKeywordHistory(mid), HA.getKpSlotsByMid(mid)]);
     const crossAppCurrent = crossAppSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }));
-    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => fetchSlotKwHistory(s._key)));
+    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => HA.getSlotKwHistory(s._key)));
     const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.yupflKeywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
     return dedupHistoryByDay([...localHistory, ...crossAppCurrent, ...crossAppChangeHistory])
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -5473,10 +5456,7 @@ window.toggleProdPanel = function(e) {
   // RTDB 대역폭 폭증의 주 원인이었음(김프로.html과 동일 조치). 구독은 세션당 1회만 네트워크를 타고,
   // 이후는 캐시된 값으로 즉시 resolve됨.
   function awaitScheduleDispatchBoth() {
-    return Promise.all([
-      new Promise(resolve => { const unsub = HA.onScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
-      new Promise(resolve => { const unsub = HA.onKpScheduleDispatchChange(v => { unsub(); resolve(v); }); }),
-    ]);
+    return Promise.all([HA.getScheduleDispatchOnce(), HA.getKpScheduleDispatchOnce()]);
   }
   async function computeScheduleGroupCount() {
     const [haVal, kpVal] = await awaitScheduleDispatchBoth();
