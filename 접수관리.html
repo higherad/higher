@@ -927,6 +927,7 @@ window.toggleProdPanel = function(e) {
       url: readField('d-url'), mid: readField('d-mid'), dailyTarget: readField('d-dailyTarget', true), days: readField('d-days', true),
       unitPrice: readField('d-unitPrice', true), startDate: readField('d-startDate'), endDate: readField('d-endDate'),
       memo: document.getElementById('d-memo')?.value.trim(),
+      adlogMemo: document.getElementById('d-adlogMemo')?.value.trim(),
     };
     const baseUpdates = {};
     for (const [k, v] of Object.entries(baseFields)) {
@@ -1069,6 +1070,7 @@ window.toggleProdPanel = function(e) {
           <div class="modal-field"><label>종료일</label><input type="date" id="d-endDate" value="${escProd(s.endDate)}" ${dis}></div>
         </div>
         <div class="modal-field"><label>메모</label><textarea id="d-memo" rows="1" style="min-height:34px;" ${dis}>${escProd(s.memo||'')}</textarea></div>
+        <div class="modal-field"><label>애드로그</label><input id="d-adlogMemo" value="${escProd(s.adlogMemo ?? defaultAdlogMemo(s))}" ${dis}></div>
         <div class="modal-field">
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
@@ -1237,36 +1239,47 @@ window.toggleProdPanel = function(e) {
         'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
       );
       const snap = await get(query(ref(getDatabase(), path), orderByChild('mid'), equalTo(mid)));
-      return snap.exists() ? Object.values(snap.val()) : [];
+      return snap.exists() ? Object.entries(snap.val()).map(([k,v]) => ({ ...v, _key:k })) : [];
     } catch (e) { console.error('연동 히스토리 조회 오류:', e); return []; }
+  }
+  // 키워드 히스토리는 메인 슬롯 문서가 아니라 ha/slot_kw_history/{key}에 있음(2026-09-16, RTDB 대역폭
+  // 절감 — 접수관리·김프로가 미러링 시 같은 _key를 공유하므로 경로 하나로 양쪽 다 커버됨)
+  async function fetchSlotKwHistory(key) {
+    try {
+      const snap = await HA.getDoc(`ha/slot_kw_history/${key}`);
+      return snap.exists() ? snap.val() : {};
+    } catch (e) { return {}; }
   }
   async function fullKeywordHistory(mid) {
     const crossAppSlots = await fetchCrossAppSlots('ha/kimproSlots', mid);
     const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ searchKeyword: s.searchKeyword, createdAt: s.createdAt }));
-    const crossAppChangeHistory = crossAppSlots.flatMap(s => s.keywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
+    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => fetchSlotKwHistory(s._key)));
+    const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.keywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
     return dedupHistoryByDay([...localKeywordHistory(mid), ...crossAppCurrent, ...crossAppChangeHistory])
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
 
   // 자체 DB 유입플 키워드 히스토리 — 같은 MID의 슬롯 기록+변경 이력(yupflKeywordHistory) 합쳐 날짜순 반환
   // dedupHistoryByDay/dropUnchangedConsecutive 재사용 위해 searchKeyword/createdAt 모양으로 매핑
-  function localYupflKeywordHistory(mid) {
+  async function localYupflKeywordHistory(mid) {
     const sameMidSlots = allSlots.filter(s => s.mid === mid);
     const currentHistory = dropUnchangedConsecutive(
       sameMidSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }))
     );
-    const changeHistory = sameMidSlots
-      .flatMap(s => s.yupflKeywordHistory || [])
+    const histDocs = await Promise.all(sameMidSlots.map(s => fetchSlotKwHistory(s._key)));
+    const changeHistory = histDocs
+      .flatMap(h => h.yupflKeywordHistory || [])
       .map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
     return dedupHistoryByDay([...currentHistory, ...changeHistory])
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
   // fullKeywordHistory와 동일 패턴 — 자체 DB + 김프로(ha/kimproSlots) 유입플 히스토리 합산
   async function fullYupflKeywordHistory(mid) {
-    const crossAppSlots = await fetchCrossAppSlots('ha/kimproSlots', mid);
+    const [localHistory, crossAppSlots] = await Promise.all([localYupflKeywordHistory(mid), fetchCrossAppSlots('ha/kimproSlots', mid)]);
     const crossAppCurrent = crossAppSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }));
-    const crossAppChangeHistory = crossAppSlots.flatMap(s => s.yupflKeywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
-    return dedupHistoryByDay([...localYupflKeywordHistory(mid), ...crossAppCurrent, ...crossAppChangeHistory])
+    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => fetchSlotKwHistory(s._key)));
+    const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.yupflKeywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
+    return dedupHistoryByDay([...localHistory, ...crossAppCurrent, ...crossAppChangeHistory])
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
 
@@ -3374,25 +3387,28 @@ window.toggleProdPanel = function(e) {
     openAdlogModal(target);
   };
 
+  // 애드로그 메모 기본값 — 상세보기에서 애드로그 메모칸을 비워둔 채 저장하면 이 값으로 채워짐(시작일 기준 "1test m/d")
+  function defaultAdlogMemo(s) {
+    if (!s.startDate) return '';
+    const [, m, d] = s.startDate.split('-').map(Number);
+    return `1test ${m}/${d}`;
+  }
+
   function buildAdlogRows(slots) {
     return slots.map(s => {
-      let memo = '';
-      if (s.startDate) {
-        const [, m, d] = s.startDate.split('-').map(Number);
-        memo = `1test ${m}/${d}`;
-      }
+      const memo = s.adlogMemo || defaultAdlogMemo(s);
       return { _slotKey: s._key, group: s.agencyId||'(대행사 미지정)', keyword: s.rankKeyword||'', mid: s.mid||'', memo, _statusTd: null };
     });
   }
 
   // ── 접수(승인) 완료 시 애드로그 자동등록 ──────────────────────
-  // 수동 등록(buildAdlogRows)과 달리 placeholder 없이 상세보기에서 입력해둔 s.memo를 그대로 씀.
+  // 메모는 상세보기의 "애드로그" 전용 칸(s.adlogMemo, 없으면 buildAdlogRows와 동일한 기본값)을 사용.
   // 이미 등록됐거나(adlogSubmitted) 키워드/MID(필수 항목)가 없는 슬롯은 조용히 건너뜀.
   // 승인 자체는 이미 끝난 뒤라 실패해도 콘솔 로그만 남기고 계속 진행 — 수동 "애드로그" 버튼(체크박스 선택)으로 재시도 가능.
   async function autoRegisterAdlog(slots) {
     const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && s.rankKeyword && s.mid);
     if (!targets.length) return;
-    const rows = targets.map(s => ({ _slotKey: s._key, group: s.agencyId||'(대행사 미지정)', keyword: s.rankKeyword, mid: s.mid, memo: s.memo||'' }));
+    const rows = buildAdlogRows(targets);
     try {
       for (let i = 0; i < rows.length; i += ADLOG_BATCH_SIZE) {
         const chunk = rows.slice(i, i + ADLOG_BATCH_SIZE);

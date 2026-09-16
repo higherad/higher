@@ -614,6 +614,13 @@ const HA = {
   async getDoc(path) {
     return get(ref(db, path));
   },
+  async setDoc(path, val) {
+    return set(ref(db, path), val);
+  },
+  // 멀티패스 업데이트(키에 '/' 허용, 값 null이면 그 위치 삭제) — getKpDoc류와 동일 패턴(ha 쪽 대응)
+  async updateDoc(path, patch) {
+    return update(ref(db, path), patch);
+  },
 
   async permanentDeleteSlot(key) {
     await Promise.all([
