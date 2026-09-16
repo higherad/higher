@@ -2780,6 +2780,7 @@ document.addEventListener('keydown', function(e) {
     const extra = { ...window.deductFieldsFor(targetSlot), ...window.yupflFieldsFor(targetSlot) };
     await HA.updateKpSlot(key, { status:'active', ...extra });
     const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) Object.assign(allSlots[idx], { status:'active', ...extra });
+    await window.kpAutoRegisterAdlog([targetSlot]);
     kpCloseModalAndRefresh();
   };
   window.kpAcceptOne = async function(key) {
@@ -2866,7 +2867,10 @@ document.addEventListener('keydown', function(e) {
           <div class="kp-modal-field"><label>시작일</label><input type="date" id="kd-startDate" value="${kpEsc(s.startDate)}" ${dis}></div>
           <div class="kp-modal-field"><label>종료일</label><input type="date" id="kd-endDate" value="${kpEsc(s.endDate)}" ${dis}></div>
         </div>
-        <div class="kp-modal-field"><label>메모</label><textarea id="kd-memo" rows="1" ${dis}>${kpEsc(s.memo)}</textarea></div>
+        <div class="kp-modal-row">
+          <div class="kp-modal-field"><label>메모</label><textarea id="kd-memo" rows="1" ${dis}>${kpEsc(s.memo)}</textarea></div>
+          <div class="kp-modal-field"><label>애드로그</label><input id="kd-adlogMemo" value="${kpEsc(s.adlogMemo ?? window.kpDefaultAdlogMemo(s))}" ${dis}></div>
+        </div>
         <div class="kp-modal-field">
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kp-kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCount}개</span></span>
@@ -3118,6 +3122,7 @@ document.addEventListener('keydown', function(e) {
       unitPrice: read('kd-unitPrice', true),
       startDate: read('kd-startDate'), endDate: read('kd-endDate'),
       memo: document.getElementById('kd-memo')?.value.trim() ?? '',
+      adlogMemo: document.getElementById('kd-adlogMemo')?.value.trim(),
       searchKeyword: read('kd-searchKeyword'), yupflKeyword: read('kd-yupflKeyword'), deltaBlogUrl: read('kd-deltaBlogUrl'),
     };
     const updates = {};
@@ -5031,6 +5036,7 @@ document.addEventListener('keydown', function(e) {
             const src = slotMapAll.get(key);
             if (s) Object.assign(s, { status:'active', ...deductFieldsFor(src), ...yupflFieldsFor(src) });
           });
+          await kpAutoRegisterAdlog(ready.map(key => allSlots.find(x=>x._key===key)));
           if (window.kpRenderReceipts) window.kpRenderReceipts(false);
         } catch (e) {
           console.error('승인 게이트 처리 오류(다음 완료 시 또는 팝업 재오픈 시 재시도됨):', e);
@@ -6045,13 +6051,48 @@ document.addEventListener('keydown', function(e) {
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(체크박스 선택시 승인 항목도 재등록 가능)'); return; }
     kpOpenAdlogModal(target);
   };
+  // 애드로그 메모 기본값 — 상세보기에서 애드로그 메모칸을 비워둔 채 저장하면 이 값으로 채워짐(시작일 기준 "1test m/d")
+  // window로 export — 상세보기 모달(kpViewDetail)이 다른 <script> 블록(스코프 분리)에서 이 함수를 씀
+  function kpDefaultAdlogMemo(s) {
+    if (!s.startDate) return '';
+    const [, m, d] = s.startDate.split('-').map(Number);
+    return `1test ${m}/${d}`;
+  }
+  window.kpDefaultAdlogMemo = kpDefaultAdlogMemo;
   function kpBuildAdlogRows(slots) {
     return slots.map(s => {
-      let memo = '';
-      if (s.startDate) { const [, m, d] = s.startDate.split('-').map(Number); memo = `1test ${m}/${d}`; }
+      const memo = s.adlogMemo || kpDefaultAdlogMemo(s);
       return { _slotKey: s._key, group: s.agencyId||'(대행사 미지정)', keyword: s.rankKeyword||'', mid: s.mid||'', memo, _statusTd: null };
     });
   }
+
+  // ── 접수(승인) 완료 시 애드로그 자동등록 (접수관리.html과 동일 구현) ──────
+  // 메모는 상세보기의 '애드로그' 전용 칸(s.adlogMemo, 없으면 kpBuildAdlogRows와 동일한 기본값)을 사용.
+  // 이미 등록됐거나(adlogSubmitted) 키워드/MID(필수 항목)가 없는 슬롯, 재접수(isRequeue) 슬롯은
+  // 이미 이전 등록분이 있다고 보고 건너뜀. 승인 자체는 이미 끝난 뒤라 실패해도 콘솔 로그만 남기고 계속 진행
+  // — 수동 "애드로그" 버튼(체크박스 선택)으로 재시도 가능.
+  async function kpAutoRegisterAdlog(slots) {
+    const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && !s.isRequeue && s.rankKeyword && s.mid);
+    if (!targets.length) return;
+    const rows = kpBuildAdlogRows(targets);
+    const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+    try {
+      for (let i = 0; i < rows.length; i += KP_ADLOG_BATCH_SIZE) {
+        const chunk = rows.slice(i, i + KP_ADLOG_BATCH_SIZE);
+        const fileBase64 = kpBuildAdlogXlsxBase64(chunk);
+        const result = await kpCallBizfitProxy('/adlog-register', { fileBase64 });
+        if (result.success) {
+          const keys = chunk.map(r => r._slotKey);
+          await Promise.all(keys.map(k => window.HA.updateKpSlot(k, { adlogSubmitted: true })));
+          keys.forEach(k => { const s = allSlots.find(x => x._key === k); if (s) s.adlogSubmitted = true; });
+        } else {
+          console.error('애드로그 자동등록 실패:', result.message);
+        }
+      }
+    } catch (e) { console.error('애드로그 자동등록 오류:', e); }
+  }
+  // window로 export — kpApproveOne(단건 승인, 다른 <script> 블록)이 이 함수를 씀
+  window.kpAutoRegisterAdlog = kpAutoRegisterAdlog;
   function kpOpenAdlogModal(target) {
     const rows = kpBuildAdlogRows(target);
     const overlay = document.createElement('div');

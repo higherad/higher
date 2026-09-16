@@ -3388,10 +3388,10 @@ window.toggleProdPanel = function(e) {
 
   // ── 접수(승인) 완료 시 애드로그 자동등록 ──────────────────────
   // 메모는 상세보기의 "애드로그" 전용 칸(s.adlogMemo, 없으면 buildAdlogRows와 동일한 기본값)을 사용.
-  // 이미 등록됐거나(adlogSubmitted) 키워드/MID(필수 항목)가 없는 슬롯은 조용히 건너뜀.
+  // 이미 등록됐거나(adlogSubmitted) 키워드/MID(필수 항목)가 없는 슬롯, 재접수(isRequeue) 슬롯(이미 이전 등록분이 있다고 봄)은 조용히 건너뜀.
   // 승인 자체는 이미 끝난 뒤라 실패해도 콘솔 로그만 남기고 계속 진행 — 수동 "애드로그" 버튼(체크박스 선택)으로 재시도 가능.
   async function autoRegisterAdlog(slots) {
-    const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && s.rankKeyword && s.mid);
+    const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && !s.isRequeue && s.rankKeyword && s.mid);
     if (!targets.length) return;
     const rows = buildAdlogRows(targets);
     try {

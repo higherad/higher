@@ -15,6 +15,7 @@
   .total-popup-box { background:#fff;border-radius:16px;width:660px;max-height:85vh;overflow-y:auto;overscroll-behavior:contain;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
   #settle-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
   #settle-page select, #settle-page input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
+  #settle-page #sf-paid { width:92px; }
   #settle-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
   #settle-page table { width:100%; border-collapse:collapse; font-size:12px; }
   #settle-page thead th { background:#1e293b; color:#fff; padding:11px 7px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; font-size:11px; }
@@ -105,15 +106,15 @@
 
 <div class="filter-bar">
   <select id="sf-paid" onchange="renderSettle(false)">
-    <option value="">정산상태 전체</option>
+    <option value="">정산 전체</option>
     <option value="paid">정산완료</option>
     <option value="unpaid">미정산</option>
     <option value="uncharged">미충전</option>
   </select>
   <div style="display:flex;align-items:center;gap:4px;">
-    📅 <input type="date" id="sf-from" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
+    📅 <input type="date" id="sf-from" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;width:118px;">
     <span style="color:var(--text2);font-size:12px;">~</span>
-    <input type="date" id="sf-to" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
+    <input type="date" id="sf-to" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;width:118px;">
     <button id="sf-date-clear" onclick="clearSettleDate()" style="display:none;margin-left:2px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
