@@ -6422,7 +6422,8 @@ document.addEventListener('keydown', function(e) {
     const entries = {};
     Object.entries(kpVal||{}).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'kp' }; });
     Object.entries(haVal||{}).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'ha' }; });
-    return groupScheduleEntries(Object.values(entries)).length;
+    // 완료(모든 조각 done)된 캠페인은 카드에서 제외 — 대기중 남은 캠페인 수만 표시(2026-09-16)
+    return groupScheduleEntries(Object.values(entries)).filter(g => !g.items.every(e => isScheduleDone(e.status))).length;
   };
 
   async function reloadKpScheduleEntries() {
@@ -6584,7 +6585,6 @@ document.addEventListener('keydown', function(e) {
 
   function renderKpSplitScheduleList() {
     const listEl = document.getElementById('kp-ss-list');
-    const total = Object.keys(ssEntries).length;
     const filtered = filterScheduleEntries(Object.values(ssEntries));
     const allGroups = groupScheduleEntries(filtered);
     // 캠페인(그룹) 전체가 완료됐는지 기준으로 대기/완료 뷰를 나눔 — 접수관리.html과 동일 패턴
@@ -6592,8 +6592,6 @@ document.addEventListener('keydown', function(e) {
     const activeGroups = allGroups.filter(g => !g.items.every(e => isScheduleDone(e.status)));
     const groups = ssShowDone ? doneGroups : activeGroups;
     ssLastGroups = groups;
-    // 카드 섹션(kp-stat-split)과 동일 기준 — MID/캠페인 단위 건수(필터 무관, 전체)
-    const allGroupCount = groupScheduleEntries(Object.values(ssEntries)).length;
 
     const doneBtn = document.getElementById('kp-ss-done-toggle-btn');
     if (doneBtn) doneBtn.textContent = ssShowDone ? `◀ 대기 목록으로` : `완료 목록 (${doneGroups.length})`;
@@ -6676,9 +6674,13 @@ document.addEventListener('keydown', function(e) {
         </div>`;
       }).join('');
     }
-    document.getElementById('kp-ss-count-accept').textContent = filtered.length === total
-      ? `전체 ${allGroupCount}건 예약 ${total}건`
-      : `전체 ${allGroupCount}건 예약 ${total}건 (검색결과 ${filtered.length}건)`;
+    // 완료된 건은 제외하고 대기중 남은 수량만 표시(2026-09-16) — 카드(kp-stat-split)의
+    // computeKpScheduleGroupCount와 동일 기준
+    const pendingCount = Object.values(ssEntries).filter(e => !isScheduleDone(e.status)).length;
+    const pendingFiltered = filtered.filter(e => !isScheduleDone(e.status));
+    document.getElementById('kp-ss-count-accept').textContent = pendingFiltered.length === pendingCount
+      ? `전체 ${activeGroups.length}건 예약 ${pendingCount}건`
+      : `전체 ${activeGroups.length}건 예약 ${pendingCount}건 (검색결과 ${pendingFiltered.length}건)`;
   }
 
   window.kpSaveScheduleKeyword = async function(key, inputEl) {
