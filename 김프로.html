@@ -2880,7 +2880,7 @@ document.addEventListener('keydown', function(e) {
         </div>
         <div class="kp-modal-footer">
           <button class="kp-btn-cancel" onclick="kpCloseDetailModal('${key}')">닫기</button>
-          ${s.status==='pending' ? `<button class="kp-btn-save" onclick="kpAcceptFromDetail('${key}')">접수</button>` : ''}
+          ${(s.status==='pending' || s.status==='ended') ? `<button class="kp-btn-save" onclick="kpAcceptFromDetail('${key}')">접수</button>` : ''}
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -4713,6 +4713,7 @@ document.addEventListener('keydown', function(e) {
     const tbody = document.createElement('tbody');
     p.rows.forEach(r => {
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+      const kwTrim = kwCount > 50;
       const kwEmpty = kwCount === 0;
       const targetLow = (r.일목표||0) < 10;
       const tr = document.createElement('tr');
@@ -4728,7 +4729,7 @@ document.addEventListener('keydown', function(e) {
         <td style="text-align:right">${targetLow?`<span style="color:#dc2626;font-weight:700;">${(r.일목표||0).toLocaleString()} ⚠️</span>`:(r.일목표||0).toLocaleString()}</td>
         <td style="text-align:center">${r.일수||0}</td>
         <td>${kpSubEsc(r.예약일||'-')}</td>
-        <td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwEmpty?'#fee2e2':'#eff6ff'};color:${kwEmpty?'#dc2626':'#1d4ed8'};">${kwCount}개${kwEmpty?' ⚠️':''}</span></td>
+        <td style="text-align:center" title="${kwTrim?'접수 시 앞 50개만 사용':''}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwEmpty?'#fee2e2':(kwTrim?'#fef3c7':'#eff6ff')};color:${kwEmpty?'#dc2626':(kwTrim?'#b45309':'#1d4ed8')};">${kwTrim?'✂️50':(kwCount+'개'+(kwEmpty?' ⚠️':''))}</span></td>
         ${blogUrl?`<td style="font-size:11px;${r.블로그URL?'':'color:#dc2626;'}">${kpSubEsc(r.블로그URL||'미입력 ⚠️')}</td>`:''}
       `;
       tr.appendChild(statusTd);
@@ -5271,7 +5272,10 @@ document.addEventListener('keydown', function(e) {
         </div>
         <div id="kp-stab-panel-normal" style="display:${defaultTab==='normal'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="font-size:12px;" id="kp-submit-sub"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="kp-submit-sub"></div>
+              <button id="kp-reset-normal-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
             <div style="display:flex;gap:8px;">
               <button class="kp-btn-cancel" id="kp-submit-close-btn">닫기</button>
               <button id="kp-submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">접수 신청</button>
@@ -5281,7 +5285,10 @@ document.addEventListener('keydown', function(e) {
         </div>
         <div id="kp-stab-panel-fixed" style="display:${defaultTab==='fixed'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="font-size:12px;" id="kp-youpfl-sub"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="kp-youpfl-sub"></div>
+              <button id="kp-reset-fixed-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <div style="display:flex;align-items:center;gap:6px;">
                 <span style="font-size:12px;color:var(--text2);">미션번호 일괄 적용</span>
@@ -5296,7 +5303,10 @@ document.addEventListener('keydown', function(e) {
         </div>
         <div id="kp-stab-panel-charlie" style="display:${defaultTab==='charlie'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="font-size:12px;" id="kp-csub-sub"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="kp-csub-sub"></div>
+              <button id="kp-reset-charlie-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
             <div style="display:flex;gap:8px;">
               <button class="kp-btn-cancel" id="kp-csub-close-btn">닫기</button>
               <button id="kp-csub-apply-btn" style="background:#d946ef;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">접수 신청</button>
@@ -5306,8 +5316,12 @@ document.addEventListener('keydown', function(e) {
         </div>
         <div id="kp-stab-panel-blog" style="display:${defaultTab==='blog'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="font-size:12px;" id="kp-bsub-sub"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="kp-bsub-sub"></div>
+              <button id="kp-reset-blog-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
             <div style="display:flex;gap:8px;">
+              <button type="button" id="kp-bsub-bulk-blogurl-btn" title="블로그 URL 미입력 항목에 대해 플레이스 URL에서 자동으로 조회해 채웁니다" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#f8fafc;cursor:pointer;white-space:nowrap;">🔗 블로그URL 일괄조회</button>
               <button class="kp-btn-cancel" id="kp-bsub-close-btn">닫기</button>
               <button id="kp-bsub-apply-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">접수 신청</button>
             </div>
@@ -5338,6 +5352,118 @@ document.addEventListener('keydown', function(e) {
     // 찰리/델타는 버전체크 동적조회가 빈 값을 반환해 거부되는 실측 문제가 있어 상품 설정의 ver로 강제 override
     function kpProductVerFor(id) { return prods.find(p => p.id === id)?.ver; }
 
+    // 접수관리.html의 /cleanup-cancel과 동일 — NDJSON 스트림(줄마다 JSON)이라 kpCallBizfitProxy(res.json())로는 못 씀
+    async function kpCallBizfitCleanupCancel(body) {
+      const res = await fetch(`${KP_BIZFIT_PROXY}/cleanup-cancel`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '', final = null;
+      const consume = line => { if (!line.trim()) return; const evt = JSON.parse(line); if (evt.type !== 'log') final = evt; };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream:true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        lines.forEach(consume);
+      }
+      if (buf) consume(buf);
+      return final || { success:false, message:'서버 응답 없음' };
+    }
+
+    // "초기화" — 이 탭 몫만 취소+완료기록 삭제, 접수관리.html과 동일 로직(자동 캐시차감·메모는 김프로에
+    // 없으므로 그 부분만 제외). 재렌더는 접수관리처럼 fillBody/applyTabState로 부분갱신하는 대신
+    // 모달을 닫고 kpOpenSubmitModal(target)을 다시 여는 걸로 단순화(target 배열 자체를 patch로 갱신해두면 동일한 결과).
+    const kpAnyDoneOf = (rowsBySlot, doneField) => new Set(
+      [...rowsBySlot.entries()].filter(([, rs]) => rs.some(r => r[doneField])).map(([k]) => k)
+    );
+    const kpTabDoneNames = rows => new Set(rows.map(r => r._doneKey || r.상품등급명));
+    function kpWireBizfitTabReset(btn, resetKeys, doneNames) {
+      const candidates = target.filter(s => resetKeys.has(s._key));
+      if (!candidates.length) { btn.style.display = 'none'; return; }
+      btn.style.display = '';
+      btn.disabled = false; btn.textContent = '초기화';
+      btn.onclick = async () => {
+        if (!confirm(`${candidates.length}건 취소·초기화합니다.\n※ MID 단위 취소라 같은 MID의 다른 상품도 같이 취소될 수 있습니다.`)) return;
+        btn.disabled = true; btn.textContent = '초기화 중...';
+        window.bizfitSubmitting = true;
+        const byAgency = new Map();
+        candidates.forEach(s => {
+          if (!s.mid) return;
+          const ag = s.agencyId || '';
+          if (!byAgency.has(ag)) byAgency.set(ag, new Set());
+          byAgency.get(ag).add(s.mid);
+        });
+        const okMids = new Set();
+        const errors = [];
+        try {
+          for (const [agencyId, midSet] of byAgency) {
+            const account = await kpFetchBizfitAccount(agencyId);
+            if (!account || !account.id || !account.pw) { errors.push(`${agencyId || '(대행사 미지정)'}: 비즈핏 계정 정보 없음`); continue; }
+            try {
+              const res = await kpCallBizfitCleanupCancel({ loginId: account.id, pwd: account.pw, mids: [...midSet] });
+              if (!res.success) { errors.push(`${agencyId}: ${res.message || '실패'}`); continue; }
+              res.results.forEach(r => { if (r.success) okMids.add(r.mid); else errors.push(`${agencyId}/${r.mid}: ${r.message}`); });
+            } catch (e) { errors.push(`${agencyId}: ${e.message}`); }
+          }
+        } finally { window.bizfitSubmitting = false; }
+        let logOnlySlots = [];
+        const failedSlots = candidates.filter(s => s.mid && !okMids.has(s.mid));
+        if (failedSlots.length && confirm(`${failedSlots.length}건 취소 실패.${errors.length ? `\n${errors.join('\n')}` : ''}\n\n캠페인이 이미 삭제된 경우라면 로그만 지울 수 있습니다(재접수 시 중복등록 주의). 로그만 지울까요?`)) {
+          logOnlySlots = failedSlots;
+        }
+        const resetSlots = [...candidates.filter(s => okMids.has(s.mid)), ...logOnlySlots];
+        await Promise.all(resetSlots.map(async s => {
+          const remaining = (s.normalDoneProducts || []).filter(n => !doneNames.has(n));
+          const patch = { normalDoneProducts: remaining.length ? remaining : null };
+          if (s.status === 'active') patch.status = 'accepted';
+          await window.HA.updateKpSlot(s._key, patch);
+          Object.assign(s, patch);
+        }));
+        const stillFailed = failedSlots.length - logOnlySlots.length;
+        overlay.remove();
+        kpOpenSubmitModal(target);
+        alert(`초기화 완료: ${resetSlots.length}건` + (logOnlySlots.length ? ` (로그만 ${logOnlySlots.length}건)` : '')
+          + (stillFailed > 0 ? `\n실패: ${stillFailed}건` : ''));
+      };
+    }
+    // 유입플은 bizfit /register가 아닌 별도 /youpfl-upload라 취소도 /cleanup-youpfl-refund로 환불만 하면 됨(접수관리.html과 동일)
+    function kpWireFixedTabReset(btn, resetKeys) {
+      const candidates = target.filter(s => resetKeys.has(s._key));
+      if (!candidates.length) { btn.style.display = 'none'; return; }
+      btn.style.display = '';
+      btn.disabled = false; btn.textContent = '초기화';
+      btn.onclick = async () => {
+        if (!confirm(`${candidates.length}건의 유입플 접수를 취소(환불)하고 초기화합니다.`)) return;
+        btn.disabled = true; btn.textContent = '초기화 중...';
+        const mids = [...new Set(candidates.map(s => s.mid).filter(Boolean))];
+        let okMids = new Set(mids);
+        const errors = [];
+        try {
+          const res = await kpCallBizfitProxy('/cleanup-youpfl-refund', { mids });
+          if (res.success) {
+            res.results.forEach(r => { if (!r.success) { okMids.delete(r.mid); errors.push(`${r.mid}: ${r.message}`); } });
+          } else {
+            okMids = new Set();
+            errors.push(`유입플 환불 요청 실패: ${res.message || ''}`);
+          }
+        } catch (e) {
+          okMids = new Set();
+          errors.push(`유입플 환불 요청 실패: ${e.message}`);
+        }
+        const resetSlots = candidates.filter(s => okMids.has(s.mid));
+        await Promise.all(resetSlots.map(async s => {
+          const patch = { fixedSubmitted: null, splitFixedSubmitted: null };
+          if (s.status === 'active') patch.status = 'accepted';
+          await window.HA.updateKpSlot(s._key, patch);
+          Object.assign(s, patch);
+        }));
+        overlay.remove();
+        kpOpenSubmitModal(target);
+        alert(`초기화 완료: ${resetSlots.length}건` + (errors.length ? `\n실패:\n${errors.join('\n')}` : ''));
+      };
+    }
+
     if (hasNormal) {
       kpScheduleValidationRows = normalPlan.flatMap(p=>p.rows);
       const bodyEl = overlay.querySelector('#kp-submit-body');
@@ -5352,6 +5478,11 @@ document.addEventListener('keydown', function(e) {
       });
       subEl.innerHTML = `<span style="color:var(--text2)">대행사 ${normalPlan.length}곳 · 일반 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>${kpAgencyIssueSummaryHtml(normalPlan)}`;
       const allRows = normalPlan.flatMap(p=>p.rows);
+      kpWireBizfitTabReset(
+        overlay.querySelector('#kp-reset-normal-btn'),
+        kpAnyDoneOf(kpRowsBySlotOf(allRows), '_normalSubmitted'),
+        kpTabDoneNames(allRows),
+      );
       const anyFail = kpValidateNormalRowsForSubmit(allRows);
       if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
       if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
@@ -5382,6 +5513,7 @@ document.addEventListener('keydown', function(e) {
         totalTarget += rows.reduce((a,r)=>a+(r.target||0)*(r.days||0),0);
       });
       subEl.innerHTML = `<span style="color:var(--text2)">대행사 ${byAgency.size}곳 · 유입플 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>`;
+      kpWireFixedTabReset(overlay.querySelector('#kp-reset-fixed-btn'), kpAnyDoneOf(kpRowsBySlotOf(yupflRows), '_fixedSubmitted'));
       if (yupflRows.every(r=>r._fixedSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
       else applyBtn.onclick = async () => { window.bizfitSubmitting = true; await kpExecuteYoupflSubmit(yupflRows, overlay, gate); window.bizfitSubmitting = false; };
     }
@@ -5398,6 +5530,11 @@ document.addEventListener('keydown', function(e) {
       });
       subEl.innerHTML = `<span style="color:var(--text2)">대행사 ${charliePlan.length}곳 · 찰리 ${totalSlots}건 · 전체목표 합계 ${totalTarget.toLocaleString()}</span>${kpAgencyIssueSummaryHtml(charliePlan)}`;
       const allRows = charliePlan.flatMap(p=>p.rows);
+      kpWireBizfitTabReset(
+        overlay.querySelector('#kp-reset-charlie-btn'),
+        kpAnyDoneOf(kpRowsBySlotOf(allRows), '_normalSubmitted'),
+        kpTabDoneNames(allRows),
+      );
       const anyFail = kpValidateNormalRowsForSubmit(allRows);
       if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
       if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
@@ -5434,6 +5571,11 @@ document.addEventListener('keydown', function(e) {
       const issueSummary = (hasDelta?kpAgencyIssueSummaryHtml(deltaPlan,true):'') + (hasNavy?kpAgencyIssueSummaryHtml(navyPlan,true):'');
       subEl.innerHTML = `<span style="color:var(--text2)">블로그(델타+네이비) ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>${issueSummary}`;
       const allRows = [...deltaPlan.flatMap(p=>p.rows), ...navyPlan.flatMap(p=>p.rows)];
+      kpWireBizfitTabReset(
+        overlay.querySelector('#kp-reset-blog-btn'),
+        kpAnyDoneOf(kpRowsBySlotOf(allRows), '_normalSubmitted'),
+        kpTabDoneNames(allRows),
+      );
       const anyFail = kpValidateNormalRowsForSubmit(allRows);
       if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
       if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
@@ -5460,6 +5602,34 @@ document.addEventListener('keydown', function(e) {
         window.bizfitSubmitting = false;
       };
     }
+
+    // 블로그URL 미입력 슬롯만 골라 kpApplyDeltaBlogUrls와 동일한 프록시로 자동조회해 채움(접수관리.html 이식)
+    const kpBsubBulkBtn = overlay.querySelector('#kp-bsub-bulk-blogurl-btn');
+    if (kpBsubBulkBtn) kpBsubBulkBtn.onclick = async () => {
+      const rows = [...deltaPlan.flatMap(p => p.rows), ...navyPlan.flatMap(p => p.rows)];
+      const slotKeys = [...new Set(rows.filter(r => r._requiresBlogUrl && !r.블로그URL).map(r => r._slotKey))];
+      if (!slotKeys.length) { alert('블로그 URL 미입력 항목이 없습니다.'); return; }
+      kpBsubBulkBtn.disabled = true; kpBsubBulkBtn.textContent = '조회 중...';
+      const splitProd = prods.find(p => p.id === 'delta' && p.active) || prods.find(p => p.id === 'navy' && p.active) || prods.find(p => p.id === 'delta');
+      const n = Math.max(1, parseInt(splitProd?.blogSplit, 10) || 1);
+      let ok = 0, fail = 0;
+      for (const key of slotKeys) {
+        const s = target.find(x => x._key === key);
+        if (!s || !s.url) { fail++; continue; }
+        try {
+          const res = await fetch(`${KP_BLOG_TAG_SEARCH_PROXY}/place-blog?url=${encodeURIComponent(s.url)}&count=${n}`);
+          const d = await res.json();
+          if (!d.success || !d.urls || !d.urls.length) { fail++; continue; }
+          const joined = d.urls.join(',');
+          await window.HA.updateKpSlot(key, { deltaBlogUrl: joined });
+          s.deltaBlogUrl = joined;
+          ok++;
+        } catch (e) { fail++; }
+      }
+      kpBsubBulkBtn.disabled = false; kpBsubBulkBtn.textContent = '🔗 블로그URL 일괄조회';
+      overlay.remove();
+      kpOpenSubmitModal(target);
+    };
   }
 
   window.kpSwitchSubmitTab = function(tab) {

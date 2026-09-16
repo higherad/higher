@@ -1096,7 +1096,7 @@ window.toggleProdPanel = function(e) {
         ${splitKeywordFieldsHtml(s, splitProd, dis)}
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
-          ${s.status==='pending' ? `<button class="btn-save" style="background:rgba(59,130,246,1);" onclick="acceptFromDetail('${key}')">접수</button>` : ''}
+          ${(s.status==='pending' || s.status==='expired') ? `<button class="btn-save" style="background:rgba(59,130,246,1);" onclick="acceptFromDetail('${key}')">접수</button>` : ''}
         </div>
       </div>`;
     document.body.appendChild(overlay);
