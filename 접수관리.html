@@ -2248,7 +2248,7 @@ window.toggleProdPanel = function(e) {
     const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
     await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
     keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
-    await autoRegisterAdlog(keys.map(k => slotMap.get(k)));
+    if (adlogAutoOn) await autoRegisterAdlog(keys.map(k => slotMap.get(k)));
     return groupFieldsByBizfitUid(keys.map(k => slotMap.get(k)), fieldsByKey);
   }
 
@@ -2329,6 +2329,10 @@ window.toggleProdPanel = function(e) {
   // 무시하고 그 등급(들)로만 접수 — 목록에 없는 등급명은 가상 등록(ver.5.0/3.2). kimpro와 동일 구현,
   // 팝업 토글(기본 on)로 끄면 상품 유형 설정값 그대로 배분.
   let gradeMatchOn = true;
+
+  // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(approveReadySlots)에서 애드로그 자동등록을 스킵.
+  // 행 단위 단건 승인 버튼(approveOne)은 이 토글과 무관하게 항상 자동등록.
+  let adlogAutoOn = true;
 
   // ── 시간대 분할 예약 접수 (kimpro와 동일 구현 + higher 전용 캐시차감 스냅샷) ──
   // /register 대신 ha/scheduled_dispatch에 페이로드만 저장, 서버(Cloud Scheduler→/dispatch-scheduled)가
@@ -3998,6 +4002,7 @@ window.toggleProdPanel = function(e) {
   // 방금 뒤집은 값을 유지해야 하므로 renderSubmitModal()을 직접 호출한다(아래 gmBtn.onclick 참고).
   async function openSubmitModal(target) {
     gradeMatchOn = true;
+    adlogAutoOn = true;
     scheduleConfig = null;
     scheduleDraftRows = [{ time: '10:00', pct: 100 }];
     scheduleKwSplit = false;
@@ -4052,16 +4057,23 @@ window.toggleProdPanel = function(e) {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
           <div style="display:flex;align-items:center;gap:14px;">
             <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
+            <button id="adlog-auto-toggle" type="button" title="접수 완료(승인) 시 애드로그 자동등록 — 끄면 이 접수 건들은 수동 애드로그 버튼으로만 등록"
+              style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
+              <span style="font-size:12px;color:var(--text2);font-weight:600;">애드로그</span>
+              <span id="adlog-auto-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${adlogAutoOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </span>
+            </button>
             <button id="grade-match-toggle" type="button" title="진행중인 MID가 있으면 동일한 상품으로 접수 — 끄면 상품 유형 설정값 그대로 배분"
               style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
-              <span style="font-size:12px;color:var(--text2);font-weight:600;">등급 자동매칭</span>
+              <span style="font-size:12px;color:var(--text2);font-weight:600;">등급 매칭</span>
               <span id="grade-match-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${gradeMatchOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
             </button>
             <button id="schedule-toggle-btn" type="button" onclick="toggleScheduleEditor()"
               style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
-              <span style="font-size:12px;color:var(--text2);font-weight:600;">⏰ 시간대 분할 예약</span>
+              <span style="font-size:12px;color:var(--text2);font-weight:600;">분할 예약</span>
               <span id="schedule-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#94a3b8;flex-shrink:0;">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
@@ -4614,6 +4626,14 @@ window.toggleProdPanel = function(e) {
         });
       }
     }
+
+    // 애드로그 자동등록 토글 — 데이터 재계산 필요 없이 플래그만 뒤집음(approveReadySlots가 읽음)
+    const adlogBtn  = overlay.querySelector('#adlog-auto-toggle');
+    const adlogIcon = overlay.querySelector('#adlog-auto-toggle-icon');
+    if (adlogBtn) adlogBtn.onclick = () => {
+      adlogAutoOn = !adlogAutoOn;
+      if (adlogIcon) adlogIcon.style.background = adlogAutoOn ? '#16a34a' : '#94a3b8';
+    };
 
     // 등급 자동매칭 토글 — 모달을 새로 열지 않고 데이터만 재계산해 탭 본문만 다시 채움
     const gmBtn  = overlay.querySelector('#grade-match-toggle');
