@@ -1002,8 +1002,14 @@
       renderSettle(false);
       return;
     }
-    // '충전'(API 실제 실행)과 '완료'(비즈핏 등에서 이미 직접 충전한 건 도장만) 둘 다 상태와 무관하게
-    // 항상 선택 가능 — 어느 쪽이 맞는지는 담당자가 판단(2026-09-16 사용자 요청)
+    if(snap?.chargeApiDone){
+      // 이미 충전(API 충전이든 '완료'로 기록한 직접 충전이든) 완료된 건 — 모달 없이 도장만 다시 찍는다
+      await stampCharge(snapKey,userId,snap);
+      renderSettle(false);
+      return;
+    }
+    // 아직 한 번도 충전 기록이 없는 건만 모달을 띄운다 — '충전'(API 실제 실행)/'완료'(직접 충전 기록)
+    // 둘 다 여기서 선택 가능, 어느 쪽이 맞는지는 담당자가 판단
     const ensuredSnap=ensureSnapshot(timeKey,agencyId,userId);
     openChargeAmountModal(timeKey,agencyId,userId,snapKey,ensuredSnap);
   };
