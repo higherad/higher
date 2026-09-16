@@ -4724,9 +4724,11 @@ document.addEventListener('keydown', function(e) {
     });
     return anyFail;
   }
-  function kpTruncateAndValidateRow(r) {
+  // skipCap: 시간대 분할 키워드분할이 켜져 있으면 여기서 50개로 잘라버리면 안 됨 — 쪼개기 전 원본
+  // 키워드 풀을 그대로 둬야 kpSplitRowBySchedule이 필요 그룹 수로 나눈 뒤 각 조각에 50개 캡을 적용함
+  function kpTruncateAndValidateRow(r, skipCap) {
     const kwList = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k);
-    if (kwList.length > 50) r.검색키워드 = kwList.slice(0,50).join(',');
+    if (!skipCap && kwList.length > 50) r.검색키워드 = kwList.slice(0,50).join(',');
     const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
     if (kwCount === 0) return { title:'검색키워드 미입력', label:'❌ 키워드 미입력' };
     if ((r.일목표||0) < 10) return { title:`일목표 ${r.일목표||0}개 — 10 미만`, label:'❌ 일목표 미달' };
@@ -4757,7 +4759,9 @@ document.addEventListener('keydown', function(e) {
     const tbody = document.createElement('tbody');
     p.rows.forEach(r => {
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-      const kwTrim = kwCount > 50;
+      // 시간대 분할 예약 + 키워드 분할이 켜져 있으면 여기서 50개로 잘리지 않고 조각마다 나눠 배정되니(kpSplitRowBySchedule)
+      // "✂️50 잘림" 경고 대신 실제 전체 개수를 그대로 보여줘 확인하기 쉽게 함
+      const kwTrim = kwCount > 50 && !kpScheduleKwSplit;
       const kwEmpty = kwCount === 0;
       const targetLow = (r.일목표||0) < 10;
       const tr = document.createElement('tr');
@@ -4904,7 +4908,9 @@ document.addEventListener('keydown', function(e) {
       const portionTotal = portions[i]||0;
       if (portionTotal < minPortion) return;
       for (let d=0; d<days; d++) {
-        const kwOverride = kwGroups && kwGroups.length ? { 검색키워드: kwGroups[(i*days+d) % kwGroups.length].join(',') } : {};
+        // 그룹 수가 적어 한 조각이 50개를 넘을 수 있어(예: 키워드 500개를 2그룹으로만 나누면 250개/조각)
+        // 비즈핏 1회 등록 한도(50개)를 여기서 최종 방어 — kwGroups 자체는 원본 그대로 유지
+        const kwOverride = kwGroups && kwGroups.length ? { 검색키워드: kwGroups[(i*days+d) % kwGroups.length].slice(0,50).join(',') } : {};
         out.push({ ...row, ...kwOverride, 일목표: portionTotal, 일수: row._daysMultiplied ? portionTotal : 1,
           예약일: kpScheduleDateForOffset(row.예약일, d), _sendAt: kpScheduleTimeToIso(s.time, row.예약일, d) });
       }
@@ -4954,7 +4960,7 @@ document.addEventListener('keydown', function(e) {
       if (!p.rows.length) return;
       const pendingRows = p.rows.filter(r => !r._normalSubmitted);
       if (!pendingRows.length) return;
-      pendingRows.forEach(r => { if (kpTruncateAndValidateRow(r)) r._kwFail = true; });
+      pendingRows.forEach(r => { if (kpTruncateAndValidateRow(r, kpScheduleKwSplit)) r._kwFail = true; });
       const validRows = pendingRows.filter(r => !r._kwFail);
       if (!validRows.length) { failTotal += pendingRows.length; return; }
       const account = p.realAg ? await kpFetchBizfitAccount(p.realAg) : null;
