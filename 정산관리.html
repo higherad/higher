@@ -941,12 +941,17 @@
             onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         </div>
         <div id="charge-amount-status" style="font-size:12px;color:var(--danger);margin-bottom:12px;display:none;"></div>
-        <button id="charge-amount-confirm-btn"
-          style="width:100%;padding:9px 0;border:none;border-radius:8px;background:#4f46e5;color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">충전</button>
+        <div style="display:flex;gap:8px;">
+          <button id="charge-amount-confirm-btn"
+            style="flex:1;padding:9px 0;border:none;border-radius:8px;background:#4f46e5;color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">충전</button>
+          <button id="charge-amount-done-btn" title="비즈핏 등에서 이미 직접 충전한 경우 — API는 호출하지 않고 금액·담당자만 기록"
+            style="flex:1;padding:9px 0;border:none;border-radius:8px;background:#64748b;color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">완료</button>
+        </div>
       </div>`;
     document.body.appendChild(modal);
     const input=document.getElementById('charge-amount-input');
     const confirmBtn=document.getElementById('charge-amount-confirm-btn');
+    const doneBtn=document.getElementById('charge-amount-done-btn');
     const cancelBtn=document.getElementById('charge-amount-cancel-btn');
     const statusEl=document.getElementById('charge-amount-status');
     input.focus();
@@ -955,17 +960,28 @@
       const amount=Number(input.value)||0;
       if(amount<=0){statusEl.style.display='block';statusEl.textContent='금액을 입력해주세요.';return;}
       // 처리 중엔 입력창을 비활성화(금액은 계속 보이도록)하여 중복 클릭·수정 방지
-      input.disabled=true;confirmBtn.disabled=true;cancelBtn.disabled=true;
+      input.disabled=true;confirmBtn.disabled=true;doneBtn.disabled=true;cancelBtn.disabled=true;
       confirmBtn.textContent='⏳ 처리 중...';statusEl.style.display='none';
       const {ok,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
       if(!ok){
         statusEl.style.display='block';statusEl.textContent=`❌ ${resultMsg}`;
-        input.disabled=false;confirmBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전';
+        input.disabled=false;confirmBtn.disabled=false;doneBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전';
         return;
       }
       await stampCharge(snapKey,userId,snap,{chargeApiDone:true,chargeApiAmount:amount});
       modal.remove();
       alert(confirmOk?`✅ 충전+입금완료 · ${amount.toLocaleString()}원`:`⚠️ 충전은 완료됐으나 입금완료 자동처리 실패 — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
+      renderSettle(false);
+    };
+    doneBtn.onclick=async()=>{
+      // 비즈핏 등에서 이미 직접(수동) 충전한 경우 — API는 호출하지 않고 입력한 금액을 참고용으로만
+      // 기록하면서 담당자 도장을 찍는다
+      const amount=Number(input.value)||0;
+      if(amount<=0){statusEl.style.display='block';statusEl.textContent='금액을 입력해주세요.';return;}
+      input.disabled=true;confirmBtn.disabled=true;doneBtn.disabled=true;cancelBtn.disabled=true;
+      doneBtn.textContent='⏳ 처리 중...';statusEl.style.display='none';
+      await stampCharge(snapKey,userId,snap,{chargeApiDone:true,chargeApiAmount:amount});
+      modal.remove();
       renderSettle(false);
     };
     input.addEventListener('keydown',e=>{if(e.key==='Enter')confirmBtn.click();});
@@ -986,12 +1002,8 @@
       renderSettle(false);
       return;
     }
-    if(snap?.chargeApiDone){
-      // 한 번이라도 실제 충전 API가 나간 적 있으면(도장을 껐다 켜도) 재충전 팝업은 막고 도장만 다시 찍는다
-      await stampCharge(snapKey,userId,snap);
-      renderSettle(false);
-      return;
-    }
+    // 도장이 없으면 이력(chargeApiDone)과 무관하게 항상 모달을 띄운다 — 재도장도 '충전'/'완료' 버튼을
+    // 명시적으로 눌러서 하도록(자동 재도장 지름길을 두면 판단 기준이 두 개로 꼬임)
     const ensuredSnap=ensureSnapshot(timeKey,agencyId,userId);
     openChargeAmountModal(timeKey,agencyId,userId,snapKey,ensuredSnap);
   };
