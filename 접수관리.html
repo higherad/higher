@@ -5437,6 +5437,10 @@ window.toggleProdPanel = function(e) {
         overlay._renderDeductFailures();
       }
       await Promise.all(dispatchEntries.map(saveScheduledDispatch));
+      // 예약 완료(active 전환)는 서버(Cloud Scheduler)가 나중에 브라우저 없이 처리하는데, adlog.kr은
+      // 서버가 새로 만든 xlsx는 거부해서(브라우저 SheetJS로 만든 파일만 통과) 그 시점엔 등록이 불가능
+      // — 대신 지금(접수 신청 클릭 시점, 키워드/MID/메모는 이미 확정된 값) 브라우저에서 미리 등록한다.
+      if (adlogAutoOn) await autoRegisterAdlog([...slotKeyCounts.keys()].map(k => allSlots.find(s => s._key === k)));
     }
     return { scheduledCount, failTotal };
   }
