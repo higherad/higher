@@ -991,12 +991,12 @@ const HA = {
   // 공용으로 제공(2026-09-16)
   async getScheduleDispatchOnce() {
     return new Promise(resolve => {
-      const unsub = onScheduleDispatchChangeShared(v => { resolve(v); setTimeout(unsub, 0); });
+      const unsub = onScheduleDispatchChangeShared(v => { resolve(v); setTimeout(() => unsub(), 0); });
     });
   },
   async getKpScheduleDispatchOnce() {
     return new Promise(resolve => {
-      const unsub = onKpScheduleDispatchChangeShared(v => { resolve(v); setTimeout(unsub, 0); });
+      const unsub = onKpScheduleDispatchChangeShared(v => { resolve(v); setTimeout(() => unsub(), 0); });
     });
   },
 
