@@ -334,7 +334,6 @@
     <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)" title="진행 현황"><i data-lucide="layers" size="16"></i><span class="nav-text"> 진행 현황</span></div>
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)" title="접수 관리"><i data-lucide="inbox" size="16"></i><span class="nav-text"> 접수 관리</span><span class="badge" id="pending-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-kimpro" onclick="enterKimpro(this)" title="김프로"><i data-lucide="link-2" size="16"></i><span class="nav-text"> 김프로</span><span class="badge" id="kp-badge" style="display:none">0</span></div>
-    <div class="nav-item" id="nav-expire"  onclick="loadQuickExpireSoon()" title="종료 예정"><i data-lucide="clock-alert" size="16"></i><span class="nav-text"> 종료 예정</span></div>
     <div class="nav-label">Finance & Users</div>
     <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)" title="정산 관리"><i data-lucide="wallet" size="16"></i><span class="nav-text"> 정산 관리</span><span class="badge" id="settle-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)" title="회원 관리"><i data-lucide="users" size="16"></i><span class="nav-text"> 회원 관리</span><span class="badge" id="users-badge" style="display:none">0</span></div>
@@ -647,7 +646,7 @@
     });
   };
   window.loadQuickExpireSoon = function() {
-    window.loadPage('진행현황.html', document.getElementById('nav-expire'), () => {
+    window.loadPage('진행현황.html', document.getElementById('nav-slots'), () => {
       const el = document.getElementById('ef-range');
       if (el) el.value = '3';
     });
