@@ -299,14 +299,14 @@
 
       /* 테이블 — 가로 스크롤 */
       .tbl-wrap, #receipt-page .tbl-wrap, #slots-page .tbl-wrap,
-      #settle-page .tbl-wrap, #expire-page .tbl-wrap {
+      #settle-page .tbl-wrap {
         overflow-x:auto;
         -webkit-overflow-scrolling:touch;
       }
 
       /* 필터바 — 줄바꿈 */
       .filter-bar, #receipt-page .filter-bar, #slots-page .filter-bar,
-      #settle-page .filter-bar, #expire-page .filter-bar {
+      #settle-page .filter-bar {
         flex-wrap:wrap;
         gap:6px;
       }
@@ -334,7 +334,7 @@
     <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)" title="진행 현황"><i data-lucide="layers" size="16"></i><span class="nav-text"> 진행 현황</span></div>
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)" title="접수 관리"><i data-lucide="inbox" size="16"></i><span class="nav-text"> 접수 관리</span><span class="badge" id="pending-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-kimpro" onclick="enterKimpro(this)" title="김프로"><i data-lucide="link-2" size="16"></i><span class="nav-text"> 김프로</span><span class="badge" id="kp-badge" style="display:none">0</span></div>
-    <div class="nav-item" id="nav-expire"  onclick="loadPage('종료예정.html',this)" title="종료 예정"><i data-lucide="clock-alert" size="16"></i><span class="nav-text"> 종료 예정</span></div>
+    <div class="nav-item" id="nav-expire"  onclick="loadQuickExpireSoon()" title="종료 예정"><i data-lucide="clock-alert" size="16"></i><span class="nav-text"> 종료 예정</span></div>
     <div class="nav-label">Finance & Users</div>
     <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)" title="정산 관리"><i data-lucide="wallet" size="16"></i><span class="nav-text"> 정산 관리</span><span class="badge" id="settle-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)" title="회원 관리"><i data-lucide="users" size="16"></i><span class="nav-text"> 회원 관리</span><span class="badge" id="users-badge" style="display:none">0</span></div>
@@ -647,7 +647,7 @@
     });
   };
   window.loadQuickExpireSoon = function() {
-    window.loadPage('종료예정.html', document.getElementById('nav-expire'), () => {
+    window.loadPage('진행현황.html', document.getElementById('nav-expire'), () => {
       const el = document.getElementById('ef-range');
       if (el) el.value = '3';
     });
@@ -661,7 +661,7 @@
 
   const PAGE_TITLES = {
     '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
-    '종료예정.html':'종료 예정 현황', '정산관리.html':'정산 관리',
+    '정산관리.html':'정산 관리',
     '회원관리.html':'회원 관리', '공지사항.html':'공지사항',
     '광고분류.html':'광고 분류', '순위조회.html':'순위 조회', '김프로.html':'김프로',
   };
