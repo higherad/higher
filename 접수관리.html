@@ -4059,7 +4059,7 @@ window.toggleProdPanel = function(e) {
             <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
             <button id="adlog-auto-toggle" type="button" title="접수 완료(승인) 시 애드로그 자동등록 — 끄면 이 접수 건들은 수동 애드로그 버튼으로만 등록"
               style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
-              <span style="font-size:12px;color:var(--text2);font-weight:600;">애드로그</span>
+              <span id="adlog-auto-toggle-label" style="font-size:12px;color:${adlogAutoOn?'#16a34a':'var(--text2)'};font-weight:600;">애드로그</span>
               <span id="adlog-auto-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${adlogAutoOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
@@ -4630,9 +4630,11 @@ window.toggleProdPanel = function(e) {
     // 애드로그 자동등록 토글 — 데이터 재계산 필요 없이 플래그만 뒤집음(approveReadySlots가 읽음)
     const adlogBtn  = overlay.querySelector('#adlog-auto-toggle');
     const adlogIcon = overlay.querySelector('#adlog-auto-toggle-icon');
+    const adlogLabel = overlay.querySelector('#adlog-auto-toggle-label');
     if (adlogBtn) adlogBtn.onclick = () => {
       adlogAutoOn = !adlogAutoOn;
       if (adlogIcon) adlogIcon.style.background = adlogAutoOn ? '#16a34a' : '#94a3b8';
+      if (adlogLabel) adlogLabel.style.color = adlogAutoOn ? '#16a34a' : 'var(--text2)';
     };
 
     // 등급 자동매칭 토글 — 모달을 새로 열지 않고 데이터만 재계산해 탭 본문만 다시 채움
