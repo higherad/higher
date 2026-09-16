@@ -5306,7 +5306,7 @@ document.addEventListener('keydown', function(e) {
           </button>
           <button id="kp-grade-match-toggle" type="button" title="진행중인 MID가 있으면 동일한 상품으로 접수 — 끄면 상품 유형 설정 비율 그대로 배분"
             style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
-            <span style="font-size:12px;color:var(--text2);font-weight:600;">등급 매칭</span>
+            <span id="kp-grade-match-toggle-label" style="font-size:12px;color:${window.KpGrade.state.gradeMatchOn?'#16a34a':'var(--text2)'};font-weight:600;">등급 매칭</span>
             <span id="kp-grade-match-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${window.KpGrade.state.gradeMatchOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </span>
@@ -5315,7 +5315,7 @@ document.addEventListener('keydown', function(e) {
           <button id="kp-schedule-toggle-btn" type="button" ${scheduleBlocked ? 'disabled' : ''}
             title="${registerLegCount > 1 ? '일반/찰리/블로그 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다' : yupflPending ? '유입플 탭에서 접수를 먼저 완료해야 시간대 분할 예약을 쓸 수 있습니다' : '즉시 전송 대신 지정 시각에 나눠 접수'}"
             style="display:flex;align-items:center;gap:6px;border:none;background:transparent;font-family:inherit;padding:2px;${scheduleBlocked ? 'opacity:.4;cursor:not-allowed;' : 'cursor:pointer;'}">
-            <span style="font-size:12px;color:var(--text2);font-weight:600;">⏰ 분할 예약</span>
+            <span id="kp-schedule-toggle-label" style="font-size:12px;color:${kpScheduleConfig?'#f59e0b':'var(--text2)'};font-weight:600;">⏰ 분할 예약</span>
             <span id="kp-schedule-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${kpScheduleConfig?'#f59e0b':'#94a3b8'};flex-shrink:0;">
               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </span>
@@ -5796,6 +5796,8 @@ document.addEventListener('keydown', function(e) {
     kpScheduleKwSplit = kpScheduleKwSplitDraft.on;
     const icon = document.getElementById('kp-schedule-toggle-icon');
     if (icon) icon.style.background = '#f59e0b';
+    const label = document.getElementById('kp-schedule-toggle-label');
+    if (label) label.style.color = '#f59e0b';
     alert(`시간대 분할 예약이 설정되었습니다. 이제 "접수 신청" 버튼을 누르면 즉시 전송 대신 예약 저장됩니다(일수만큼 매일 이 시각에 나눠 접수).${kpScheduleKwSplit ? ' 키워드도 시간대별로 나눠 배정됩니다.' : ''}`);
   };
   window.kpClearScheduleConfig = function() {
@@ -5803,6 +5805,8 @@ document.addEventListener('keydown', function(e) {
     kpScheduleKwSplit = false;
     const icon = document.getElementById('kp-schedule-toggle-icon');
     if (icon) icon.style.background = '#94a3b8';
+    const label = document.getElementById('kp-schedule-toggle-label');
+    if (label) label.style.color = 'var(--text2)';
     const panel = document.getElementById('kp-schedule-editor');
     if (panel) panel.style.display = 'none';
   };
