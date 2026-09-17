@@ -183,6 +183,41 @@
     HA.onKpRefundsChange(m => { _liveKpRefund = m; recomputeLiveSettleData(); });
     HA.onSettleSnapshotsChange(m => { _liveHaSnapshot = m; recomputeLiveSettleData(); });
     HA.onKpSettleSnapshotsChange(m => { _liveKpSnapshot = m; recomputeLiveSettleData(); });
+    attachSettleSlotsLiveSync();
+  }
+
+  // 새 접수(ha/slots)도 새로고침 없이 반영 — 접수관리.html attachSlotsLiveSync와 동일 패턴(증분
+  // child 구독, 전체 재다운로드 없음). afterKey 계산은 김프로 슬롯(별도 push 키 네임스페이스)을 빼고
+  // 순수 ha 슬롯 기준으로만 해야 정확해서 필터링해서 넘김.
+  let _settleSlotsRenderPending = false;
+  function scheduleSettleRerender() {
+    if (_settleSlotsRenderPending) return;
+    _settleSlotsRenderPending = true;
+    setTimeout(() => {
+      _settleSlotsRenderPending = false;
+      if (document.getElementById('settle-page')) renderSettle(false);
+    }, 300);
+  }
+  function attachSettleSlotsLiveSync() {
+    HA.subscribeSlots(allSlots.filter(s => s._src !== 'kp'), {
+      onAdded(slot) {
+        if (slot.origin === 'kp') return; // 김프로 자가치유 미러는 계속 제외
+        if (allSlots.some(s => s._key === slot._key)) return;
+        allSlots.push(slot);
+        scheduleSettleRerender();
+      },
+      onChanged(slot) {
+        if (slot.origin === 'kp') return;
+        const idx = allSlots.findIndex(s => s._key === slot._key);
+        if (idx === -1) allSlots.push(slot); else allSlots[idx] = slot;
+        scheduleSettleRerender();
+      },
+      onRemoved(key) {
+        const idx = allSlots.findIndex(s => s._key === key);
+        if (idx !== -1) allSlots.splice(idx, 1);
+        scheduleSettleRerender();
+      },
+    });
   }
   let filteredRows=[];
   const selectedSnapKeys=new Set();
