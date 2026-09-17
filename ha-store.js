@@ -6,7 +6,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
 import { getDatabase, ref, query, orderByKey, orderByChild, equalTo, startAfter,
   set as _set, get as _get, push as _push, update as _update, remove as _remove, onValue as _onValue,
-  onChildAdded, onChildChanged, onChildRemoved }
+  onChildAdded, onChildChanged, onChildRemoved, goOffline, goOnline }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, signOut }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
@@ -26,6 +26,10 @@ const firebaseConfig = {
 const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
 const auth = getAuth(app);
+
+// bfcache 진입 시 브라우저가 소켓을 강제 종료하며 나는 WebSocket 에러 방지
+window.addEventListener("pagehide", (e) => { if (e.persisted) goOffline(db); });
+window.addEventListener("pageshow", (e) => { if (e.persisted) goOnline(db); });
 
 // ── 인증 상태 복원 대기 래퍼 ─────────────────────────────────
 // 새로고침 직후 세션 복원 전 get/onValue가 먼저 돌면 RTDB 규칙(auth != null)에 걸려 permission denied 발생 가능
