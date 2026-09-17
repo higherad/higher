@@ -236,7 +236,9 @@
   }
   function isBillableSlot(s) {
     if (s.isRequeue) return false; // 재접수는 기존 배분을 이어받는 것일 뿐 새 결제 건이 아니므로 정산 대상 아님(unitPrice 0으로 스냅샷됨)
-    if (s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending') return true;
+    // split(시간대 분할 예약)은 비즈핏 캐시 차감이 예약 시점에 이미 즉시 실행되므로(initScheduledBatches)
+    // 실제 등록 완료(active 전환) 전이어도 정산 대상 — 같은 슬롯 키를 그대로 쓰다가 상태만 바뀌므로 이중계상 없음
+    if (s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending'||s.status==='split') return true;
     if (s._src==='kp' && s.status) return true; // 김프로는 상태값 체계가 달라(ended/paused/split 등) 존재하는 상태면 정산 대상으로 봄
     return false;
   }
