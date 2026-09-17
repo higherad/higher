@@ -930,7 +930,7 @@ const HA = {
         .filter(s => (s.origin === 'kp' || !haKeySet.has(s._key)) && !s.isRequeue)
         .map(s => ({ ...s, userId: `kp:${s.userId || '-'}` }));
       const base = [
-        ...latestHaSlots.filter(s => !s.isRequeue && s.origin !== 'kp' && ['active','accepted','expired','pending'].includes(s.status)),
+        ...latestHaSlots.filter(s => !s.isRequeue && s.origin !== 'kp' && ['active','accepted','expired','pending','split'].includes(s.status)),
         ...kpSlots,
       ];
       const paid = new Set([...latestHaPaid, ...latestKpPaid]);
