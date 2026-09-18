@@ -4021,18 +4021,16 @@ document.addEventListener('keydown', function(e) {
       if (groupsSnap.exists()) { const g = groupsSnap.val(); prodGroups = Array.isArray(g) ? g : Object.values(g); }
     } catch (e) { /* 기본값 유지 */ }
     try {
-      const { getDatabase, ref, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const db = getDatabase();
-      const subscribe = (suffix, apply) => {
-        let first = true;
-        onValue(ref(db, 'ha/kimproProdSettings' + suffix), (snap) => {
-          if (first) { first = false; return; }
-          apply(snap);
-          if (document.getElementById('kp-prod-panel')) renderKpPS();
-        }, (e) => console.error('kimproProdSettings 구독 오류:', e));
-      };
-      subscribe('/prods', (snap) => { if (snap.exists()) kpApplyProdsData(snap.val(), staticFlags, fixedDefaults, colorMap); });
-      subscribe('/groups', (snap) => { prodGroups = snap.exists() ? (Array.isArray(snap.val()) ? snap.val() : Object.values(snap.val())) : []; });
+      // ha-store.js 공유 캐시 구독(세션당 리스너 1개) — 페이지 재실행마다 onValue를 직접 새로
+      // 붙이면 리스너가 누적됨(subscribeSlots 리스너 누적 사고와 동일 패턴, 2026-09-18).
+      HA.onKpProdsChange((v) => {
+        if (v) kpApplyProdsData(v, staticFlags, fixedDefaults, colorMap);
+        if (document.getElementById('kp-prod-panel')) renderKpPS();
+      });
+      HA.onKpProdGroupsChange((v) => {
+        prodGroups = v ? (Array.isArray(v) ? v : Object.values(v)) : [];
+        if (document.getElementById('kp-prod-panel')) renderKpPS();
+      });
     } catch (e) { /* 실시간 구독 실패해도 최초 로드값은 유지 */ }
   }
   function kpSaveProdSettings() {

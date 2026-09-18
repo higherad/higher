@@ -221,6 +221,12 @@ const onKpSettleSnapshotsChangeShared  = makeValueLiveCache(KP_PATHS.settleSnaps
 // get()으로 통째로 새로 받던 게 RTDB 대역폭 폭증의 주 원인이었음(2026-09-16). onValue 공유 캐시로 전환.
 const onScheduleDispatchChangeShared   = makeValueLiveCache('ha/scheduled_dispatch',      v => v || {});
 const onKpScheduleDispatchChangeShared = makeValueLiveCache('ha/kimproScheduledDispatch', v => v || {});
+// 상품 유형 설정(전 계정 공용) — 접수관리/김프로가 각자 raw onValue를 페이지 재실행마다 새로
+// 붙이던 걸 공유 캐시로 전환(subscribeSlots 리스너 누적 사고와 동일 패턴, 2026-09-18).
+const onProdsChangeShared        = makeValueLiveCache('ha/prodSettings/prods',        v => v || null);
+const onProdGroupsChangeShared   = makeValueLiveCache('ha/prodSettings/groups',       v => v || null);
+const onKpProdsChangeShared      = makeValueLiveCache('ha/kimproProdSettings/prods',  v => v || null);
+const onKpProdGroupsChangeShared = makeValueLiveCache('ha/kimproProdSettings/groups', v => v || null);
 
 // ════════════════════════════════════════════════════════════
 const HA = {
@@ -967,6 +973,10 @@ const HA = {
   onKpSettleSnapshotsChange(callback) { return onKpSettleSnapshotsChangeShared(callback); },
   onScheduleDispatchChange(callback)   { return onScheduleDispatchChangeShared(callback); },
   onKpScheduleDispatchChange(callback) { return onKpScheduleDispatchChangeShared(callback); },
+  onProdsChange(callback)        { return onProdsChangeShared(callback); },
+  onProdGroupsChange(callback)   { return onProdGroupsChangeShared(callback); },
+  onKpProdsChange(callback)      { return onKpProdsChangeShared(callback); },
+  onKpProdGroupsChange(callback) { return onKpProdGroupsChangeShared(callback); },
   // 위 구독을 "캐시된 값 한 번만" 받는 형태로 감싼 것 — 여러 호출부가 각자 Promise 래퍼를 안 짜도 되게
   // 공용 제공(2026-09-16)
   async getScheduleDispatchOnce() {

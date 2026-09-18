@@ -1566,7 +1566,7 @@ window.toggleProdPanel = function(e) {
       prodGroups = loaded ? (Array.isArray(loaded) ? loaded : Object.values(loaded)) : [];
     };
     try {
-      const { getDatabase, ref, get, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
       await window.HA.authReady; // 새로고침 직후 인증 복원 전 호출 시 permission denied 방지
       const db = getDatabase();
       const [prodsSnap, groupsSnap] = await Promise.all([
@@ -1577,18 +1577,18 @@ window.toggleProdPanel = function(e) {
       if (groupsSnap.exists()) applyGroupsData(groupsSnap.val());
 
       // 실시간 반영 — 다른 세션에서 상품 유형 설정을 바꾸면 새로고침 없이 즉시 반영.
-      // onValue는 구독 즉시 현재값으로 한 번 불리는데 그건 위에서 이미 처리한 초기값과 같으므로 건너뛴다.
-      const subscribeProdPath = (suffix, apply) => {
-        let first = true;
-        onValue(ref(db, path + suffix), (snap) => {
-          if (first) { first = false; return; }
-          apply(snap);
-          if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-          renderPS();
-        }, (e) => console.error('prodSettings 구독 오류:', e));
-      };
-      subscribeProdPath('/prods',  (snap) => { if (snap.exists()) applyProdsData(snap.val()); });
-      subscribeProdPath('/groups', (snap) => applyGroupsData(snap.exists() ? snap.val() : null));
+      // ha-store.js 공유 캐시 구독(세션당 리스너 1개) — 페이지 재실행마다 onValue를 직접 새로
+      // 붙이면 리스너가 누적됨(subscribeSlots 리스너 누적 사고와 동일 패턴, 2026-09-18).
+      HA.onProdsChange((v) => {
+        if (v) applyProdsData(v);
+        if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
+        renderPS();
+      });
+      HA.onProdGroupsChange((v) => {
+        applyGroupsData(v);
+        if (!document.getElementById('receipt-page')) return;
+        renderPS();
+      });
     } catch(e) { console.error('loadProdSettings 오류:', e); }
   }
   function saveProdSettings() {
