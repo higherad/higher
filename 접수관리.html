@@ -805,41 +805,15 @@ window.toggleProdPanel = function(e) {
   };
 
   // ── 접수 목록 실시간 반영 ──────────────────────────────────────
-  // 최초 전체 로드 후 child 단위(추가/변경/삭제)로 구독 — value 리스너는 슬롯 하나만 바뀌어도 전체(수천 건)가 재전송됨
-  let _slotsUnsub = null;
+  // HA.onSlotsChange = ha-store.js가 세션당 리스너 1개만 여는 공유 캐시 구독. 예전엔 HA.subscribeSlots()를
+  // 직접 불러 메뉴 재방문마다(loadPage가 스크립트를 매번 재실행) ha/slots에 리스너가 새로 쌓여 업무시간
+  // 대역폭이 폭증했음(리스너 개수만큼 변경 이벤트가 중복 발동, 2026-09-18 확인) — 공유 캐시로 교체.
   function attachSlotsLiveSync() {
-    if (_slotsUnsub) return; // 중복 구독 방지
-    let renderPending = false;
-    const scheduleRerender = () => {
-      if (renderPending) return;
-      renderPending = true;
-      setTimeout(() => {
-        renderPending = false;
-        if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-        // getSlots()가 정한 정렬(createdAt 내림차순) 불변식을 유지 — getFiltered()는 자체 정렬을 안 함
-        allSlots.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-        renderReceipts(false);
-      }, 300); // 여러 건이 짧은 시간에 몰려도 한 번만 다시 그리도록 묶음
-    };
-    HA.subscribeSlots(allSlots, {
-      onAdded(slot) {
-        if (slot.origin === 'kp') return; // 김프로 자가치유 미러는 목록에서 계속 제외
-        if (allSlots.some(s => s._key === slot._key)) return; // 안전장치(정상 흐름에선 중복 없음)
-        allSlots.push(slot);
-        scheduleRerender();
-      },
-      onChanged(slot) {
-        if (slot.origin === 'kp') return; // 김프로 자가치유 미러는 목록에서 계속 제외(애초에 안 들어있음)
-        const idx = allSlots.findIndex(s => s._key === slot._key);
-        if (idx === -1) allSlots.push(slot); else allSlots[idx] = slot;
-        scheduleRerender();
-      },
-      onRemoved(key) {
-        const idx = allSlots.findIndex(s => s._key === key);
-        if (idx !== -1) allSlots.splice(idx, 1);
-        scheduleRerender();
-      },
-    }).then(unsub => { _slotsUnsub = unsub; });
+    HA.onSlotsChange(fullSlots => {
+      if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
+      allSlots = fullSlots.filter(s => s.origin !== 'kp'); // 김프로 자가치유 미러는 목록에서 계속 제외
+      renderReceipts(false);
+    });
   }
 
   function renderPagination(total) {

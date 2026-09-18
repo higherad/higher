@@ -198,25 +198,15 @@
       if (document.getElementById('settle-page')) renderSettle(false);
     }, 300);
   }
+  // HA.onSlotsChange = ha-store.js가 세션당 리스너 1개만 여는 공유 캐시 구독. 예전엔 HA.subscribeSlots()를
+  // 직접 불러 메뉴 재방문마다(loadPage가 스크립트를 매번 재실행) ha/slots에 리스너가 새로 쌓여 업무시간
+  // 대역폭이 폭증했음(리스너 개수만큼 변경 이벤트가 중복 발동, 2026-09-18 확인) — 공유 캐시로 교체.
+  // 김프로 쪽(_src==='kp')은 이 리스너 대상이 아니므로 그대로 유지하고 ha 부분만 통째로 교체.
   function attachSettleSlotsLiveSync() {
-    HA.subscribeSlots(allSlots.filter(s => s._src !== 'kp'), {
-      onAdded(slot) {
-        if (slot.origin === 'kp') return; // 김프로 자가치유 미러는 계속 제외
-        if (allSlots.some(s => s._key === slot._key)) return;
-        allSlots.push(slot);
-        scheduleSettleRerender();
-      },
-      onChanged(slot) {
-        if (slot.origin === 'kp') return;
-        const idx = allSlots.findIndex(s => s._key === slot._key);
-        if (idx === -1) allSlots.push(slot); else allSlots[idx] = slot;
-        scheduleSettleRerender();
-      },
-      onRemoved(key) {
-        const idx = allSlots.findIndex(s => s._key === key);
-        if (idx !== -1) allSlots.splice(idx, 1);
-        scheduleSettleRerender();
-      },
+    HA.onSlotsChange(fullHaSlots => {
+      const kpPart = allSlots.filter(s => s._src === 'kp');
+      allSlots = [...fullHaSlots.filter(s => s.origin !== 'kp'), ...kpPart];
+      scheduleSettleRerender();
     });
   }
   let filteredRows=[];
