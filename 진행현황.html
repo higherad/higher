@@ -273,8 +273,7 @@
   }
 
   // 종료 30일+ 이전 기록(ha+kp)을 공유 캐시에 합친 뒤 다시 렌더 — 세션당 1회 다운로드
-  window.loadSlotsHistory = async function(btn) {
-    if (btn) { btn.disabled = true; btn.textContent = '불러오는 중…'; }
+  window.loadSlotsHistory = async function() {
     try {
       await Promise.all([HA.loadSlotsArchive(), HA.loadKpSlotsArchive().catch(e => console.error('김프로 이전 기록 로딩 실패:', e))]);
     } catch (e) { console.error('이전 기록 로딩 실패:', e); }
@@ -365,8 +364,7 @@
     if(s>1){ph+=`<button class="pg-btn" onclick="goP(1)">1</button>`;if(s>2)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;}
     for(let i=s;i<=e;i++) ph+=`<button class="pg-btn ${i===page?'active':''}" onclick="goP(${i})">${i}</button>`;
     if(e<pages){if(e<pages-1)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;ph+=`<button class="pg-btn" onclick="goP(${pages})">${pages}</button>`;}
-    ph+=`<button class="pg-btn" onclick="goP(${Math.min(pages,page+1)})">&rsaquo;</button><button class="pg-btn" onclick="goP(${pages})">&raquo;</button>`;
-    if (!HA.slotsArchiveLoaded()) ph+=`<button class="pg-btn" style="width:auto;padding:0 10px" title="종료일 ${HA.SLOTS_CUTOFF} 이전 캠페인" onclick="loadSlotsHistory(this)">이전 기록</button>`;
+    ph+=`<button class="pg-btn" onclick="goP(${Math.min(pages,page+1)})">&rsaquo;</button><button class="pg-btn" onclick="goLastP()">&raquo;</button>`;
     pg.innerHTML = ph;
     const chkAll = document.getElementById('s-check-all');
     if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
@@ -374,6 +372,12 @@
   };
 
   window.goP = n => { page=n; renderSlots(false); };
+  // » = 이전 기록(종료 30일+)까지 불러온 뒤 전체 목록의 마지막 페이지로(세션당 1회 로드)
+  window.goLastP = async function() {
+    if (!HA.slotsArchiveLoaded()) await loadSlotsHistory();
+    page = Math.ceil(getFiltered().length / PER) || 1;
+    renderSlots(false);
+  };
   window.toggleAll = cb => { document.querySelectorAll('.s-check').forEach(c=>c.checked=cb.checked); };
   window.resetFilter = () => {
     document.getElementById('f-status').value='';

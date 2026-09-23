@@ -2735,11 +2735,19 @@ document.addEventListener('keydown', function(e) {
     for (let i=s;i<=e;i++) html += `<button class="kp-pg-btn ${i===currentPage?'active':''}" onclick="kpGoPage(${i})">${i}</button>`;
     if (e<pages) { if (e<pages-1) html+=`<span class="kp-pg-btn" style="pointer-events:none">…</span>`; html+=`<button class="kp-pg-btn" onclick="kpGoPage(${pages})">${pages}</button>`; }
     html += `<button class="kp-pg-btn" onclick="kpGoPage(${Math.min(pages,currentPage+1)})">&rsaquo;</button>
-             <button class="kp-pg-btn" onclick="kpGoPage(${pages})">&raquo;</button>`;
-    if (!HA.kpSlotsArchiveLoaded()) html += `<button class="kp-pg-btn" style="width:auto;padding:0 10px" title="종료일 ${HA.SLOTS_CUTOFF} 이전 캠페인" onclick="this.disabled=true;this.textContent='불러오는 중…';HA.loadKpSlotsArchive()">이전 기록</button>`;
+             <button class="kp-pg-btn" onclick="kpGoLastPage()">&raquo;</button>`;
     pg.innerHTML = html;
   }
   window.kpGoPage = function(n) { currentPage=n; kpRenderReceipts(false); };
+  // » = 이전 기록(종료 30일+)까지 불러온 뒤 전체 목록의 마지막 페이지로(세션당 1회 로드)
+  window.kpGoLastPage = async function() {
+    if (!HA.kpSlotsArchiveLoaded()) {
+      await HA.loadKpSlotsArchive();
+      allSlots = await HA.getKpSlotsLive();
+    }
+    currentPage = Math.ceil(kpGetFiltered().length / PER_PAGE) || 1;
+    kpRenderReceipts(false);
+  };
   window.kpToggleAll = function(cb) { document.querySelectorAll('.kp-row-check').forEach(c => c.checked = cb.checked); };
   // 배분/제출 엔진(별도 스크립트 블록)이 현재 로드된 슬롯 배열에 접근할 수 있도록 노출
   window.getKpAllSlots = () => allSlots;

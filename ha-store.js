@@ -111,7 +111,7 @@ let _liveSlotsNotifyPending = false;
 // 공유 캐시는 "최근" 슬롯만 실시간 구독 — ha/slots·ha/kimproSlots의 90%+가 종료건이라(2026-09-23: 23MB 중
 // 21MB) 세션마다 전체를 받던 것을 줄임. 기준: endDate 없음/빈값 또는 endDate >= 오늘-30일(.indexOn endDate).
 // 그 이전 종료건은 loadSlotsArchive()/loadKpSlotsArchive()로 필요한 화면(정산·회원관리, 목록 검색·날짜필터,
-// 이전 기록 버튼)만 1회 get해 같은 캐시에 합친다. base 경로에 리스너를 붙이면 SDK가 노드 전체를 받으므로
+// 목록 » 마지막 페이지)만 1회 get해 같은 캐시에 합친다. base 경로에 리스너를 붙이면 SDK가 노드 전체를 받으므로
 // (이벤트 종류 무관) 쿼리에만 붙일 것.
 const SLOTS_RECENT_DAYS = 30;
 const SLOTS_CUTOFF = (() => {

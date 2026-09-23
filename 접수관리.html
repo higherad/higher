@@ -823,12 +823,20 @@ window.toggleProdPanel = function(e) {
     }
     if(e<pages){if(e<pages-1)html+=`<span class="pg-btn" style="pointer-events:none">…</span>`;html+=`<button class="pg-btn" onclick="goPage(${pages})">${pages}</button>`;}
     html += `<button class="pg-btn" onclick="goPage(${Math.min(pages,currentPage+1)})">&rsaquo;</button>
-             <button class="pg-btn" onclick="goPage(${pages})">&raquo;</button>`;
-    if (!HA.slotsArchiveLoaded()) html += `<button class="pg-btn" style="width:auto;padding:0 10px" title="종료일 ${HA.SLOTS_CUTOFF} 이전 캠페인" onclick="this.disabled=true;this.textContent='불러오는 중…';HA.loadSlotsArchive()">이전 기록</button>`;
+             <button class="pg-btn" onclick="goLastPage()">&raquo;</button>`;
     pg.innerHTML = html;
   }
 
   window.goPage = function(n) { currentPage=n; renderReceipts(false); };
+  // » = 이전 기록(종료 30일+)까지 불러온 뒤 전체 목록의 마지막 페이지로(세션당 1회 로드)
+  window.goLastPage = async function() {
+    if (!HA.slotsArchiveLoaded()) {
+      await HA.loadSlotsArchive();
+      allSlots = (await HA.getSlotsLive()).filter(s => s.origin !== 'kp');
+    }
+    currentPage = Math.ceil(getFiltered().length / PER_PAGE) || 1;
+    renderReceipts(false);
+  };
 
   window.toggleAll = function(cb) {
     document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
