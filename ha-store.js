@@ -111,7 +111,7 @@ let _liveSlotsNotifyPending = false;
 // 공유 캐시는 "최근" 슬롯만 실시간 구독 — ha/slots·ha/kimproSlots의 90%+가 종료건이라(2026-09-23: 23MB 중
 // 21MB) 세션마다 전체를 받던 것을 줄임. 기준: endDate 없음/빈값 또는 endDate >= 오늘-30일(.indexOn endDate).
 // 그 이전 종료건은 loadSlotsArchive()/loadKpSlotsArchive()로 필요한 화면(정산·회원관리, 목록 검색·날짜필터,
-// 목록 » 마지막 페이지)만 1회 get해 같은 캐시에 합친다. base 경로에 리스너를 붙이면 SDK가 노드 전체를 받으므로
+// 목록 » 마지막 페이지)만 1회 get해 따로 보관, 화면마다 withSlotsArchive로 합친다. base 경로에 리스너를 붙이면 SDK가 노드 전체를 받으므로
 // (이벤트 종류 무관) 쿼리에만 붙일 것.
 const SLOTS_RECENT_DAYS = 30;
 const SLOTS_CUTOFF = (() => {
@@ -174,17 +174,25 @@ function ensureLiveSlots() {
   return _liveSlotsPromise;
 }
 
+// 이전 기록은 공유 캐시(_liveSlots)에 합치지 않고 따로 보관 — 데이터는 세션당 1회만 받되, 보여줄지는
+// 화면(메뉴)마다 따로 정함(withSlotsArchive로 필요한 화면만 합침, 사용자 요청 2026-09-23).
+let _slotsArchive = null;
 let _slotsArchivePromise = null;
 function loadSlotsArchive() {
   if (!_slotsArchivePromise) {
-    _slotsArchivePromise = (async () => {
-      await ensureLiveSlots();
-      const have = new Set(_liveSlots.map(s => s._key));
-      (await getArchivedSlots(PATHS.slots)).forEach(s => { if (!have.has(s._key)) _liveSlots.push(s); });
-      notifyLiveSlots();
-    })().catch(e => { _slotsArchivePromise = null; throw e; });
+    _slotsArchivePromise = getArchivedSlots(PATHS.slots)
+      .then(list => { _slotsArchive = list; notifyLiveSlots(); })
+      .catch(e => { _slotsArchivePromise = null; throw e; });
   }
   return _slotsArchivePromise;
+}
+
+// 최근 배열 + 이전 기록(받아둔 경우만) 병합 — 같은 키면 실시간 쪽 우선, createdAt 내림차순
+function mergeArchive(live, archive) {
+  if (!archive || !archive.length) return live;
+  const have = new Set(live.map(s => s._key));
+  return [...live, ...archive.filter(s => !have.has(s._key))]
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 }
 
 function sortedLiveSlots() {
@@ -230,15 +238,13 @@ function ensureLiveKpSlots() {
   return _liveKpSlotsPromise;
 }
 
+let _kpSlotsArchive = null;
 let _kpSlotsArchivePromise = null;
 function loadKpSlotsArchive() {
   if (!_kpSlotsArchivePromise) {
-    _kpSlotsArchivePromise = (async () => {
-      await ensureLiveKpSlots();
-      const have = new Set(_liveKpSlots.map(s => s._key));
-      (await getArchivedSlots(KP_PATHS.slots)).forEach(s => { if (!have.has(s._key)) _liveKpSlots.push(s); });
-      notifyLiveKpSlots();
-    })().catch(e => { _kpSlotsArchivePromise = null; throw e; });
+    _kpSlotsArchivePromise = getArchivedSlots(KP_PATHS.slots)
+      .then(list => { _kpSlotsArchive = list; notifyLiveKpSlots(); })
+      .catch(e => { _kpSlotsArchivePromise = null; throw e; });
   }
   return _kpSlotsArchivePromise;
 }
@@ -947,12 +953,12 @@ const HA = {
     await ensureLiveSlots();
     return sortedLiveSlots();
   },
-  // 기준일(오늘-30일) 이전 종료건까지 공유 캐시에 합침 — 이후 getSlotsLive/onSlotsChange가 전체를 반환.
-  // 세션당 1회만 다운로드. 정산·회원관리처럼 과거 전체가 필요한 화면, 목록 검색·날짜필터에서 호출.
+  // 기준일(오늘-30일) 이전 종료건 — load*는 세션당 1회 다운로드(공유 캐시엔 안 합침, 끝나면 구독자 notify),
+  // with*Archive(배열)는 받아둔 경우만 최근 배열에 합쳐 반환. 이전 기록을 보여줄 화면만 with*를 씀.
   loadSlotsArchive()   { return loadSlotsArchive(); },
   loadKpSlotsArchive() { return loadKpSlotsArchive(); },
-  slotsArchiveLoaded()   { return !!_slotsArchivePromise; },
-  kpSlotsArchiveLoaded() { return !!_kpSlotsArchivePromise; },
+  withSlotsArchive(slots)   { return mergeArchive(slots, _slotsArchive); },
+  withKpSlotsArchive(slots) { return mergeArchive(slots, _kpSlotsArchive); },
   SLOTS_CUTOFF,
 
   // ════════════════════════════════════════════════════════
@@ -1019,8 +1025,9 @@ const HA = {
       callback(unpaidRows.length);
     }
 
-    const unsubHaSlots = subscribeLiveSlots(slots => { latestHaSlots = slots; notify(); });
-    const unsubKpSlots = subscribeLiveKpSlots(slots => { latestKpSlots = slots; notify(); });
+    // 이전 기록은 이 세션에서 이미 받은 경우에만 포함(정산관리를 열면 정산관리 표와 일치)
+    const unsubHaSlots = subscribeLiveSlots(slots => { latestHaSlots = mergeArchive(slots, _slotsArchive); notify(); });
+    const unsubKpSlots = subscribeLiveKpSlots(slots => { latestKpSlots = mergeArchive(slots, _kpSlotsArchive); notify(); });
     const unsubHaPaid  = onPaidSetChangeShared(set => { latestHaPaid = set; notify(); });
     const unsubKpPaid  = onKpPaidSetChangeShared(set => { latestKpPaid = set; notify(); });
 

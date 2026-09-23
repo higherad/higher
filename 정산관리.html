@@ -206,7 +206,7 @@
     // 이전 기록(종료 30일+) 합친 뒤에만 구독 — 먼저 붙으면 최근 건만으로 정산표가 한 번 그려짐
     HA.loadSlotsArchive().then(() => HA.onSlotsChange(fullHaSlots => {
       const kpPart = allSlots.filter(s => s._src === 'kp');
-      allSlots = [...fullHaSlots.filter(s => s.origin !== 'kp'), ...kpPart];
+      allSlots = [...HA.withSlotsArchive(fullHaSlots).filter(s => s.origin !== 'kp'), ...kpPart];
       scheduleSettleRerender();
     })).catch(e => console.error('정산 실시간 동기화 연결 실패:', e));
   }
@@ -586,9 +586,10 @@
       // 과거 날짜 정산 금액에 종료 30일+ 이전 슬롯도 필요 — 공유 캐시에 이전 기록까지 합친 뒤 읽음(세션당 1회)
       await HA.loadSlotsArchive();
       [haSlots,allUsers,haPaidSet] = await Promise.all([HA.getSlotsLive(),HA.getUsers(),HA.getPaidSet()]);
+      haSlots = HA.withSlotsArchive(haSlots);
       // 슬롯/입금 각각 독립 try/catch — 하나(예: 규칙 누락)만 실패해도 다른 쪽까지 같이 빈 배열로
       // 리셋되던 문제(Promise.all 하나 실패=전체 실패) 재발 방지
-      try { await HA.loadKpSlotsArchive(); kpSlotsRaw = await HA.getKpSlotsLive(); } catch(e) { console.error('김프로 슬롯 로딩 실패:', e); kpSlotsRaw=[]; }
+      try { await HA.loadKpSlotsArchive(); kpSlotsRaw = HA.withKpSlotsArchive(await HA.getKpSlotsLive()); } catch(e) { console.error('김프로 슬롯 로딩 실패:', e); kpSlotsRaw=[]; }
       try { kpPaidSet = await HA.getKpPaidSet(); } catch(e) { console.error('김프로 입금 로딩 실패:', e); kpPaidSet=new Set(); }
       try { haRefundMap = (await HA.getRefunds()) || {}; } catch(e) { haRefundMap={}; }
       try { kpRefundMap = (await HA.getKpRefunds()) || {}; } catch(e) { kpRefundMap={}; }

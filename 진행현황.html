@@ -272,12 +272,19 @@
     document.getElementById('stat-today-target').textContent = todayTarget.toLocaleString();
   }
 
-  // 종료 30일+ 이전 기록(ha+kp)을 공유 캐시에 합친 뒤 다시 렌더 — 세션당 1회 다운로드
-  window.loadSlotsHistory = async function() {
-    try {
-      await Promise.all([HA.loadSlotsArchive(), HA.loadKpSlotsArchive().catch(e => console.error('김프로 이전 기록 로딩 실패:', e))]);
-    } catch (e) { console.error('이전 기록 로딩 실패:', e); }
-    if (document.getElementById('slots-page')) await renderSlots(false, true);
+  // 이전 기록(종료 30일+) 표시 여부 — 이 메뉴에서만 유효(메뉴 재진입 시 스크립트 재실행으로 초기화).
+  // 데이터 자체는 ha-store.js가 세션당 1회만 받아 보관, 여기선 합칠지만 정함
+  let _withArchive = false;
+  let _historyPromise = null; // 로드 중 중복 호출(검색 입력 + » 등)이 같은 완료를 기다리게 공유
+  window.loadSlotsHistory = function() {
+    if (!_historyPromise) _historyPromise = (async () => {
+      try {
+        await Promise.all([HA.loadSlotsArchive(), HA.loadKpSlotsArchive().catch(e => console.error('김프로 이전 기록 로딩 실패:', e))]);
+      } catch (e) { console.error('이전 기록 로딩 실패:', e); }
+      _withArchive = true;
+      if (document.getElementById('slots-page')) await renderSlots(false, true);
+    })();
+    return _historyPromise;
   };
 
   // ── Firebase에서 데이터 불러와서 렌더 ──────────────────────
@@ -288,7 +295,8 @@
       document.getElementById('slots-body').innerHTML =
         '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-      const haSlots = await HA.getSlotsLive();
+      const haLive  = await HA.getSlotsLive();
+      const haSlots = _withArchive ? HA.withSlotsArchive(haLive) : haLive;
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
       // HA.expireSlots로 한 번에 multi-path 쓰기(접수관리.html과 동일). 김프로 슬롯을 합치기 전(ha만
@@ -307,7 +315,8 @@
       let kpSlots = [];
       try {
         const haKeySet = new Set(haSlots.map(s => s._key));
-        kpSlots = (await HA.getKpSlotsLive()).filter(s => !haKeySet.has(s._key)).map(s => ({ ...s, _src:'kp' }));
+        const kpLive = await HA.getKpSlotsLive();
+        kpSlots = (_withArchive ? HA.withKpSlotsArchive(kpLive) : kpLive).filter(s => !haKeySet.has(s._key)).map(s => ({ ...s, _src:'kp' }));
       } catch (e) { console.error('김프로 슬롯 로딩 실패:', e); }
       allSlots = [...haSlots, ...kpSlots];
       _slotsCacheLoaded = true;
@@ -317,9 +326,9 @@
     renderSummary();
     renderExpireSummary();
 
-    // 종료 30일+ 이전 기록은 공유 캐시에 기본으로 없음 — 검색·종료 필터를 쓰면 자동으로 불러와 다시 렌더
+    // 종료 30일+ 이전 기록은 기본 목록에 없음 — 검색·종료 필터를 쓰면 이 메뉴에 불러와 다시 렌더
     const fStatus = document.getElementById('f-status').value;
-    if (!HA.slotsArchiveLoaded() && (document.getElementById('f-kw').value.trim() || ['expired','force_stopped'].includes(fStatus))) {
+    if (!_withArchive && (document.getElementById('f-kw').value.trim() || ['expired','force_stopped'].includes(fStatus))) {
       loadSlotsHistory();
     }
     const all   = getFiltered();
@@ -372,9 +381,9 @@
   };
 
   window.goP = n => { page=n; renderSlots(false); };
-  // » = 이전 기록(종료 30일+)까지 불러온 뒤 전체 목록의 마지막 페이지로(세션당 1회 로드)
+  // » = 이전 기록(종료 30일+)까지 이 메뉴에 불러온 뒤 전체 목록의 마지막 페이지로
   window.goLastP = async function() {
-    if (!HA.slotsArchiveLoaded()) await loadSlotsHistory();
+    await loadSlotsHistory();
     page = Math.ceil(getFiltered().length / PER) || 1;
     renderSlots(false);
   };
@@ -477,10 +486,10 @@
     if (!kpTrashLoaded) {
       try {
         // 종료일이 오래된 캠페인도 최근에 삭제됐을 수 있어 이전 기록까지 합친 캐시에서 찾음(ha 쪽 allSlots도 같이 갱신)
-        if (!HA.slotsArchiveLoaded()) await loadSlotsHistory();
+        await loadSlotsHistory();
         // origin==='ha'(접수관리에서 접수된 캠페인의 김프로 미러)는 하이어애드 탭에서 이미 보이므로 제외
         // — 접수한 메뉴 기준으로 휴지통이 나뉘도록(사용자 요청)
-        kpTrashSlots = (await HA.getKpSlotsLive()).filter(s => s.status === 'deleted' && s.origin !== 'ha');
+        kpTrashSlots = HA.withKpSlotsArchive(await HA.getKpSlotsLive()).filter(s => s.status === 'deleted' && s.origin !== 'ha');
       } catch (e) { console.error('김프로 휴지통 로딩 오류:', e); kpTrashSlots = []; }
       kpTrashLoaded = true;
     }

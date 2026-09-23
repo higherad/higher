@@ -433,6 +433,19 @@ window.toggleProdPanel = function(e) {
   const PER_PAGE   = 20;
   let allSlots     = [];
   let filteredAll  = [];
+  // 이전 기록(종료 30일+) 표시 여부 — 이 메뉴에서만 유효(메뉴 재진입 시 스크립트 재실행으로 초기화).
+  // 데이터 자체는 ha-store.js가 세션당 1회만 받아 보관, 여기선 합칠지만 정함
+  let _withArchive = false;
+  async function listSlots() {
+    const live = await HA.getSlotsLive();
+    return (_withArchive ? HA.withSlotsArchive(live) : live).filter(s => s.origin !== 'kp'); // 김프로 자가치유 미러 제외
+  }
+  async function includeArchive() {
+    if (_withArchive) return;
+    await HA.loadSlotsArchive();
+    _withArchive = true;
+    allSlots = await listSlots();
+  }
   let _slotsLoaded = false;
   let _detailOpen  = false;
   const userPriceMap = new Map(); // userId -> 단가(원/개), 유입플 접수 모달 금액 표시용
@@ -698,7 +711,7 @@ window.toggleProdPanel = function(e) {
       document.getElementById('receipt-body').innerHTML =
         '<tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
       // origin==='kp'는 김프로에서 승인돼 넘어온 자가치유 미러 — 접수관리는 관리 대상이 아니므로 목록에서 제외
-      allSlots = (await HA.getSlotsLive()).filter(s => s.origin !== 'kp');
+      allSlots = await listSlots();
       _slotsLoaded = true;
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
@@ -714,10 +727,10 @@ window.toggleProdPanel = function(e) {
     }
     if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
-    // 종료 30일+ 이전 기록은 공유 캐시에 기본으로 없음 — 검색·날짜 필터를 쓰면 자동으로 불러옴(onSlotsChange가 합쳐 다시 렌더)
-    if (!HA.slotsArchiveLoaded() && (document.getElementById('receipt-search').value.trim()
+    // 종료 30일+ 이전 기록은 기본 목록에 없음 — 검색·날짜 필터를 쓰면 이 메뉴에 불러와 다시 렌더
+    if (!_withArchive && (document.getElementById('receipt-search').value.trim()
         || document.getElementById('filter-date-from').value || document.getElementById('filter-start-date').value)) {
-      HA.loadSlotsArchive().catch(e => console.error('이전 기록 로딩 실패:', e));
+      includeArchive().then(() => renderReceipts(false)).catch(e => console.error('이전 기록 로딩 실패:', e));
     }
     const all      = getFiltered();
     filteredAll    = all;
@@ -806,7 +819,7 @@ window.toggleProdPanel = function(e) {
   function attachSlotsLiveSync() {
     HA.onSlotsChange(fullSlots => {
       if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-      allSlots = fullSlots.filter(s => s.origin !== 'kp'); // 김프로 자가치유 미러는 목록에서 계속 제외
+      allSlots = (_withArchive ? HA.withSlotsArchive(fullSlots) : fullSlots).filter(s => s.origin !== 'kp'); // 김프로 자가치유 미러는 목록에서 계속 제외
       renderReceipts(false);
     });
   }
@@ -828,12 +841,9 @@ window.toggleProdPanel = function(e) {
   }
 
   window.goPage = function(n) { currentPage=n; renderReceipts(false); };
-  // » = 이전 기록(종료 30일+)까지 불러온 뒤 전체 목록의 마지막 페이지로(세션당 1회 로드)
+  // » = 이전 기록(종료 30일+)까지 이 메뉴에 불러온 뒤 전체 목록의 마지막 페이지로
   window.goLastPage = async function() {
-    if (!HA.slotsArchiveLoaded()) {
-      await HA.loadSlotsArchive();
-      allSlots = (await HA.getSlotsLive()).filter(s => s.origin !== 'kp');
-    }
+    await includeArchive();
     currentPage = Math.ceil(getFiltered().length / PER_PAGE) || 1;
     renderReceipts(false);
   };
@@ -2673,9 +2683,8 @@ window.toggleProdPanel = function(e) {
   window.downloadExcelList = async function() {
     const checkedKeys = getCheckedKeys();
     // 선택 없이 목록 전체를 받을 땐 종료 30일+ 이전 기록까지 포함(공유 캐시 기본값엔 없음)
-    if (!checkedKeys.length && !HA.slotsArchiveLoaded()) {
-      await HA.loadSlotsArchive();
-      allSlots = (await HA.getSlotsLive()).filter(s => s.origin !== 'kp');
+    if (!checkedKeys.length && !_withArchive) {
+      await includeArchive();
       filteredAll = getFiltered();
     }
     const filtered = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;

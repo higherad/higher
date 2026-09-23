@@ -378,7 +378,7 @@ async function downloadRankTable() {
     };
     // 기준순위가 같은 MID의 직전 종료건(ended_by_mid)까지 보므로 종료 30일+ 이전 기록 포함(클릭 시 세션당 1회)
     await HA.loadKpSlotsArchive();
-    const slots = await HA.getKpSlotsLive();
+    const slots = HA.withKpSlotsArchive(await HA.getKpSlotsLive());
     const mids = [...new Set(slots.filter(s => s.mid).map(s => s.mid))];
     await window.KpGrade.fetchGradesBatch(mids.filter(mid => !window.KpGrade.cache.has(mid)));
     const midEntries = slots
@@ -2371,6 +2371,19 @@ document.addEventListener('keydown', function(e) {
   let _slotsLoaded = false;
   let _detailOpen  = false;
   let _slotsUnsub  = null;
+  // 이전 기록(종료 30일+) 표시 여부 — 이 메뉴에서만 유효(메뉴 재진입 시 스크립트 재실행으로 초기화).
+  // 데이터 자체는 ha-store.js가 세션당 1회만 받아 보관, 여기선 합칠지만 정함
+  let _withArchive = false;
+  async function kpListSlots() {
+    const live = await HA.getKpSlotsLive();
+    return _withArchive ? HA.withKpSlotsArchive(live) : live;
+  }
+  async function kpIncludeArchive() {
+    if (_withArchive) return;
+    await HA.loadKpSlotsArchive();
+    _withArchive = true;
+    allSlots = await kpListSlots();
+  }
   let dtSortAsc    = null; // 일 목표 정렬: null=미적용(기본), false=내림차순, true=오름차순
   window.kpToggleSort = function() {
     dtSortAsc = dtSortAsc === false ? true : false;
@@ -2604,7 +2617,7 @@ document.addEventListener('keydown', function(e) {
     if (!_slotsLoaded || forceReload) {
       document.getElementById('kp-receipt-body').innerHTML =
         '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>';
-      allSlots = await HA.getKpSlotsLive();
+      allSlots = await kpListSlots();
       _slotsLoaded = true;
       attachKpSlotsLiveSync();
 
@@ -2638,10 +2651,10 @@ document.addEventListener('keydown', function(e) {
     }
 
     if (!document.getElementById('kp-filter-status')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단(접수관리.html과 동일 패턴)
-    // 종료 30일+ 이전 기록은 공유 캐시에 기본으로 없음 — 검색·날짜 필터를 쓰면 자동으로 불러옴(구독이 합쳐 다시 렌더)
-    if (!HA.kpSlotsArchiveLoaded() && (document.getElementById('kp-search').value.trim()
+    // 종료 30일+ 이전 기록은 기본 목록에 없음 — 검색·날짜 필터를 쓰면 이 메뉴에 불러와 다시 렌더
+    if (!_withArchive && (document.getElementById('kp-search').value.trim()
         || document.getElementById('kp-filter-date').value || document.getElementById('kp-filter-start-date').value)) {
-      HA.loadKpSlotsArchive().catch(e => console.error('이전 기록 로딩 실패:', e));
+      kpIncludeArchive().then(() => kpRenderReceipts(false)).catch(e => console.error('이전 기록 로딩 실패:', e));
     }
     const all = kpGetFiltered();
     const pending         = allSlots.filter(s => s.status==='pending' && !s.isRequeue).length;
@@ -2739,12 +2752,9 @@ document.addEventListener('keydown', function(e) {
     pg.innerHTML = html;
   }
   window.kpGoPage = function(n) { currentPage=n; kpRenderReceipts(false); };
-  // » = 이전 기록(종료 30일+)까지 불러온 뒤 전체 목록의 마지막 페이지로(세션당 1회 로드)
+  // » = 이전 기록(종료 30일+)까지 이 메뉴에 불러온 뒤 전체 목록의 마지막 페이지로
   window.kpGoLastPage = async function() {
-    if (!HA.kpSlotsArchiveLoaded()) {
-      await HA.loadKpSlotsArchive();
-      allSlots = await HA.getKpSlotsLive();
-    }
+    await kpIncludeArchive();
     currentPage = Math.ceil(kpGetFiltered().length / PER_PAGE) || 1;
     kpRenderReceipts(false);
   };
@@ -2760,7 +2770,7 @@ document.addEventListener('keydown', function(e) {
     if (_slotsUnsub) return;
     _slotsUnsub = HA.subscribeKpSlotsLive(fullSlots => {
       if (!document.getElementById('kimpro-page')) return; // 다른 메뉴로 이동한 경우 렌더 중단
-      allSlots = fullSlots;
+      allSlots = _withArchive ? HA.withKpSlotsArchive(fullSlots) : fullSlots;
       kpRenderReceipts(false);
     });
   }
@@ -3226,7 +3236,7 @@ document.addEventListener('keydown', function(e) {
   window.kpDownloadExcelList = async function() {
     const checkedKeys = [...document.querySelectorAll('.kp-row-check:checked')].map(c=>c.dataset.key);
     // 선택 없이 목록 전체를 받을 땐 종료 30일+ 이전 기록까지 포함(공유 캐시 기본값엔 없음)
-    if (!checkedKeys.length && !HA.kpSlotsArchiveLoaded()) { await HA.loadKpSlotsArchive(); allSlots = await HA.getKpSlotsLive(); }
+    if (!checkedKeys.length && !_withArchive) await kpIncludeArchive();
     const filtered = checkedKeys.length ? allSlots.filter(s=>checkedKeys.includes(s._key)) : kpGetFiltered();
     if (!filtered.length) { alert('다운로드할 데이터가 없습니다.'); return; }
     kpEnsureXLSX(async () => {
