@@ -714,6 +714,11 @@ window.toggleProdPanel = function(e) {
     }
     if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
+    // 종료 30일+ 이전 기록은 공유 캐시에 기본으로 없음 — 검색·날짜 필터를 쓰면 자동으로 불러옴(onSlotsChange가 합쳐 다시 렌더)
+    if (!HA.slotsArchiveLoaded() && (document.getElementById('receipt-search').value.trim()
+        || document.getElementById('filter-date-from').value || document.getElementById('filter-start-date').value)) {
+      HA.loadSlotsArchive().catch(e => console.error('이전 기록 로딩 실패:', e));
+    }
     const all      = getFiltered();
     filteredAll    = all;
     const pending  = allSlots.filter(s => s.status === 'pending').length;
@@ -819,6 +824,7 @@ window.toggleProdPanel = function(e) {
     if(e<pages){if(e<pages-1)html+=`<span class="pg-btn" style="pointer-events:none">…</span>`;html+=`<button class="pg-btn" onclick="goPage(${pages})">${pages}</button>`;}
     html += `<button class="pg-btn" onclick="goPage(${Math.min(pages,currentPage+1)})">&rsaquo;</button>
              <button class="pg-btn" onclick="goPage(${pages})">&raquo;</button>`;
+    if (!HA.slotsArchiveLoaded()) html += `<button class="pg-btn" style="width:auto;padding:0 10px" title="종료일 ${HA.SLOTS_CUTOFF} 이전 캠페인" onclick="this.disabled=true;this.textContent='불러오는 중…';HA.loadSlotsArchive()">이전 기록</button>`;
     pg.innerHTML = html;
   }
 
@@ -1185,9 +1191,11 @@ window.toggleProdPanel = function(e) {
     const sorted = [...list].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     return sorted.filter((s, i) => i === 0 || s.searchKeyword !== sorted[i - 1].searchKeyword);
   }
-  // 자체 DB(allSlots)만으로 구성하는 키워드 히스토리 — 같은 MID의 다른 슬롯 접수 키워드를 날짜순 반환
-  function localKeywordHistory(mid) {
-    return dedupHistoryByDay(dropUnchangedConsecutive(allSlots.filter(s => s.mid === mid && s.searchKeyword)))
+  // 자체 DB(ha/slots)로 구성하는 키워드 히스토리 — 같은 MID의 다른 슬롯 접수 키워드를 날짜순 반환.
+  // allSlots(공유 캐시)는 종료 30일+ 이전 건이 빠져 있어 mid 쿼리로 전체 이력을 받음(2026-09-23)
+  async function localKeywordHistory(mid) {
+    const sameMid = (await HA.getSlotsByMid(mid)).filter(s => s.origin !== 'kp');
+    return dedupHistoryByDay(dropUnchangedConsecutive(sameMid.filter(s => s.searchKeyword)))
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
   // 김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드라 mid로 직접 조회 가능 — 같은 MID가
@@ -1198,14 +1206,14 @@ window.toggleProdPanel = function(e) {
     const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ searchKeyword: s.searchKeyword, createdAt: s.createdAt }));
     const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => HA.getSlotKwHistory(s._key)));
     const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.keywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
-    return dedupHistoryByDay([...localKeywordHistory(mid), ...crossAppCurrent, ...crossAppChangeHistory])
+    return dedupHistoryByDay([...(await localKeywordHistory(mid)), ...crossAppCurrent, ...crossAppChangeHistory])
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
 
   // 자체 DB 유입플 키워드 히스토리 — 같은 MID의 슬롯 기록+변경 이력(yupflKeywordHistory) 합쳐 날짜순 반환
   // dedupHistoryByDay/dropUnchangedConsecutive 재사용 위해 searchKeyword/createdAt 모양으로 매핑
   async function localYupflKeywordHistory(mid) {
-    const sameMidSlots = allSlots.filter(s => s.mid === mid);
+    const sameMidSlots = (await HA.getSlotsByMid(mid)).filter(s => s.origin !== 'kp');
     const currentHistory = dropUnchangedConsecutive(
       sameMidSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }))
     );
@@ -2654,8 +2662,14 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 엑셀 다운로드 (접수 리스트) ────────────────────────────
-  window.downloadExcelList = function() {
+  window.downloadExcelList = async function() {
     const checkedKeys = getCheckedKeys();
+    // 선택 없이 목록 전체를 받을 땐 종료 30일+ 이전 기록까지 포함(공유 캐시 기본값엔 없음)
+    if (!checkedKeys.length && !HA.slotsArchiveLoaded()) {
+      await HA.loadSlotsArchive();
+      allSlots = (await HA.getSlotsLive()).filter(s => s.origin !== 'kp');
+      filteredAll = getFiltered();
+    }
     const filtered = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
     if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
 

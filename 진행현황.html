@@ -272,6 +272,15 @@
     document.getElementById('stat-today-target').textContent = todayTarget.toLocaleString();
   }
 
+  // 종료 30일+ 이전 기록(ha+kp)을 공유 캐시에 합친 뒤 다시 렌더 — 세션당 1회 다운로드
+  window.loadSlotsHistory = async function(btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '불러오는 중…'; }
+    try {
+      await Promise.all([HA.loadSlotsArchive(), HA.loadKpSlotsArchive().catch(e => console.error('김프로 이전 기록 로딩 실패:', e))]);
+    } catch (e) { console.error('이전 기록 로딩 실패:', e); }
+    if (document.getElementById('slots-page')) await renderSlots(false, true);
+  };
+
   // ── Firebase에서 데이터 불러와서 렌더 ──────────────────────
   window.renderSlots = async function(resetPage = true, forceReload = false) {
     if (resetPage) page = 1;
@@ -309,6 +318,11 @@
     renderSummary();
     renderExpireSummary();
 
+    // 종료 30일+ 이전 기록은 공유 캐시에 기본으로 없음 — 검색·종료 필터를 쓰면 자동으로 불러와 다시 렌더
+    const fStatus = document.getElementById('f-status').value;
+    if (!HA.slotsArchiveLoaded() && (document.getElementById('f-kw').value.trim() || ['expired','force_stopped'].includes(fStatus))) {
+      loadSlotsHistory();
+    }
     const all   = getFiltered();
     document.getElementById('slots-count').textContent = `전체 ${all.length}건`;
     const start = (page-1)*PER;
@@ -352,6 +366,7 @@
     for(let i=s;i<=e;i++) ph+=`<button class="pg-btn ${i===page?'active':''}" onclick="goP(${i})">${i}</button>`;
     if(e<pages){if(e<pages-1)ph+=`<span class="pg-btn" style="pointer-events:none">…</span>`;ph+=`<button class="pg-btn" onclick="goP(${pages})">${pages}</button>`;}
     ph+=`<button class="pg-btn" onclick="goP(${Math.min(pages,page+1)})">&rsaquo;</button><button class="pg-btn" onclick="goP(${pages})">&raquo;</button>`;
+    if (!HA.slotsArchiveLoaded()) ph+=`<button class="pg-btn" style="width:auto;padding:0 10px" title="종료일 ${HA.SLOTS_CUTOFF} 이전 캠페인" onclick="loadSlotsHistory(this)">이전 기록</button>`;
     pg.innerHTML = ph;
     const chkAll = document.getElementById('s-check-all');
     if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
@@ -457,9 +472,11 @@
 
     if (!kpTrashLoaded) {
       try {
+        // 종료일이 오래된 캠페인도 최근에 삭제됐을 수 있어 이전 기록까지 합친 캐시에서 찾음(ha 쪽 allSlots도 같이 갱신)
+        if (!HA.slotsArchiveLoaded()) await loadSlotsHistory();
         // origin==='ha'(접수관리에서 접수된 캠페인의 김프로 미러)는 하이어애드 탭에서 이미 보이므로 제외
         // — 접수한 메뉴 기준으로 휴지통이 나뉘도록(사용자 요청)
-        kpTrashSlots = (await HA.getKpSlots()).filter(s => s.status === 'deleted' && s.origin !== 'ha');
+        kpTrashSlots = (await HA.getKpSlotsLive()).filter(s => s.status === 'deleted' && s.origin !== 'ha');
       } catch (e) { console.error('김프로 휴지통 로딩 오류:', e); kpTrashSlots = []; }
       kpTrashLoaded = true;
     }

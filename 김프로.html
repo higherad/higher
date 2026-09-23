@@ -376,6 +376,8 @@ async function downloadRankTable() {
       if (isNaN(dt)) return '';
       return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
     };
+    // 기준순위가 같은 MID의 직전 종료건(ended_by_mid)까지 보므로 종료 30일+ 이전 기록 포함(클릭 시 세션당 1회)
+    await HA.loadKpSlotsArchive();
     const slots = await HA.getKpSlotsLive();
     const mids = [...new Set(slots.filter(s => s.mid).map(s => s.mid))];
     await window.KpGrade.fetchGradesBatch(mids.filter(mid => !window.KpGrade.cache.has(mid)));
@@ -2636,6 +2638,11 @@ document.addEventListener('keydown', function(e) {
     }
 
     if (!document.getElementById('kp-filter-status')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단(접수관리.html과 동일 패턴)
+    // 종료 30일+ 이전 기록은 공유 캐시에 기본으로 없음 — 검색·날짜 필터를 쓰면 자동으로 불러옴(구독이 합쳐 다시 렌더)
+    if (!HA.kpSlotsArchiveLoaded() && (document.getElementById('kp-search').value.trim()
+        || document.getElementById('kp-filter-date').value || document.getElementById('kp-filter-start-date').value)) {
+      HA.loadKpSlotsArchive().catch(e => console.error('이전 기록 로딩 실패:', e));
+    }
     const all = kpGetFiltered();
     const pending         = allSlots.filter(s => s.status==='pending' && !s.isRequeue).length;
     const accepted        = allSlots.filter(s => s.status==='accepted' && !s.isRequeue).length;
@@ -2729,6 +2736,7 @@ document.addEventListener('keydown', function(e) {
     if (e<pages) { if (e<pages-1) html+=`<span class="kp-pg-btn" style="pointer-events:none">…</span>`; html+=`<button class="kp-pg-btn" onclick="kpGoPage(${pages})">${pages}</button>`; }
     html += `<button class="kp-pg-btn" onclick="kpGoPage(${Math.min(pages,currentPage+1)})">&rsaquo;</button>
              <button class="kp-pg-btn" onclick="kpGoPage(${pages})">&raquo;</button>`;
+    if (!HA.kpSlotsArchiveLoaded()) html += `<button class="kp-pg-btn" style="width:auto;padding:0 10px" title="종료일 ${HA.SLOTS_CUTOFF} 이전 캠페인" onclick="this.disabled=true;this.textContent='불러오는 중…';HA.loadKpSlotsArchive()">이전 기록</button>`;
     pg.innerHTML = html;
   }
   window.kpGoPage = function(n) { currentPage=n; kpRenderReceipts(false); };
@@ -3163,8 +3171,9 @@ document.addEventListener('keydown', function(e) {
       return true;
     });
   }
+  // allSlots(공유 캐시)는 종료 30일+ 이전 건이 빠져 있어 mid 쿼리로 전체 이력을 받음(2026-09-23)
   async function kpLocalKeywordHistory(mid) {
-    const sameMidSlots = allSlots.filter(s => s.mid === mid);
+    const sameMidSlots = await window.HA.getKpSlotsByMid(mid);
     const sortedByCreated = sameMidSlots.filter(s => s.searchKeyword).sort((a,b) => new Date(a.createdAt)-new Date(b.createdAt));
     const currentHistory = sortedByCreated.filter((s,i) => i===0 || s.searchKeyword !== sortedByCreated[i-1].searchKeyword).map(s => ({ keyword:s.searchKeyword, date:s.createdAt }));
     const histDocs = await Promise.all(sameMidSlots.map(s => window.HA.getSlotKwHistory(s._key)));
@@ -3172,7 +3181,7 @@ document.addEventListener('keydown', function(e) {
     return kpDedupHistoryByDay([...currentHistory, ...changeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
   }
   async function kpLocalYupflKeywordHistory(mid) {
-    const sameMidSlots = allSlots.filter(s => s.mid === mid);
+    const sameMidSlots = await window.HA.getKpSlotsByMid(mid);
     const sortedByCreated = sameMidSlots.filter(s => s.yupflKeyword).sort((a,b) => new Date(a.createdAt)-new Date(b.createdAt));
     const currentHistory = sortedByCreated.filter((s,i) => i===0 || s.yupflKeyword !== sortedByCreated[i-1].yupflKeyword).map(s => ({ keyword:s.yupflKeyword, date:s.createdAt }));
     const histDocs = await Promise.all(sameMidSlots.map(s => window.HA.getSlotKwHistory(s._key)));
@@ -3206,8 +3215,10 @@ document.addEventListener('keydown', function(e) {
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
     s.onload = cb; document.head.appendChild(s);
   }
-  window.kpDownloadExcelList = function() {
+  window.kpDownloadExcelList = async function() {
     const checkedKeys = [...document.querySelectorAll('.kp-row-check:checked')].map(c=>c.dataset.key);
+    // 선택 없이 목록 전체를 받을 땐 종료 30일+ 이전 기록까지 포함(공유 캐시 기본값엔 없음)
+    if (!checkedKeys.length && !HA.kpSlotsArchiveLoaded()) { await HA.loadKpSlotsArchive(); allSlots = await HA.getKpSlotsLive(); }
     const filtered = checkedKeys.length ? allSlots.filter(s=>checkedKeys.includes(s._key)) : kpGetFiltered();
     if (!filtered.length) { alert('다운로드할 데이터가 없습니다.'); return; }
     kpEnsureXLSX(async () => {

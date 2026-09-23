@@ -4,7 +4,7 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-import { getDatabase, ref, query, orderByKey, orderByChild, equalTo, startAfter,
+import { getDatabase, ref, query, orderByChild, equalTo, startAt, startAfter, endAt, endBefore,
   set as _set, get as _get, push as _push, update as _update, remove as _remove, onValue as _onValue,
   onChildAdded, onChildChanged, onChildRemoved, goOffline, goOnline }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
@@ -108,21 +108,57 @@ let _liveSlots         = [];  // 최신 배열(참조) — child 콜백이 계�
 const _liveSlotsSubs   = new Set();
 let _liveSlotsNotifyPending = false;
 
-// 컬렉션 전체 1회 로드 + 이후 child 변경 구독. get() 후에 base에 child 리스너를 붙이면 SDK가 base listen
-// 시점에 노드 전체를 한 번 더 받아 세션당 2배 다운로드였음(ha/kimproSlots 13MB·ha/slots 9.5MB 기준 새 세션
-// 하나에 ~46MB, 2026-09-23 프로파일러 실측) — base 리스너를 먼저 붙이고 초기값은 같은 listen을 공유하는
-// onValue(onlyOnce)로 받는다. 추가분은 startAfter(최대 push key) 쿼리 — base가 이미 listen 중이라 추가 다운로드 없음.
+// 공유 캐시는 "최근" 슬롯만 실시간 구독 — ha/slots·ha/kimproSlots의 90%+가 종료건이라(2026-09-23: 23MB 중
+// 21MB) 세션마다 전체를 받던 것을 줄임. 기준: endDate 없음/빈값 또는 endDate >= 오늘-30일(.indexOn endDate).
+// 그 이전 종료건은 loadSlotsArchive()/loadKpSlotsArchive()로 필요한 화면(정산·회원관리, 목록 검색·날짜필터,
+// 이전 기록 버튼)만 1회 get해 같은 캐시에 합친다. base 경로에 리스너를 붙이면 SDK가 노드 전체를 받으므로
+// (이벤트 종류 무관) 쿼리에만 붙일 것.
+const SLOTS_RECENT_DAYS = 30;
+const SLOTS_CUTOFF = (() => {
+  const d = new Date(); d.setDate(d.getDate() - SLOTS_RECENT_DAYS);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+})();
+
+// 두 쿼리(endDate 빈값 / 최근)의 child 이벤트를 합쳐 하나의 컬렉션처럼 전달. 슬롯이 쿼리 사이를 옮겨가면
+// (endDate ''→날짜) 한쪽 removed와 다른 쪽 added가 순서 없이 오므로 키별로 포함된 쿼리 수를 센다.
+// 초기 로드는 child_added를 모으다가 각 쿼리의 onValue(onlyOnce)가 끝나면 완료(같은 listen 공유, 추가 다운로드 없음).
+// ponytail: 세션 도중 endDate가 기준일 이전으로 바뀐 슬롯은 캐시에서 빠짐(이전 기록 로드 전까지) — 드묾.
 async function listenCollection(path, { onAdded, onChanged, onRemoved }) {
   await authReady;
   const base = ref(db, path);
-  onChildChanged(base, snap => onChanged({ ...snap.val(), _key: snap.key }));
-  onChildRemoved(base, snap => onRemoved(snap.key));
-  const snap = await new Promise((resolve, reject) => _onValue(base, resolve, reject, { onlyOnce: true }));
-  const initial = snapToArray(snap);
-  const afterKey = initial.reduce((m, s) => (!m || s._key > m) ? s._key : m, null);
-  onChildAdded(afterKey ? query(base, orderByKey(), startAfter(afterKey)) : base,
-    snap => onAdded({ ...snap.val(), _key: snap.key }));
-  return initial;
+  const queries = [
+    query(base, orderByChild('endDate'), endAt('')),            // null·'' (서버 접수 경로가 ''로 넣을 수 있음)
+    query(base, orderByChild('endDate'), startAt(SLOTS_CUTOFF)),
+  ];
+  const count = new Map();
+  const initial = new Map();
+  let ready = false;
+  const toSlot = snap => ({ ...snap.val(), _key: snap.key });
+  queries.forEach(q => {
+    onChildAdded(q, snap => {
+      const n = count.get(snap.key) || 0;
+      count.set(snap.key, n + 1);
+      if (!ready) initial.set(snap.key, toSlot(snap));
+      else if (n === 0) onAdded(toSlot(snap));
+      else onChanged(toSlot(snap));
+    });
+    onChildChanged(q, snap => { if (!ready) initial.set(snap.key, toSlot(snap)); else onChanged(toSlot(snap)); });
+    onChildRemoved(q, snap => {
+      const n = (count.get(snap.key) || 1) - 1;
+      if (n > 0) { count.set(snap.key, n); return; }
+      count.delete(snap.key);
+      if (!ready) initial.delete(snap.key); else onRemoved(snap.key);
+    });
+  });
+  await Promise.all(queries.map(q => new Promise((resolve, reject) => _onValue(q, resolve, reject, { onlyOnce: true }))));
+  ready = true;
+  return [...initial.values()];
+}
+
+// 기준일 이전 종료건 1회 조회(실시간 아님 — 과거 건은 거의 안 바뀜). null·''은 최근 쿼리 쪽이라 제외.
+async function getArchivedSlots(path) {
+  await authReady;
+  return snapToArray(await _get(query(ref(db, path), orderByChild('endDate'), startAfter(''), endBefore(SLOTS_CUTOFF))));
 }
 
 function ensureLiveSlots() {
@@ -136,6 +172,19 @@ function ensureLiveSlots() {
     })();
   }
   return _liveSlotsPromise;
+}
+
+let _slotsArchivePromise = null;
+function loadSlotsArchive() {
+  if (!_slotsArchivePromise) {
+    _slotsArchivePromise = (async () => {
+      await ensureLiveSlots();
+      const have = new Set(_liveSlots.map(s => s._key));
+      (await getArchivedSlots(PATHS.slots)).forEach(s => { if (!have.has(s._key)) _liveSlots.push(s); });
+      notifyLiveSlots();
+    })().catch(e => { _slotsArchivePromise = null; throw e; });
+  }
+  return _slotsArchivePromise;
 }
 
 function sortedLiveSlots() {
@@ -179,6 +228,19 @@ function ensureLiveKpSlots() {
     })();
   }
   return _liveKpSlotsPromise;
+}
+
+let _kpSlotsArchivePromise = null;
+function loadKpSlotsArchive() {
+  if (!_kpSlotsArchivePromise) {
+    _kpSlotsArchivePromise = (async () => {
+      await ensureLiveKpSlots();
+      const have = new Set(_liveKpSlots.map(s => s._key));
+      (await getArchivedSlots(KP_PATHS.slots)).forEach(s => { if (!have.has(s._key)) _liveKpSlots.push(s); });
+      notifyLiveKpSlots();
+    })().catch(e => { _kpSlotsArchivePromise = null; throw e; });
+  }
+  return _kpSlotsArchivePromise;
 }
 
 function sortedLiveKpSlots() {
@@ -885,6 +947,13 @@ const HA = {
     await ensureLiveSlots();
     return sortedLiveSlots();
   },
+  // 기준일(오늘-30일) 이전 종료건까지 공유 캐시에 합침 — 이후 getSlotsLive/onSlotsChange가 전체를 반환.
+  // 세션당 1회만 다운로드. 정산·회원관리처럼 과거 전체가 필요한 화면, 목록 검색·날짜필터에서 호출.
+  loadSlotsArchive()   { return loadSlotsArchive(); },
+  loadKpSlotsArchive() { return loadKpSlotsArchive(); },
+  slotsArchiveLoaded()   { return !!_slotsArchivePromise; },
+  kpSlotsArchiveLoaded() { return !!_kpSlotsArchivePromise; },
+  SLOTS_CUTOFF,
 
   // ════════════════════════════════════════════════════════
   // 실시간 리스너 (어드민 접수관리 배지 등에 사용)
