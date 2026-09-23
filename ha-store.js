@@ -103,16 +103,32 @@ function dispatch(event) {
 
 // ── 실시간 슬롯 배열 공유 캐시 ────────────────────────────────
 // 여러 구독자(대기/정산 배지 등)가 각자 getSlots()+구독을 따로 하면 초기 로드(5.8MB+)가 중복되므로, 배열 하나를 유지해 방송(broadcast)
-let _liveSlotsPromise = null; // getSlots()+subscribeSlots() 초기 셋업 — 최초 구독자가 1회만 트리거
+let _liveSlotsPromise = null; // listenCollection() 초기 셋업 — 최초 구독자가 1회만 트리거
 let _liveSlots         = [];  // 최신 배열(참조) — child 콜백이 계속 patch
 const _liveSlotsSubs   = new Set();
 let _liveSlotsNotifyPending = false;
 
+// 컬렉션 전체 1회 로드 + 이후 child 변경 구독. get() 후에 base에 child 리스너를 붙이면 SDK가 base listen
+// 시점에 노드 전체를 한 번 더 받아 세션당 2배 다운로드였음(ha/kimproSlots 13MB·ha/slots 9.5MB 기준 새 세션
+// 하나에 ~46MB, 2026-09-23 프로파일러 실측) — base 리스너를 먼저 붙이고 초기값은 같은 listen을 공유하는
+// onValue(onlyOnce)로 받는다. 추가분은 startAfter(최대 push key) 쿼리 — base가 이미 listen 중이라 추가 다운로드 없음.
+async function listenCollection(path, { onAdded, onChanged, onRemoved }) {
+  await authReady;
+  const base = ref(db, path);
+  onChildChanged(base, snap => onChanged({ ...snap.val(), _key: snap.key }));
+  onChildRemoved(base, snap => onRemoved(snap.key));
+  const snap = await new Promise((resolve, reject) => _onValue(base, resolve, reject, { onlyOnce: true }));
+  const initial = snapToArray(snap);
+  const afterKey = initial.reduce((m, s) => (!m || s._key > m) ? s._key : m, null);
+  onChildAdded(afterKey ? query(base, orderByKey(), startAfter(afterKey)) : base,
+    snap => onAdded({ ...snap.val(), _key: snap.key }));
+  return initial;
+}
+
 function ensureLiveSlots() {
   if (!_liveSlotsPromise) {
     _liveSlotsPromise = (async () => {
-      _liveSlots = await HA.getSlots();
-      await HA.subscribeSlots(_liveSlots, {
+      _liveSlots = await listenCollection(PATHS.slots, {
         onAdded(slot)   { if (!_liveSlots.some(s => s._key === slot._key)) { _liveSlots.push(slot); notifyLiveSlots(); } },
         onChanged(slot) { const i = _liveSlots.findIndex(s => s._key === slot._key); if (i === -1) _liveSlots.push(slot); else _liveSlots[i] = slot; notifyLiveSlots(); },
         onRemoved(key)  { const i = _liveSlots.findIndex(s => s._key === key); if (i !== -1) _liveSlots.splice(i, 1); notifyLiveSlots(); },
@@ -155,8 +171,7 @@ let _liveKpSlotsNotifyPending = false;
 function ensureLiveKpSlots() {
   if (!_liveKpSlotsPromise) {
     _liveKpSlotsPromise = (async () => {
-      _liveKpSlots = await HA.getKpSlots();
-      await HA.subscribeKpSlots(_liveKpSlots, {
+      _liveKpSlots = await listenCollection(KP_PATHS.slots, {
         onAdded(slot)   { if (!_liveKpSlots.some(s => s._key === slot._key)) { _liveKpSlots.push(slot); notifyLiveKpSlots(); } },
         onChanged(slot) { const i = _liveKpSlots.findIndex(s => s._key === slot._key); if (i === -1) _liveKpSlots.push(slot); else _liveKpSlots[i] = slot; notifyLiveKpSlots(); },
         onRemoved(key)  { const i = _liveKpSlots.findIndex(s => s._key === key); if (i !== -1) _liveKpSlots.splice(i, 1); notifyLiveKpSlots(); },
@@ -300,17 +315,6 @@ const HA = {
     return snap.exists() ? snap.val() : {};
   },
 
-  // getSlots() 이후 변경분만 child 이벤트로 구독(전체 재전송 방지). currentSlots의 최대 push key 이후만 "추가"로 취급해 기존 데이터 리플레이도 피함
-  async subscribeSlots(currentSlots, { onAdded, onChanged, onRemoved } = {}) {
-    await authReady;
-    const afterKey = (currentSlots || []).reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
-    const base = ref(db, PATHS.slots);
-    const addedRef = afterKey ? query(base, orderByKey(), startAfter(afterKey)) : base;
-    const offAdded   = onChildAdded(addedRef, snap => onAdded   && onAdded({ ...snap.val(), _key: snap.key }));
-    const offChanged = onChildChanged(base,   snap => onChanged && onChanged({ ...snap.val(), _key: snap.key }));
-    const offRemoved = onChildRemoved(base,   snap => onRemoved && onRemoved(snap.key));
-    return () => { offAdded(); offChanged(); offRemoved(); };
-  },
 
   // ── 김프로(kimpro.kro.kr) 기능 데이터 전용 네임스페이스 ──────
   // ha/kimproSlots 등 — 접수관리(ha/slots)와 완전히 분리된 별도 저장소, 김프로.html이 독자 소유(2026-09-10)
@@ -428,17 +432,6 @@ const HA = {
     await remove(ref(db, `${KP_PATHS.slots}/${key}`));
   },
 
-  // getKpSlots() 이후 변경분만 child 단위로 구독(subscribeSlots와 동일 패턴)
-  async subscribeKpSlots(currentSlots, { onAdded, onChanged, onRemoved } = {}) {
-    await authReady;
-    const afterKey = (currentSlots || []).reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
-    const base = ref(db, KP_PATHS.slots);
-    const addedRef = afterKey ? query(base, orderByKey(), startAfter(afterKey)) : base;
-    const offAdded   = onChildAdded(addedRef, snap => onAdded   && onAdded({ ...snap.val(), _key: snap.key }));
-    const offChanged = onChildChanged(base,   snap => onChanged && onChanged({ ...snap.val(), _key: snap.key }));
-    const offRemoved = onChildRemoved(base,   snap => onRemoved && onRemoved(snap.key));
-    return () => { offAdded(); offChanged(); offRemoved(); };
-  },
 
   // 강제종료/키워드변경 처리 목록(ha/kimproBizfitStop, ha/kimproBizfitKeyword) — raw snapshot 반환
   async getKpDoc(path) {

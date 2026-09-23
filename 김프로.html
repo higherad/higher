@@ -2742,23 +2742,16 @@ document.addEventListener('keydown', function(e) {
   window.getKpAllSlots = () => allSlots;
   window.kpGetFilteredForExport = () => kpGetFiltered();
 
+  // HA.subscribeKpSlotsLive = 세션당 리스너 1개 공유 캐시(이미 디바운스·정렬됨). 예전엔 HA.subscribeKpSlots()를
+  // 직접 불러 메뉴 재방문마다(loadPage가 스크립트 재실행 → _slotsUnsub 가드도 초기화) ha/kimproSlots
+  // 리스너가 쌓였음 — 접수관리/정산관리(2026-09-18)와 같은 사고 패턴, 여기만 누락돼 있었음(2026-09-23).
   function attachKpSlotsLiveSync() {
     if (_slotsUnsub) return;
-    let pending = false;
-    const scheduleRerender = () => {
-      if (pending) return;
-      pending = true;
-      setTimeout(() => {
-        pending = false;
-        allSlots.sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
-        kpRenderReceipts(false);
-      }, 300);
-    };
-    HA.subscribeKpSlots(allSlots, {
-      onAdded(slot)   { if (!allSlots.some(s=>s._key===slot._key)) { allSlots.push(slot); scheduleRerender(); } },
-      onChanged(slot) { const i=allSlots.findIndex(s=>s._key===slot._key); if (i===-1) allSlots.push(slot); else allSlots[i]=slot; scheduleRerender(); },
-      onRemoved(key)  { const i=allSlots.findIndex(s=>s._key===key); if (i!==-1) allSlots.splice(i,1); scheduleRerender(); },
-    }).then(unsub => { _slotsUnsub = unsub; });
+    _slotsUnsub = HA.subscribeKpSlotsLive(fullSlots => {
+      if (!document.getElementById('kimpro-page')) return; // 다른 메뉴로 이동한 경우 렌더 중단
+      allSlots = fullSlots;
+      kpRenderReceipts(false);
+    });
   }
 
   function kpCloseModalAndRefresh() {
