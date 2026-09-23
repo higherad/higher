@@ -476,7 +476,6 @@ window.toggleProdPanel = function(e) {
 
   // ── 등급 배지 ────────────────────────────────────────────────
   const GRADE_CACHE = new Map();
-  const GRADE_FB    = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/grades';
 
   // ── 상세 팝업 잠금 (동시 편집 방지) ─────────────────────────
   const LOCK_FB        = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/detail_locks';
@@ -550,26 +549,17 @@ window.toggleProdPanel = function(e) {
   }
 
   async function fetchGrade(mid) {
-    if (GRADE_CACHE.has(mid)) return GRADE_CACHE.get(mid);
-    try {
-      const res  = await fetch(`${GRADE_FB}/${mid}.json`);
-      const data = res.ok ? await res.json() : null;
-      GRADE_CACHE.set(mid, data);
-      return data;
-    } catch {
-      GRADE_CACHE.set(mid, null);
-      return null;
-    }
+    if (!GRADE_CACHE.has(mid)) await fetchGradesBatch([mid]);
+    return GRADE_CACHE.get(mid);
   }
 
-  // 미캐시 MID가 여러 개일 때 mid마다 개별 REST 호출하는 대신 ha/grades 전체를 1회만 받아
-  // 필요한 mid만 캐시에 채운다 (활성 슬롯 수백 건이어도 요청 1건).
+  // ha/grades는 ha-store.js 공유 실시간 캐시(세션당 1회 다운로드, 이후 변경분만)에서 읽어 전체를 채운다.
   async function fetchGradesBatch(mids) {
     if (!mids.length) return;
     try {
-      const res  = await fetch(`${GRADE_FB}.json`);
-      const data = res.ok ? await res.json() : null;
-      mids.forEach(mid => GRADE_CACHE.set(mid, (data && data[mid]) || null));
+      const data = await HA.getGradesOnce();
+      Object.entries(data).forEach(([mid, v]) => GRADE_CACHE.set(mid, v));
+      mids.forEach(mid => { if (!(mid in data)) GRADE_CACHE.set(mid, null); });
     } catch {
       mids.forEach(mid => GRADE_CACHE.set(mid, null));
     }
@@ -1124,12 +1114,7 @@ window.toggleProdPanel = function(e) {
 
   // ha/grades/{mid} 스냅샷 조회 — fetchSheetKeywordByMid/fetchYoupflKeywordByMid 공용
   async function fetchGradeSnapshotVal(mid) {
-    const safeMid = sanitizeFbKey(mid);
-    const { getDatabase, ref, get } = await import(
-      'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-    );
-    const snap = await get(ref(getDatabase(), `ha/grades/${safeMid}`));
-    return snap.exists() ? snap.val() : undefined;
+    return (await HA.getGradesOnce())[sanitizeFbKey(mid)];
   }
 
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──

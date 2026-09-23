@@ -2259,7 +2259,6 @@ document.addEventListener('keydown', function(e) {
 <script>
 (function() {
   const GRADE_CACHE = new Map();
-  const GRADE_FB = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/grades';
   const state = { gradeMatchOn: true };
 
   function parseGradeEntries(data) {
@@ -2268,20 +2267,16 @@ document.addEventListener('keydown', function(e) {
     return Array.isArray(data) ? data : Object.values(data);
   }
   async function fetchGrade(mid) {
-    if (GRADE_CACHE.has(mid)) return GRADE_CACHE.get(mid);
-    try {
-      const res = await fetch(`${GRADE_FB}/${mid}.json`);
-      const data = res.ok ? await res.json() : null;
-      GRADE_CACHE.set(mid, data);
-      return data;
-    } catch { GRADE_CACHE.set(mid, null); return null; }
+    if (!GRADE_CACHE.has(mid)) await fetchGradesBatch([mid]);
+    return GRADE_CACHE.get(mid);
   }
+  // ha/grades는 ha-store.js 공유 실시간 캐시(세션당 1회 다운로드)에서 읽어 전체를 채운다 — 접수관리와 동일.
   async function fetchGradesBatch(mids) {
     if (!mids.length) return;
     try {
-      const res = await fetch(`${GRADE_FB}.json`);
-      const data = res.ok ? await res.json() : null;
-      mids.forEach(mid => GRADE_CACHE.set(mid, (data && data[mid]) || null));
+      const data = await window.HA.getGradesOnce();
+      Object.entries(data).forEach(([mid, v]) => GRADE_CACHE.set(mid, v));
+      mids.forEach(mid => { if (!(mid in data)) GRADE_CACHE.set(mid, null); });
     } catch { mids.forEach(mid => GRADE_CACHE.set(mid, null)); }
   }
   function renderGradeBadgesHtml(data) {
@@ -3003,8 +2998,7 @@ document.addEventListener('keydown', function(e) {
   }
   async function kpFetchGradeSnapshotVal(mid) {
     try {
-      const res = await fetch(`https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/grades/${mid}.json`);
-      return res.ok ? await res.json() : undefined;
+      return (await window.HA.getGradesOnce())[mid];
     } catch { return undefined; }
   }
   async function kpFetchSheetKeywordByMid(mid) {

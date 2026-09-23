@@ -242,6 +242,9 @@ const onProdsChangeShared        = makeValueLiveCache('ha/prodSettings/prods',  
 const onProdGroupsChangeShared   = makeValueLiveCache('ha/prodSettings/groups',       v => v || null);
 const onKpProdsChangeShared      = makeValueLiveCache('ha/kimproProdSettings/prods',  v => v || null);
 const onKpProdGroupsChangeShared = makeValueLiveCache('ha/kimproProdSettings/groups', v => v || null);
+// 등급(ha/grades, ~250KB) — 접수관리/김프로의 GRADE_CACHE가 페이지 스크립트 안에 있어 메뉴 재방문마다
+// 초기화되고, 일괄조회도 요청 MID만 채워 세션당 전체를 6회+ 재다운로드했음(2026-09-23 프로파일러 실측).
+const onGradesChangeShared = makeValueLiveCache('ha/grades', v => v || {});
 
 // ════════════════════════════════════════════════════════════
 const HA = {
@@ -980,6 +983,11 @@ const HA = {
   async getKpScheduleDispatchOnce() {
     return new Promise(resolve => {
       const unsub = onKpScheduleDispatchChangeShared(v => { resolve(v); setTimeout(() => unsub(), 0); });
+    });
+  },
+  async getGradesOnce() {
+    return new Promise(resolve => {
+      const unsub = onGradesChangeShared(v => { resolve(v); setTimeout(() => unsub(), 0); });
     });
   },
 
