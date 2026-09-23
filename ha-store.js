@@ -996,7 +996,12 @@ const HA = {
       return `${yyyy}-${mo}-${dd} ${hh}:${mn}`;
     }
 
-    function notify() {
+    // 네 소스가 모두 한 번씩 도착하기 전엔 계산 안 함 — 슬롯이 입금셋보다 먼저 오면 전부 미정산으로 잡혀
+    // 새로고침 직후 배지가 잠깐 크게(예: 135) 떴다가 줄어듦
+    const ready = new Set();
+    function notify(src) {
+      ready.add(src);
+      if (ready.size < 4) return;
       // 정산관리.html의 isBillableSlot()/allSlots 구성과 동일 기준 — 재접수(isRequeue)는 제외.
       // origin==='kp'(김프로 미러)는 입금이 kimproPaidSlots에만 기록되므로 ha 쪽에서는 빼고(이중계상 방지),
       // 김프로 원본(ha/kimproSlots)은 kimproPaidSlots까지 합쳐 별도 카운트(전엔 통째로 빼서 김프로
@@ -1026,10 +1031,10 @@ const HA = {
     }
 
     // 이전 기록은 이 세션에서 이미 받은 경우에만 포함(정산관리를 열면 정산관리 표와 일치)
-    const unsubHaSlots = subscribeLiveSlots(slots => { latestHaSlots = mergeArchive(slots, _slotsArchive); notify(); });
-    const unsubKpSlots = subscribeLiveKpSlots(slots => { latestKpSlots = mergeArchive(slots, _kpSlotsArchive); notify(); });
-    const unsubHaPaid  = onPaidSetChangeShared(set => { latestHaPaid = set; notify(); });
-    const unsubKpPaid  = onKpPaidSetChangeShared(set => { latestKpPaid = set; notify(); });
+    const unsubHaSlots = subscribeLiveSlots(slots => { latestHaSlots = mergeArchive(slots, _slotsArchive); notify('haSlots'); });
+    const unsubKpSlots = subscribeLiveKpSlots(slots => { latestKpSlots = mergeArchive(slots, _kpSlotsArchive); notify('kpSlots'); });
+    const unsubHaPaid  = onPaidSetChangeShared(set => { latestHaPaid = set; notify('haPaid'); });
+    const unsubKpPaid  = onKpPaidSetChangeShared(set => { latestKpPaid = set; notify('kpPaid'); });
 
     return () => { unsubHaSlots(); unsubKpSlots(); unsubHaPaid(); unsubKpPaid(); };
   },
