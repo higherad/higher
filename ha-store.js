@@ -817,6 +817,18 @@ const HA = {
     await this.updateSlot(key, { status: 'active', ...extra });
   },
 
+  // 접수관리(ha)·김프로(kp) 목록 병합 — 같은 키 사본은 한 번만. 기본은 ha 사본, 김프로 사본이 김프로 전용 상태
+  // (강제종료·임시중단·종료·재접수 등 HA_KP_SHARED_STATUSES 밖, 휴지통 제외)면 김프로 사본을 씀 — 전용 상태는
+  // 반대편으로 동기화되지 않아 ha 사본은 active로 남아서, ha 우선이면 강제종료·임시중단이 진행으로 보임. kp 쪽엔 _src:'kp'
+  mergeHaKp(haSlots, kpSlots) {
+    const kpOwn = new Set(kpSlots.filter(s => s.status && s.status !== 'deleted' && !HA_KP_SHARED_STATUSES.has(s.status)).map(s => s._key));
+    const haKeys = new Set(haSlots.map(s => s._key));
+    return [
+      ...haSlots.filter(s => !kpOwn.has(s._key)),
+      ...kpSlots.filter(s => !haKeys.has(s._key) || kpOwn.has(s._key)).map(s => ({ ...s, _src: 'kp' })),
+    ];
+  },
+
   // 예약 대기분 일괄취소 후 캠페인 종료 — 양쪽 사본을 같이 끝냄('expired'/'ended'는 공유 상태값이 아니라
   // updateSlot/updateKpSlot으론 반대편에 안 넘어가, 사본이 split로 영원히 남았음 — 2026-09-09 애드메이커스 8건).
   // 일수는 "원래 기간 − 남은 항목이 하나도 없는 취소 날짜"로 계산: 완료 항목은 서버가 2일 뒤 지우므로

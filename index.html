@@ -403,9 +403,8 @@
     if (myGen !== navGen) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
     const notices = allNotices.slice(0, 4);
 
-    // 접수관리+김프로 합산 — 승인·예약된 캠페인은 같은 키 사본이 양쪽에 있으므로 한 번만(ha 우선)
-    const haKeys = new Set(haSlots.map(sl => sl._key));
-    const allSlots = [...haSlots, ...kpSlots.filter(sl => !haKeys.has(sl._key))];
+    // 접수관리+김프로 합산 — 같은 캠페인 사본은 한 번만, 강제종료·임시중단 등 김프로 전용 상태는 김프로 사본 기준(HA.mergeHaKp)
+    const allSlots = HA.mergeHaKp(haSlots, kpSlots);
     const todayStr = localYMD(new Date());
     const in3 = new Date(); in3.setDate(in3.getDate() + 3);
     const in3Str = localYMD(in3);
