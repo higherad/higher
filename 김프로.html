@@ -1401,7 +1401,7 @@ window.closeStopModal = function() {
           const alreadyExists = slots.some(x =>
             x.mid === s.mid && x.startDate === tomorrowStr && x.endDate === originalEndDate && x.status !== 'ended'
           );
-          if (remainDays >= 1 && !alreadyExists && await window.HA.claimFlag(`ha/kimproSlots/${s._key}/requeueCreated`)) {
+          if (remainDays >= 1 && !alreadyExists && await window.HA.claimFlag(`ha/claims/requeue/${s._key}`)) {
             // 단가는 원 캠페인 값을 그대로 이어받고, 없으면 addKpSlot이 회원관리(agencyId==username)로 자동 조회
             const newSlot = await window.HA.addKpSlot({
               agencyId:      s.agencyId      || '',
@@ -2639,8 +2639,10 @@ if (!window._kpEscBound) {
           await HA.updateKpSlot(s._key, endPatch);
           s.status = 'ended';
           // 재접수 생성은 원 캠페인에 원자적으로 표시한 쪽만 — 두 창이 동시에 열면 재접수가 2건씩 생겼음(7~8월 13건)
-          if (wasForceStop && s.origEndDate && !s.requeueCreated && await HA.claimFlag(`ha/kimproSlots/${s._key}/requeueCreated`)) {
+          // 선점은 캠페인 밖 경로(ha/claims)에서 — 캠페인 레코드엔 일반 쓰기로 표시만(트랜잭션을 걸면 목록에서 잠깐 사라짐)
+          if (wasForceStop && s.origEndDate && !s.requeueCreated && await HA.claimFlag(`ha/claims/requeue/${s._key}`)) {
             s.requeueCreated = true;
+            await HA.setKpDoc(`ha/kimproSlots/${s._key}/requeueCreated`, true);
             const origEnd = new Date(s.origEndDate);
             const remainDays = Math.round((origEnd - new Date(todayStr)) / 86400000) + 1;
             if (remainDays >= 1) {

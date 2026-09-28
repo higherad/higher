@@ -329,6 +329,9 @@ async function mirrorTrash(path, key, deleting) {
 }
 const TAB_ID = Math.random().toString(36).slice(2); // 이 탭(페이지 로드) 식별 — claimRegisterRows
 const REGISTER_CLAIM_TTL_MS = 10 * 60 * 1000; // 등록은 수 분 안에 끝남 — 실패 후 다른 직원이 너무 오래 막히지 않게
+// 선점 기록 전용 경로 — 캠페인 레코드(ha/slots·ha/kimproSlots) 안에 트랜잭션을 걸면 SDK가 그 경로에 임시 리스너를
+// 붙였다 떼면서 같은 캠페인을 조건 쿼리로 구독 중인 목록 캐시가 흔들려 캠페인이 잠깐 사라짐(2026-09-28 신고)
+const CLAIMS = 'ha/claims';
 const isTrashPatch = patch => patch.status === 'deleted' || ('deletedAt' in patch && patch.deletedAt === null);
 
 // 영구삭제 시 휴지통에 있는 반대편 사본도 같이 지움 — 남겨두면 정산관리 중복제거(같은 키 ha 레코드 존재
@@ -757,11 +760,10 @@ const HA = {
   // 10분 지난 표시는 만료(초기화 후 재접수 등 의도적인 재등록). 선점 못 한 행은 onBlocked로 넘기고 제외.
   async claimRegisterRows(rows, leg, kp = false, onBlocked = () => {}) {
     await authReady;
-    const base = kp ? KP_PATHS.slots : PATHS.slots;
     const keys = [...new Set(rows.map(r => r._slotKey).filter(Boolean))];
     const ok = new Set();
     await Promise.all(keys.map(async k => {
-      const r = await runTransaction(ref(db, `${base}/${k}/registerClaims/${leg}`), cur =>
+      const r = await runTransaction(ref(db, `${CLAIMS}/register/${kp ? 'kp' : 'ha'}/${k}/${leg}`), cur =>
         (cur && cur.tab !== TAB_ID && Date.now() - cur.at < REGISTER_CLAIM_TTL_MS) ? undefined : { tab: TAB_ID, at: Date.now() });
       if (r.committed) ok.add(k);
     }));
@@ -800,7 +802,7 @@ const HA = {
     await authReady;
     const got = [];
     for (const k of keys) {
-      const r = await runTransaction(ref(db, `${PATHS.slots}/${k}/bizfitDeductClaim`),
+      const r = await runTransaction(ref(db, `${CLAIMS}/deduct/${k}`),
         cur => (cur && !force) ? undefined : new Date().toISOString());
       if (!r.committed) { await this.releaseBizfitDeduct(got); return false; }
       got.push(k);
@@ -808,7 +810,7 @@ const HA = {
     return true;
   },
   async releaseBizfitDeduct(keys) {
-    await Promise.all(keys.map(k => set(ref(db, `${PATHS.slots}/${k}/bizfitDeductClaim`), null)));
+    await Promise.all(keys.map(k => set(ref(db, `${CLAIMS}/deduct/${k}`), null)));
   },
 
   async approveSlot(key, extra = {}) {
