@@ -1401,7 +1401,8 @@ window.closeStopModal = function() {
           const alreadyExists = slots.some(x =>
             x.mid === s.mid && x.startDate === tomorrowStr && x.endDate === originalEndDate && x.status !== 'ended'
           );
-          if (remainDays >= 1 && !alreadyExists && await window.HA.claimFlag(`ha/claims/requeue/${s._key}`)) {
+          // !s.requeueCreated — 선점 경로를 ha/claims로 옮기기(9/28) 전 재접수한 캠페인은 새 경로에 기록이 없음
+          if (remainDays >= 1 && !alreadyExists && !s.requeueCreated && await window.HA.claimFlag(`ha/claims/requeue/${s._key}`)) {
             // 단가는 원 캠페인 값을 그대로 이어받고, 없으면 addKpSlot이 회원관리(agencyId==username)로 자동 조회
             const newSlot = await window.HA.addKpSlot({
               agencyId:      s.agencyId      || '',
