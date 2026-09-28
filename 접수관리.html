@@ -2160,11 +2160,17 @@ window.toggleProdPanel = function(e) {
 
   // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐
   // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용)
-  async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount) {
+  async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount, force = false) {
     const targets = slots.filter(s => s && !s.bizfitDeducted);
     if (!targets.length) return true;
     const amount = deductAmount + yupflAmount;
     if (amount <= 0) return true;
+    // 다른 창/중복 호출이 이미 차감 중이면 건너뜀 — 그쪽 결과(성공/실패 표시)가 실시간으로 반영됨
+    const keys = targets.map(s => s._key);
+    if (!(await HA.claimBizfitDeduct(keys, force))) {
+      console.warn('비즈핏 캐시 차감: 다른 창/요청이 이미 처리 중이라 건너뜀', keys);
+      return true;
+    }
     // bizfitDeductAttempted(레거시 슬롯 오탐 방지 마커)를 호출 전에 미리 쓰면 성공 케이스도 배지가 깜빡이므로
     // 성공 시 attempted+deducted를 한 번에, 실패 시만 attempted 단독으로 남긴다
     try {
@@ -2181,9 +2187,11 @@ window.toggleProdPanel = function(e) {
       }
       await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true })));
       targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
+      await HA.releaseBizfitDeduct(keys); // 확실한 실패 — 재시도 가능하게 선점 해제
       console.error('비즈핏 캐시 차감 실패:', targets.map(s => s._key), bizfitUid, amount, res && res.message);
       return false;
     } catch (e) {
+      // 결과 불명(타임아웃 등 — 서버는 차감했을 수 있음): 선점을 유지해 자동 재호출을 막고, 사람이 '재시도'로만 다시 차감
       await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true })));
       targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
       console.error('비즈핏 캐시 차감 오류:', targets.map(s => s._key), bizfitUid, amount, e);
@@ -2192,12 +2200,12 @@ window.toggleProdPanel = function(e) {
   }
 
   // 단건 승인용 — 슬롯 1개짜리 배치로 취급해 settleBizfitCashBatch 재사용(매핑 없어 스킵한 경우도 true)
-  async function settleBizfitCash(slot, fields) {
+  async function settleBizfitCash(slot, fields, force = false) {
     if (!slot) return true;
     await userBizfitUidReady;
     const bizfitUid = userBizfitUidMap.get(slot.userId);
     if (!bizfitUid) return true;
-    return await settleBizfitCashBatch(bizfitUid, [slot], fields.deductAmount || 0, fields.yupflAmount || 0);
+    return await settleBizfitCashBatch(bizfitUid, [slot], fields.deductAmount || 0, fields.yupflAmount || 0, force);
   }
 
   // 승인됐지만 차감 시도(bizfitDeductAttempted)했다 실패한(!bizfitDeducted) 슬롯만 필터 — bizfitDeducted만 보면
@@ -2210,7 +2218,10 @@ window.toggleProdPanel = function(e) {
     if (btn) { btn.disabled = true; btn.textContent = '재시도 중...'; }
     const slot = allSlots.find(s => s._key === key);
     if (!slot) return;
-    await settleBizfitCash(slot, { deductAmount: slot.deductAmount || 0, yupflAmount: slot.yupflAmount || 0 });
+    // 다른 창에서 이미 성공했을 수 있으니 DB 최신값으로 한 번 더 확인 후 차감(재시도는 선점을 덮어씀)
+    const fresh = (await HA.getDoc(`ha/slots/${key}`)).val() || {};
+    if (fresh.bizfitDeducted) { updateLocalSlot(key, { bizfitDeducted: true }); renderReceipts(false); return; }
+    await settleBizfitCash(slot, { deductAmount: slot.deductAmount || 0, yupflAmount: slot.yupflAmount || 0 }, true);
     renderReceipts(false);
   };
 
@@ -4183,7 +4194,10 @@ window.toggleProdPanel = function(e) {
         const retrying = overlay._deductFailures;
         overlay._deductFailures = [];
         for (const g of retrying) {
-          const ok = await settleBizfitCashBatch(g.bizfitUid, g.slots, g.ded, g.yup);
+          // 다른 창에서 이미 차감됐으면 건너뜀(그룹은 한 번에 차감되므로 하나라도 완료면 그룹 전체 완료) — 재시도는 선점을 덮어씀
+          const fresh = await Promise.all(g.slots.map(s => HA.getDoc(`ha/slots/${s._key}`).then(r => r.val() || {})));
+          if (fresh.some(f => f.bizfitDeducted)) { g.slots.forEach(s => updateLocalSlot(s._key, { bizfitDeducted: true })); continue; }
+          const ok = await settleBizfitCashBatch(g.bizfitUid, g.slots, g.ded, g.yup, true);
           if (!ok) overlay._deductFailures.push(g);
         }
         overlay._renderDeductFailures();
@@ -5060,7 +5074,7 @@ window.toggleProdPanel = function(e) {
         if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="키워드 미입력">❌ 키워드 미입력</span>';
       }
     });
-    const validRows = pendingRows.filter(r => !r._kwFail);
+    const { ok: validRows } = await claimRowsForRegister(pendingRows.filter(r => !r._kwFail), 'yupfl');
 
     if (!validRows.length) {
       subEl.innerHTML = '<span style="color:var(--danger);font-weight:600;">전체 유효성 검사 실패 (키워드 미입력)</span>';
@@ -5196,6 +5210,16 @@ window.toggleProdPanel = function(e) {
   // 한 plan(대행사별 rows)을 실제로 비즈핏에 등록 — UI는 손대지 않고 결과 집계만 반환.
   // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유. 같은 BizFit 계정은
   // 동시 요청 시 세션 충돌 위험이 있어 grade 단위는 순차
+  // 같은 캠페인을 다른 창/직원이 동시에 접수하면 비즈핏에 두 번 등록·결제됨 — 선점 못 한 행은 빼고 표시(HA.claimRegisterRows)
+  async function claimRowsForRegister(rows, leg) {
+    let blocked = 0;
+    const ok = await HA.claimRegisterRows(rows, leg, false, r => {
+      blocked++;
+      if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="다른 창 또는 다른 직원이 같은 캠페인을 접수 중입니다">⛔ 다른 창에서 접수 중</span>';
+    });
+    return { ok, blocked };
+  }
+
   async function submitPlanRows(plan, overlay, gate, legKey, adrole) {
     const productVer = productVerFor(legKey);
     let okTotal = 0, failTotal = 0;
@@ -5250,7 +5274,8 @@ window.toggleProdPanel = function(e) {
         }
       });
 
-      const validRows = pendingRows.filter(r => !r._kwFail);
+      const { ok: validRows, blocked } = await claimRowsForRegister(pendingRows.filter(r => !r._kwFail), legKey);
+      failTotal += blocked;
 
       if (!validRows.length) {
         if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--danger);font-size:11px;">전체 유효성 검사 실패 (키워드 초과 또는 일목표 미달)</span>';
@@ -5381,8 +5406,9 @@ window.toggleProdPanel = function(e) {
       if (!pendingRows.length) return;
 
       pendingRows.forEach(r => { if (truncateAndValidateRow(r, scheduleKwSplit)) r._kwFail = true; });
-      const validRows = pendingRows.filter(r => !r._kwFail);
+      const { ok: validRows, blocked } = await claimRowsForRegister(pendingRows.filter(r => !r._kwFail), legKey);
       if (!validRows.length) { failTotal += pendingRows.length; return; }
+      failTotal += blocked;
 
       const account = p.realAg ? await fetchBizfitAccount(p.realAg) : null;
       if (!account) { failTotal += validRows.length; return; }
@@ -6415,27 +6441,12 @@ window.toggleProdPanel = function(e) {
       await fbUpdate('ha', patch);
       targets.forEach(e => { delete _ssEntries[e._key]; });
 
-      const doneDates = [...new Set(
-        Object.values(_ssEntries)
-          .filter(e => e.slotKey === slotKey && e.status === 'done')
-          .map(e => (e.payload?.rowData||[])[0]?.예약일)
-          .filter(Boolean)
-      )].sort();
-      if (src === 'kp') {
-        // 김프로 소유 슬롯(ha/kimproSlots) — 접수관리 자체 allSlots엔 없으므로 HA.updateKpSlot으로만 반영
-        const slotPatch = { status: 'ended', days: doneDates.length };
-        if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-        await HA.updateKpSlot(slotKey, slotPatch);
-      } else {
-        const slotSnap = await fbGet(`ha/slots/${slotKey}`);
-        if (slotSnap.exists()) {
-          const slotPatch = { status: 'expired', days: doneDates.length }; // ha 상태값 체계엔 'ended'가 없음(김프로 쪽 용어) — 접수관리는 'expired'
-          if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-          await HA.updateSlot(slotKey, slotPatch);
-          const s = allSlots.find(x => x._key === slotKey);
-          if (s) Object.assign(s, slotPatch);
-        }
-      }
+      // 양쪽 사본(접수관리 expired / 김프로 ended)을 같이 종료 + 일수·종료일 재계산(HA.endScheduledSlot 참고)
+      const dateOf = e => (e.payload?.rowData||[])[0]?.예약일;
+      const kept = Object.values(_ssEntries).filter(e => e.slotKey === slotKey).map(dateOf);
+      const fields = await HA.endScheduledSlot(slotKey, targets.map(dateOf), kept);
+      const s = allSlots.find(x => x._key === slotKey);
+      if (s && fields) Object.assign(s, fields, { status: 'expired' });
 
       renderSplitScheduleList();
       renderReceipts(false);

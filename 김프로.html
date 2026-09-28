@@ -1401,7 +1401,7 @@ window.closeStopModal = function() {
           const alreadyExists = slots.some(x =>
             x.mid === s.mid && x.startDate === tomorrowStr && x.endDate === originalEndDate && x.status !== 'ended'
           );
-          if (remainDays >= 1 && !alreadyExists) {
+          if (remainDays >= 1 && !alreadyExists && await window.HA.claimFlag(`ha/kimproSlots/${s._key}/requeueCreated`)) {
             // 단가는 원 캠페인 값을 그대로 이어받고, 없으면 addKpSlot이 회원관리(agencyId==username)로 자동 조회
             const newSlot = await window.HA.addKpSlot({
               agencyId:      s.agencyId      || '',
@@ -1659,12 +1659,17 @@ window.closeKwModal = function() {
   document.getElementById('kw-modal').style.display = 'none';
 };
 
-document.addEventListener('keydown', function(e) {
-  if (e.key !== 'Escape') return;
-  if (!window.bsRunning && typeof closeStopModal === 'function') closeStopModal();
-  if (!window.kwRunning && typeof closeKwModal === 'function') closeKwModal();
-  if (typeof closeCrModal === 'function') closeCrModal();
-});
+// SPA가 메뉴 재방문마다 이 스크립트를 다시 실행하므로 리스너는 한 번만 붙이고, 김프로 화면이 아닐 땐 무시
+// (전엔 방문 횟수만큼 쌓여 '실행 중' 알림이 여러 번 뜨고, 다른 메뉴에서 Esc 누르면 없는 요소 접근 오류)
+if (!window._kpEscBound) {
+  window._kpEscBound = true;
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape' || !document.getElementById('kw-modal')) return;
+    if (!window.bsRunning && typeof closeStopModal === 'function') closeStopModal();
+    if (!window.kwRunning && typeof closeKwModal === 'function') closeKwModal();
+    if (typeof closeCrModal === 'function') closeCrModal();
+  });
+}
 
 (function() {
   const SERVER = 'https://macro-3-bizfit-keyword-938928195180.asia-northeast3.run.app';
@@ -2633,7 +2638,9 @@ document.addEventListener('keydown', function(e) {
           const endPatch = wasForceStop ? { status:'ended', endDate:s.forceStoppedAt } : { status:'ended' };
           await HA.updateKpSlot(s._key, endPatch);
           s.status = 'ended';
-          if (wasForceStop && s.origEndDate && !s.requeueCreated) {
+          // 재접수 생성은 원 캠페인에 원자적으로 표시한 쪽만 — 두 창이 동시에 열면 재접수가 2건씩 생겼음(7~8월 13건)
+          if (wasForceStop && s.origEndDate && !s.requeueCreated && await HA.claimFlag(`ha/kimproSlots/${s._key}/requeueCreated`)) {
+            s.requeueCreated = true;
             const origEnd = new Date(s.origEndDate);
             const remainDays = Math.round((origEnd - new Date(todayStr)) / 86400000) + 1;
             if (remainDays >= 1) {
@@ -4984,6 +4991,16 @@ document.addEventListener('keydown', function(e) {
       if (s) Object.assign(s, { status:'split', preScheduleStatus: preStatus });
     }));
   }
+  // 같은 캠페인을 다른 창/직원이 동시에 접수하면 비즈핏에 두 번 등록·결제됨 — 선점 못 한 행은 빼고 표시(HA.claimRegisterRows)
+  async function kpClaimRowsForRegister(rows, leg) {
+    let blocked = 0;
+    const ok = await window.HA.claimRegisterRows(rows, leg, true, r => {
+      blocked++;
+      if (r._statusTd) r._statusTd.innerHTML = '<span style="color:#dc2626;" title="다른 창 또는 다른 직원이 같은 캠페인을 접수 중입니다">⛔ 다른 창에서 접수 중</span>';
+    });
+    return { ok, blocked };
+  }
+
   async function kpSubmitPlanRowsScheduled(plan, legKey, adrole, productVer, schedule) {
     const batchGroupId = `sch_${kpGenId()}`;
     let scheduledCount = 0, failTotal = 0;
@@ -4994,8 +5011,9 @@ document.addEventListener('keydown', function(e) {
       const pendingRows = p.rows.filter(r => !r._normalSubmitted);
       if (!pendingRows.length) return;
       pendingRows.forEach(r => { if (kpTruncateAndValidateRow(r, kpScheduleKwSplit)) r._kwFail = true; });
-      const validRows = pendingRows.filter(r => !r._kwFail);
+      const { ok: validRows, blocked } = await kpClaimRowsForRegister(pendingRows.filter(r => !r._kwFail), legKey);
       if (!validRows.length) { failTotal += pendingRows.length; return; }
+      failTotal += blocked;
       const account = p.realAg ? await kpFetchBizfitAccount(p.realAg) : null;
       if (!account) { failTotal += validRows.length; return; }
       let gi;
@@ -5094,7 +5112,8 @@ document.addEventListener('keydown', function(e) {
         const fail = kpTruncateAndValidateRow(r);
         if (fail) { r._kwFail = true; if (r._statusTd) r._statusTd.innerHTML = `<span style="color:#dc2626;" title="${kpSubEsc(fail.title)}">${fail.label}</span>`; failTotal++; }
       });
-      const validRows = pendingRows.filter(r => !r._kwFail);
+      const { ok: validRows, blocked } = await kpClaimRowsForRegister(pendingRows.filter(r => !r._kwFail), legKey);
+      failTotal += blocked;
       if (!validRows.length) { if (p.msgEl) p.msgEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">전체 유효성 검사 실패 (키워드 초과 또는 일목표 미달)</span>'; await finalizeSlotApprovals(); return; }
       const account = p.realAg ? await kpFetchBizfitAccount(p.realAg) : null;
       if (!account) {
@@ -5185,7 +5204,7 @@ document.addEventListener('keydown', function(e) {
       return;
     }
     pendingRows.forEach(r => { if (!r.workKw) { r._kwFail = true; if (r._statusTd) r._statusTd.innerHTML = '<span style="color:#dc2626;" title="키워드 미입력">❌ 키워드 미입력</span>'; } });
-    const validRows = pendingRows.filter(r=>!r._kwFail);
+    const { ok: validRows } = await kpClaimRowsForRegister(pendingRows.filter(r=>!r._kwFail), 'yupfl');
     if (!validRows.length) {
       subEl.innerHTML = '<span style="color:#dc2626;font-weight:600;">전체 유효성 검사 실패 (키워드 미입력)</span>';
       applyBtn.disabled = true; applyBtn.textContent = '❌ 실패';
@@ -6725,26 +6744,13 @@ document.addEventListener('keydown', function(e) {
       await window.HA.updateKpDoc('ha', patch);
       targets.forEach(e => { delete ssEntries[e._key]; });
 
-      const doneDates = [...new Set(
-        Object.values(ssEntries).filter(e => e.slotKey === slotKey && e.status === 'done')
-          .map(e => (e.payload?.rowData||[])[0]?.예약일).filter(Boolean)
-      )].sort();
-      if (src === 'ha') {
-        // 접수관리 소유 슬롯(ha/slots) — 김프로 쪽 allSlots엔 없으므로 HA.updateSlot으로만 반영.
-        // ha 상태값 체계엔 'ended'가 없음(김프로 쪽 용어) — 접수관리는 'expired'
-        const slotPatch = { status:'expired', days: doneDates.length };
-        if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-        await window.HA.updateSlot(slotKey, slotPatch);
-      } else {
-        const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
-        const s = allSlots.find(x => x._key === slotKey);
-        if (s) {
-          const slotPatch = { status:'ended', days: doneDates.length };
-          if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-          await window.HA.updateKpSlot(slotKey, slotPatch);
-          Object.assign(s, slotPatch);
-        }
-      }
+      // 양쪽 사본(접수관리 expired / 김프로 ended)을 같이 종료 + 일수·종료일 재계산(HA.endScheduledSlot 참고).
+      // 전엔 김프로 목록 캐시에 없는 슬롯(종료 30일+ 등)이면 아예 종료 처리를 건너뛰었음.
+      const dateOf = e => (e.payload?.rowData||[])[0]?.예약일;
+      const kept = Object.values(ssEntries).filter(e => e.slotKey === slotKey).map(dateOf);
+      const fields = await window.HA.endScheduledSlot(slotKey, targets.map(dateOf), kept);
+      const s = (window.getKpAllSlots ? window.getKpAllSlots() : []).find(x => x._key === slotKey);
+      if (s && fields) Object.assign(s, fields, { status: 'ended' });
       renderKpSplitScheduleList();
       if (window.kpRenderReceipts) window.kpRenderReceipts(false);
     } catch(err) {

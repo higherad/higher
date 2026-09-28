@@ -6,7 +6,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
 import { getDatabase, ref, query, orderByChild, equalTo, startAt, startAfter, endAt, endBefore,
   set as _set, get as _get, push as _push, update as _update, remove as _remove, onValue as _onValue,
-  onChildAdded, onChildChanged, onChildRemoved, goOffline, goOnline }
+  onChildAdded, onChildChanged, onChildRemoved, goOffline, goOnline, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, signOut }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
@@ -314,6 +314,30 @@ const onKpProdGroupsChangeShared = makeValueLiveCache('ha/kimproProdSettings/gro
 // 초기화되고, 일괄조회도 요청 MID만 채워 세션당 전체를 6회+ 재다운로드했음(2026-09-23 프로파일러 실측).
 const onGradesChangeShared = makeValueLiveCache('ha/grades', v => v || {});
 
+// 휴지통 이동/복구를 반대편 사본에도 반영 — 상태값 어휘가 달라(ha expired / kp ended 등) 공유 상태값
+// 규칙으로 넘기면 복구 시 사본이 휴지통에 남음. 사본은 자기 원래 상태(originalStatus)로 되돌린다.
+async function mirrorTrash(path, key, deleting) {
+  const snap = await get(ref(db, `${path}/${key}`));
+  if (!snap.exists()) return false;
+  const cur = snap.val();
+  if (deleting) {
+    if (cur.status !== 'deleted') await update(ref(db, `${path}/${key}`), { status: 'deleted', deletedAt: new Date().toISOString(), originalStatus: cur.status || 'pending' });
+  } else if (cur.status === 'deleted') {
+    await update(ref(db, `${path}/${key}`), { status: cur.originalStatus || 'pending', deletedAt: null, originalStatus: null });
+  }
+  return true;
+}
+const TAB_ID = Math.random().toString(36).slice(2); // 이 탭(페이지 로드) 식별 — claimRegisterRows
+const REGISTER_CLAIM_TTL_MS = 10 * 60 * 1000; // 등록은 수 분 안에 끝남 — 실패 후 다른 직원이 너무 오래 막히지 않게
+const isTrashPatch = patch => patch.status === 'deleted' || ('deletedAt' in patch && patch.deletedAt === null);
+
+// 영구삭제 시 휴지통에 있는 반대편 사본도 같이 지움 — 남겨두면 정산관리 중복제거(같은 키 ha 레코드 존재
+// 여부)에 안 걸려 김프로 쪽 삭제 사본이 정산 대상으로 잡힘
+async function removeTrashedMirror(path, key) {
+  const snap = await get(ref(db, `${path}/${key}`));
+  if (snap.exists() && snap.val().status === 'deleted') await remove(ref(db, `${path}/${key}`));
+}
+
 // ════════════════════════════════════════════════════════════
 const HA = {
 
@@ -454,6 +478,8 @@ const HA = {
     // 때만 반영, kp 전용 상태 전환(강제종료→종료 등)은 무시(2026-09-11, 강제종료가 "종료"로 잘못 보이던 버그 수정).
     // 순수 김프로 네이티브 캠페인은 active/split 전환 시점에 ha/slots가 처음 생성됨.
     try {
+      // 사본이 없으면(예전 코드가 삭제 때 사본을 지운 건 등) 복구는 아래 일반 경로로 — 승인 상태면 사본 재생성
+      if (isTrashPatch(patch) && (await mirrorTrash(PATHS.slots, key, patch.status === 'deleted') || patch.status === 'deleted')) return;
       const haSnap = await get(ref(db, `${PATHS.slots}/${key}`));
       if (haSnap.exists()) {
         if (!('status' in patch) || HA_KP_SHARED_STATUSES.has(patch.status)) {
@@ -464,7 +490,8 @@ const HA = {
         if (kpSnap.exists()) {
           const slot = kpSnap.val();
           // 방금 쓴 patch를 위에 덮어씀 — 재조회가 patch 이전 값을 돌려주면 미러가 옛 상태로 굳음(updateSlot과 동일)
-          await set(ref(db, `${PATHS.slots}/${key}`), { ...slot, ...patch, searchKeyword: slot.searchKeyword || '' });
+          // set이 아니라 update — 존재 확인이 틀렸어도(옛 캐시) 반대편 전용 필드를 통째로 지우지 않게
+          await update(ref(db, `${PATHS.slots}/${key}`), { ...slot, ...patch, searchKeyword: slot.searchKeyword || '' });
         }
       }
     } catch (e) { console.error('ha/slots 역방향 동기화 오류:', e); }
@@ -479,16 +506,7 @@ const HA = {
     await update(ref(db, `${KP_PATHS.slots}/${key}`), {
       status: 'deleted', deletedAt: new Date().toISOString(), originalStatus: slot.status || 'pending',
     });
-    // ha/slots 역방향 반영 — updateSlot()의 "ha에서 deleted면 kp 미러 remove"와 대칭되는 방향.
-    // 미러된 캠페인(같은 key)이 있으면 소프트 삭제(ha 자체 삭제와 동일한 방식) 처리.
-    try {
-      const haSnap = await get(ref(db, `${PATHS.slots}/${key}`));
-      if (haSnap.exists()) {
-        await update(ref(db, `${PATHS.slots}/${key}`), {
-          status: 'deleted', deletedAt: new Date().toISOString(), originalStatus: haSnap.val().status || 'pending',
-        });
-      }
-    } catch (e) { console.error('ha/slots 역방향 삭제 동기화 오류:', e); }
+    try { await mirrorTrash(PATHS.slots, key, true); } catch (e) { console.error('ha/slots 역방향 삭제 동기화 오류:', e); }
   },
 
   async restoreKpSlot(key) {
@@ -502,6 +520,7 @@ const HA = {
   // 휴지통 보관기간 만료/수동 영구삭제용 — 되돌릴 수 없음
   async permanentDeleteKpSlot(key) {
     await remove(ref(db, `${KP_PATHS.slots}/${key}`));
+    await removeTrashedMirror(PATHS.slots, key);
   },
 
 
@@ -658,11 +677,12 @@ const HA = {
 
     // ha/kimproSlots 동기화(편도) — 접수관리 승인 시 김프로 어드민 쪽에서도 리스트로 보이게 함.
     try {
+      // 삭제는 김프로 사본도 휴지통으로(전엔 사본을 바로 지워서 복구 시 김프로 쪽 기록이 사라짐)
+      // 사본이 없으면(예전 코드가 삭제 때 사본을 지운 건 등) 복구는 아래 일반 경로로 — 승인 상태면 사본 재생성
+      if (isTrashPatch(patch) && (await mirrorTrash(KP_PATHS.slots, key, patch.status === 'deleted') || patch.status === 'deleted')) return;
       const kpSnap = await get(ref(db, `${KP_PATHS.slots}/${key}`));
       if (kpSnap.exists()) {
-        if (patch.status === 'deleted') {
-          await remove(ref(db, `${KP_PATHS.slots}/${key}`));
-        } else if (!('status' in patch) || HA_KP_SHARED_STATUSES.has(patch.status)) {
+        if (!('status' in patch) || HA_KP_SHARED_STATUSES.has(patch.status)) {
           // 상태값이 없거나 공유 상태값일 때만 필드 반영 — ha 전용 상태 전환은 patch 통째로 무시
           // (kp 전용 상태값으로의 전환은 endDate 등 동반 필드까지 새어나가면 반대편이 오판할 수 있음)
           await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
@@ -675,7 +695,8 @@ const HA = {
           const slot = slotSnap.val();
           // 방금 쓴 patch를 위에 덮어씀 — 재조회가 patch 이전 값을 돌려주면 미러가 옛 상태로 굳음
           // (2026-09-23 [단독]트렌드 예약 13건: 김프로 사본이 split·차감필드 없이 'accepted'로 생성됨)
-          await set(ref(db, `${KP_PATHS.slots}/${key}`), {
+          // set이 아니라 update — 존재 확인이 틀렸어도(옛 캐시) 김프로 전용 필드를 통째로 지우지 않게
+          await update(ref(db, `${KP_PATHS.slots}/${key}`), {
             ...slot,
             ...patch,
             searchKeyword: slot.searchKeyword || '',
@@ -720,11 +741,76 @@ const HA = {
       remove(ref(db, `${PATHS.refunds}/${key}`)),
       remove(ref(db, `${PATHS.slots}/${key}`)),
     ]);
+    await removeTrashedMirror(KP_PATHS.slots, key);
     dispatch('ha:slots:updated');
+  },
+
+  // 값이 비어 있을 때만 true로 세우는 원자적 표시 — 처음 성공한 호출만 true(여러 창이 같은 후속작업을 동시에 하지 않게)
+  async claimFlag(path) {
+    await authReady;
+    const r = await runTransaction(ref(db, path), cur => cur ? undefined : true);
+    return r.committed;
+  },
+
+  // 비즈핏 등록(접수 신청) 선점 — 두 창·두 직원이 같은 캠페인을 같은 상품(leg)으로 동시에 접수하면 비즈핏에
+  // 두 번 등록·결제됨(접수 팝업엔 잠금이 없었음). 슬롯·상품별로 원자적 표시, 같은 탭은 재시도 허용,
+  // 10분 지난 표시는 만료(초기화 후 재접수 등 의도적인 재등록). 선점 못 한 행은 onBlocked로 넘기고 제외.
+  async claimRegisterRows(rows, leg, kp = false, onBlocked = () => {}) {
+    await authReady;
+    const base = kp ? KP_PATHS.slots : PATHS.slots;
+    const keys = [...new Set(rows.map(r => r._slotKey).filter(Boolean))];
+    const ok = new Set();
+    await Promise.all(keys.map(async k => {
+      const r = await runTransaction(ref(db, `${base}/${k}/registerClaims/${leg}`), cur =>
+        (cur && cur.tab !== TAB_ID && Date.now() - cur.at < REGISTER_CLAIM_TTL_MS) ? undefined : { tab: TAB_ID, at: Date.now() });
+      if (r.committed) ok.add(k);
+    }));
+    return rows.filter(r => {
+      if (!r._slotKey || ok.has(r._slotKey)) return true;
+      onBlocked(r);
+      return false;
+    });
+  },
+
+  // 비즈핏 캐시 차감 선점 — 두 창·중복 호출이 같은 슬롯을 두 번 차감하지 않게 슬롯마다 원자적으로 표시
+  // (서버 /bizfit-refund는 받은 요청을 전부 실제 차감함). 하나라도 이미 선점돼 있으면 이번에 잡은 것도
+  // 풀고 false. force는 사람이 '재시도'를 누른 경우 — 결과 불명(타임아웃)으로 남은 선점을 덮어씀.
+  async claimBizfitDeduct(keys, force = false) {
+    await authReady;
+    const got = [];
+    for (const k of keys) {
+      const r = await runTransaction(ref(db, `${PATHS.slots}/${k}/bizfitDeductClaim`),
+        cur => (cur && !force) ? undefined : new Date().toISOString());
+      if (!r.committed) { await this.releaseBizfitDeduct(got); return false; }
+      got.push(k);
+    }
+    return true;
+  },
+  async releaseBizfitDeduct(keys) {
+    await Promise.all(keys.map(k => set(ref(db, `${PATHS.slots}/${k}/bizfitDeductClaim`), null)));
   },
 
   async approveSlot(key, extra = {}) {
     await this.updateSlot(key, { status: 'active', ...extra });
+  },
+
+  // 예약 대기분 일괄취소 후 캠페인 종료 — 양쪽 사본을 같이 끝냄('expired'/'ended'는 공유 상태값이 아니라
+  // updateSlot/updateKpSlot으론 반대편에 안 넘어가, 사본이 split로 영원히 남았음 — 2026-09-09 애드메이커스 8건).
+  // 일수는 "원래 기간 − 남은 항목이 하나도 없는 취소 날짜"로 계산: 완료 항목은 서버가 2일 뒤 지우므로
+  // (scheduled_dispatch TTL) 화면에 남은 완료분으로 세면 일수가 줄어 정산 금액(일목표×일수×단가)이 적게 잡힘.
+  async endScheduledSlot(key, canceledDates, keptDates) {
+    const [haSnap, kpSnap] = await Promise.all([
+      get(ref(db, `${PATHS.slots}/${key}`)), get(ref(db, `${KP_PATHS.slots}/${key}`)),
+    ]);
+    const slot = haSnap.exists() ? haSnap.val() : kpSnap.exists() ? kpSnap.val() : null;
+    if (!slot) return null;
+    const fields = remainingAfterCancel(slot, canceledDates, keptDates);
+    await Promise.all([
+      haSnap.exists() && update(ref(db, `${PATHS.slots}/${key}`), { ...fields, status: 'expired' }),
+      kpSnap.exists() && update(ref(db, `${KP_PATHS.slots}/${key}`), { ...fields, status: 'ended' }),
+    ]);
+    dispatch('ha:slots:updated');
+    return fields;
   },
 
   // 종료일 지난 active 캠페인 일괄 expired 전환 전용 — status-only patch는 updateSlot의 kimpro 분기에서 어차피 아무 것도 안 쓰므로(kimpro는 승인 이후 status 미추적), 그 확인을 생략하고 메인 db만 multi-path update 한 번으로 처리(N개 기준 호출 수 3N → 1)
@@ -1141,6 +1227,25 @@ const HA = {
   },
 
 };
+
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// endScheduledSlot 계산부(순수 함수) — 남은 항목이 있는 날짜는 유지, 대기분만 있다가 전부 취소된 날짜만 뺌
+export function remainingAfterCancel(slot, canceledDates, keptDates) {
+  const keep = new Set(keptDates.filter(Boolean));
+  const cut = new Set(canceledDates.filter(d => d && !keep.has(d)));
+  const dates = [];
+  if (slot.startDate && slot.endDate) {
+    for (const d = new Date(`${slot.startDate}T00:00:00`); ymd(d) <= slot.endDate; d.setDate(d.getDate() + 1)) dates.push(ymd(d));
+  }
+  const left = dates.filter(d => !cut.has(d));
+  return {
+    days: Math.max(0, (Number(slot.days) || dates.length) - cut.size),
+    endDate: left.length ? left[left.length - 1] : (slot.startDate || ''),
+  };
+}
 
 // ── 기본 데이터 ───────────────────────────────────────────────
 function getDefaultNotices() {

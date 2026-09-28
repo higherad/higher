@@ -387,39 +387,29 @@
         try {
           const { getDatabase, ref, get, set, remove } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
           const db = getDatabase();
-          const snapSnap = await get(ref(db, 'ha/settle_snapshots'));
-          if (snapSnap.exists()) {
-            const updates = [];
-            snapSnap.forEach(node => {
-              const k = node.key;
-              const v = node.val();
-              // 구 agencyId + userId 패턴 매칭
-              if (k.includes(`__${safe(oldAgency)}__${safe(username)}`)) {
-                const newKey = k.replace(`__${safe(oldAgency)}__${safe(username)}`, `__${safe(agencyVal)}__${safe(username)}`);
-                updates.push({ oldPath: `ha/settle_snapshots/${k}`, newPath: `ha/settle_snapshots/${newKey}`, val: { ...v, agencyId: agencyVal } });
+          // 김프로 쪽(ha/kimproSettleSnapshots·ha/kimproRefunds)은 그룹 키의 유저 자리가 '__kimpro__' 고정 —
+          // 전엔 접수관리 쪽만 옮겨서, 대행사명을 바꾸면 김프로 과거 정산 스냅샷이 끊겨 현재값으로 다시 고정됐음
+          const targets = [
+            ['ha/settle_snapshots', username, true], ['ha/refunds', username, false],
+            ['ha/kimproSettleSnapshots', '__kimpro__', true], ['ha/kimproRefunds', '__kimpro__', false],
+          ];
+          for (const [path, userPart, isSnap] of targets) {
+            const snap = await get(ref(db, path));
+            if (!snap.exists()) continue;
+            // 정산관리 키 생성과 같은 치환 규칙 — 스냅샷은 '/'까지 바꾸고(safe2), 환불은 안 바꿈(refundKey)
+            const k = v => (v||'').replace(isSnap ? /[.#$[\]/]/g : /[.#$[\]]/g, '_');
+            const from = `__${k(oldAgency)}__${k(userPart)}`, to = `__${k(agencyVal)}__${k(userPart)}`;
+            const moves = [];
+            snap.forEach(node => {
+              if (node.key.includes(from)) {
+                const v = node.val();
+                moves.push({ oldPath: `${path}/${node.key}`, newPath: `${path}/${node.key.replace(from, to)}`, val: isSnap ? { ...v, agencyId: agencyVal } : v });
               }
             });
-            for (const u of updates) {
+            for (const u of moves) {
               await set(ref(db, u.newPath), u.val);
               await remove(ref(db, u.oldPath));
-              console.log(`스냅샷 키 이전: ${u.oldPath} → ${u.newPath}`);
-            }
-          }
-          // 환불 키도 이전
-          const refundSnap = await get(ref(db, 'ha/refunds'));
-          if (refundSnap.exists()) {
-            const rUpdates = [];
-            refundSnap.forEach(node => {
-              const k = node.key;
-              if (k.includes(`__${safe(oldAgency)}__${safe(username)}`)) {
-                const newKey = k.replace(`__${safe(oldAgency)}__${safe(username)}`, `__${safe(agencyVal)}__${safe(username)}`);
-                rUpdates.push({ oldPath: `ha/refunds/${k}`, newPath: `ha/refunds/${newKey}`, val: node.val() });
-              }
-            });
-            for (const u of rUpdates) {
-              await set(ref(db, u.newPath), u.val);
-              await remove(ref(db, u.oldPath));
-              console.log(`환불 키 이전: ${u.oldPath} → ${u.newPath}`);
+              console.log(`키 이전: ${u.oldPath} → ${u.newPath}`);
             }
           }
         } catch(e) { console.error('키 이전 오류:', e); }
