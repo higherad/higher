@@ -279,8 +279,8 @@
   // 이전 기록(종료 30일+) 표시 여부 — 이 메뉴에서만 유효(메뉴 재진입 시 스크립트 재실행으로 초기화).
   // 데이터 자체는 ha-store.js가 세션당 1회만 받아 보관, 여기선 합칠지만 정함
   let _withArchive = false;
-  let _historyPromise = null;
-  let _historyAlerted = false; // 로드 중 중복 호출(검색 입력 + » 등)이 같은 완료를 기다리게 공유
+  let _historyPromise = null; // 로드 중 중복 호출(검색 입력 + » 등)이 같은 완료를 기다리게 공유
+  let _historyAlerted = false;
   window.loadSlotsHistory = function() {
     if (!_historyPromise) _historyPromise = (async () => {
       try {
