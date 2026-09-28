@@ -772,6 +772,27 @@ const HA = {
     });
   },
 
+  // 정산 충전 선점 — 두 직원이 같은 정산 행을 동시에 충전하면 비즈핏에 두 번 충전됨(서버 충전 API는 멱등성 없음).
+  // 행 키마다 ha/charge_claims/{key}를 원자적으로 표시(10분 만료, 같은 탭 재시도 허용), 하나라도 다른 사람이
+  // 잡고 있으면 이번에 잡은 것도 풀고 {ok:false, by} 반환
+  async claimCharge(keys, by = '') {
+    await authReady;
+    const got = [];
+    let holder = null;
+    for (const k of keys) {
+      const r = await runTransaction(ref(db, `ha/charge_claims/${k}`), cur => {
+        if (cur && cur.tab !== TAB_ID && Date.now() - cur.at < REGISTER_CLAIM_TTL_MS) { holder = cur.by; return; }
+        return { tab: TAB_ID, at: Date.now(), by };
+      });
+      if (!r.committed) { await this.releaseCharge(got); return { ok: false, by: holder }; }
+      got.push(k);
+    }
+    return { ok: true };
+  },
+  async releaseCharge(keys) {
+    await Promise.all(keys.map(k => set(ref(db, `ha/charge_claims/${k}`), null)));
+  },
+
   // 비즈핏 캐시 차감 선점 — 두 창·중복 호출이 같은 슬롯을 두 번 차감하지 않게 슬롯마다 원자적으로 표시
   // (서버 /bizfit-refund는 받은 요청을 전부 실제 차감함). 하나라도 이미 선점돼 있으면 이번에 잡은 것도
   // 풀고 false. force는 사람이 '재시도'를 누른 경우 — 결과 불명(타임아웃)으로 남은 선점을 덮어씀.

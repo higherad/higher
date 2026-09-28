@@ -949,6 +949,10 @@
     await dispatchSaveSnapshot(snapKey,userId,snap,true);
   }
 
+  // 충전 선점 키(ha/charge_claims) — 정산 행(접수 분 단위 시각+대행사+유저) 단위, RTDB 키 금지 문자 치환
+  const chargeKey=(t,a,u)=>`${t}__${a}__${u}`.replace(/[.#$[\]/]/g,'_');
+  const chargeStaffName=()=>{const u=HA.getCurrentUser?.();return u?(u.name||u.username||''):'';};
+
   window.openChargeAmountModal=function(timeKey,agencyId,userId,snapKey,snap){
     const existing=document.getElementById('charge-amount-modal');
     if(existing) existing.remove();
@@ -992,8 +996,17 @@
       // 처리 중엔 입력창을 비활성화(금액은 계속 보이도록)하여 중복 클릭·수정 방지
       input.disabled=true;confirmBtn.disabled=true;doneBtn.disabled=true;cancelBtn.disabled=true;
       confirmBtn.textContent='⏳ 처리 중...';statusEl.style.display='none';
+      // 다른 직원이 같은 행을 충전 중이면 중단(두 번 충전 방지)
+      const claimKeys=[chargeKey(timeKey,agencyId,userId)];
+      const claim=await HA.claimCharge(claimKeys,chargeStaffName());
+      if(!claim.ok){
+        statusEl.style.display='block';statusEl.textContent=`⛔ ${claim.by||'다른 직원'}님이 이 항목을 충전 중입니다.`;
+        input.disabled=false;doneBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전';
+        return;
+      }
       const {ok,unknown,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
       if(!ok){
+        if(!unknown) await HA.releaseCharge(claimKeys); // 확실한 실패만 선점 해제 — 결과 불명이면 유지해 재충전 차단
         statusEl.style.display='block';statusEl.textContent=`❌ ${resultMsg}`;
         input.disabled=false;confirmBtn.disabled=false;doneBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전';
         // 결과 불명이면 '충전' 재클릭을 막음 — 비즈핏에서 확인 후 '완료'(기록만) 또는 창을 다시 열어 진행
@@ -1411,9 +1424,17 @@
         cell.innerHTML=badge('#fee2e2','#991b1b','❌ 일부 항목 이미 충전됨 (충전 담당자 확인 필요)');
         continue;
       }
+      // 다른 직원이 같은 대행사 행을 충전 중이면 건너뜀(두 번 충전 방지)
+      const claimKeys=rowsData.map(r=>chargeKey(r.timeKey,r.agencyId,r.userId));
+      const claim=await HA.claimCharge(claimKeys,chargeStaffName());
+      if(!claim.ok){
+        cell.innerHTML=badge('#fee2e2','#991b1b',`⛔ ${claim.by||'다른 직원'}님이 충전 중`);
+        continue;
+      }
       cell.innerHTML=badge('#dbeafe','#1d4ed8',`⏳ 충전 중... ${amount.toLocaleString()}원`);
-      const {ok,noAccount,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
+      const {ok,unknown,noAccount,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
       if(!ok){
+        if(!unknown) await HA.releaseCharge(claimKeys); // 확실한 실패만 선점 해제
         cell.innerHTML=noAccount?badge('#fef9c3','#854d0e','⚠️ 계정 정보 미등록'):badge('#fee2e2','#991b1b',`❌ ${resultMsg}`);
         continue;
       }
