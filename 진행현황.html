@@ -279,7 +279,8 @@
   // 이전 기록(종료 30일+) 표시 여부 — 이 메뉴에서만 유효(메뉴 재진입 시 스크립트 재실행으로 초기화).
   // 데이터 자체는 ha-store.js가 세션당 1회만 받아 보관, 여기선 합칠지만 정함
   let _withArchive = false;
-  let _historyPromise = null; // 로드 중 중복 호출(검색 입력 + » 등)이 같은 완료를 기다리게 공유
+  let _historyPromise = null;
+  let _historyAlerted = false; // 로드 중 중복 호출(검색 입력 + » 등)이 같은 완료를 기다리게 공유
   window.loadSlotsHistory = function() {
     if (!_historyPromise) _historyPromise = (async () => {
       try {
@@ -288,6 +289,8 @@
         // 실패하면 다음 검색·» 클릭 때 다시 시도(전엔 한 번 실패하면 메뉴 재진입 전까지 재시도 안 함)
         console.error('이전 기록 로딩 실패:', e);
         _historyPromise = null;
+        // 검색 입력마다 재시도하므로 팝업은 메뉴 진입당 한 번만
+        if (!_historyAlerted) { _historyAlerted = true; alert('캠페인 데이터 일부를 불러오지 못했습니다. 새로고침해 주세요.'); }
         return;
       }
       _withArchive = true;
