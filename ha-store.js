@@ -956,7 +956,6 @@ const HA = {
       content: data.content || '',
       author:  'admin',
       date:    new Date().toISOString().replace('T', ' ').slice(0, 19),
-      views:   0,
       pinned:  !!data.pinned,
     };
     const newRef = await push(ref(db, PATHS.notices), n);
