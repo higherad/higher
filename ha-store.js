@@ -809,6 +809,10 @@ const HA = {
       haSnap.exists() && update(ref(db, `${PATHS.slots}/${key}`), { ...fields, status: 'expired' }),
       kpSnap.exists() && update(ref(db, `${KP_PATHS.slots}/${key}`), { ...fields, status: 'ended' }),
     ]);
+    // 정산관리에서 이미 금액이 고정된(입금확인 등) 묶음이면 줄어든 일수만큼 고정 금액도 같이 줄임 —
+    // 안 그러면 취소해도 고정 금액이 그대로 남음(9/18 애드메이커스 63,000원, 사용자 요청으로 0원 처리 2026-09-28)
+    const kpGroup = slot.origin === 'kp' || !haSnap.exists(); // 정산관리 dedupeKpSlots와 같은 기준
+    await shrinkSettleSnapshot(kpGroup ? kpSnap.val() : haSnap.val(), fields.days, kpGroup);
     dispatch('ha:slots:updated');
     return fields;
   },
@@ -1230,6 +1234,25 @@ const HA = {
 
 function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 정산 스냅샷 키 = 정산관리 그룹 키(접수 분 단위 시각__대행사__유저, 김프로는 유저 자리 '__kimpro__')
+async function shrinkSettleSnapshot(slot, newDays, kpGroup) {
+  const lostDays = (Number(slot.days) || 0) - newDays;
+  if (lostDays <= 0 || !slot.createdAt) return;
+  const d = new Date(slot.createdAt);
+  const timeKey = `${ymd(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const safe = v => String(v || '').replace(/[.#$[\]/]/g, '_');
+  const path = `${kpGroup ? KP_PATHS.settleSnapshots : PATHS.settleSnapshots}/${safe(timeKey)}__${safe(slot.agencyId)}__${safe(kpGroup ? '__kimpro__' : slot.userId)}`;
+  const snap = await get(ref(db, path));
+  if (!snap.exists()) return;
+  const cur = snap.val();
+  const lostTarget = (Number(slot.dailyTarget) || 0) * lostDays;
+  const price = Number(slot.unitPrice) || Number(cur.unitPrice) || 0;
+  await update(ref(db, path), {
+    totalTarget: Math.max(0, (cur.totalTarget || 0) - lostTarget),
+    amount: (cur.amount || 0) - lostTarget * price,
+  });
 }
 
 // endScheduledSlot 계산부(순수 함수) — 남은 항목이 있는 날짜는 유지, 대기분만 있다가 전부 취소된 날짜만 뺌
