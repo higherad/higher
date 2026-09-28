@@ -1111,7 +1111,7 @@ const HA = {
       const haKeySet = new Set(latestHaSlots.map(s => s._key));
       // 김프로 슬롯은 userId가 항상 빈 값이라 접수관리 쪽 그룹 키와 안 겹치게 출처 태그를 섞어 넣음
       const kpSlots = latestKpSlots
-        .filter(s => (s.origin === 'kp' || !haKeySet.has(s._key)) && !s.isRequeue)
+        .filter(s => (s.origin === 'kp' || !haKeySet.has(s._key)) && !s.isRequeue && s.status !== 'deleted') // 정산관리 isBillableSlot과 동일 — 휴지통 제외
         .map(s => ({ ...s, userId: `kp:${s.userId || '-'}` }));
       const base = [
         ...latestHaSlots.filter(s => !s.isRequeue && s.origin !== 'kp' && ['active','accepted','expired','pending','split'].includes(s.status)),
