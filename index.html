@@ -394,31 +394,41 @@
     const area = document.getElementById('content-area');
     area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>';
 
-    const [allNotices, allUsers, allSlots] = await Promise.all([
+    const [allNotices, allUsers, haSlots, kpSlots] = await Promise.all([
       HA.getNotices(),
       HA.getUsers(),
       HA.getSlotsLive(),
+      HA.getKpSlotsLive().catch(() => []),
     ]);
     if (myGen !== navGen) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-    const s = HA.getDashboardStats(allSlots);
     const notices = allNotices.slice(0, 4);
 
+    // 접수관리+김프로 합산 — 승인·예약된 캠페인은 같은 키 사본이 양쪽에 있으므로 한 번만(ha 우선)
+    const haKeys = new Set(haSlots.map(sl => sl._key));
+    const allSlots = [...haSlots, ...kpSlots.filter(sl => !haKeys.has(sl._key))];
+    const todayStr = localYMD(new Date());
+    const in3 = new Date(); in3.setDate(in3.getDate() + 3);
+    const in3Str = localYMD(in3);
+
     const agencies = allUsers.filter(u => u.approved !== false).length;
-    const { activeAgencyIds, totalTarget, pendingCount, acceptedCount } = allSlots.reduce((acc, sl) => {
-      if (sl.status === 'active') { acc.activeAgencyIds.add(sl.agencyId); acc.totalTarget += (sl.dailyTarget||0); }
+    const { activeAgencyIds, activeSlots, totalTarget, expiringSoon, pendingCount, acceptedCount } = allSlots.reduce((acc, sl) => {
+      if (isRunningSlot(sl, todayStr)) {
+        acc.activeAgencyIds.add(sl.agencyId); acc.activeSlots++; acc.totalTarget += (sl.dailyTarget||0);
+        if (sl.endDate && sl.endDate >= todayStr && sl.endDate <= in3Str) acc.expiringSoon++;
+      }
       else if (sl.status === 'pending')  acc.pendingCount++;
       else if (sl.status === 'accepted') acc.acceptedCount++;
       return acc;
-    }, { activeAgencyIds:new Set(), totalTarget:0, pendingCount:0, acceptedCount:0 });
+    }, { activeAgencyIds:new Set(), activeSlots:0, totalTarget:0, expiringSoon:0, pendingCount:0, acceptedCount:0 });
     const activeAgencies = activeAgencyIds.size;
 
     area.innerHTML = `
       <div class="stat-grid" style="grid-template-columns:repeat(7,1fr)">
         <div class="stat-card c-info"><div class="stat-label">영업점</div><div class="stat-value">${agencies}<span class="stat-unit">곳</span></div></div>
         <div class="stat-card c-green"><div class="stat-label">진행중 영업점</div><div class="stat-value">${activeAgencies}<span class="stat-unit">곳</span></div></div>
-        <div class="stat-card c-green"><div class="stat-label">진행중 캠페인</div><div class="stat-value">${s.activeSlots}<span class="stat-unit">개</span></div></div>
+        <div class="stat-card c-green"><div class="stat-label">진행중 캠페인</div><div class="stat-value">${activeSlots}<span class="stat-unit">개</span></div></div>
         <div class="stat-card c-green"><div class="stat-label">진행중 일 목표</div><div class="stat-value">${totalTarget.toLocaleString()}<span class="stat-unit">개</span></div></div>
-        <div class="stat-card c-warn"><div class="stat-label">종료 예정(3일)</div><div class="stat-value">${s.expiringSoon}<span class="stat-unit">건</span></div></div>
+        <div class="stat-card c-warn"><div class="stat-label">종료 예정(3일)</div><div class="stat-value">${expiringSoon}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-info"><div class="stat-label">대기</div><div class="stat-value">${pendingCount}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-info"><div class="stat-label">접수</div><div class="stat-value">${acceptedCount}<span class="stat-unit">건</span></div></div>
       </div>
@@ -478,15 +488,23 @@
     });
   };
 
+  function localYMD(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  // 진행중 = 승인(active) 또는 예약 등록 중(split — 캐시 차감 후 매일 등록이 나가는 중)이면서 시작일이 지난 캠페인.
+  // 예약 접수가 대부분이라 active만 세면 진행중 카드·종료예정·순위분포가 크게 빠짐
+  function isRunningSlot(sl, todayStr) {
+    return (sl.status === 'active' || sl.status === 'split') && (sl.startDate || '') <= todayStr;
+  }
+
   // 순위조회.html '5일' 탭과 동일한 GAS 소스 — 어드민(ha/slots)에 없는 상품도 포함된 전체 순위 집계
   const RANK_CHANGE_GAS_URL = 'https://script.google.com/macros/s/AKfycbxyFuM-npYQ_Rkgezgl6LqfhUCCdc3mff07ESh88VxE2nTqYeR5j1JriyY8mTRdSH_a/exec';
   const RANK_FLOOR = 301; // 5일 데이터에서 '-'(300위 밖/미확인)는 권외로 취급
 
   async function fetchRankDistribution(allSlots) {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = localYMD(new Date());
     const running = allSlots.filter(s =>
-      s.status === 'active' && s.mid && s.rankKeyword &&
-      s.startDate <= todayStr && s.endDate >= todayStr
+      isRunningSlot(s, todayStr) && s.mid && s.rankKeyword && s.endDate >= todayStr
     );
     const adminMids = new Set(running.map(s => s.mid));
 

@@ -1031,29 +1031,6 @@ const HA = {
   // 대시보드 집계
   // ════════════════════════════════════════════════════════
 
-  // slots: 호출부가 이미 가진 getSlots() 결과 — 여기서 다시 받으면 ha/slots(5.8MB+)가 이중 다운로드됨.
-  getDashboardStats(slots) {
-    const today  = new Date(); today.setHours(0,0,0,0);
-    const in3    = new Date(today); in3.setDate(today.getDate() + 3);
-
-    const active   = slots.filter(s => s.status === 'active');
-    const pending  = slots.filter(s => s.status === 'pending');
-    const rejected = slots.filter(s => s.status === 'rejected');
-    const expiring = active.filter(s => {
-      const d = new Date(s.endDate);
-      return d <= in3 && d >= today;
-    });
-    const agencySet = new Set(active.map(s => s.agencyId));
-
-    return {
-      activeAgencies: agencySet.size,
-      activeSlots:    active.length,
-      expiringSoon:   expiring.length,
-      pending:        pending.length,
-      rejected:       rejected.length,
-    };
-  },
-
   // 공유 캐시(ensureLiveSlots) 경유 — getSlots()와 인터페이스는 같지만 세션 내 최초 호출자만 ha/slots(6MB+)를 받고 이후는 캐시 재사용해 페이지 전환마다 중복 다운로드되지 않음
   async getSlotsLive() {
     await ensureLiveSlots();

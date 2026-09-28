@@ -204,11 +204,11 @@
     if (range === 'all') {
       rows.sort((a,b) => (b.startDate||'').localeCompare(a.startDate||'')); // 시작일 내림차순 — ha/kp 병합 순서(kp가 뒤에 붙는 문제)와 무관하게 통일
     } else {
-      // 종료임박 필터 — active + 종료일이 범위 이내인 것만, 시작 안 한(예약) 캠페인은 뒤로
+      // 종료임박 필터 — 진행중(active 또는 예약 등록 중 split) + 종료일이 범위 이내인 것만, 시작 안 한(예약) 캠페인은 뒤로
       const today = new Date(); today.setHours(0,0,0,0);
       const limit = new Date(today); limit.setDate(today.getDate()+Number(range)); limit.setHours(23,59,59,999);
       rows = rows.filter(s => {
-        if (s.status !== 'active' || !s.endDate) return false;
+        if ((s.status !== 'active' && s.status !== 'split') || !s.endDate) return false;
         const d = new Date(s.endDate); d.setHours(0,0,0,0);
         return d >= today && d <= limit;
       });
