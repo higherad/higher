@@ -5759,10 +5759,11 @@ window.toggleProdPanel = function(e) {
 
   // 등급별 요구값(rowData) 구조 시그니처 — daysMultiplied(일수 칸=총목표) · blogUrlProduct(블로그URL 필요) 중 하나라도 다르면
   // 저장돼 있는 rowData(일목표/일수/블로그URL 등)를 그대로 못 쓰므로 등급만 바꿔치기하면 접수가 깨진다. prods에 없는 이름(일반 등급 티어)은 둘 다 false로 간주.
-  function gradeStructKey(gradeName, prodsList) {
+  function gradeStructKey(gradeName, prodsList, adrole) {
     const list = prodsList || prods;
     const p = list.find(pr => pr.name === gradeName);
-    return (p?.daysMultiplied ? 'D' : '') + (p?.blogUrlProduct ? 'B' : '');
+    // 총목표 방식(daysMultiplied: 찰리/델타)은 위치저장(adrole 있음) 등급에만 해당 — 트래픽에도 같은 이름의 등급(예: 트래픽 '찰리')이 있어 이름만 보면 위치저장으로 오인해 다른 트래픽 등급이 선택지에서 빠짐
+    return (p?.daysMultiplied && adrole ? 'D' : '') + (p?.blogUrlProduct ? 'B' : '');
   }
 
   // 트래픽/저장 두 계열 다 조회해 합쳐서 반환 — 하나만 조회하면 반대 계열 등급이 선택지에 안 뜸.
@@ -5774,7 +5775,7 @@ window.toggleProdPanel = function(e) {
     ]);
     const traffic = (giTraffic.success && giTraffic.gradeGroups) ? giTraffic.gradeGroups.map(g => ({ ...g, adrole: null,  category: '트래픽' })) : [];
     const storage = (giStorage.success && giStorage.gradeGroups) ? giStorage.gradeGroups.map(g => ({ ...g, adrole: '100', category: '저장'   })) : [];
-    return [...traffic, ...storage].map(g => ({ ...g, ckey: scheduleGradeCkey(g.adrole, g.gradeName), structKey: gradeStructKey(g.gradeName, prodsList) }));
+    return [...traffic, ...storage].map(g => ({ ...g, ckey: scheduleGradeCkey(g.adrole, g.gradeName), structKey: gradeStructKey(g.gradeName, prodsList, g.adrole) }));
   }
 
   // 그룹당 하나만 존재하는 재분류 상태 — 패널 열기 전에 행 체크박스를 먼저 누를 수도 있어서
@@ -6001,7 +6002,7 @@ window.toggleProdPanel = function(e) {
       const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
       const prodsList = prodsForSchedule(groupSrc, kpProds);
       const groupGrades = await fetchScheduleGradeGroups(sample, prodsList);
-      const curStructs = new Set(items.map(e => gradeStructKey(e.payload?.gradeName || '', prodsList)));
+      const curStructs = new Set(items.map(e => gradeStructKey(e.payload?.gradeName || '', prodsList, e.adrole)));
       const applicable = v.grades.map(g => {
         const gg = groupGrades.find(x => x.ckey === g.ckey && curStructs.has(x.structKey));
         return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct: g.pct } : null;
@@ -6058,7 +6059,7 @@ window.toggleProdPanel = function(e) {
       const prodsList = prodsForSchedule(groupSrc, kpProds);
       const allGroups = sample ? await fetchScheduleGradeGroups(sample, prodsList) : [];
       // rowData 구조가 이미 저장돼 있어 되돌릴 수 없으므로, 지금 대상들이 쓰는 등급과 요구값 구조(daysMultiplied/blogUrlProduct)가 같은 등급으로만 재분류를 제한한다
-      const curStructs = new Set((targetItems.length ? targetItems : items).map(e => gradeStructKey(e.payload?.gradeName || '', prodsList)));
+      const curStructs = new Set((targetItems.length ? targetItems : items).map(e => gradeStructKey(e.payload?.gradeName || '', prodsList, e.adrole)));
       st.gradeGroups = allGroups.filter(g => curStructs.has(g.structKey));
       st.loading = false;
       // 시작점 제공 — 대상(선택했으면 선택분, 아니면 전체)이 지금 쓰고 있는 등급들을 기본 체크해두고
@@ -6494,7 +6495,7 @@ window.toggleProdPanel = function(e) {
     const curName = e.payload?.gradeName || '';
     const curCkey = scheduleGradeCkey(e.adrole, curName);
     // rowData(일목표/일수/블로그URL 등)는 그대로 두고 등급 메타만 바꾸므로, 요구값 구조(daysMultiplied/blogUrlProduct)가 다른 등급은 고를 수 없게 막는다
-    const curStruct = gradeStructKey(curName, prodsList);
+    const curStruct = gradeStructKey(curName, prodsList, e.adrole);
     const compatGroups = groups.filter(g => g.structKey === curStruct);
     const categories = [...new Set(compatGroups.map(g => g.category))];
     cell.innerHTML = `<select style="font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;max-width:100%;">

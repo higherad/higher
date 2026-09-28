@@ -6386,10 +6386,11 @@ if (!window._kpEscBound) {
   function kpIdSafe(s) { return encodeURIComponent(String(s)); }
   function kpEscJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
   function kpScheduleGradeCkey(adrole, gradeName) { return (adrole ? 'storage' : 'traffic') + '::' + gradeName; }
-  function kpGradeStructKey(gradeName, prodsList) {
+  function kpGradeStructKey(gradeName, prodsList, adrole) {
     const list = prodsList || (window.kpProdsRef ? window.kpProdsRef() : []);
     const p = list.find(pr => pr.name === gradeName);
-    return (p?.daysMultiplied ? 'D' : '') + (p?.blogUrlProduct ? 'B' : '');
+    // 총목표 방식(daysMultiplied: 찰리/델타)은 위치저장(adrole 있음) 등급에만 해당 — 트래픽에도 같은 이름의 등급(예: 트래픽 '찰리')이 있어 이름만 보면 위치저장으로 오인해 다른 트래픽 등급이 선택지에서 빠짐
+    return (p?.daysMultiplied && adrole ? 'D' : '') + (p?.blogUrlProduct ? 'B' : '');
   }
   async function kpFetchScheduleGradeGroups(sample, prodsList) {
     const base = { domain: sample.payload?.domain || window.KP_BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd, tab: window.KP_BIZFIT_TAB, rawData: [] };
@@ -6399,7 +6400,7 @@ if (!window._kpEscBound) {
     ]);
     const traffic = (giTraffic.success && giTraffic.gradeGroups) ? giTraffic.gradeGroups.map(g => ({ ...g, adrole: null, category: '트래픽' })) : [];
     const storage = (giStorage.success && giStorage.gradeGroups) ? giStorage.gradeGroups.map(g => ({ ...g, adrole: '100', category: '저장' })) : [];
-    return [...traffic, ...storage].map(g => ({ ...g, ckey: kpScheduleGradeCkey(g.adrole, g.gradeName), structKey: kpGradeStructKey(g.gradeName, prodsList) }));
+    return [...traffic, ...storage].map(g => ({ ...g, ckey: kpScheduleGradeCkey(g.adrole, g.gradeName), structKey: kpGradeStructKey(g.gradeName, prodsList, g.adrole) }));
   }
 
   function ssEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -6993,7 +6994,7 @@ if (!window._kpEscBound) {
       const groupSrc = sample._src === 'ha' ? 'ha' : 'kp';
       const prodsList = await kpProdsForScheduleSrc(groupSrc);
       const groupGrades = await kpFetchScheduleGradeGroups(sample, prodsList);
-      const curStructs = new Set(items.map(e => kpGradeStructKey(e.payload?.gradeName || '', prodsList)));
+      const curStructs = new Set(items.map(e => kpGradeStructKey(e.payload?.gradeName || '', prodsList, e.adrole)));
       const applicable = v.grades.map(g => {
         const gg = groupGrades.find(x => x.ckey === g.ckey && curStructs.has(x.structKey));
         return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct: g.pct } : null;
@@ -7046,7 +7047,7 @@ if (!window._kpEscBound) {
       const groupSrc = sample?._src === 'ha' ? 'ha' : 'kp';
       const prodsList = await kpProdsForScheduleSrc(groupSrc);
       const allGroups = sample ? await kpFetchScheduleGradeGroups(sample, prodsList) : [];
-      const curStructs = new Set((targetItems.length ? targetItems : items).map(e => kpGradeStructKey(e.payload?.gradeName || '', prodsList)));
+      const curStructs = new Set((targetItems.length ? targetItems : items).map(e => kpGradeStructKey(e.payload?.gradeName || '', prodsList, e.adrole)));
       st.gradeGroups = allGroups.filter(g => curStructs.has(g.structKey));
       st.loading = false;
       const curKeys = [...new Set(targetItems.map(e => kpScheduleGradeCkey(e.adrole, e.payload?.gradeName)).filter(k => k && !k.endsWith('::')))];
@@ -7377,7 +7378,7 @@ if (!window._kpEscBound) {
     if (!groups.length) { cell.innerHTML = '<span style="color:#dc2626;font-size:11px;">등급 조회 실패</span>'; return; }
     const curName = e.payload?.gradeName || '';
     const curCkey = kpScheduleGradeCkey(e.adrole, curName);
-    const curStruct = kpGradeStructKey(curName, prodsList);
+    const curStruct = kpGradeStructKey(curName, prodsList, e.adrole);
     const compatGroups = groups.filter(g => g.structKey === curStruct);
     const categories = [...new Set(compatGroups.map(g => g.category))];
     cell.innerHTML = `<select style="font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;max-width:100%;">
