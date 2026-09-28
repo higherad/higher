@@ -3274,6 +3274,7 @@ window.toggleProdPanel = function(e) {
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
           return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, valid: errors.length===0, error: errors.join(' / ') };
         });
+        HA.markDuplicateRows(rexRows);
         rexRenderPreview(overlay);
       } catch (err) {
         alert('파일을 읽는 중 오류가 발생했습니다. 양식을 확인해주세요.');

@@ -3847,6 +3847,7 @@ document.addEventListener('keydown', function(e) {
             if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 0) errors.push('일 목표 오류');
             return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, searchKeyword, valid: errors.length===0, error: errors.join(' / ') };
           });
+          window.HA.markDuplicateRows(uexRows);
           renderKpUexPreview();
         } catch (err) {
           alert('파일을 읽는 중 오류가 발생했습니다. 양식을 확인해주세요.');

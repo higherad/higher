@@ -721,14 +721,16 @@
 
   // ── Firebase 실시간 리스너 ────────────────────────────────
   // 접수관리 배지와 동일한 방식 — 김프로 쪽 pending 건수(subscribeKpSlotsLive는 공유 캐시라 별도 재조회 없음)
+  // 승인 후 미러된 건이 pending으로 되돌아가면 양쪽 노드에 똑같이 pending으로 남음(공유 상태값) —
+  // 접수한 메뉴(origin)에서만 셈. origin 없는 레거시는 자기 노드 것으로 취급.
   HA.subscribeKpSlotsLive(slots => {
-    const n = slots.filter(s => s.status === 'pending').length;
+    const n = slots.filter(s => s.status === 'pending' && s.origin !== 'ha').length;
     const el = document.getElementById('kp-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
   });
 
   HA.onSlotsChange(slots => {
-    const n = slots.filter(s => s.status === 'pending').length;
+    const n = slots.filter(s => s.status === 'pending' && s.origin !== 'kp').length;
     const el = document.getElementById('pending-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
   });

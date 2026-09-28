@@ -614,6 +614,18 @@ const HA = {
     );
   },
 
+  // 엑셀 파일 안에 같은 캠페인 행이 두 번 들어 있으면 그대로 두 건 접수됨(2026-09-23 애드메이커스 9건×2 실사례)
+  // — 두 번째부터 오류로 표시해 미리보기에서 막음. 접수관리/김프로 엑셀 접수 공용.
+  markDuplicateRows(rows) {
+    const seen = new Set();
+    rows.forEach(r => {
+      const k = [r.mid, r.rankKeyword, r.startDate, r.days, r.dailyTarget].join('|');
+      if (seen.has(k)) { r.valid = false; r.error = [r.error, '파일 내 중복 행'].filter(Boolean).join(' / '); }
+      seen.add(k);
+    });
+    return rows;
+  },
+
   // ── 엑셀 일괄접수 텔레그램 알림 (higher_user 포털 notifyExcelBatch와 동일 포맷) ──
   async notifyExcelBatch(slots, opts = {}) {
     if (!slots.length) return;
