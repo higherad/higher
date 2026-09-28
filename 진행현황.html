@@ -263,8 +263,10 @@
     const split       = allSlots.filter(s => s.status === 'split').length;
     const forceStopped = allSlots.filter(s => s.status === 'force_stopped').length;
     const paused      = allSlots.filter(s => s.status === 'paused').length;
-    const totalTarget = active.reduce((a,s) => a+((s.dailyTarget||0)*(s.days||0)), 0);
-    const todayTarget = inProgress.reduce((a,s) => a+(s.dailyTarget||0), 0);
+    // 목표 카드 2개는 같은 대상 — 진행중(active+split)이면서 시작일이 지난 캠페인(대시보드 진행중 집계와 동일 기준)
+    const running     = allSlots.filter(s => isRunning(s) && hasStarted(s));
+    const totalTarget = running.reduce((a,s) => a+((s.dailyTarget||0)*(s.days||0)), 0);
+    const todayTarget = running.reduce((a,s) => a+(s.dailyTarget||0), 0);
     document.getElementById('stat-companies').textContent    = inProgress.length;
     document.getElementById('stat-reserved').textContent     = reserved.length;
     document.getElementById('stat-split').textContent        = split;
