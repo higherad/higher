@@ -6738,6 +6738,7 @@ if (!window._kpEscBound) {
     const dispatchSuffix = kpScheduleDispatchSuffix(src);
     const batchSuffix = kpScheduleBatchSuffix(src);
     try {
+      const pre = await window.HA.readScheduledSlot(slotKey); // 못 읽으면 여기서 중단(아무것도 취소 안 됨) → 오류 팝업
       const patch = {};
       targets.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; });
       const batchSnap = await window.HA.getKpDoc(`ha/${batchSuffix}/${slotKey}`).catch(() => null);
@@ -6752,7 +6753,7 @@ if (!window._kpEscBound) {
       // 전엔 김프로 목록 캐시에 없는 슬롯(종료 30일+ 등)이면 아예 종료 처리를 건너뛰었음.
       const dateOf = e => (e.payload?.rowData||[])[0]?.예약일;
       const kept = Object.values(ssEntries).filter(e => e.slotKey === slotKey).map(dateOf);
-      const fields = await window.HA.endScheduledSlot(slotKey, targets.map(dateOf), kept);
+      const fields = await window.HA.endScheduledSlot(slotKey, targets.map(dateOf), kept, pre);
       const s = (window.getKpAllSlots ? window.getKpAllSlots() : []).find(x => x._key === slotKey);
       if (s && fields) Object.assign(s, fields, { status: 'ended' });
       renderKpSplitScheduleList();

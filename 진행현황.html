@@ -283,8 +283,13 @@
   window.loadSlotsHistory = function() {
     if (!_historyPromise) _historyPromise = (async () => {
       try {
-        await Promise.all([HA.loadSlotsArchive(), HA.loadKpSlotsArchive().catch(e => console.error('김프로 이전 기록 로딩 실패:', e))]);
-      } catch (e) { console.error('이전 기록 로딩 실패:', e); }
+        await Promise.all([HA.loadSlotsArchive(), HA.loadKpSlotsArchive()]);
+      } catch (e) {
+        // 실패하면 다음 검색·» 클릭 때 다시 시도(전엔 한 번 실패하면 메뉴 재진입 전까지 재시도 안 함)
+        console.error('이전 기록 로딩 실패:', e);
+        _historyPromise = null;
+        return;
+      }
       _withArchive = true;
       if (document.getElementById('slots-page')) await renderSlots(false, true);
     })();

@@ -2218,8 +2218,15 @@ window.toggleProdPanel = function(e) {
     if (btn) { btn.disabled = true; btn.textContent = '재시도 중...'; }
     const slot = allSlots.find(s => s._key === key);
     if (!slot) return;
-    // 다른 창에서 이미 성공했을 수 있으니 DB 최신값으로 한 번 더 확인 후 차감(재시도는 선점을 덮어씀)
-    const fresh = (await HA.getDoc(`ha/slots/${key}`)).val() || {};
+    // 다른 창에서 이미 성공했을 수 있으니 DB 최신값으로 한 번 더 확인 후 차감(재시도는 선점을 덮어씀).
+    // 확인 조회가 제대로 안 되면 차감하지 않음 — 이미 차감된 건을 또 차감할 수 있음
+    let fresh;
+    try { fresh = (await HA.getSlotChecked(`ha/slots/${key}`)) || {}; }
+    catch (e) {
+      alert('차감 재시도를 중단했습니다.\n' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = '⚠️ 차감 재시도'; }
+      return;
+    }
     if (fresh.bizfitDeducted) { updateLocalSlot(key, { bizfitDeducted: true }); renderReceipts(false); return; }
     await settleBizfitCash(slot, { deductAmount: slot.deductAmount || 0, yupflAmount: slot.yupflAmount || 0 }, true);
     renderReceipts(false);
@@ -4195,7 +4202,9 @@ window.toggleProdPanel = function(e) {
         overlay._deductFailures = [];
         for (const g of retrying) {
           // 다른 창에서 이미 차감됐으면 건너뜀(그룹은 한 번에 차감되므로 하나라도 완료면 그룹 전체 완료) — 재시도는 선점을 덮어씀
-          const fresh = await Promise.all(g.slots.map(s => HA.getDoc(`ha/slots/${s._key}`).then(r => r.val() || {})));
+          let fresh;
+          try { fresh = await Promise.all(g.slots.map(s => HA.getSlotChecked(`ha/slots/${s._key}`).then(v => v || {}))); }
+          catch (e) { alert('차감 재시도를 중단했습니다.\n' + e.message); overlay._deductFailures.push(g); continue; }
           if (fresh.some(f => f.bizfitDeducted)) { g.slots.forEach(s => updateLocalSlot(s._key, { bizfitDeducted: true })); continue; }
           const ok = await settleBizfitCashBatch(g.bizfitUid, g.slots, g.ded, g.yup, true);
           if (!ok) overlay._deductFailures.push(g);
@@ -6432,6 +6441,7 @@ window.toggleProdPanel = function(e) {
     const dispatchSuffix = scheduleDispatchSuffix(src);
     const batchSuffix = scheduleBatchSuffix(src);
     try {
+      const pre = await HA.readScheduledSlot(slotKey); // 못 읽으면 여기서 중단(아무것도 취소 안 됨) → 오류 팝업
       const patch = {};
       targets.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; });
       const batchSnap = await fbGet(`ha/${batchSuffix}/${slotKey}`);
@@ -6445,7 +6455,7 @@ window.toggleProdPanel = function(e) {
       // 양쪽 사본(접수관리 expired / 김프로 ended)을 같이 종료 + 일수·종료일 재계산(HA.endScheduledSlot 참고)
       const dateOf = e => (e.payload?.rowData||[])[0]?.예약일;
       const kept = Object.values(_ssEntries).filter(e => e.slotKey === slotKey).map(dateOf);
-      const fields = await HA.endScheduledSlot(slotKey, targets.map(dateOf), kept);
+      const fields = await HA.endScheduledSlot(slotKey, targets.map(dateOf), kept, pre);
       const s = allSlots.find(x => x._key === slotKey);
       if (s && fields) Object.assign(s, fields, { status: 'expired' });
 

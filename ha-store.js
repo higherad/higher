@@ -314,16 +314,17 @@ const onKpProdGroupsChangeShared = makeValueLiveCache('ha/kimproProdSettings/gro
 // 초기화되고, 일괄조회도 요청 MID만 채워 세션당 전체를 6회+ 재다운로드했음(2026-09-23 프로파일러 실측).
 const onGradesChangeShared = makeValueLiveCache('ha/grades', v => v || {});
 
-// 미러 원본 재조회 — get()이 필터 쿼리 리스너의 로컬 캐시에서 필드 일부만 돌려줄 때가 있어(2026-09-28 김프로 사본이
-// {status, searchKeyword}만으로 생성) mid 없으면 잠시 후 재조회, 끝내 없으면 null(빈 껍데기 사본을 만들지 않게)
-async function getMirrorSource(path) {
+// 캠페인 레코드 검증 조회 — get()이 필터 쿼리 리스너의 로컬 캐시에서 필드 일부만 돌려줄 때가 있어(2026-09-28 김프로
+// 사본이 {status, searchKeyword}만으로 생성) mid 없으면 잠시 후 재조회. 없는 레코드는 null, 끝내 필드 누락이면 throw
+// (그 값으로 쓰기·차감 판단을 하면 안 됨 — 호출부가 중단하고 알림)
+async function getSlotChecked(path) {
   for (let i = 0; i < 3; i++) {
-    const v = (await get(ref(db, path))).val();
-    if (v?.mid) return v;
+    const snap = await get(ref(db, path));
+    if (!snap.exists()) return null;
+    if (snap.val().mid) return snap.val();
     await new Promise(r => setTimeout(r, 500));
   }
-  console.error('미러 원본 재조회 실패(필드 누락):', path);
-  return null;
+  throw new Error(`캠페인 정보를 제대로 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요. (${path})`);
 }
 
 // 휴지통 이동/복구를 반대편 사본에도 반영 — 상태값 어휘가 달라(ha expired / kp ended 등) 공유 상태값
@@ -501,7 +502,7 @@ const HA = {
           await update(ref(db, `${PATHS.slots}/${key}`), patch);
         }
       } else if (patch.status === 'active' || patch.status === 'split') {
-        const slot = await getMirrorSource(`${KP_PATHS.slots}/${key}`);
+        const slot = await getSlotChecked(`${KP_PATHS.slots}/${key}`);
         if (slot) {
           // 방금 쓴 patch를 위에 덮어씀 — 재조회가 patch 이전 값을 돌려주면 미러가 옛 상태로 굳음(updateSlot과 동일)
           // set이 아니라 update — 존재 확인이 틀렸어도(옛 캐시) 반대편 전용 필드를 통째로 지우지 않게
@@ -704,7 +705,7 @@ const HA = {
       } else if (patch.status === 'active' || patch.status === 'split') {
         // addSlot()은 접수 시점에 미러를 안 만듦 — 승인(active)/예약(split) 시점에 처음 생성(요청사항:
         // 승인 전까지 김프로에 안 보여야 함).
-        const slot = await getMirrorSource(`${PATHS.slots}/${key}`);
+        const slot = await getSlotChecked(`${PATHS.slots}/${key}`);
         if (slot) {
           // 방금 쓴 patch를 위에 덮어씀 — 재조회가 patch 이전 값을 돌려주면 미러가 옛 상태로 굳음
           // (2026-09-23 [단독]트렌드 예약 13건: 김프로 사본이 split·차감필드 없이 'accepted'로 생성됨)
@@ -747,6 +748,7 @@ const HA = {
   async getDoc(path) {
     return get(ref(db, path));
   },
+  getSlotChecked,
 
   async permanentDeleteSlot(key) {
     await Promise.all([
@@ -843,21 +845,25 @@ const HA = {
   // updateSlot/updateKpSlot으론 반대편에 안 넘어가, 사본이 split로 영원히 남았음 — 2026-09-09 애드메이커스 8건).
   // 일수는 "원래 기간 − 남은 항목이 하나도 없는 취소 날짜"로 계산: 완료 항목은 서버가 2일 뒤 지우므로
   // (scheduled_dispatch TTL) 화면에 남은 완료분으로 세면 일수가 줄어 정산 금액(일목표×일수×단가)이 적게 잡힘.
-  async endScheduledSlot(key, canceledDates, keptDates) {
-    const [haSnap, kpSnap] = await Promise.all([
-      get(ref(db, `${PATHS.slots}/${key}`)), get(ref(db, `${KP_PATHS.slots}/${key}`)),
-    ]);
-    const slot = haSnap.exists() ? haSnap.val() : kpSnap.exists() ? kpSnap.val() : null;
+  // pre = readScheduledSlot() 결과 — 예약 항목을 지우기 전에 읽어 두면 조회 실패 시 아무것도 안 바뀐 채 중단됨
+  // (필드 일부만 읽힌 값으로 계산하면 일수 0·종료일 빈값으로 종료돼 정산 금액이 0이 됨)
+  async readScheduledSlot(key) {
+    const [ha, kp] = await Promise.all([getSlotChecked(`${PATHS.slots}/${key}`), getSlotChecked(`${KP_PATHS.slots}/${key}`)]);
+    return { ha, kp };
+  },
+  async endScheduledSlot(key, canceledDates, keptDates, pre = null) {
+    const { ha, kp } = pre || await this.readScheduledSlot(key);
+    const slot = ha || kp;
     if (!slot) return null;
     const fields = remainingAfterCancel(slot, canceledDates, keptDates);
     await Promise.all([
-      haSnap.exists() && update(ref(db, `${PATHS.slots}/${key}`), { ...fields, status: 'expired' }),
-      kpSnap.exists() && update(ref(db, `${KP_PATHS.slots}/${key}`), { ...fields, status: 'ended' }),
+      ha && update(ref(db, `${PATHS.slots}/${key}`), { ...fields, status: 'expired' }),
+      kp && update(ref(db, `${KP_PATHS.slots}/${key}`), { ...fields, status: 'ended' }),
     ]);
     // 정산관리에서 이미 금액이 고정된(입금확인 등) 묶음이면 줄어든 일수만큼 고정 금액도 같이 줄임 —
     // 안 그러면 취소해도 고정 금액이 그대로 남음(9/18 애드메이커스 63,000원, 사용자 요청으로 0원 처리 2026-09-28)
-    const kpGroup = slot.origin === 'kp' || !haSnap.exists(); // 정산관리 dedupeKpSlots와 같은 기준
-    await shrinkSettleSnapshot(kpGroup ? kpSnap.val() : haSnap.val(), fields.days, kpGroup);
+    const kpGroup = slot.origin === 'kp' || !ha; // 정산관리 dedupeKpSlots와 같은 기준
+    await shrinkSettleSnapshot((kpGroup ? kp : ha) || slot, fields.days, kpGroup);
     dispatch('ha:slots:updated');
     return fields;
   },

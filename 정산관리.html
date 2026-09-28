@@ -203,12 +203,16 @@
   // 대역폭이 폭증했음(리스너 개수만큼 변경 이벤트가 중복 발동, 2026-09-18 확인) — 공유 캐시로 교체.
   // 김프로 쪽(_src==='kp')은 이 리스너 대상이 아니므로 그대로 유지하고 ha 부분만 통째로 교체.
   function attachSettleSlotsLiveSync() {
-    // 이전 기록(종료 30일+) 합친 뒤에만 구독 — 먼저 붙으면 최근 건만으로 정산표가 한 번 그려짐
-    HA.loadSlotsArchive().then(() => HA.onSlotsChange(fullHaSlots => {
+    // 이전 기록(종료 30일+) 합친 뒤에만 구독 — 먼저 붙으면 최근 건만으로 정산표가 한 번 그려짐.
+    // 이전 기록 로딩이 실패해도 실시간 구독은 붙임(전엔 구독까지 빠져 새로고침 전까지 표가 멈춤)
+    HA.loadSlotsArchive().catch(e => {
+      console.error('이전 기록 로딩 실패:', e);
+      alert('종료 30일 이전 기록을 불러오지 못했습니다. 오래된 정산 건이 빠져 보일 수 있으니 새로고침해 주세요.');
+    }).then(() => HA.onSlotsChange(fullHaSlots => {
       const kpPart = allSlots.filter(s => s._src === 'kp');
       allSlots = [...HA.withSlotsArchive(fullHaSlots).filter(s => s.origin !== 'kp'), ...kpPart];
       scheduleSettleRerender();
-    })).catch(e => console.error('정산 실시간 동기화 연결 실패:', e));
+    }));
   }
   let filteredRows=[];
   const selectedSnapKeys=new Set();
