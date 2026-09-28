@@ -463,7 +463,8 @@ const HA = {
         const kpSnap = await get(ref(db, `${KP_PATHS.slots}/${key}`));
         if (kpSnap.exists()) {
           const slot = kpSnap.val();
-          await set(ref(db, `${PATHS.slots}/${key}`), { ...slot, searchKeyword: slot.searchKeyword || '' });
+          // 방금 쓴 patch를 위에 덮어씀 — 재조회가 patch 이전 값을 돌려주면 미러가 옛 상태로 굳음(updateSlot과 동일)
+          await set(ref(db, `${PATHS.slots}/${key}`), { ...slot, ...patch, searchKeyword: slot.searchKeyword || '' });
         }
       }
     } catch (e) { console.error('ha/slots 역방향 동기화 오류:', e); }
@@ -672,8 +673,11 @@ const HA = {
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
           const slot = slotSnap.val();
+          // 방금 쓴 patch를 위에 덮어씀 — 재조회가 patch 이전 값을 돌려주면 미러가 옛 상태로 굳음
+          // (2026-09-23 [단독]트렌드 예약 13건: 김프로 사본이 split·차감필드 없이 'accepted'로 생성됨)
           await set(ref(db, `${KP_PATHS.slots}/${key}`), {
             ...slot,
+            ...patch,
             searchKeyword: slot.searchKeyword || '',
           });
         }
