@@ -314,6 +314,18 @@ const onKpProdGroupsChangeShared = makeValueLiveCache('ha/kimproProdSettings/gro
 // 초기화되고, 일괄조회도 요청 MID만 채워 세션당 전체를 6회+ 재다운로드했음(2026-09-23 프로파일러 실측).
 const onGradesChangeShared = makeValueLiveCache('ha/grades', v => v || {});
 
+// 미러 원본 재조회 — get()이 필터 쿼리 리스너의 로컬 캐시에서 필드 일부만 돌려줄 때가 있어(2026-09-28 김프로 사본이
+// {status, searchKeyword}만으로 생성) mid 없으면 잠시 후 재조회, 끝내 없으면 null(빈 껍데기 사본을 만들지 않게)
+async function getMirrorSource(path) {
+  for (let i = 0; i < 3; i++) {
+    const v = (await get(ref(db, path))).val();
+    if (v?.mid) return v;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  console.error('미러 원본 재조회 실패(필드 누락):', path);
+  return null;
+}
+
 // 휴지통 이동/복구를 반대편 사본에도 반영 — 상태값 어휘가 달라(ha expired / kp ended 등) 공유 상태값
 // 규칙으로 넘기면 복구 시 사본이 휴지통에 남음. 사본은 자기 원래 상태(originalStatus)로 되돌린다.
 async function mirrorTrash(path, key, deleting) {
@@ -489,9 +501,8 @@ const HA = {
           await update(ref(db, `${PATHS.slots}/${key}`), patch);
         }
       } else if (patch.status === 'active' || patch.status === 'split') {
-        const kpSnap = await get(ref(db, `${KP_PATHS.slots}/${key}`));
-        if (kpSnap.exists()) {
-          const slot = kpSnap.val();
+        const slot = await getMirrorSource(`${KP_PATHS.slots}/${key}`);
+        if (slot) {
           // 방금 쓴 patch를 위에 덮어씀 — 재조회가 patch 이전 값을 돌려주면 미러가 옛 상태로 굳음(updateSlot과 동일)
           // set이 아니라 update — 존재 확인이 틀렸어도(옛 캐시) 반대편 전용 필드를 통째로 지우지 않게
           await update(ref(db, `${PATHS.slots}/${key}`), { ...slot, ...patch, searchKeyword: slot.searchKeyword || '' });
@@ -693,9 +704,8 @@ const HA = {
       } else if (patch.status === 'active' || patch.status === 'split') {
         // addSlot()은 접수 시점에 미러를 안 만듦 — 승인(active)/예약(split) 시점에 처음 생성(요청사항:
         // 승인 전까지 김프로에 안 보여야 함).
-        const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
-        if (slotSnap.exists()) {
-          const slot = slotSnap.val();
+        const slot = await getMirrorSource(`${PATHS.slots}/${key}`);
+        if (slot) {
           // 방금 쓴 patch를 위에 덮어씀 — 재조회가 patch 이전 값을 돌려주면 미러가 옛 상태로 굳음
           // (2026-09-23 [단독]트렌드 예약 13건: 김프로 사본이 split·차감필드 없이 'accepted'로 생성됨)
           // set이 아니라 update — 존재 확인이 틀렸어도(옛 캐시) 김프로 전용 필드를 통째로 지우지 않게
