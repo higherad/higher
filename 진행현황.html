@@ -160,6 +160,8 @@
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
   function isReserved(s, todayStr) { return s.status === 'active' && s.startDate > todayStr; }
+  // 진행중 계열 — 승인(active) + 예약 등록 중(split, 매일 등록이 나가는 중). D-Day·종료 예정 요약·종료임박 필터 공통
+  function isRunning(s) { return s.status === 'active' || s.status === 'split'; }
   function statusBadge(s, todayStr) {
     const tag = s._src === 'kp' ? '<span class="kp-tag">김프로</span>' : '';
     if (isReserved(s, todayStr)) return '<span class="status-badge s-reserved">예약</span>' + tag;
@@ -208,7 +210,7 @@
       const today = new Date(); today.setHours(0,0,0,0);
       const limit = new Date(today); limit.setDate(today.getDate()+Number(range)); limit.setHours(23,59,59,999);
       rows = rows.filter(s => {
-        if ((s.status !== 'active' && s.status !== 'split') || !s.endDate) return false;
+        if (!isRunning(s) || !s.endDate) return false;
         const d = new Date(s.endDate); d.setHours(0,0,0,0);
         return d >= today && d <= limit;
       });
@@ -227,7 +229,7 @@
     if (!el) return;
     const range = document.getElementById('ef-range').value;
     const today = new Date(); today.setHours(0,0,0,0);
-    const activeFuture = allSlots.filter(s => s.status === 'active' && s.endDate).filter(s => {
+    const activeFuture = allSlots.filter(s => isRunning(s) && s.endDate).filter(s => {
       const d = new Date(s.endDate); d.setHours(0,0,0,0);
       return d >= today;
     });
@@ -357,7 +359,7 @@
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
           <td><span class="kw-badge">검색 ${kwCount}개</span> <span class="kw-badge" style="background:#fef3c7;color:#b45309;">유입 ${yupflCount}개</span></td>
-          <td>${s.status==='active' && hasStarted(s) ? ddayBadge(getDday(s.endDate)) : '-'}</td>
+          <td>${isRunning(s) && hasStarted(s) ? ddayBadge(getDday(s.endDate)) : '-'}</td>
           <td>${statusBadge(s, todayStr)}</td>
           <td>
             <button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup('${s._key}')">순위</button>
