@@ -627,8 +627,11 @@
     const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
     const pastGroups = (slots) => groupByTimeAgency(slots.filter(isBillableSlot))
       .filter(g => g.timeKey.slice(0,10) < todayStr);
+    // 금액 0 그룹은 아래에서 저장을 건너뛰므로(!a) 대상에서 빼야 함 — 안 빼면 영원히 "미저장"으로 남아 렌더마다
+    // 전체 재조회(23.8MB)가 반복됨. 나중에 단가가 생겨 금액이 0이 아니게 되면 그때 대상에 들어와 고정됨
     const findNewGroups = (slots) => pastGroups(slots)
-      .filter(g => !snapshotMap[`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`]);
+      .filter(g => !snapshotMap[`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`])
+      .filter(g => calcGroup(g).amt);
     const findStaleDeductGroups = (slots) => pastGroups(slots).filter(g => {
       const snap = snapshotMap[`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`];
       if (!snap) return false;
