@@ -160,6 +160,7 @@
   let _settleLoaded=false;
   let allSlots=[],allUsers=[],paidSet=new Set(),refundMap={};
   let snapshotMap={};
+  let _freezeRun=null; // 과거 그룹 스냅샷 고정 작업 공유 Promise(renderSettle 동시 진입 시 1회만 실행)
 
   // 다른 세션에서 입금/충전/환불 처리 시 새로고침 없이 반영 — 슬롯(수 MB)은 그대로 캐시 유지하고
   // 정산 부가 데이터(입금·충전여부/환불액/스냅샷, 전부 작은 노드)만 실시간 구독해 병합
@@ -635,6 +636,10 @@
       return ded !== (snap.deductAmt||0) || dtg !== (snap.deductTgt||0) || yup !== (snap.yupflAmt||0);
     });
     if (findNewGroups(allSlots).length || findStaleDeductGroups(allSlots).length) {
+      // 진입 직후 renderSettle이 초기 1회+실시간 리스너 첫 콜백들로 8~9번 거의 동시에 불려, 가드 없으면
+      // 각자 아래 전체 재조회(ha/slots+kimproSlots 23.8MB)를 해서 아침마다 ~215MB가 나갔음(2026-09-29) —
+      // 진행 중인 고정 작업이 있으면 새로 시작하지 않고 그 결과를 기다림
+      if (!_freezeRun) _freezeRun = (async () => {
       // 캐시된 allSlots/refundMap은 탭을 오래 열어둔 세션에서 승인/환불 전 상태로 낡아있을 수 있어,
       // 실제로 얼리거나 재동기화할 때만 새로 조회해서 그 순간의 정확한 값을 쓴다.
       const [freshHaSlots, freshHaRefundMap, freshKpSlotsRaw, freshKpRefundMap] = await Promise.all([
@@ -663,6 +668,8 @@
         await dispatchSaveSnapshot(sk, g.userId, updated, true); // 차감/유입플만 최신화, amount/refund 등은 그대로 보존
         snapshotMap[sk]=updated;
       }
+      })().finally(() => { _freezeRun = null; });
+      await _freezeRun;
     }
     if (!document.getElementById('settle-page')) return; // 스냅샷 저장 중 다른 메뉴로 이동한 경우 렌더 중단
 
