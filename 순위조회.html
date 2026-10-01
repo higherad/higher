@@ -212,8 +212,10 @@
       }
       const slots = await HA.getSlotsLive();
       const seenDup = new Set();
+      const todayStr = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (로컬)
       const active = Object.values(slots || {})
-        .filter(s => s.status === 'active' && s.mid && s.rankKeyword)
+        // 진행현황 isRunning과 동일 기준 — 진행중 대부분이 split(분할) 상태. split은 자동 만료가 안 되는 경우가 있어 종료일 지난 건 제외
+        .filter(s => (s.status === 'active' || s.status === 'split') && !(s.endDate && s.endDate < todayStr) && s.mid && s.rankKeyword)
         .filter(s => {
           // 대행사/플레이스명/MID/순위키워드 모두 일치하면 1번만 표시
           const dupKey = `${s.agencyId || ''}_${s.storeName || ''}_${s.mid || ''}_${s.rankKeyword || ''}`;
