@@ -952,16 +952,14 @@
       prPage=Math.min(prPage,pages);
       const pg=pages>1?`<div class="pagination">${Array.from({length:pages},(_,i)=>`<button class="pg-btn ${i+1===prPage?'active':''}" data-pg="${i+1}">${i+1}</button>`).join('')}</div>`:'';
       const ymd=v=>v?escProd(new Date(v).toLocaleDateString('sv-SE')):'-';
-      // 완료 탭: 대행사/등록 금액/등록일/완료일/상태 — 비어 있어도 열 머리는 유지하고 안내 문구를 표 안에 표시
-      // 열 폭 고정(table-layout:fixed) — 비어 있을 때와 행이 있을 때 열 위치가 안 바뀌게, 대행사가 나머지 폭
-      const W={'등록 금액':66,'남은 금액':66,'등록일':70,'완료일':70,'상태':34,'':46};
-      const head=done?['대행사','등록 금액','등록일','완료일','상태','']:['대행사','등록 금액','남은 금액','등록일',''];
-      const body=rows.length?rows.slice((prPage-1)*PR_PER,prPage*PR_PER).map(([id,p])=>`<tr><td title="${escProd(p.agencyId)}" style="overflow:hidden;text-overflow:ellipsis">${escProd(p.agencyId)}</td><td>${p.amount.toLocaleString()}원</td>${done
+      // 완료 탭: 대행사/등록 금액/등록일/완료일/상태(삭제 없음) — 비어 있어도 열 머리는 유지하고 안내 문구를 표 안에 표시
+      const head=done?['대행사','등록 금액','등록일','완료일','상태']:['대행사','등록 금액','남은 금액','등록일',''];
+      const body=rows.length?rows.slice((prPage-1)*PR_PER,prPage*PR_PER).map(([id,p])=>`<tr><td>${escProd(p.agencyId)}</td><td>${p.amount.toLocaleString()}원</td>${done
         ?`<td style="font-size:11px">${ymd(p.createdAt)}</td><td style="font-size:11px">${ymd(p.completedAt)}</td><td style="color:var(--accent);font-weight:700">완료</td>`
         :`<td style="color:var(--danger);font-weight:700">${p.remaining.toLocaleString()}원</td><td style="font-size:11px">${ymd(p.createdAt)}</td>`
-      }<td><button class="btn-refund" data-del="${escProd(id)}">삭제</button></td></tr>`).join('')
+      }${done?'':`<td><button class="btn-refund" data-del="${escProd(id)}">삭제</button></td>`}</tr>`).join('')
         :`<tr><td colspan="${head.length}" style="text-align:center;font-size:12px;color:var(--muted);padding:16px">${done?'완료된 환불이 없습니다.':'등록된 환불 예정이 없습니다.'}</td></tr>`;
-      modal.querySelector('#pr-list').innerHTML=`<table class="sp-tbl" style="width:100%;table-layout:fixed"><thead><tr>${head.map(h=>`<th${W[h]?` style="width:${W[h]}px"`:''}>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>${pg}`;
+      modal.querySelector('#pr-list').innerHTML=`<table class="sp-tbl" style="width:100%"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>${pg}`;
     };
     renderList();
     const unsub=HA.onPendingRefundsChange(()=>renderList());
