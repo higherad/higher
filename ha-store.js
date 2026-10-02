@@ -298,6 +298,7 @@ const onPaidSetChangeShared            = makeValueLiveCache(PATHS.paid,         
 const onKpPaidSetChangeShared          = makeValueLiveCache(KP_PATHS.paid,         v => v ? new Set(Object.keys(v)) : new Set());
 const onRefundsChangeShared            = makeValueLiveCache(PATHS.refunds,         v => v || {});
 const onKpRefundsChangeShared          = makeValueLiveCache(KP_PATHS.refunds,      v => v || {});
+const onPendingRefundsChangeShared     = makeValueLiveCache('ha/pending_refunds',  v => v || {});
 const onSettleSnapshotsChangeShared    = makeValueLiveCache(PATHS.settleSnapshots, v => v || {});
 const onKpSettleSnapshotsChangeShared  = makeValueLiveCache(KP_PATHS.settleSnapshots, v => v || {});
 // 예약 분할 현황(scheduled_dispatch) 전용 — 슬롯 하나만 바뀌어도 이 테이블(수백KB~1MB)을 매번
@@ -1037,6 +1038,29 @@ const HA = {
     } else {
       await set(ref(db, `${PATHS.refunds}/${key}`), amount);
     }
+  },
+
+  // 환불 예정 — 대행사별로 미리 등록해두면 이후 새로 추가되는 정산 묶음에 자동 차감(정산관리.html applyPendingRefunds)
+  // {agencyId, amount, remaining, createdAt, createdBy, applied:{묶음키: 차감액}}
+  onPendingRefundsChange(callback) { return onPendingRefundsChangeShared(callback); },
+  async addPendingRefund(agencyId, amount) {
+    const u = this.getCurrentUser() || {};
+    await push(ref(db, 'ha/pending_refunds'), { agencyId, amount, remaining: amount,
+      createdAt: new Date().toISOString(), createdBy: u.name || u.username || '' });
+  },
+  async deletePendingRefund(id) { await remove(ref(db, `ha/pending_refunds/${id}`)); },
+  // 묶음 하나에서 min(남은 금액, 묶음 금액)만큼 원자적으로 떼어감 — 여러 세션이 동시에 돌아도 같은 묶음엔 1번만.
+  // 반환: 이번에 차감할 금액(0이면 이미 적용됐거나 남은 금액 없음)
+  async claimPendingRefund(id, groupKey, groupAmount) {
+    await authReady;
+    let take = 0;
+    const r = await runTransaction(ref(db, `ha/pending_refunds/${id}`), cur => {
+      take = 0;
+      if (!cur || !(cur.remaining > 0) || cur.applied?.[groupKey] != null) return cur;
+      take = Math.min(cur.remaining, groupAmount);
+      return { ...cur, remaining: cur.remaining - take, applied: { ...(cur.applied || {}), [groupKey]: take } };
+    });
+    return r.committed ? take : 0;
   },
 
   // ════════════════════════════════════════════════════════

@@ -99,6 +99,7 @@
 <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;">
   <div style="display:flex;gap:8px;">
     <button class="action-btn" style="background:#2563eb;color:#fff;padding:7px 16px;font-size:12px;" onclick="openSettleRegModal()">📋 정산 등록</button>
+    <button class="action-btn" style="background:var(--danger);color:#fff;padding:7px 16px;font-size:12px;" onclick="openPendingRefundModal()">↩️ 환불 등록</button>
     <button class="action-btn" style="background:var(--accent);color:#fff;padding:7px 16px;font-size:12px;" onclick="bulkPayConfirm()">✅ 선택 입금</button>
     <button class="action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="exportSettleExcel()">📥 엑셀 다운로드</button>
   </div>
@@ -160,6 +161,7 @@
   let _settleLoaded=false;
   let allSlots=[],allUsers=[],paidSet=new Set(),refundMap={};
   let snapshotMap={};
+  let pendingRefunds={}, _applyRun=null, _applyTimer=null; // 환불 예정(ha/pending_refunds) — applyPendingRefunds 참고
   let _freezeRun=null; // 과거 그룹 스냅샷 고정 작업 공유 Promise(renderSettle 동시 진입 시 1회만 실행)
 
   // 다른 세션에서 입금/충전/환불 처리 시 새로고침 없이 반영 — 슬롯(수 MB)은 그대로 캐시 유지하고
@@ -184,6 +186,7 @@
     HA.onKpRefundsChange(m => { _liveKpRefund = m; recomputeLiveSettleData(); });
     HA.onSettleSnapshotsChange(m => { _liveHaSnapshot = m; recomputeLiveSettleData(); });
     HA.onKpSettleSnapshotsChange(m => { _liveKpSnapshot = m; recomputeLiveSettleData(); });
+    HA.onPendingRefundsChange(m => { pendingRefunds = m; if (_settleLoaded && document.getElementById('settle-page')) renderSettle(false); });
     attachSettleSlotsLiveSync();
   }
 
@@ -620,6 +623,9 @@
     if (!document.getElementById('settle-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
     renderSummary();
+    // 스냅샷 고정보다 먼저 — 고정이 환불 반영 전 금액으로 얼지 않게
+    await applyPendingRefunds();
+    if (!document.getElementById('settle-page')) return;
 
     // 과거 날짜 그룹 스냅샷 저장(미저장 그룹) + 차감/유입플이 실제 슬롯과 어긋난 기존 스냅샷 재동기화
     // (totalTarget/amount/refund는 고정 유지, 차감/유입플만 대상). 캐시된 allSlots로 대상 그룹 유무를
@@ -829,23 +835,131 @@
     refundInput.focus();
     refundInput.addEventListener('keydown',e=>{if(e.key==='Enter')confirmBtn.click();});
     confirmBtn.onclick=async()=>{
-      const val=Number(refundInput.value)||0;
-      const key=refundKey(timeKey,agencyId,userId);
-      await dispatchSetRefund(key,userId,val);
-      refundMap[key]=val;
-      // 스냅샷의 refund/amount도 즉시 업데이트
-      const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
-      const sk=`${safe2(timeKey)}__${safe2(agencyId)}__${safe2(userId)}`;
-      if(snapshotMap[sk]){
-        const oldAmt = snapshotMap[sk].amount + (snapshotMap[sk].refund||0);
-        snapshotMap[sk].refund = val;
-        snapshotMap[sk].amount = oldAmt - val;
-        await dispatchSaveSnapshot(sk, userId, snapshotMap[sk], true);
-      }
+      await saveGroupRefund(timeKey,agencyId,userId,Number(refundInput.value)||0);
       modal.remove();
       renderSettle(false);
     };
     modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  };
+
+  async function saveGroupRefund(timeKey,agencyId,userId,val){
+    const key=refundKey(timeKey,agencyId,userId);
+    await dispatchSetRefund(key,userId,val);
+    refundMap[key]=val;
+    // 스냅샷의 refund/amount도 즉시 업데이트
+    const safe2=s=>s.replace(/[.#$[\]/]/g,'_');
+    const sk=`${safe2(timeKey)}__${safe2(agencyId)}__${safe2(userId)}`;
+    if(snapshotMap[sk]){
+      const oldAmt = snapshotMap[sk].amount + (snapshotMap[sk].refund||0);
+      snapshotMap[sk].refund = val;
+      snapshotMap[sk].amount = oldAmt - val;
+      await dispatchSaveSnapshot(sk, userId, snapshotMap[sk], true);
+    }
+  }
+
+  // ── 환불 예정 자동 차감 ──
+  // 등록 이후 새로 생긴 해당 대행사 정산 묶음에 min(남은 금액, 묶음 금액)만큼 환불로 넣고 나머지는 다음 묶음으로 이월.
+  // 접수 직후 같은 분 묶음이 아직 다 안 들어왔을 수 있어 묶음 시각+2분 지난 것만, 입금 처리된 묶음은 건드리지 않음.
+  // ponytail: 서로 다른 환불 예정 2건이 다른 두 세션에서 같은 묶음에 동시에 적용되면 refund 덮어쓰기 가능 — 발생하면 refunds 쓰기도 트랜잭션으로
+  function applyPendingRefunds(){
+    if(!_applyRun) _applyRun=(async()=>{
+      const list=Object.entries(pendingRefunds).filter(([,p])=>p.remaining>0).sort((a,b)=>a[1].createdAt.localeCompare(b[1].createdAt));
+      if(!list.length) return;
+      const now=Date.now(), safe2=s=>s.replace(/[.#$[\]/]/g,'_');
+      const groups=groupByTimeAgency(allSlots.filter(isBillableSlot)).reverse(); // 오래된 묶음부터
+      let wait=false;
+      for(const [id,p] of list){
+        for(const g of groups){
+          if(g.agencyId!==p.agencyId) continue;
+          if(g.slots.some(s=>new Date(s.createdAt||0) < new Date(p.createdAt))) continue;
+          if(now - new Date(g.timeKey.replace(' ','T')).getTime() < 3*60000){ wait=true; continue; } // 분 시작 기준이라 3분 = 묶음 끝난 뒤 2분+
+          if(g.slots.some(s=>paidSet.has(s._key))) continue;
+          const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
+          if(p.applied?.[sk]!=null) continue;
+          const snap=snapshotMap[sk];
+          const gross=(g.timeKey.slice(0,10)<todayStr&&snap) ? snap.amount+(snap.refund||0) : calcGroup(g).amt;
+          const cur=getRefund(g.timeKey,g.agencyId,g.userId);
+          if(gross-cur<=0) continue;
+          const take=await HA.claimPendingRefund(id,sk,gross-cur);
+          if(take>0) await saveGroupRefund(g.timeKey,g.agencyId,g.userId,cur+take);
+        }
+      }
+      if(wait && !_applyTimer) _applyTimer=setTimeout(()=>{ _applyTimer=null; if(document.getElementById('settle-page')) renderSettle(false); },60000);
+    })().catch(e=>{console.error('환불 예정 적용 실패:',e);alert('환불 예정 자동 적용에 실패했습니다. 새로고침해 주세요.');}).finally(()=>{_applyRun=null;});
+    return _applyRun;
+  }
+
+  const CHOSEONG=['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  const toChoseong=str=>[...str].map(ch=>{const c=ch.charCodeAt(0);return c>=0xAC00&&c<=0xD7A3?CHOSEONG[Math.floor((c-0xAC00)/588)]:ch;}).join('');
+  const matchSearch=(t,q)=>{t=t.toLowerCase();return t.includes(q)||toChoseong(t).includes(q);};
+
+  window.openPendingRefundModal=function(){
+    document.getElementById('pending-refund-modal')?.remove();
+    let selAgency='';
+    const modal=document.createElement('div');
+    modal.id='pending-refund-modal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const inputCss='width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+    modal.innerHTML=`
+      <div style="background:#fff;border-radius:16px;padding:28px;width:460px;max-height:86vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px;">환불 등록</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">이후 추가되는 정산에서 자동 차감됩니다.</div>
+        <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">대행사</label>
+        <div style="position:relative;margin-bottom:14px;">
+          <input id="pr-agency" type="text" placeholder="대행사명 또는 아이디 검색..." autocomplete="off" style="${inputCss}">
+          <div id="pr-agency-list" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1.5px solid var(--accent);border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:1;max-height:220px;overflow-y:auto;"></div>
+        </div>
+        <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">환불 금액</label>
+        <input id="pr-amount" type="text" inputmode="numeric" style="${inputCss}margin-bottom:20px;">
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button id="pr-close" style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;">닫기</button>
+          <button id="pr-save" style="padding:9px 20px;border:none;border-radius:8px;background:var(--danger);color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;">등록</button>
+        </div>
+        <div style="font-size:13px;font-weight:700;margin:24px 0 8px;">환불 예정 목록</div>
+        <div id="pr-list"></div>
+      </div>`;
+    document.body.appendChild(modal);
+    const agEl=modal.querySelector('#pr-agency'), listEl=modal.querySelector('#pr-agency-list'), amtEl=modal.querySelector('#pr-amount');
+    const users=[...new Map(allUsers.map(u=>[u.agency||u.username,u])).values()];
+    const renderOpts=()=>{
+      const q=agEl.value.trim().toLowerCase();
+      const f=q?users.filter(u=>matchSearch(u.agency||'',q)||matchSearch(u.username||'',q)):users;
+      listEl.innerHTML=f.length?f.map(u=>`<div class="pr-opt" data-v="${escProd(u.agency||u.username)}" style="padding:9px 14px;cursor:pointer;font-size:13px;">${escProd(u.agency||u.username)} <span style="color:var(--muted);font-size:12px">(${escProd(u.username)})</span></div>`).join('')
+        :'<div style="padding:9px 14px;font-size:12px;color:var(--muted)">검색 결과 없음</div>';
+      listEl.style.display='block';
+    };
+    agEl.addEventListener('focus',renderOpts);
+    agEl.addEventListener('input',()=>{selAgency='';renderOpts();});
+    listEl.addEventListener('mousedown',e=>{
+      const o=e.target.closest('.pr-opt'); if(!o) return;
+      e.preventDefault(); selAgency=o.dataset.v; agEl.value=selAgency; listEl.style.display='none'; amtEl.focus();
+    });
+    agEl.addEventListener('blur',()=>{listEl.style.display='none';});
+    const renderList=()=>{
+      const rows=Object.entries(pendingRefunds).sort((a,b)=>b[1].createdAt.localeCompare(a[1].createdAt));
+      modal.querySelector('#pr-list').innerHTML=rows.length?`<table class="sp-tbl" style="width:100%"><thead><tr><th>대행사</th><th>등록 금액</th><th>남은 금액</th><th>등록일</th><th></th></tr></thead><tbody>${
+        rows.map(([id,p])=>`<tr style="${p.remaining>0?'':'color:var(--muted)'}"><td>${escProd(p.agencyId)}</td><td>${p.amount.toLocaleString()}원</td><td style="${p.remaining>0?'color:var(--danger);font-weight:700':''}">${p.remaining>0?p.remaining.toLocaleString()+'원':'완료'}</td><td style="font-size:11px">${escProd(p.createdAt.slice(0,10))}</td><td><button class="btn-refund" data-del="${escProd(id)}">삭제</button></td></tr>`).join('')
+      }</tbody></table>`:'<div style="font-size:12px;color:var(--muted)">등록된 환불 예정이 없습니다.</div>';
+    };
+    renderList();
+    const unsub=HA.onPendingRefundsChange(()=>renderList());
+    const close=()=>{unsub();modal.remove();};
+    modal.querySelector('#pr-list').addEventListener('click',async e=>{
+      const id=e.target.dataset?.del; if(!id) return;
+      if(!confirm('이 환불 예정을 삭제할까요?')) return;
+      try{await HA.deletePendingRefund(id);}catch(err){alert('삭제 실패: '+err.message);}
+    });
+    modal.querySelector('#pr-close').onclick=close;
+    modal.addEventListener('click',e=>{if(e.target===modal)close();});
+    amtEl.addEventListener('keydown',e=>{if(e.key==='Enter')modal.querySelector('#pr-save').click();});
+    modal.querySelector('#pr-save').onclick=async()=>{
+      const amt=Number(amtEl.value.replace(/[^\d]/g,''))||0;
+      if(!selAgency){alert('대행사를 목록에서 선택해주세요.');return;}
+      if(amt<=0){alert('환불 금액을 입력해주세요.');return;}
+      try{await HA.addPendingRefund(selAgency,amt);}catch(err){alert('등록 실패: '+err.message);return;}
+      selAgency=''; agEl.value=''; amtEl.value='';
+    };
+    agEl.focus();
   };
 
   window.openMemoPopup=function(snapKey,timeKey,agencyId,userId){
