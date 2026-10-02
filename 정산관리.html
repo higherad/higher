@@ -918,7 +918,10 @@
         </div>
        </div>
        <div style="flex:1 1 320px;min-width:0;border-left:1px solid var(--border);padding-left:24px;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">환불 예정 목록</div>
+        <div style="display:flex;gap:16px;border-bottom:1px solid var(--border);margin-bottom:10px;">
+          <button class="pr-tab" data-tab="open">환불 예정</button>
+          <button class="pr-tab" data-tab="done">완료</button>
+        </div>
         <div id="pr-list"></div>
        </div>
       </div>`;
@@ -939,16 +942,25 @@
       e.preventDefault(); selAgency=o.dataset.v; agEl.value=selAgency; listEl.style.display='none'; amtEl.focus();
     });
     agEl.addEventListener('blur',()=>{listEl.style.display='none';});
+    // 환불 예정 / 완료(남은 금액 0) 탭 — 완료 건도 적용 이력(applied) 때문에 데이터는 남겨둠
+    const PR_PER=5; let prPage=1, prTab='open';
     const renderList=()=>{
-      const rows=Object.entries(pendingRefunds).sort((a,b)=>b[1].createdAt.localeCompare(a[1].createdAt));
-      modal.querySelector('#pr-list').innerHTML=rows.length?`<table class="sp-tbl" style="width:100%"><thead><tr><th>대행사</th><th>등록 금액</th><th>남은 금액</th><th>등록일</th><th></th></tr></thead><tbody>${
-        rows.map(([id,p])=>`<tr style="${p.remaining>0?'':'color:var(--muted)'}"><td>${escProd(p.agencyId)}</td><td>${p.amount.toLocaleString()}원</td><td style="${p.remaining>0?'color:var(--danger);font-weight:700':''}">${p.remaining>0?p.remaining.toLocaleString()+'원':'완료'}</td><td style="font-size:11px">${escProd(p.createdAt.slice(0,10))}</td><td><button class="btn-refund" data-del="${escProd(id)}">삭제</button></td></tr>`).join('')
-      }</tbody></table>`:'<div style="font-size:12px;color:var(--muted)">등록된 환불 예정이 없습니다.</div>';
+      modal.querySelectorAll('.pr-tab').forEach(t=>{const on=t.dataset.tab===prTab;t.style.cssText=`border:none;background:none;padding:6px 2px;margin-bottom:-1px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border-bottom:2px solid ${on?'var(--danger)':'transparent'};color:${on?'var(--danger)':'var(--text2)'};`;});
+      const done=prTab==='done';
+      const rows=Object.entries(pendingRefunds).filter(([,p])=>done?!(p.remaining>0):p.remaining>0).sort((a,b)=>b[1].createdAt.localeCompare(a[1].createdAt));
+      const pages=Math.ceil(rows.length/PR_PER)||1;
+      prPage=Math.min(prPage,pages);
+      const pg=pages>1?`<div class="pagination">${Array.from({length:pages},(_,i)=>`<button class="pg-btn ${i+1===prPage?'active':''}" data-pg="${i+1}">${i+1}</button>`).join('')}</div>`:'';
+      modal.querySelector('#pr-list').innerHTML=rows.length?`<table class="sp-tbl" style="width:100%"><thead><tr><th>대행사</th><th>등록 금액</th><th>${done?'상태':'남은 금액'}</th><th>등록일</th>${done?'<th>완료일</th>':''}<th></th></tr></thead><tbody>${
+        rows.slice((prPage-1)*PR_PER,prPage*PR_PER).map(([id,p])=>`<tr><td>${escProd(p.agencyId)}</td><td>${p.amount.toLocaleString()}원</td>${done?'<td style="color:var(--accent);font-weight:700">완료</td>':`<td style="color:var(--danger);font-weight:700">${p.remaining.toLocaleString()}원</td>`}<td style="font-size:11px">${escProd(new Date(p.createdAt).toLocaleDateString('sv-SE'))}</td>${done?`<td style="font-size:11px">${p.completedAt?escProd(new Date(p.completedAt).toLocaleDateString('sv-SE')):'-'}</td>`:''}<td><button class="btn-refund" data-del="${escProd(id)}">삭제</button></td></tr>`).join('')
+      }</tbody></table>${pg}`:`<div style="font-size:12px;color:var(--muted)">${done?'완료된 환불이 없습니다.':'등록된 환불 예정이 없습니다.'}</div>`;
     };
     renderList();
     const unsub=HA.onPendingRefundsChange(()=>renderList());
     const close=()=>{unsub();modal.remove();};
+    modal.querySelectorAll('.pr-tab').forEach(t=>t.onclick=()=>{prTab=t.dataset.tab;prPage=1;renderList();});
     modal.querySelector('#pr-list').addEventListener('click',async e=>{
+      if(e.target.dataset?.pg){prPage=Number(e.target.dataset.pg);renderList();return;}
       const id=e.target.dataset?.del; if(!id) return;
       if(!confirm('이 환불 예정을 삭제할까요?')) return;
       try{await HA.deletePendingRefund(id);}catch(err){alert('삭제 실패: '+err.message);}

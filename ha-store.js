@@ -1041,7 +1041,7 @@ const HA = {
   },
 
   // 환불 예정 — 대행사별로 미리 등록해두면 이후 새로 추가되는 정산 묶음에 자동 차감(정산관리.html applyPendingRefunds)
-  // {agencyId, amount, remaining, createdAt, createdBy, applied:{묶음키: 차감액}}
+  // {agencyId, amount, remaining, createdAt, createdBy, applied:{묶음키: 차감액}, completedAt(전액 차감된 시각)}
   onPendingRefundsChange(callback) { return onPendingRefundsChangeShared(callback); },
   async addPendingRefund(agencyId, amount) {
     const u = this.getCurrentUser() || {};
@@ -1058,7 +1058,9 @@ const HA = {
       take = 0;
       if (!cur || !(cur.remaining > 0) || cur.applied?.[groupKey] != null) return cur;
       take = Math.min(cur.remaining, groupAmount);
-      return { ...cur, remaining: cur.remaining - take, applied: { ...(cur.applied || {}), [groupKey]: take } };
+      const remaining = cur.remaining - take;
+      return { ...cur, remaining, applied: { ...(cur.applied || {}), [groupKey]: take },
+        ...(remaining <= 0 ? { completedAt: new Date().toISOString() } : {}) };
     });
     return r.committed ? take : 0;
   },
