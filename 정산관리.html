@@ -932,7 +932,7 @@
         :'<div style="padding:9px 14px;font-size:12px;color:var(--muted)">검색 결과 없음</div>';
       listEl.style.display='block';
     };
-    agEl.addEventListener('focus',renderOpts);
+    agEl.addEventListener('click',renderOpts); // focus 아님 — 팝업 열 때 자동 포커스로 목록이 바로 펼쳐지지 않게
     agEl.addEventListener('input',()=>{selAgency='';renderOpts();});
     listEl.addEventListener('mousedown',e=>{
       const o=e.target.closest('.pr-opt'); if(!o) return;
