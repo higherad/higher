@@ -772,7 +772,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
-          <td>${stMap[s.status]||s.status}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
+          <td>${stMap[s.status]||s.status}${s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : ''}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
               <button class="action-btn" style="background:#f1f5f9;color:var(--text2);" onclick="viewDetail('${s._key}')">상세</button>

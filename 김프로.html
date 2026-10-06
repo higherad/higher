@@ -2481,7 +2481,8 @@ if (!window._kpEscBound) {
       const label = labelMap[s.status] || s.status;
       return `<span class="kp-status-badge ${cls}">재접수 | ${label}</span>`;
     }
-    return stMap[s.status] || s.status;
+    const failNote = s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : '';
+    return (stMap[s.status] || s.status) + failNote;
   }
 
   const KP_GRADEABLE_STATUSES = ['pending','accepted','active','paused','force_stopped','requeue','split'];
