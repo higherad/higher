@@ -5284,13 +5284,12 @@ if (!window._kpEscBound) {
 
     // 접수관리.html과 동일한 예약 허용 정책: register leg(일반/찰리/델타/네이비) 중 2개 이상 동시필요면
     // 예약 토글 자체를 막음(어느 탭에 적용할지 모호해짐). 유입플이 아직 안 끝났어도 다른 레그 예약을 막는다.
-    const registerLegCount = [hasNormal, hasCharlie, (hasDelta||hasNavy)].filter(Boolean).length;
-    const yupflPending = hasFixed && !yupflRows.every(r => r._fixedSubmitted);
+    // 델타·네이비도 각각 별도 레그 — 한 슬롯에 둘 다 배분되면 병렬 예약이 kimproScheduledBatches/{slotKey}.total을 서로 덮어씀
+    const registerLegCount = [hasNormal, hasCharlie, hasDelta, hasNavy].filter(Boolean).length;
+    const yupflPending = hasFixed && !(yupflRows.length && yupflRows.every(r => r._fixedSubmitted));
     const scheduleBlocked = registerLegCount > 1 || yupflPending;
     const scheduleBtnVisible = hasNormal || hasCharlie || hasDelta || hasNavy;
-    kpScheduleValidationRows = hasNormal ? normalPlan.flatMap(p=>p.rows)
-      : hasCharlie ? charliePlan.flatMap(p=>p.rows)
-      : [...deltaPlan.flatMap(p=>p.rows), ...navyPlan.flatMap(p=>p.rows)];
+    kpScheduleValidationRows = [...normalPlan, ...charliePlan, ...deltaPlan, ...navyPlan].flatMap(p=>p.rows);
 
     // 슬롯별 실제 필요 레그 계산(kimpro reception.html과 동일) — 배치 전체 hasFixed와 무관하게
     // 그 슬롯이 진짜 등장한 레그만 요구해야 재접수 유입플 면제가 슬롯 단위로 정확히 적용됨.
@@ -5353,7 +5352,7 @@ if (!window._kpEscBound) {
           </button>
           ${scheduleBtnVisible ? `
           <button id="kp-schedule-toggle-btn" type="button" ${scheduleBlocked ? 'disabled' : ''}
-            title="${registerLegCount > 1 ? '일반/찰리/블로그 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다' : yupflPending ? '유입플 탭에서 접수를 먼저 완료해야 시간대 분할 예약을 쓸 수 있습니다' : '즉시 전송 대신 지정 시각에 나눠 접수'}"
+            title="${registerLegCount > 1 ? '일반/찰리/델타/네이비 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다' : yupflPending ? '유입플 탭에서 접수를 먼저 완료해야 시간대 분할 예약을 쓸 수 있습니다' : '즉시 전송 대신 지정 시각에 나눠 접수'}"
             style="display:flex;align-items:center;gap:6px;border:none;background:transparent;font-family:inherit;padding:2px;${scheduleBlocked ? 'opacity:.4;cursor:not-allowed;' : 'cursor:pointer;'}">
             <span id="kp-schedule-toggle-label" style="font-size:12px;color:${kpScheduleConfig?'#f59e0b':'var(--text2)'};font-weight:600;">⏰ 분할 예약</span>
             <span id="kp-schedule-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${kpScheduleConfig?'#f59e0b':'#94a3b8'};flex-shrink:0;">
@@ -5588,7 +5587,6 @@ if (!window._kpEscBound) {
     }
 
     if (hasNormal) {
-      kpScheduleValidationRows = normalPlan.flatMap(p=>p.rows);
       const bodyEl = overlay.querySelector('#kp-submit-body');
       const subEl = overlay.querySelector('#kp-submit-sub');
       const applyBtn = overlay.querySelector('#kp-submit-apply-btn');
@@ -5707,7 +5705,7 @@ if (!window._kpEscBound) {
         if (kpScheduleConfig && kpScheduleConfig.length) {
           const results = await Promise.all([
             hasDelta ? kpSubmitPlanRowsScheduled(deltaPlan, 'deltaKeys', KP_DELTA_ADROLE, kpProductVerFor('delta'), kpScheduleConfig) : { scheduledCount:0, failTotal:0 },
-            hasNavy ? kpSubmitPlanRowsScheduled(navyPlan, 'navyKeys', undefined, kpProductVerFor('navy'), kpScheduleConfig) : { scheduledCount:0, failTotal:0 },
+            hasNavy ? kpSubmitPlanRowsScheduled(navyPlan, 'navyKeys', null, kpProductVerFor('navy'), kpScheduleConfig) : { scheduledCount:0, failTotal:0 },
           ]);
           const scheduledCount = results.reduce((a,r)=>a+r.scheduledCount,0);
           const failTotal = results.reduce((a,r)=>a+r.failTotal,0);
