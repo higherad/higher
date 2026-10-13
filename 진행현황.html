@@ -305,7 +305,7 @@
       document.getElementById('slots-body').innerHTML =
         '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-      // 기본 = 진행 중 + 최근 30일 종료(옛 화면과 같은 범위), 검색·종료필터·» = 종료 전체까지
+      // 기본 = 진행 중 + 최근 30일 종료, 검색·종료필터·» = 종료 전체까지
       const [live, recent] = await Promise.all([HI.getLive(), HI.getRecentClosed()]);
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리(한 번의 쓰기로 live→closed 이동) ──
@@ -413,7 +413,7 @@
   renderSlots(false);
 
   // ── 휴지통 ─────────────────────────────────────────────────
-  // 한 벌 저장소라 탭 없이 하나로(옛 접수관리·김프로 탭 구분은 저장소가 달라서였음) — 옛 김프로 건은 '김프로' 표시
+  // 한 벌 저장소라 탭 없이 하나로 — 옛 김프로 출처 건은 '김프로' 표시
   const TRASH_DAYS = 30;
 
   function _trashRemaining(deletedAt) {

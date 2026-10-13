@@ -1,6 +1,6 @@
 /**
- * HI-STORE.JS — 관리자 사이트 데이터 저장소 (hi/ 구조, 2026-10 개편)
- * 구조·옛 경로 대응표: 루트 저장소 work/hi_migration/STRUCTURE.md
+ * HI-STORE.JS — 관리자 사이트 데이터 저장소 (hi/ 구조)
+ * 구조 정본: 루트 저장소 work/hi_migration/STRUCTURE.md
  *
  * 원칙
  * - 캠페인은 hi/campaigns/live(진행 중) · closed(종료·휴지통) 두 노드. 상태가 경계를 넘으면 이 파일이 원자적으로 옮김
@@ -93,7 +93,7 @@ const P = {
 
 const CLOSED_STATUSES   = new Set(['expired', 'deleted']);
 const BILLABLE_STATUSES = new Set(['active', 'accepted', 'expired', 'pending', 'split']);
-// 캠페인 필드명 → campaign_keywords 필드명 (페이지는 옛 필드명 그대로 씀)
+// 캠페인 필드명 → campaign_keywords 필드명 (페이지는 왼쪽 필드명으로 읽고 씀)
 const KW_FIELDS = { searchKeyword: 'search', yupflKeyword: 'yupfl', splitKeywords: 'split' };
 const KW_HISTORY_MAX = 10;
 const CLAIM_TTL_MS = 10 * 60 * 1000;      // 등록·충전 선점 만료 — 실패 후 다른 직원이 너무 오래 막히지 않게
@@ -113,8 +113,7 @@ function minuteKey(iso) {
   const d = new Date(iso);
   return `${ymd(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
-// 정산 묶음 = 접수 분 단위 시각(브라우저 KST) + 대행사 + 유저. 옛 김프로 출처의 __kimpro__ 유저 자리는
-// 이전 때 실제 회원 아이디로 바꿈(migrate.py rename_kimpro_group_keys — 2026-10-13 정산관리 김프로 구분 제거)
+// 정산 묶음 = 접수 분 단위 시각(브라우저 KST) + 대행사 + 유저
 function groupKeyParts(slot) {
   return [minuteKey(slot.createdAt), slot.agencyId || '-', slot.userId || '-'];
 }
@@ -170,7 +169,7 @@ function receiptMessage(title, slots) {
 }
 
 // ── 공유 실시간 캐시 ─────────────────────────────────────────
-// 같은 경로를 여러 화면이 구독해도 리스너는 1개(SPA 재방문마다 리스너가 누적되던 사고 방지)
+// 같은 경로를 여러 화면이 구독해도 리스너는 1개 — SPA 재방문마다 페이지 스크립트가 다시 돌아도 누적 안 됨
 function makeValueCache(path, transform = v => v) {
   let started = false, has = false, value;
   const subs = new Set();
@@ -252,7 +251,7 @@ function loadClosed() {
 }
 
 // ── 캠페인 조회 ──────────────────────────────────────────────
-// 검증 조회: get()이 쿼리 리스너 로컬 캐시에서 일부 필드만 돌려준 사례가 있어(2026-09-28) mid 없으면 재조회.
+// 검증 조회: get()이 쿼리 리스너 로컬 캐시에서 일부 필드만 돌려줄 수 있어 mid 없으면 재조회.
 // 없으면 null, 끝내 필드 누락이면 throw — 그 값으로 쓰기·금액 판단 금지
 async function readCampaign(key) {
   for (let i = 0; i < 3; i++) {
@@ -288,7 +287,7 @@ async function writeCampaign(key, patch, cur = null) {
   if (Object.keys(updates).length) await update(ref(db), updates);
 }
 
-// 검색·유입플 키워드가 바뀌면 이력에 추가(최근 10개) — 예전엔 김프로만 기록하고 접수관리는 안 했음
+// 검색·유입플 키워드가 바뀌면 이력에 추가(최근 10개)
 async function keywordUpdates(key, kw) {
   const out = {};
   const hist = (kw.searchKeyword !== undefined || kw.yupflKeyword !== undefined)
@@ -304,7 +303,7 @@ async function keywordUpdates(key, kw) {
   return out;
 }
 
-// 정산 고정 스냅샷 축소 — 예약 대기분 취소로 일수가 줄면 이미 고정된 묶음 금액도 같이 줄임(2026-09-28 사용자 결정)
+// 정산 고정 스냅샷 축소 — 예약 대기분 취소로 일수가 줄면 이미 고정된 묶음 금액도 같이 줄임
 async function shrinkSettleSnapshot(slot, newDays) {
   const lostDays = (Number(slot.days) || 0) - newDays;
   if (lostDays <= 0 || !slot.createdAt) return;
@@ -631,7 +630,7 @@ const HI = {
     if (!slots.length) return;
     return sendTelegram(receiptMessage(`📊 <b>새 캠페인 접수 (${label})</b>`, slots));
   },
-  // 엑셀 파일 안 같은 캠페인 행 중복 표시(2026-09-23 실사례) — 텔레그램 봇 엑셀접수와 같은 기준
+  // 엑셀 파일 안 같은 캠페인 행 중복 표시 — 텔레그램 봇 엑셀접수와 같은 기준
   markDuplicateRows(rows) {
     const seen = new Set();
     rows.forEach(r => {
@@ -647,7 +646,7 @@ const HI = {
   // ════════════════════════════════════════════════════════
   onScheduleDispatchChange(cb) { return dispatchCache(cb); },
   getScheduleDispatchOnce() { return once(dispatchCache); },
-  // 키 = 생성 시각 base36 + 난수(옛 접수관리 genId와 같은 형식) — 디스패처가 $key 범위로 '방금 만든 지난 시각 예약'을
+  // 키 = 생성 시각 base36 + 난수(접수관리 genId와 같은 형식) — 디스패처가 $key 범위로 '방금 만든 지난 시각 예약'을
   // 찾으므로 push 키(-O…)를 쓰면 그 예약은 하루 1번 전체 조회 때까지 밀림
   async addScheduleDispatch(entry) {
     const key = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -711,7 +710,7 @@ const HI = {
     if (!username) throw new Error('아이디를 입력하세요.');
     const rec = {
       username,
-      password: data.password || '',   // 관리자 확인용 사본(사용자 결정 2026-10-13 유지)
+      password: data.password || '',   // 관리자 확인용 평문 사본
       agency: data.agency || '', agencyId: data.agency || '',
       role: 'member',
       unitPrice: Number(data.unitPrice) || 0,
@@ -783,19 +782,19 @@ const HI = {
   // 정산
   // ════════════════════════════════════════════════════════
   // 정산 묶음 키 = 접수 분 단위 시각__대행사__유저 — 고정 스냅샷·환불이 이 키로 저장돼 있어 규칙을 바꾸면 고정 금액이 끊김.
-  // 빈 대행사·유저는 '-'(옛 정산관리 groupByTimeAgency와 동일)
+  // 빈 대행사·유저는 '-'(정산관리 groupByTimeAgency와 동일)
   settleGroupKey(slot) {
     return groupKeyParts(slot).map(safeKey).join('__');
   },
-  // 환불 키는 '/'를 치환하지 않음(옛 정산관리 refundKey 규칙 — 기존 환불 키가 이 형태)
+  // 환불 키는 '/'를 치환하지 않음(정산관리 refundKey 규칙 — 저장된 환불 키가 이 형태)
   refundGroupKey(slot) {
     return groupKeyParts(slot).map(v => v.replace(/[.#$[\]]/g, '_')).join('__');
   },
-  // 정산 대상 — 재접수(옛 김프로 isRequeue)·휴지통 제외. 정산관리·사이드바 배지·텔레그램 봇이 같은 기준을 써야 함
+  // 정산 대상 — 재접수(isRequeue)·휴지통 제외. 정산관리·사이드바 배지·텔레그램 봇이 같은 기준을 써야 함
   isBillable(slot) {
     if (slot.isRequeue) return false; // 재접수는 기존 배분을 이어받을 뿐 새 결제 건이 아님
     if (BILLABLE_STATUSES.has(slot.status)) return true;
-    // 옛 김프로 전용 상태(강제종료·임시중단 등)도 정산 대상 — 휴지통만 제외(2026-09-28 사용자 결정, 옛 정산관리와 동일)
+    // 옛 김프로 출처의 전용 상태(강제종료·임시중단 등)도 정산 대상 — 휴지통만 제외
     return slot.origin === 'kp' && !!slot.status && slot.status !== 'deleted';
   },
   getPaidSet() { return once(paidCache); },
@@ -849,7 +848,7 @@ const HI = {
   deleteSettleSnapshot(snapKey) { return remove(ref(db, `${P.snapshots}/${snapKey}`)); },
 
   // 정산 충전·입금 도장(실제 비즈핏 충전 없음 — 정산관리 '완료' 버튼 + 입금 처리와 같은 기록). 접수관리 승인 시 자동 처리
-  // 대상 대행사([단독]오렌지, 2026-10-13 사용자 결정)에만 씀. 담당자 = 로그인 직원.
+  // 대상 대행사([단독]오렌지)에만 씀. 담당자 = 로그인 직원.
   // 스냅샷이 이미 있으면(과거 날짜 고정분 등) 금액은 그대로 두고 비어 있는 도장만 채움. 없으면 정산관리 입금 버튼(bulkRow)과
   // 같은 금액 필드로 새로 씀 — 과거 날짜 행은 스냅샷 금액을 그대로 표시하므로 도장만 있는 스냅샷이면 금액 0으로 보임
   async stampChargeAndPaid(slots) {

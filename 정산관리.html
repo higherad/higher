@@ -198,8 +198,7 @@
       if (document.getElementById('settle-page')) renderSettle(false);
     }, 300);
   }
-  // HI.subscribeAll = hi-store.js 공유 캐시 구독(세션당 리스너 1개) — 메뉴 재방문마다 리스너가 쌓여
-  // 대역폭이 폭증했던 사고(2026-09-18) 재발 방지. 종료 전체 로딩이 끝난 뒤 첫 콜백이 옴
+  // HI.subscribeAll = hi-store.js 공유 캐시 구독(세션당 리스너 1개, 메뉴 재방문해도 안 쌓임). 종료 전체 로딩이 끝난 뒤 첫 콜백이 옴
   function attachSettleSlotsLiveSync() {
     _unsubs.push(HI.subscribeAll(list => { if (pageGone()) return; allSlots = list; scheduleSettleRerender(); }));
   }
@@ -209,13 +208,13 @@
   // 정산 대상 — 재접수·휴지통 제외, split(시간대 분할 예약)은 비즈핏 캐시 차감이 예약 시점에 이미 실행돼 포함.
   // 사이드바 배지·텔레그램 봇과 같은 기준이어야 해서 hi-store 한 곳에 둠
   const isBillableSlot = HI.isBillable;
-  // 저장소가 한 벌이라 쓰기 분기 없음 — 옛 호출 모양(userId 인자)만 유지
+  // 저장소가 한 벌이라 쓰기 분기 없음(userId 인자는 호출부 모양 맞춤용)
   async function dispatchSaveSnapshot(sk, userId, data, force) { return HI.saveSettleSnapshot(sk,data,force); }
   async function dispatchDeleteSnapshot(sk, userId) { return HI.deleteSettleSnapshot(sk); }
   async function dispatchSetRefund(key, userId, amount) { return HI.setRefundAmount(key,amount); }
   async function dispatchSetPaid(key, userId, val) { return HI.setPaid(key,val); }
   const displayUserId = userId => userId;
-  // 차감·유입플·차감수량 열은 모든 직원에게 노출(2026-10-13 사용자 결정 — 계정별 노출 제한 없음)
+  // 차감·유입플·차감수량 열은 모든 직원에게 노출(계정별 노출 제한 없음)
   // ponytail: 항상 true인 플래그를 남겨 둠(조건부 열 26곳). 다시 제한할 일이 없으면 조건부 분기째 정리
   const SHOW_DEDUCT=true;
 
@@ -584,12 +583,11 @@
       return ded !== (snap.deductAmt||0) || dtg !== (snap.deductTgt||0) || yup !== (snap.yupflAmt||0);
     });
     if (findNewGroups(allSlots).length || findStaleDeductGroups(allSlots).length) {
-      // 진입 직후 renderSettle이 초기 1회+실시간 리스너 첫 콜백들로 8~9번 거의 동시에 불려, 가드 없으면
-      // 각자 아래 전체 재조회(ha/slots+kimproSlots 23.8MB)를 해서 아침마다 ~215MB가 나갔음(2026-09-29) —
-      // 진행 중인 고정 작업이 있으면 새로 시작하지 않고 그 결과를 기다림
+      // 진입 직후 renderSettle이 초기 1회+실시간 리스너 첫 콜백들로 8~9번 거의 동시에 불림 —
+      // 진행 중인 고정 작업이 있으면 새로 시작하지 않고 그 결과를 기다림(동시 저장·중복 계산 방지)
       if (!_freezeRun) _freezeRun = (async () => {
-      // 예전엔 낡은 캐시를 피하려고 여기서 슬롯 전체(23.8MB)를 재조회했음. 이제 진행 중·최근 30일 종료·환불은
-      // 실시간 구독이라 최신이고, 고정 대상(어제 이전 접수)이 바뀌는 건 이 구독 범위 안에서 일어남 — 재조회 없음
+      // 진행 중·최근 30일 종료·환불은 실시간 구독이라 최신이고, 고정 대상(어제 이전 접수)이 바뀌는 건
+      // 이 구독 범위 안에서 일어남 — 재조회 없음
       const freshSlots = allSlots;
       const freshRefund = (timeKey,agencyId,userId) => (refundMap)[refundKey(timeKey,agencyId,userId)]||0;
       for (const g of findNewGroups(freshSlots)) {

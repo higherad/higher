@@ -434,7 +434,7 @@ window.toggleProdPanel = function(e) {
   let allSlots     = [];
   let filteredAll  = [];
   // 목록 = 진행 중(키워드 포함, 실시간) + 최근 30일 종료(실시간, 키워드 없음) + 검색·날짜필터·» 때 종료 전체.
-  // 종료 건 키워드는 상세·엑셀 다운로드 때만 HI.ensureKeywords로 붙임. 옛 김프로 출처 캠페인도 이제 같은 목록
+  // 종료 건 키워드는 상세·엑셀 다운로드 때만 HI.ensureKeywords로 붙임. 옛 김프로 출처 캠페인도 같은 목록
   let _withArchive = false; // 종료 전체 표시 여부 — 이 메뉴에서만 유효(데이터는 hi-store가 세션당 1회 받아 보관)
   let _liveKw = [], _recent = [];
   let _liveUnsub = null, _recentUnsub = null, _liveReady = null, _liveSyncOn = false;
@@ -1541,7 +1541,7 @@ window.toggleProdPanel = function(e) {
     };
     try {
       // hi-store 공유 캐시 구독(세션당 리스너 1개) — 첫 값이 오면 최초 로드 완료, 이후 다른 세션 변경도 즉시 반영.
-      // 페이지 재실행마다 onValue를 직접 붙이면 리스너가 누적됨(2026-09-18 사고). 메뉴를 떠나면 해제
+      // 페이지 재실행마다 onValue를 직접 붙이면 리스너가 누적됨 — 메뉴를 떠나면 해제
       await new Promise(resolve => {
         let gotP = false, gotG = false;
         const first = () => { if (gotP && gotG) resolve(); };
@@ -3342,7 +3342,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 승인 시 정산 충전·입금 자동 도장 ─────────────────────────
   // 이 대행사 건은 승인(예약 신청 포함) 즉시 정산관리 충전·입금을 처리한 것으로 기록 — 실제 비즈핏 충전은 안 함,
-  // 담당자 = 로그인 직원(2026-10-13 사용자 결정). 승인은 이미 끝난 뒤라 실패해도 막지 않고 알림만
+  // 담당자 = 로그인 직원. 승인은 이미 끝난 뒤라 실패해도 막지 않고 알림만
   const AUTO_SETTLE_AGENCIES = new Set(['[단독]오렌지']);
   async function autoStampSettlement(slots) {
     const targets = (slots || []).filter(s => s && AUTO_SETTLE_AGENCIES.has(s.agencyId));
@@ -4441,7 +4441,7 @@ window.toggleProdPanel = function(e) {
         slotMap: slotMapAll,
         async tryApprove() {
           // 호출부가 try/catch 없이 await만 하므로, 내부 예외가 밖으로 새면 등록 성공해도
-          // 승인/화면갱신이 통째로 스킵됨(2026-09-03) — 여기서 막는다.
+          // 승인/화면갱신이 통째로 스킵됨 — 여기서 막는다.
           try {
             const keys = readyKeysOf(this);
             // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
@@ -4690,7 +4690,7 @@ window.toggleProdPanel = function(e) {
     return groups;
   }
   // 그룹당 개수를 직접 받는 대신 "몇 개 그룹이 필요한지"만 받아 그룹 크기를 역산(ceil)해서 자름 —
-  // 시간대 분할 편집기 키워드 분할과 동일한 자동계산 방식(2026-09-14)
+  // 시간대 분할 편집기 키워드 분할과 동일한 자동계산 방식
   function autoChunkKeywords(kwText, neededGroups) {
     const kws = (kwText||'').split(',').map(k=>k.trim()).filter(Boolean);
     if (!kws.length || neededGroups <= 0) return [];
@@ -5425,7 +5425,7 @@ window.toggleProdPanel = function(e) {
   let _ssLastGroups = []; // 직전 렌더에 실제로 표시된 그룹 배열(카드 클릭이 index로 이 배열을 참조) — 대기/완료 뷰 중 현재 보이는 쪽만 담김
   let _ssShowDone = false; // false=대기 항목 있는 캠페인만, true=전부 완료된 캠페인만(완료 목록)
   let _ssResplit = {}; // slotKey -> { open, loading, gradeGroups, sel:{gradeName:pct} } — 잔여 재분류 패널 상태
-  // 일괄 잔여 재분류(2026-09-14) — 여러 그룹에 같은 등급/비율 설정 하나를 한 번에 적용. 키워드는
+  // 일괄 잔여 재분류 — 여러 그룹에 같은 등급/비율 설정 하나를 한 번에 적용. 키워드는
   // 항상 각 그룹 자신의 상세 키워드를 이 등급 비율 그대로 재분할(그룹별 개별 % 없음, 사용자 확정).
   let _ssBulkSelected = new Set(); // 일괄 재분류 대상으로 체크된 그룹 gid 집합
   // sel: ckey -> 목표%, kwPct: ckey -> 키워드%(개별 패널과 동일하게 분리) — 실제 적용은 항상
@@ -5452,8 +5452,8 @@ window.toggleProdPanel = function(e) {
   }
 
   // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 동일한 계산을 DOM 렌더 없이 반환.
-  // hi-store의 onValue 공유 캐시 구독 사용 — 예전엔 매번 통째로 받아서 무관한 슬롯 변경마다
-  // 이 테이블(수백KB~1MB)이 재다운로드되는 게 RTDB 대역폭 폭증의 주 원인이었음.
+  // hi-store의 onValue 공유 캐시 구독 사용 — 매번 통째로 받으면 무관한 캠페인 변경마다
+  // 이 테이블(수백KB~1MB)을 재다운로드함
   function scheduleEntriesFrom(val) {
     const out = {};
     Object.entries(val || {}).forEach(([k, v]) => { out[k] = { ...v, _key: k, _src: v.src === 'kp' ? 'kp' : 'ha' }; });
@@ -5461,7 +5461,7 @@ window.toggleProdPanel = function(e) {
   }
   async function computeScheduleGroupCount() {
     const entries = scheduleEntriesFrom(await HI.getScheduleDispatchOnce());
-    // 완료(모든 조각 done)된 캠페인은 카드에서 제외 — 대기중 남은 캠페인 수만 표시(2026-09-16)
+    // 완료(모든 조각 done)된 캠페인은 카드에서 제외 — 대기중 남은 캠페인 수만 표시
     return groupScheduleEntries(Object.values(entries)).filter(g => !g.items.every(e => isScheduleDone(e.status))).length;
   }
 
@@ -5684,7 +5684,7 @@ window.toggleProdPanel = function(e) {
       }).join('');
     }
 
-    // 완료된 건은 제외하고 대기중 남은 수량만 표시(2026-09-16) — 카드(stat-split)의
+    // 완료된 건은 제외하고 대기중 남은 수량만 표시 — 카드(stat-split)의
     // computeScheduleGroupCount와 동일 기준
     const pendingCount = Object.values(_ssEntries).filter(e => !isScheduleDone(e.status)).length;
     const pendingFiltered = filtered.filter(e => !isScheduleDone(e.status));
@@ -5743,7 +5743,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // 슬롯(상세)에 저장된 검색키워드를 그대로 가져옴 — 대기중 항목마다 흩어진 값이 아니라
-  // 항상 원본 상세 값을 기준으로 재분할하기 위함(2026-09-11 기획 확정 사항)
+  // 항상 원본 상세 값을 기준으로 재분할하기 위함
   async function fetchSourceKeyword(src, slotKey) {
     const s = allSlots.find(x => x._key === slotKey);
     if (s && 'searchKeyword' in s) return s.searchKeyword || '';
@@ -5765,7 +5765,7 @@ window.toggleProdPanel = function(e) {
     return result;
   }
 
-  // ── 일괄 잔여 재분류(2026-09-14) — 체크된 여러 그룹에 동일한 등급/비율 설정 하나를 한 번에 적용 ──
+  // ── 일괄 잔여 재분류 — 체크된 여러 그룹에 동일한 등급/비율 설정 하나를 한 번에 적용 ──
   window.onBulkGroupCheck = function(gid, checked) {
     if (checked) _ssBulkSelected.add(gid); else _ssBulkSelected.delete(gid);
     renderSplitScheduleList();
@@ -6071,7 +6071,7 @@ window.toggleProdPanel = function(e) {
     updateScheduleResplitSum(slotKey);
   };
 
-  // 예약 시각 재설정(2026-09-14) — 켜면 원래 sendAt 대신 여기서 새로 정한 시각·비율로 전체 잔여를
+  // 예약 시각 재설정 — 켜면 원래 sendAt 대신 여기서 새로 정한 시각·비율로 전체 잔여를
   // 다시 나눔(부분선택 대상 아님). 편집기 UI/검증은 접수 확인 팝업의 #schedule-editor와 동일 패턴.
   window.onScheduleResplitTimeModeToggle = function(slotKey, checked) {
     const st = _ssResplit[slotKey]; if (!st) return;
@@ -6179,7 +6179,7 @@ window.toggleProdPanel = function(e) {
     }).filter(Boolean);
     const pctSum = grades.reduce((a,g) => a+g.pct, 0);
     // 시간 재설정 켜면 전체 잔여를 대상으로 새 날짜×시각 그리드로 다시 만들므로 부분선택 개념 자체가
-    // 없어짐 — targetKeys를 강제로 비워 "전체" 취급(2026-09-14)
+    // 없어짐 — targetKeys를 강제로 비워 "전체" 취급
     const timeRows = st.timeMode ? st.timeRows : null;
     const timePctSum = timeRows ? timeRows.reduce((a,r) => a+(Number(r.pct)||0), 0) : null;
     const targetKeys = st.timeMode ? null : (st.selectedKeys && st.selectedKeys.size ? st.selectedKeys : null);
@@ -6577,9 +6577,9 @@ window.toggleProdPanel = function(e) {
     finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, d.okTotal + n.okTotal, d.failTotal + n.failTotal);
   }
 
-  // ── 📈 순위표 다운로드 (옛 김프로 메뉴에서 이식, 2026-10-13 — 대상: 전체 캠페인) ──
+  // ── 📈 순위표 다운로드 (대상: 전체 캠페인) ──
   // 버튼은 index.html 상단(엑셀 접수 오른쪽). 기준순위가 같은 MID의 직전 종료건까지 보므로 종료 전체 포함.
-  // kimpro-premium /rank-table은 종료 상태를 옛 김프로 이름('ended')으로 판정 — expired를 ended로 보냄
+  // kimpro-premium /rank-table은 종료 상태를 'ended'로 판정 — expired를 ended로 보냄
   window.downloadRankTable = async function() {
     const btn = document.getElementById('rank-table-btn');
     const original = btn ? btn.textContent : '';
@@ -6631,7 +6631,7 @@ window.toggleProdPanel = function(e) {
     renderPS();
   })();
 
-  // lock 전체 상태 프리페치 — 첫 상세 클릭 시 네트워크 없이 즉시 확인(예전 REST 직접 조회는 인증이 없어 규칙에 막혔음)
+  // lock 전체 상태 프리페치 — 첫 상세 클릭 시 네트워크 없이 즉시 확인(SDK 인증 조회 — 잠금 노드는 스태프 전용)
   HI.getDetailLocks().then(data => {
     if (!data || typeof data !== 'object') return;
     const cu   = HI.getCurrentUser() || {};

@@ -567,7 +567,6 @@
       navEl.classList.add('active');
     }
     document.getElementById('page-heading').textContent = PAGE_TITLES[page] || page;
-    // 순위표는 옛 김프로 메뉴에서 옮겨온 기능 — 전체 캠페인 대상(2026-10-13 결정)
     document.getElementById('page-actions').innerHTML = page === '접수관리.html'
       ? '<button style="background:#0d9488;color:#fff;" onclick="openReceiptExcelModal()">📊 엑셀 접수</button>'
         + ' <button id="rank-table-btn" style="background:#334155;color:#fff;" onclick="downloadRankTable()">📈 순위표</button>'
