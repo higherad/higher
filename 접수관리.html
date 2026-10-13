@@ -2129,11 +2129,13 @@ window.toggleProdPanel = function(e) {
       if (res && res.success) {
         await Promise.all(targets.map(s => HI.updateCampaign(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true })));
         targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true }));
-        // 최근 입금완료 건에 "[환불] 유입플 세팅 금액" 메모 누적 기록(서버가 합산) — 차감과 별개라 실패해도 콘솔에만 남김
+        // 최근 입금완료 건에 "[환불] 차감 금액" 메모 누적 기록(서버가 합산) — 차감과 별개라 실패해도 콘솔에만 남김
         const agencyId = targets[0].agencyId;
-        callBizfitProxy('/bizfit-charge-memo', { company: agencyId, yupflAmount, deductAmount })
-          .then(mres => { if (!mres || !mres.success) console.error('비즈핏 충전 메모 실패:', agencyId, mres && mres.message); })
-          .catch(e => console.error('비즈핏 충전 메모 오류:', agencyId, e));
+        if (deductAmount > 0) {
+          callBizfitProxy('/bizfit-charge-memo', { company: agencyId, deductAmount })
+            .then(mres => { if (!mres || !mres.success) console.error('비즈핏 충전 메모 실패:', agencyId, mres && mres.message); })
+            .catch(e => console.error('비즈핏 충전 메모 오류:', agencyId, e));
+        }
         return true;
       }
       await Promise.all(targets.map(s => HI.updateCampaign(s._key, { bizfitDeductAttempted: true })));
