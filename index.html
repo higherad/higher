@@ -585,6 +585,8 @@
       const doc = new DOMParser().parseFromString(html, 'text/html');
       area.innerHTML = '';
 
+      // 파일 맨 앞의 <style>은 파서가 <head>로 옮김(광고분류.html) — body만 옮기면 그 페이지 CSS가 통째로 빠짐
+      doc.head.querySelectorAll('style').forEach(st => area.appendChild(document.importNode(st, true)));
       doc.body.childNodes.forEach(node => {
         if (node.nodeName !== 'SCRIPT') {
           area.appendChild(document.importNode(node, true));
