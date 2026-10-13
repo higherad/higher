@@ -5604,11 +5604,6 @@ window.toggleProdPanel = function(e) {
         const doneCount = g.items.filter(e => isScheduleDone(e.status)).length;
         const pendCount = g.items.length - doneCount;
         const editablePendCount = g.items.filter(e => !isScheduleDone(e.status)).length;
-        const groupSrc = g.items.find(e => e._src === 'kp') ? 'kp' : 'ha';
-        // 옛 김프로 메뉴에서 만든 예약만 표시(재분할 때 옛 김프로 상품 설정을 쓰므로 구분 필요) — 그 항목이 다 끝나면 안 보임
-        const srcBadge = groupSrc === 'kp'
-          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>'
-          : '';
         const selCount = (_ssResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
@@ -5621,7 +5616,6 @@ window.toggleProdPanel = function(e) {
               <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escProd(g.store||'-')}</span>
               <span style="color:var(--muted);flex-shrink:0;">/</span>
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${escProd(g.pid||'-')}</span>
-              ${srcBadge}
               ${editablePendCount
                 ? `<button onclick="event.stopPropagation();cancelAllSchedulePending('${g.gid}')" title="대기중 ${editablePendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:var(--danger);padding:0;flex-shrink:0;">✕</button>`
                 : ''}
