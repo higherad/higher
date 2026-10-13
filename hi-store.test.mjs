@@ -1,0 +1,126 @@
+// hi-store.js 핵심 로직 자가검사 — 메모리 가짜 RTDB에 붙여 실행: node hi-store.test.mjs
+// (firebase CDN import를 가짜로 바꿔 로드. 브라우저 전용 부분(리스너·로그인)은 검사 안 함)
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+
+const tree = {};
+const parts = p => p.split('/').filter(Boolean);
+const read = p => parts(p).reduce((n, k) => (n == null ? undefined : n[k]), tree);
+function write(p, v) {
+  const ks = parts(p), last = ks.pop();
+  let n = tree;
+  for (const k of ks) n = n[k] ??= {};
+  if (v === null || v === undefined) delete n[last]; else n[last] = structuredClone(v);
+}
+const snap = (path, v) => ({ key: parts(path).pop(), exists: () => v !== undefined && v !== null, val: () => structuredClone(v ?? null) });
+let seq = 0;
+const fb = {
+  initializeApp: () => ({}), getDatabase: () => ({}), getAuth: () => ({ authStateReady: () => Promise.resolve(), currentUser: { getIdToken: async () => 't' } }),
+  ref: (_db, path = '') => ({ path }),
+  query: (r, ...f) => ({ path: r.path, filters: f }),
+  orderByChild: f => ({ child: f }), equalTo: v => ({ eq: v }), startAt: v => ({ start: v }), orderByKey: () => ({}), limitToLast: () => ({}),
+  get: async r => {
+    let v = read(r.path);
+    const child = r.filters?.find(f => f.child)?.child, eq = r.filters?.find(f => 'eq' in f);
+    if (child && eq && v) v = Object.fromEntries(Object.entries(v).filter(([, x]) => x[child] === eq.eq));
+    return snap(r.path, v && Object.keys(v).length === 0 ? undefined : v);
+  },
+  set: async (r, v) => write(r.path, v),
+  update: async (r, obj) => { for (const [k, v] of Object.entries(obj)) write(`${r.path}/${k}`, v); },
+  remove: async r => write(r.path, null),
+  push: r => ({ path: `${r.path}/k${++seq}`, key: `k${++seq}` }),
+  onValue: (r, cb) => { cb(snap(r.path, read(r.path))); return () => {}; }, onChildAdded() {}, onChildChanged() {}, onChildRemoved() {},
+  onDisconnect: () => ({ remove() {}, cancel: () => Promise.resolve() }),
+  goOffline() {}, goOnline() {},
+  runTransaction: async (r, fn) => { const nv = fn(read(r.path) ?? null); if (nv === undefined) return { committed: false }; write(r.path, nv); return { committed: true }; },
+  signInWithEmailAndPassword: async () => ({ user: { uid: 'u' } }), signOut: async () => {},
+};
+globalThis.__fb = fb;
+globalThis.window = { addEventListener() {} };
+globalThis.localStorage = { getItem: () => null };
+globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+globalThis.fetch = async () => ({ ok: true, json: async () => ({}) });
+
+let src = readFileSync(new URL('./hi-store.js', import.meta.url), 'utf8')
+  .replace(/import \{([^}]*)\}\s*from "[^"]+";/g, (_, names) =>
+    `const {${names.replace(/(\w+) as (\w+)/g, '$1: $2')}} = globalThis.__fb;`);
+const { default: HI, remainingAfterCancel } = await import('data:text/javascript,' + encodeURIComponent(src));
+
+// ── 접수: live + 키워드 분리 ──
+tree.hi = { users: { u1: { username: 'u1', agencyId: 'A', unitPrice: 30 } } };
+const c = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '111', searchKeyword: 'kw1', days: 3, dailyTarget: 10, createdAt: '2026-10-01T01:02:03.000Z' });
+assert.equal(tree.hi.campaigns.live[c._key].unitPrice, 30, '접수 시 회원 단가 고정');
+assert.equal(tree.hi.campaigns.live[c._key].searchKeyword, undefined, '캠페인 레코드엔 키워드 없음');
+assert.equal(tree.hi.campaign_keywords[c._key].search, 'kw1');
+
+// ── 키워드 수정 → 이력 ──
+assert.equal(tree.hi.campaigns.live[c._key].searchKwCount, 1);
+await HI.updateCampaign(c._key, { searchKeyword: 'kw2, kw3 ,', memo: 'm' });
+assert.equal(tree.hi.campaigns.live[c._key].searchKwCount, 2, '키워드 개수 필드 갱신');
+await HI.updateCampaign(c._key, { searchKeyword: 'kw2' });
+assert.equal(tree.hi.campaign_keywords[c._key].search, 'kw2');
+assert.equal(tree.hi.campaign_keywords[c._key].history.search.at(-1).keyword, 'kw2');
+assert.equal(tree.hi.campaigns.live[c._key].memo, 'm');
+
+// ── 종료: live → closed 이동, 필드 보존 ──
+await HI.updateCampaign(c._key, { status: 'expired' });
+assert.equal(tree.hi.campaigns.live[c._key], undefined, 'live에서 빠짐');
+assert.equal(tree.hi.campaigns.closed[c._key].status, 'expired');
+assert.equal(tree.hi.campaigns.closed[c._key].memo, 'm', '이동 시 필드 보존');
+
+// ── 휴지통 → 복구(원래 상태가 live면 live로) ──
+await HI.updateCampaign(c._key, { status: 'active' });
+await HI.trash(c._key);
+assert.equal(tree.hi.campaigns.closed[c._key].originalStatus, 'active');
+await HI.restore(c._key);
+assert.equal(tree.hi.campaigns.live[c._key].status, 'active');
+assert.equal(tree.hi.campaigns.live[c._key].originalStatus, undefined, '복구 후 휴지통 필드 제거');
+assert.equal(tree.hi.campaigns.closed[c._key], undefined);
+
+// ── 일괄 종료 + MID 조회(양쪽 노드) ──
+await HI.expire([c._key]);
+assert.equal(tree.hi.campaigns.closed[c._key].status, 'expired');
+assert.equal((await HI.getByMid('111')).length, 1);
+
+// ── 예약 취소 후 일수·종료일 ──
+assert.deepEqual(remainingAfterCancel({ startDate: '2026-10-01', endDate: '2026-10-05', days: 5 }, ['2026-10-04', '2026-10-05'], []),
+  { days: 3, endDate: '2026-10-03' });
+assert.deepEqual(remainingAfterCancel({ startDate: '2026-10-01', endDate: '2026-10-05', days: 5 }, ['2026-10-05'], ['2026-10-05']),
+  { days: 5, endDate: '2026-10-05' }, '남은 항목 있는 날짜는 유지');
+
+// ── 정산 묶음 키·대상 ──
+const base = { createdAt: '2026-10-01T01:02:03.000Z', agencyId: '[단독]A.B', userId: 'u1' };
+assert.ok(HI.settleGroupKey({ ...base, origin: 'ha' }).endsWith('___단독_A_B__u1'));
+assert.ok(HI.settleGroupKey({ ...base, origin: 'kp' }).endsWith('___단독_A_B__u1'), '옛 김프로 출처도 회원 아이디로 묶음');
+assert.ok(!HI.settleGroupKey(base).includes('['), 'RTDB 금지문자 치환');
+assert.equal(HI.isBillable({ status: 'expired' }), true);
+assert.equal(HI.isBillable({ status: 'deleted' }), false);
+assert.equal(HI.isBillable({ status: 'active', isRequeue: true }), false);
+
+// ── 영구삭제 ──
+tree.hi.billing = { paid: { [c._key]: true } };
+await HI.permanentDelete(c._key);
+assert.equal(tree.hi.campaigns.closed[c._key], undefined);
+assert.equal(tree.hi.campaign_keywords[c._key], undefined);
+assert.equal(tree.hi.billing.paid?.[c._key], undefined);
+
+// ── 승인 시 충전·입금 도장(오렌지) — 실제 충전 없이 기록만, 새 묶음은 금액 필드까지, 기존 스냅샷은 금액 보존 ──
+globalThis.sessionStorage.getItem = () => JSON.stringify({ username: 'admin', name: '관리자' });
+tree.hi.users = { o: { username: 'o', agencyId: '[단독]오렌지', unitPrice: 20 } };
+const o1 = { _key: 'o1', status: 'active', agencyId: '[단독]오렌지', userId: 'o', createdAt: '2026-10-13T10:00:05.000Z', dailyTarget: 10, days: 3, unitPrice: 20, deductAmount: 7 };
+const o2 = { ...o1, _key: 'o2', status: 'pending', dailyTarget: 5 };
+await HI.stampChargeAndPaid([o1, o2]);
+const gk = HI.settleGroupKey(o1), s1 = tree.hi.settle_snapshots[gk];
+assert.equal(s1.amount, (30 + 15) * 20, '새 묶음 금액 = 묶음 전체');
+assert.equal(s1.slotCount, 2);
+assert.equal(s1.deductAmt, 14);
+assert.equal(s1.chargeConfirmedByName, '관리자', '충전 담당자 = 로그인 직원');
+assert.equal(s1.confirmedBy, 'admin', '입금 담당자 = 로그인 직원');
+assert.equal(s1.chargeApiAmount, 900);
+assert.ok(tree.hi.billing.paid.o1 && tree.hi.billing.paid.o2, '묶음 캠페인 입금 표시');
+tree.hi.settle_snapshots = { [gk]: { amount: 123, timeKey: s1.timeKey } };  // 과거 날짜 고정분
+await HI.stampChargeAndPaid([o1]);
+assert.equal(tree.hi.settle_snapshots[gk].amount, 123, '고정 금액은 건드리지 않음');
+assert.equal(tree.hi.settle_snapshots[gk].chargeConfirmedByName, '관리자');
+
+console.log('hi-store 자가검사 통과');

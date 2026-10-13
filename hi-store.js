@@ -1,6 +1,6 @@
 /**
  * HI-STORE.JS — 관리자 사이트 데이터 저장소 (hi/ 구조, 2026-10 개편)
- * 구조·옛 경로 대응표: STRUCTURE.md
+ * 구조·옛 경로 대응표: 루트 저장소 work/hi_migration/STRUCTURE.md
  *
  * 원칙
  * - 캠페인은 hi/campaigns/live(진행 중) · closed(종료·휴지통) 두 노드. 상태가 경계를 넘으면 이 파일이 원자적으로 옮김
