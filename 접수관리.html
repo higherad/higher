@@ -868,6 +868,7 @@ window.toggleProdPanel = function(e) {
     await HI.approve(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
     await autoRegisterAdlog([targetSlot]);
+    await autoStampSettlement([{ ...targetSlot, ...extra }]);
     const ok = await settleBizfitCash(targetSlot, extra);
     // 이 버튼엔 팝업이 없어 배너를 못 띄우니, 실패했을 때만 alert로 알림(성공/스킵은 조용히 넘어감)
     if (!ok) alert('접수는 승인됐지만 비즈핏 캐시차감에 실패했습니다.\n네트워크/세션 문제일 수 있으니 잠시 후 다시 승인해보거나 개발자에게 알려주세요.');
@@ -2212,6 +2213,7 @@ window.toggleProdPanel = function(e) {
     await Promise.all(keys.map(k => HI.approve(k, fieldsByKey.get(k))));
     keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
     if (adlogAutoOn) await autoRegisterAdlog(keys.map(k => slotMap.get(k)));
+    await autoStampSettlement(keys.map(k => slotMap.get(k) && { ...slotMap.get(k), ...fieldsByKey.get(k) }));
     return groupFieldsByBizfitUid(keys.map(k => slotMap.get(k)), fieldsByKey);
   }
 
@@ -3336,6 +3338,20 @@ window.toggleProdPanel = function(e) {
       const memo = s.adlogMemo || defaultAdlogMemo(s);
       return { _slotKey: s._key, group: s.agencyId||'(대행사 미지정)', keyword: s.rankKeyword||'', mid: s.mid||'', memo, _statusTd: null };
     });
+  }
+
+  // ── 승인 시 정산 충전·입금 자동 도장 ─────────────────────────
+  // 이 대행사 건은 승인(예약 신청 포함) 즉시 정산관리 충전·입금을 처리한 것으로 기록 — 실제 비즈핏 충전은 안 함,
+  // 담당자 = 로그인 직원(2026-10-13 사용자 결정). 승인은 이미 끝난 뒤라 실패해도 막지 않고 알림만
+  const AUTO_SETTLE_AGENCIES = new Set(['[단독]오렌지']);
+  async function autoStampSettlement(slots) {
+    const targets = (slots || []).filter(s => s && AUTO_SETTLE_AGENCIES.has(s.agencyId));
+    if (!targets.length) return;
+    try { await HI.stampChargeAndPaid(targets); }
+    catch (e) {
+      console.error('정산 자동 도장 실패:', e);
+      alert('승인은 됐지만 [단독]오렌지 정산 충전·입금 자동 처리에 실패했습니다. 정산관리에서 직접 처리해 주세요.');
+    }
   }
 
   // ── 접수(승인) 완료 시 애드로그 자동등록 ──────────────────────
@@ -5394,6 +5410,7 @@ window.toggleProdPanel = function(e) {
       // adlog.kr은 서버가 만든 xlsx를 거부해서(브라우저 SheetJS 파일만 통과) 서버가 나중에 처리하는
       // 예약 완료(active 전환) 시점엔 등록 불가 — 그래서 지금(접수 신청 클릭 시점) 미리 등록해둠.
       if (adlogAutoOn) await autoRegisterAdlog([...slotKeyCounts.keys()].map(k => allSlots.find(s => s._key === k)));
+      await autoStampSettlement([...slotKeyCounts.keys()].map(k => allSlots.find(s => s._key === k)));
     }
     return { scheduledCount, failTotal };
   }

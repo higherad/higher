@@ -848,6 +848,48 @@ const HI = {
   updateSettleSnapshot(snapKey, patch) { return update(ref(db, `${P.snapshots}/${snapKey}`), patch); },
   deleteSettleSnapshot(snapKey) { return remove(ref(db, `${P.snapshots}/${snapKey}`)); },
 
+  // 정산 충전·입금 도장(실제 비즈핏 충전 없음 — 정산관리 '완료' 버튼 + 입금 처리와 같은 기록). 접수관리 승인 시 자동 처리
+  // 대상 대행사([단독]오렌지, 2026-10-13 사용자 결정)에만 씀. 담당자 = 로그인 직원.
+  // 스냅샷이 이미 있으면(과거 날짜 고정분 등) 금액은 그대로 두고 비어 있는 도장만 채움. 없으면 정산관리 입금 버튼(bulkRow)과
+  // 같은 금액 필드로 새로 씀 — 과거 날짜 행은 스냅샷 금액을 그대로 표시하므로 도장만 있는 스냅샷이면 금액 0으로 보임
+  async stampChargeAndPaid(slots) {
+    const cu = HI.getCurrentUser() || {};
+    const by = cu.username || '-', byName = cu.name || cu.username || '알 수 없음', at = nowIso();
+    const [live, users, refunds] = await Promise.all([HI.getLive(), HI.getUsers(), HI.getRefunds()]);
+    const price = s => Number(s.unitPrice) > 0 ? Number(s.unitPrice) : (users.find(u => u.username === s.userId)?.unitPrice || 0);
+    const byKey = new Map(live.map(s => [s._key, s]));
+    slots.filter(Boolean).forEach(s => byKey.set(s._key, { ...byKey.get(s._key), ...s })); // 방금 승인한 값 우선(캐시 지연)
+    const updates = {};
+    for (const gk of new Set(slots.filter(Boolean).map(HI.settleGroupKey))) {
+      const group = [...byKey.values()].filter(s => HI.settleGroupKey(s) === gk && HI.isBillable(s));
+      if (!group.length) continue;
+      const first = group[0];
+      const cur = (await get(ref(db, `${P.snapshots}/${gk}`))).val(); // 캐시 말고 DB — 고정 금액을 늦은 캐시로 덮지 않게
+      let snap;
+      if (cur) {
+        snap = { ...cur };
+      } else {
+        const refund = refunds[HI.refundGroupKey(first)] || 0;
+        const amt = group.reduce((a, s) => a + (s.dailyTarget || 0) * (s.days || 0) * price(s), 0);
+        snap = {
+          timeKey: minuteKey(first.createdAt), agencyId: first.agencyId || '-', userId: first.userId || '-',
+          slotCount: group.length, totalTarget: group.reduce((a, s) => a + (s.dailyTarget || 0) * (s.days || 0), 0),
+          amount: amt - refund, refund, unitPrice: price(first),
+          deductAmt: group.reduce((a, s) => a + (s.deductAmount || 0), 0),
+          deductTgt: group.reduce((a, s) => a + (s.deductTarget || 0), 0),
+          yupflAmt: group.reduce((a, s) => a + (s.yupflAmount || 0), 0),
+        };
+      }
+      if (!snap.chargeConfirmedByName) {
+        Object.assign(snap, { chargeConfirmedAt: at, chargeConfirmedBy: by, chargeConfirmedByName: byName, chargeApiDone: true, chargeApiAmount: snap.amount || 0 });
+      }
+      if (!snap.confirmedByName) Object.assign(snap, { confirmedAt: at, confirmedBy: by, confirmedByName: byName });
+      updates[`${P.snapshots}/${gk}`] = { ...snap, savedAt: at };
+      group.forEach(s => { updates[`${P.paid}/${s._key}`] = true; });
+    }
+    if (Object.keys(updates).length) await update(ref(db), updates);
+  },
+
   // 사이드바 정산 배지 — 미정산 묶음 수. 진행 중 + 최근 30일 종료(+ 이 세션에서 전체 종료를 받았으면 그것까지)
   onUnpaidGroupsChange(cb) {
     let live = null, recent = null, paid = null;
