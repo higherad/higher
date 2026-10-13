@@ -49,18 +49,16 @@ function injectRankPopupStyle() {
   document.head.appendChild(st);
 }
 
-async function renderRankTable(rankPath, area) {
+async function renderRankTable(mid, area) {
   if (!area) return;
   try {
-    const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-    const snap = await get(ref(getDatabase(), rankPath));
+    const data = await window.HI.getRanks(mid); // { "2026-03-26": { keyword, rank }, ... }
 
-    if (!snap.exists()) {
+    if (!Object.keys(data).length) {
       area.innerHTML = `<div class="rank-empty">저장된 순위 데이터가 없습니다.<br><small style="color:var(--muted)">매일 오후 자동으로 업데이트됩니다.</small></div>`;
       return;
     }
 
-    const data = snap.val(); // { "2026-03-26": { keyword, rank }, ... }
     const seen = new Set();
     const rows = Object.entries(data)
       .map(([date, v]) => ({ date, keyword: v.keyword || '-', rank: v.rank }))
@@ -101,7 +99,6 @@ export async function openRankPopup(slot) {
   if (!slot || !slot.mid) { alert('MID 정보가 없습니다.'); return; }
 
   injectRankPopupStyle();
-  const RANK_PATH = `ha/ranks/${slot.mid.replace(/[.#$[\]/]/g, '_')}`;
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -123,5 +120,5 @@ export async function openRankPopup(slot) {
     </div>`;
   document.body.appendChild(overlay);
 
-  await renderRankTable(RANK_PATH, overlay.querySelector('#rank-table-area'));
+  await renderRankTable(slot.mid, overlay.querySelector('#rank-table-area'));
 }

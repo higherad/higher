@@ -433,16 +433,51 @@ window.toggleProdPanel = function(e) {
   const PER_PAGE   = 20;
   let allSlots     = [];
   let filteredAll  = [];
-  // 이전 기록(종료 30일+) 표시 여부 — 이 메뉴에서만 유효(메뉴 재진입 시 스크립트 재실행으로 초기화).
-  // 데이터 자체는 ha-store.js가 세션당 1회만 받아 보관, 여기선 합칠지만 정함
-  let _withArchive = false;
+  // 목록 = 진행 중(키워드 포함, 실시간) + 최근 30일 종료(실시간, 키워드 없음) + 검색·날짜필터·» 때 종료 전체.
+  // 종료 건 키워드는 상세·엑셀 다운로드 때만 HI.ensureKeywords로 붙임. 옛 김프로 출처 캠페인도 이제 같은 목록
+  let _withArchive = false; // 종료 전체 표시 여부 — 이 메뉴에서만 유효(데이터는 hi-store가 세션당 1회 받아 보관)
+  let _liveKw = [], _recent = [];
+  let _liveUnsub = null, _recentUnsub = null, _liveReady = null, _liveSyncOn = false;
+  function composeSlots() {
+    const have = new Set(_liveKw.map(s => s._key));
+    const base = [..._liveKw, ..._recent.filter(s => !have.has(s._key))];
+    return _withArchive ? HI.withClosed(base) : base;
+  }
+  // 메뉴를 떠나면 구독 해제 — 재방문마다 스크립트가 다시 돌아 콜백이 쌓이지 않게
+  function pageGone() {
+    if (document.getElementById('receipt-page')) return false;
+    _liveUnsub?.(); _recentUnsub?.();
+    return true;
+  }
+  function onLiveChange() {
+    if (!_liveSyncOn) return;
+    allSlots = composeSlots();
+    renderReceipts(false);
+  }
+  function ensureLiveSubs() {
+    if (!_liveReady) _liveReady = new Promise(resolve => {
+      let gotLive = false, gotRecent = false;
+      const first = () => { if (gotLive && gotRecent) resolve(); };
+      _liveUnsub = HI.subscribeLiveWithKeywords(list => {
+        if (pageGone()) return;
+        _liveKw = list;
+        if (!gotLive) { gotLive = true; first(); } else onLiveChange();
+      });
+      _recentUnsub = HI.subscribeRecentClosed(list => {
+        if (pageGone()) return;
+        _recent = list;
+        if (!gotRecent) { gotRecent = true; first(); } else onLiveChange();
+      });
+    });
+    return _liveReady;
+  }
   async function listSlots() {
-    const live = await HA.getSlotsLive();
-    return (_withArchive ? HA.withSlotsArchive(live) : live).filter(s => s.origin !== 'kp'); // 김프로 자가치유 미러 제외
+    await ensureLiveSubs();
+    return composeSlots();
   }
   async function includeArchive() {
     if (_withArchive) return;
-    await HA.loadSlotsArchive();
+    await HI.loadClosed();
     _withArchive = true;
     allSlots = await listSlots();
   }
@@ -451,18 +486,16 @@ window.toggleProdPanel = function(e) {
   const userPriceMap = new Map(); // userId -> 단가(원/개), 유입플 접수 모달 금액 표시용
   const userBizfitUidMap = new Map(); // userId -> 비즈핏 파트너 어드민 uid(이메일), 승인 시 캐시 자동차감용
   // settleBizfitCash 등이 이 promise를 await해 로드 전 "매핑 없음" 오판을 방지
-  // bizfitUid는 별도 필드 대신 ha/bizfit_charge(BizFit 로그인 id)를 그대로 씀
-  const userBizfitUidReady = HA.getUsers().then(async users => {
+  // bizfitUid는 별도 필드 대신 bizfit_charge(BizFit 로그인 id)를 그대로 씀
+  const userBizfitUidReady = HI.getUsers().then(async users => {
     users.forEach(u => userPriceMap.set(u.username, u.unitPrice || 0));
     try {
-      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const snap = await get(ref(getDatabase(), 'ha/bizfit_charge'));
-      const charge = snap.exists() ? snap.val() : {};
+      const charge = await HI.getBizfitCharges();
       users.forEach(u => {
         const acct = charge[sanitizeFbKey(u.agencyId||'')];
         if (acct && acct.id) userBizfitUidMap.set(u.username, acct.id);
       });
-    } catch (e) { console.error('ha/bizfit_charge 로드 실패:', e); }
+    } catch (e) { console.error('bizfit_charge 로드 실패:', e); }
     renderReceipts(false); // 매핑 로드 전엔 ⚠️차감재시도 배지를 판단 못 하므로, 로드 완료 시 한 번 다시 그려준다
   }).catch(() => {});
 
@@ -485,13 +518,11 @@ window.toggleProdPanel = function(e) {
   const CHARLIE_ADROLE = '100';
   // 델타도 찰리와 같은 계열로 추정(가정치, 실측 전까지 미확정)
   const DELTA_ADROLE = '100';
-  const BIZFIT_CHARGE_FB = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/bizfit_charge';
 
   // ── 등급 배지 ────────────────────────────────────────────────
   const GRADE_CACHE = new Map();
 
   // ── 상세 팝업 잠금 (동시 편집 방지) ─────────────────────────
-  const LOCK_FB        = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/detail_locks';
   const LOCK_TTL_MS    = 10 * 60 * 1000; // 10분 초과 잠금은 자동 무효
   const LOCK_CHECK_CACHE = new Map();    // key → { conflict, by, ts }
   const LOCK_CACHE_TTL   = 10_000;      // 10초 캐시
@@ -503,46 +534,17 @@ window.toggleProdPanel = function(e) {
     return Array.isArray(data) ? data : Object.values(data);
   }
 
-  // 잠금 획득 — Firebase 트랜잭션으로 충돌(check-then-write race) 없이 원자적으로 처리
+  // 잠금 획득 — 트랜잭션(hi-store)으로 원자적 처리, 충돌이면 캐시에 남겨 다음 클릭은 네트워크 없이 차단
   async function acquireDetailLock(key) {
-    const cu        = window.HA?.getCurrentUser?.() || {};
-    const staffId   = cu.username || cu.id || 'unknown';
-    const staffName = cu.name || staffId;
-    const lockData  = { staffId, staffName, lockedAt: new Date().toISOString() };
-    const { getDatabase, ref, runTransaction, onDisconnect } = await import(
-      'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-    );
-    const lockRef = ref(getDatabase(), `ha/detail_locks/${key}`);
-    let conflictBy = null;
-    const result = await runTransaction(lockRef, current => {
-      if (current && current.staffId !== staffId) {
-        const age = Date.now() - new Date(current.lockedAt).getTime();
-        if (age < LOCK_TTL_MS) {
-          conflictBy = current.staffName || current.staffId;
-          return;
-        }
-      }
-      return lockData;
-    }, { applyLocally: false });
-    if (!result.committed) {
-      const by = conflictBy || 'other staff';
-      LOCK_CHECK_CACHE.set(key, { conflict: true, by, ts: Date.now() });
-      return { acquired: false, by };
-    }
-    LOCK_CHECK_CACHE.delete(key);
-    onDisconnect(lockRef).remove();
-    return { acquired: true };
+    const r = await HI.acquireDetailLock(key);
+    if (r.acquired) LOCK_CHECK_CACHE.delete(key);
+    else LOCK_CHECK_CACHE.set(key, { conflict: true, by: r.by, ts: Date.now() });
+    return r;
   }
 
   async function releaseDetailLock(key) {
     LOCK_CHECK_CACHE.delete(key);
-    try {
-      await fetch(`${LOCK_FB}/${key}.json`, { method: 'DELETE' });
-      const { getDatabase, ref, onDisconnect } = await import(
-        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
-      );
-      onDisconnect(ref(getDatabase(), `ha/detail_locks/${key}`)).cancel();
-    } catch (_) {}
+    try { await HI.releaseDetailLock(key); } catch (_) {}
   }
 
   function showLockNotice(byName) {
@@ -566,11 +568,11 @@ window.toggleProdPanel = function(e) {
     return GRADE_CACHE.get(mid);
   }
 
-  // ha/grades는 ha-store.js 공유 실시간 캐시(세션당 1회 다운로드, 이후 변경분만)에서 읽어 전체를 채운다.
+  // grades는 hi-store.js 공유 실시간 캐시(세션당 1회 다운로드, 이후 변경분만)에서 읽어 전체를 채운다.
   async function fetchGradesBatch(mids) {
     if (!mids.length) return;
     try {
-      const data = await HA.getGradesOnce();
+      const data = await HI.getGradesOnce();
       Object.entries(data).forEach(([mid, v]) => GRADE_CACHE.set(mid, v));
       mids.forEach(mid => { if (!(mid in data)) GRADE_CACHE.set(mid, null); });
     } catch {
@@ -710,18 +712,17 @@ window.toggleProdPanel = function(e) {
     if (!_slotsLoaded || forceReload) {
       document.getElementById('receipt-body').innerHTML =
         '<tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-      // origin==='kp'는 김프로에서 승인돼 넘어온 자가치유 미러 — 접수관리는 관리 대상이 아니므로 목록에서 제외
       allSlots = await listSlots();
       _slotsLoaded = true;
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-      // 슬롯마다 HA.updateSlot을 개별 호출하면 부담 커서, expireSlots로 status만 한 번의 multi-path 쓰기로 처리
+      // 한 번의 multi-path 쓰기로 live→closed 이동
       const todayStr = ymd(new Date());
       const toExpire = allSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
       );
       if (toExpire.length) {
-        await HA.expireSlots(toExpire.map(s => s._key));
+        await HI.expire(toExpire.map(s => s._key));
         toExpire.forEach(s => { s.status = 'expired'; });
       }
     }
@@ -740,8 +741,7 @@ window.toggleProdPanel = function(e) {
     document.getElementById('stat-pending').textContent  = pending.toLocaleString();
     document.getElementById('stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('stat-active').textContent   = active.toLocaleString();
-    // 예약(split) 카드는 ha/slots만 봐선 부정확해(김프로 쪽 예약은 별도 소스) 예약 분할 현황 팝업과
-    // 동일한 계산(computeScheduleGroupCount)으로 별도 조회 — 재조회 중엔 깜빡임 방지로 기존 값 유지.
+    // 예약(split) 카드는 예약 분할 현황 팝업과 동일한 계산(computeScheduleGroupCount) — 재조회 중엔 깜빡임 방지로 기존 값 유지.
     computeScheduleGroupCount().then(n => {
       const el = document.getElementById('stat-split');
       if (el) el.textContent = n.toLocaleString();
@@ -813,16 +813,8 @@ window.toggleProdPanel = function(e) {
   };
 
   // ── 접수 목록 실시간 반영 ──────────────────────────────────────
-  // HA.onSlotsChange = ha-store.js가 세션당 리스너 1개만 여는 공유 캐시 구독. 예전엔 HA.subscribeSlots()를
-  // 직접 불러 메뉴 재방문마다(loadPage가 스크립트를 매번 재실행) ha/slots에 리스너가 새로 쌓여 업무시간
-  // 대역폭이 폭증했음(리스너 개수만큼 변경 이벤트가 중복 발동, 2026-09-18 확인) — 공유 캐시로 교체.
-  function attachSlotsLiveSync() {
-    HA.onSlotsChange(fullSlots => {
-      if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-      allSlots = (_withArchive ? HA.withSlotsArchive(fullSlots) : fullSlots).filter(s => s.origin !== 'kp'); // 김프로 자가치유 미러는 목록에서 계속 제외
-      renderReceipts(false);
-    });
-  }
+  // 첫 렌더 뒤부터 실시간 변경을 목록에 반영(구독 자체는 ensureLiveSubs가 hi-store 공유 캐시에 1회 붙임)
+  function attachSlotsLiveSync() { _liveSyncOn = true; }
 
   function renderPagination(total) {
     const pages = Math.ceil(total/PER_PAGE) || 1;
@@ -873,7 +865,7 @@ window.toggleProdPanel = function(e) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     const targetSlot = allSlots.find(s => s._key === key);
     const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
-    await HA.approveSlot(key, extra);
+    await HI.approve(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
     await autoRegisterAdlog([targetSlot]);
     const ok = await settleBizfitCash(targetSlot, extra);
@@ -885,7 +877,7 @@ window.toggleProdPanel = function(e) {
   /* window.bulkApprove = async function() {
     const keys = getCheckedKeys();
     if (!keys.length) return alert('선택된 항목이 없습니다.');
-    await Promise.all(keys.map(k => HA.approveSlot(k)));
+    await Promise.all(keys.map(k => HI.approve(k)));
     keys.forEach(k => {
       const idx = allSlots.findIndex(x => x._key === k);
       if (idx !== -1) allSlots[idx].status = 'active';
@@ -895,7 +887,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 접수 처리 ─────────────────────────────────────────────
   window.acceptOne = async function(key) {
-    await HA.updateSlot(key, { status: 'accepted' });
+    await HI.updateCampaign(key, { status: 'accepted' });
     updateLocalSlot(key, { status: 'accepted' });
     closeOverlayAndRefresh();
   };
@@ -923,7 +915,7 @@ window.toggleProdPanel = function(e) {
       if (String(v) !== String(s0[k] ?? '')) baseUpdates[k] = v;
     }
     if (Object.keys(baseUpdates).length) {
-      await HA.updateSlot(key, baseUpdates);
+      await HI.updateCampaign(key, baseUpdates);
       updateLocalSlot(key, baseUpdates);
     }
     const input = document.getElementById('detail-keyword-input');
@@ -934,27 +926,27 @@ window.toggleProdPanel = function(e) {
     const deltaUrl = deltaInput ? deltaInput.value.trim() : null;
     const s = allSlots.find(x => x._key === key);
     if (kw !== null && kw !== (s.searchKeyword||'')) {
-      await HA.updateSlot(key, { searchKeyword: kw });
+      await HI.updateCampaign(key, { searchKeyword: kw });
       updateLocalSlot(key, { searchKeyword: kw });
     }
     if (yupflKw !== null && yupflKw !== (s.yupflKeyword||'')) {
-      await HA.updateSlot(key, { yupflKeyword: yupflKw });
+      await HI.updateCampaign(key, { yupflKeyword: yupflKw });
       updateLocalSlot(key, { yupflKeyword: yupflKw });
     }
     if (deltaUrl !== null && deltaUrl !== (s.deltaBlogUrl||'')) {
-      await HA.updateSlot(key, { deltaBlogUrl: deltaUrl });
+      await HI.updateCampaign(key, { deltaBlogUrl: deltaUrl });
       updateLocalSlot(key, { deltaBlogUrl: deltaUrl });
     }
     const splitKeywords = collectSplitKeywords();
     if (splitKeywords && JSON.stringify(splitKeywords) !== JSON.stringify(s.splitKeywords || {})) {
-      await HA.updateSlot(key, { splitKeywords });
+      await HI.updateCampaign(key, { splitKeywords });
       updateLocalSlot(key, { splitKeywords });
     }
   }
 
   window.acceptFromDetail = async function(key) {
     await saveDetailFields(key);
-    await HA.updateSlot(key, { status: 'accepted' });
+    await HI.updateCampaign(key, { status: 'accepted' });
     updateLocalSlot(key, { status: 'accepted' });
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
@@ -967,7 +959,7 @@ window.toggleProdPanel = function(e) {
     const s = allSlots.find(x => x._key === key);
     if (s?.status === 'split') { alert('시간대 분할 예약 진행 중에는 삭제할 수 없습니다.'); return; }
     if (!confirm('이 항목을 삭제하시겠습니까?\n(휴지통으로 이동합니다)')) return;
-    await HA.deleteSlot(key);
+    await HI.trash(key);
     allSlots = allSlots.filter(x => x._key !== key);
     renderReceipts(false);
   };
@@ -976,7 +968,7 @@ window.toggleProdPanel = function(e) {
   window.changeStatusTo = async function(key, newStatus) {
     const labelMap = { pending: '대기', accepted: '접수', active: '승인' };
     if (!confirm(`상태를 "${labelMap[newStatus]}"(으)로 변경하시겠습니까?`)) return;
-    await HA.updateSlot(key, { status: newStatus });
+    await HI.updateCampaign(key, { status: newStatus });
     updateLocalSlot(key, { status: newStatus });
     closeOverlayAndRefresh();
   };
@@ -987,6 +979,7 @@ window.toggleProdPanel = function(e) {
     const s = allSlots.find(x => x._key === key);
     if (!s) return;
     _detailOpen = true;
+    try { await HI.ensureKeywords([s]); } catch (e) { _detailOpen = false; alert('키워드를 불러오지 못했습니다. 다시 시도해 주세요.\n' + e.message); return; }
 
     // 캐시에 충돌 기록이 있으면 네트워크 없이 즉시 차단
     const _cached = LOCK_CHECK_CACHE.get(key);
@@ -1136,9 +1129,9 @@ window.toggleProdPanel = function(e) {
     return obj;
   }
 
-  // ha/grades/{mid} 스냅샷 조회 — fetchSheetKeywordByMid/fetchYoupflKeywordByMid 공용
+  // grades/{mid} 스냅샷 조회 — fetchSheetKeywordByMid/fetchYoupflKeywordByMid 공용
   async function fetchGradeSnapshotVal(mid) {
-    return (await HA.getGradesOnce())[sanitizeFbKey(mid)];
+    return (await HI.getGradesOnce())[sanitizeFbKey(mid)];
   }
 
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──
@@ -1209,48 +1202,21 @@ window.toggleProdPanel = function(e) {
     const sorted = [...list].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     return sorted.filter((s, i) => i === 0 || s.searchKeyword !== sorted[i - 1].searchKeyword);
   }
-  // 자체 DB(ha/slots)로 구성하는 키워드 히스토리 — 같은 MID의 다른 슬롯 접수 키워드를 날짜순 반환.
-  // allSlots(공유 캐시)는 종료 30일+ 이전 건이 빠져 있어 mid 쿼리로 전체 이력을 받음(2026-09-23)
-  async function localKeywordHistory(mid) {
-    const sameMid = (await HA.getSlotsByMid(mid)).filter(s => s.origin !== 'kp');
-    return dedupHistoryByDay(dropUnchangedConsecutive(sameMid.filter(s => s.searchKeyword)))
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  }
-  // 김프로(ha/kimproSlots)는 같은 Firebase 프로젝트의 다른 노드라 mid로 직접 조회 가능 — 같은 MID가
-  // 양쪽에 등록될 수 있어 히스토리 모달/엑셀 다운로드는 합쳐서 보여줌(HA.getKpSlotsByMid/getSlotKwHistory
-  // 공용 헬퍼 재사용). kimpro.kro.kr(레거시) 자체 병합은 접속 차단(2026-09-11)으로 제거됨.
-  async function fullKeywordHistory(mid) {
-    const crossAppSlots = await HA.getKpSlotsByMid(mid);
-    const crossAppCurrent = crossAppSlots.filter(s => s.searchKeyword).map(s => ({ searchKeyword: s.searchKeyword, createdAt: s.createdAt }));
-    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => HA.getSlotKwHistory(s._key)));
-    const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.keywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
-    return dedupHistoryByDay([...(await localKeywordHistory(mid)), ...crossAppCurrent, ...crossAppChangeHistory])
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  }
-
-  // 자체 DB 유입플 키워드 히스토리 — 같은 MID의 슬롯 기록+변경 이력(yupflKeywordHistory) 합쳐 날짜순 반환
-  // dedupHistoryByDay/dropUnchangedConsecutive 재사용 위해 searchKeyword/createdAt 모양으로 매핑
-  async function localYupflKeywordHistory(mid) {
-    const sameMidSlots = (await HA.getSlotsByMid(mid)).filter(s => s.origin !== 'kp');
-    const currentHistory = dropUnchangedConsecutive(
-      sameMidSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }))
+  // 같은 MID 캠페인 전체(진행 중·종료, 옛 김프로 출처 포함)의 접수 키워드 + 변경 이력을 날짜순 반환.
+  // field: 'search'(검색키워드) | 'yupfl'(유입플). dedupHistoryByDay/dropUnchangedConsecutive 재사용 위해
+  // searchKeyword/createdAt 모양으로 매핑. 날짜 없는 이력(이전 때 옮긴 옛 김프로 키워드)은 그 캠페인 접수일로
+  async function midKeywordHistory(mid, field) {
+    const camps = await HI.getByMid(mid);
+    const kws = await Promise.all(camps.map(c => HI.getKeywords(c._key)));
+    const current = dropUnchangedConsecutive(
+      camps.map((c, i) => ({ searchKeyword: kws[i][field] || '', createdAt: c.createdAt })).filter(x => x.searchKeyword)
     );
-    const histDocs = await Promise.all(sameMidSlots.map(s => HA.getSlotKwHistory(s._key)));
-    const changeHistory = histDocs
-      .flatMap(h => h.yupflKeywordHistory || [])
-      .map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
-    return dedupHistoryByDay([...currentHistory, ...changeHistory])
+    const changes = camps.flatMap((c, i) => (kws[i].history?.[field] || []).map(h => ({ searchKeyword: h.keyword, createdAt: h.date || c.createdAt })));
+    return dedupHistoryByDay([...current, ...changes])
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
-  // fullKeywordHistory와 동일 패턴 — 자체 DB + 김프로(ha/kimproSlots) 유입플 히스토리 합산
-  async function fullYupflKeywordHistory(mid) {
-    const [localHistory, crossAppSlots] = await Promise.all([localYupflKeywordHistory(mid), HA.getKpSlotsByMid(mid)]);
-    const crossAppCurrent = crossAppSlots.filter(s => s.yupflKeyword).map(s => ({ searchKeyword: s.yupflKeyword, createdAt: s.createdAt }));
-    const crossAppHistDocs = await Promise.all(crossAppSlots.map(s => HA.getSlotKwHistory(s._key)));
-    const crossAppChangeHistory = crossAppHistDocs.flatMap(h => h.yupflKeywordHistory||[]).map(h => ({ searchKeyword: h.keyword, createdAt: h.date }));
-    return dedupHistoryByDay([...localHistory, ...crossAppCurrent, ...crossAppChangeHistory])
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  }
+  const fullKeywordHistory      = mid => midKeywordHistory(mid, 'search');
+  const fullYupflKeywordHistory = mid => midKeywordHistory(mid, 'yupfl');
 
   // ── MID 이전 키워드 히스토리 ──────────────────────────────
   window.toggleMidHistory = async function(mid, currentKey) {
@@ -1535,12 +1501,8 @@ window.toggleProdPanel = function(e) {
     '#facc15','#ef4444','#14b8a6','#d946ef','#78716c'];
   let _apColor = '#06b6d4';
 
-  function getProdSettingsPath() {
-    // 계정별이 아닌 전 계정 공용 설정 (예전엔 ha/prodSettings/{계정uid}로 계정마다 따로 저장됨)
-    return 'ha/prodSettings';
-  }
+  // 상품 유형 설정은 전 계정 공용 1벌(hi/products)
   async function loadProdSettings() {
-    const path = getProdSettingsPath();
     const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {})}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
@@ -1577,41 +1539,29 @@ window.toggleProdPanel = function(e) {
       prodGroups = loaded ? (Array.isArray(loaded) ? loaded : Object.values(loaded)) : [];
     };
     try {
-      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      await window.HA.authReady; // 새로고침 직후 인증 복원 전 호출 시 permission denied 방지
-      const db = getDatabase();
-      const [prodsSnap, groupsSnap] = await Promise.all([
-        get(ref(db, path + '/prods')),
-        get(ref(db, path + '/groups'))
-      ]);
-      if (prodsSnap.exists()) applyProdsData(prodsSnap.val());
-      if (groupsSnap.exists()) applyGroupsData(groupsSnap.val());
-
-      // 실시간 반영 — 다른 세션에서 상품 유형 설정을 바꾸면 새로고침 없이 즉시 반영.
-      // ha-store.js 공유 캐시 구독(세션당 리스너 1개) — 페이지 재실행마다 onValue를 직접 새로
-      // 붙이면 리스너가 누적됨(subscribeSlots 리스너 누적 사고와 동일 패턴, 2026-09-18).
-      HA.onProdsChange((v) => {
-        if (v) applyProdsData(v);
-        if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-        renderPS();
-      });
-      HA.onProdGroupsChange((v) => {
-        applyGroupsData(v);
-        if (!document.getElementById('receipt-page')) return;
-        renderPS();
+      // hi-store 공유 캐시 구독(세션당 리스너 1개) — 첫 값이 오면 최초 로드 완료, 이후 다른 세션 변경도 즉시 반영.
+      // 페이지 재실행마다 onValue를 직접 붙이면 리스너가 누적됨(2026-09-18 사고). 메뉴를 떠나면 해제
+      await new Promise(resolve => {
+        let gotP = false, gotG = false;
+        const first = () => { if (gotP && gotG) resolve(); };
+        const unP = HI.onProdsChange(v => {
+          if (!document.getElementById('receipt-page')) { unP(); return; }
+          if (v) applyProdsData(v);
+          if (!gotP) { gotP = true; first(); } else renderPS();
+        });
+        const unG = HI.onProdGroupsChange(v => {
+          if (!document.getElementById('receipt-page')) { unG(); return; }
+          applyGroupsData(v);
+          if (!gotG) { gotG = true; first(); } else renderPS();
+        });
       });
     } catch(e) { console.error('loadProdSettings 오류:', e); }
   }
   function saveProdSettings() {
-    const path = getProdSettingsPath();
     const snapGroups = JSON.parse(JSON.stringify(prodGroups));
     const snapProds  = JSON.parse(JSON.stringify(prods));
-    import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').then(({ getDatabase, ref, set, remove }) => window.HA.authReady.then(() => {
-      const db = getDatabase();
-      set(ref(db, path + '/prods'), snapProds).catch(()=>{});
-      if (snapGroups.length > 0) set(ref(db, path + '/groups'), snapGroups).catch(()=>{});
-      else remove(ref(db, path + '/groups')).catch(()=>{});
-    })).catch(()=>{});
+    HI.saveProds(snapProds).catch(e => console.error('상품 설정 저장 실패:', e));
+    HI.saveProdGroups(snapGroups).catch(e => console.error('상품 그룹 저장 실패:', e));
   }
 
   const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct,fixedPct:p.fixedPct,blogSplit:p.blogSplit,
@@ -2102,7 +2052,7 @@ window.toggleProdPanel = function(e) {
     return rule ? rule.fixedPct : yupfl?.fixedPct;
   }
 
-  // ha/grades missionKeywords(진행중 미션, 등급 자동매칭과 동일 소스)를 {미션번호: 키워드}로 반환 —
+  // grades missionKeywords(진행중 미션, 등급 자동매칭과 동일 소스)를 {미션번호: 키워드}로 반환 —
   // 알면 작업키워드 개수 추정(yupflRuleFor)보다 우선, 여러 미션이면 모호하니 폴백. kimpro와 동일 구현.
   function knownYupflMissionKeywords(mid) {
     if (!mid) return null;
@@ -2167,7 +2117,7 @@ window.toggleProdPanel = function(e) {
     if (amount <= 0) return true;
     // 다른 창/중복 호출이 이미 차감 중이면 건너뜀 — 그쪽 결과(성공/실패 표시)가 실시간으로 반영됨
     const keys = targets.map(s => s._key);
-    if (!(await HA.claimBizfitDeduct(keys, force))) {
+    if (!(await HI.claimBizfitDeduct(keys, force))) {
       console.warn('비즈핏 캐시 차감: 다른 창/요청이 이미 처리 중이라 건너뜀', keys);
       return true;
     }
@@ -2176,7 +2126,7 @@ window.toggleProdPanel = function(e) {
     try {
       const res = await callBizfitProxy('/bizfit-refund', { uid: bizfitUid, amount });
       if (res && res.success) {
-        await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true })));
+        await Promise.all(targets.map(s => HI.updateCampaign(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true })));
         targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true }));
         // 최근 입금완료 건에 "[환불] 유입플 세팅 금액" 메모 누적 기록(서버가 합산) — 차감과 별개라 실패해도 콘솔에만 남김
         const agencyId = targets[0].agencyId;
@@ -2185,14 +2135,14 @@ window.toggleProdPanel = function(e) {
           .catch(e => console.error('비즈핏 충전 메모 오류:', agencyId, e));
         return true;
       }
-      await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true })));
+      await Promise.all(targets.map(s => HI.updateCampaign(s._key, { bizfitDeductAttempted: true })));
       targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
-      await HA.releaseBizfitDeduct(keys); // 확실한 실패 — 재시도 가능하게 선점 해제
+      await HI.releaseBizfitDeduct(keys); // 확실한 실패 — 재시도 가능하게 선점 해제
       console.error('비즈핏 캐시 차감 실패:', targets.map(s => s._key), bizfitUid, amount, res && res.message);
       return false;
     } catch (e) {
       // 결과 불명(타임아웃 등 — 서버는 차감했을 수 있음): 선점을 유지해 자동 재호출을 막고, 사람이 '재시도'로만 다시 차감
-      await Promise.all(targets.map(s => HA.updateSlot(s._key, { bizfitDeductAttempted: true })));
+      await Promise.all(targets.map(s => HI.updateCampaign(s._key, { bizfitDeductAttempted: true })));
       targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
       console.error('비즈핏 캐시 차감 오류:', targets.map(s => s._key), bizfitUid, amount, e);
       return false;
@@ -2221,7 +2171,7 @@ window.toggleProdPanel = function(e) {
     // 다른 창에서 이미 성공했을 수 있으니 DB 최신값으로 한 번 더 확인 후 차감(재시도는 선점을 덮어씀).
     // 확인 조회가 제대로 안 되면 차감하지 않음 — 이미 차감된 건을 또 차감할 수 있음
     let fresh;
-    try { fresh = (await HA.getSlotChecked(`ha/slots/${key}`)) || {}; }
+    try { fresh = (await HI.getCampaign(key)) || {}; }
     catch (e) {
       alert('차감 재시도를 중단했습니다.\n' + e.message);
       if (btn) { btn.disabled = false; btn.textContent = '⚠️ 차감 재시도'; }
@@ -2259,7 +2209,7 @@ window.toggleProdPanel = function(e) {
   async function approveReadySlots(keys, slotMap) {
     if (!keys.length) return [];
     const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
-    await Promise.all(keys.map(k => HA.approveSlot(k, fieldsByKey.get(k))));
+    await Promise.all(keys.map(k => HI.approve(k, fieldsByKey.get(k))));
     keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
     if (adlogAutoOn) await autoRegisterAdlog(keys.map(k => slotMap.get(k)));
     return groupFieldsByBizfitUid(keys.map(k => slotMap.get(k)), fieldsByKey);
@@ -2338,7 +2288,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
-  // ha/grades(GRADE_CACHE)에 MID가 있으면 상품 유형 설정 ratio 무시하고 그 등급(들)로만 접수(kimpro와
+  // grades(GRADE_CACHE)에 MID가 있으면 상품 유형 설정 ratio 무시하고 그 등급(들)로만 접수(kimpro와
   // 동일 구현). 팝업 토글(기본 on) 끄면 상품 유형 설정값 그대로 배분.
   let gradeMatchOn = true;
 
@@ -2347,25 +2297,12 @@ window.toggleProdPanel = function(e) {
   let adlogAutoOn = true;
 
   // ── 시간대 분할 예약 접수 (kimpro와 동일 구현 + higher 전용 캐시차감 스냅샷) ──
-  // /register 대신 ha/scheduled_dispatch에 페이로드만 저장, 서버가 지정 시각에 재생. 다중leg
+  // /register 대신 schedule/dispatch에 페이로드만 저장, 서버가 지정 시각에 재생. 다중leg
   // 슬롯은 서버가 게이트를 모르므로 미지원(gate 있으면 토글 막음).
   let scheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34}, ...]
 
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
-  async function fbSet(path, val) {
-    const { getDatabase, ref, set } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-    await set(ref(getDatabase(), path), val);
-  }
-  async function fbGet(path) {
-    const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-    return get(ref(getDatabase(), path));
-  }
-  // patch: RTDB 멀티패스 업데이트 — 키에 '/'를 쓰면 path 하위 여러 위치를 한 번에 갱신(값 null이면 그 위치 삭제)
-  async function fbUpdate(path, patch) {
-    const { getDatabase, ref, update } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-    await update(ref(getDatabase(), path), patch);
-  }
 
   // baseDateStr 형식이 이상해도(자릿수 오류 등) new Date().toISOString()이 던지지 않게 오늘로 폴백 —
   // 호출부(submitPlanRowsScheduled)에 catch가 없어 던지면 "처리 중" 버튼이 영원히 안 풀림.
@@ -2427,8 +2364,7 @@ window.toggleProdPanel = function(e) {
   }
 
   async function saveScheduledDispatch(entry) {
-    const key = genId();
-    await fbSet(`ha/scheduled_dispatch/${key}`, { ...entry, status: 'pending', createdAt: new Date().toISOString() });
+    await HI.addScheduleDispatch(entry); // status 'pending'·createdAt은 hi-store가 채움
   }
 
   // 슬롯별 예약 조각 개수를 기록(서버가 그룹 완료 판정에 씀). 캐시차감은 그룹 완료를 안 기다리고
@@ -2446,8 +2382,8 @@ window.toggleProdPanel = function(e) {
       const preStatus = s && s.status !== 'split' ? s.status : (s?.preScheduleStatus || 'pending');
       const fields = s ? { ...deductFieldsFor(s), ...yupflFieldsFor(s) } : {};
       fieldsByKey.set(slotKey, fields);
-      await fbSet(`ha/scheduled_batches/${slotKey}`, { total: slotKeyCounts.get(slotKey), done: 0, failed: 0, batchGroupId, createdAt: new Date().toISOString() });
-      await HA.updateSlot(slotKey, { status: 'split', preScheduleStatus: preStatus, ...fields });
+      await HI.setScheduleBatch(slotKey, { total: slotKeyCounts.get(slotKey), batchGroupId });
+      await HI.updateCampaign(slotKey, { status: 'split', preScheduleStatus: preStatus, ...fields });
       if (s) Object.assign(s, { status: 'split', preScheduleStatus: preStatus, ...fields });
     }));
 
@@ -2707,6 +2643,7 @@ window.toggleProdPanel = function(e) {
     }
     const filtered = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
     if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
+    try { await HI.ensureKeywords(filtered); } catch (e) { return alert('키워드를 불러오지 못했습니다. 다시 시도해 주세요.\n' + e.message); }
 
     async function buildAndDownload() {
       const XLSX = window.XLSX;
@@ -2886,7 +2823,7 @@ window.toggleProdPanel = function(e) {
     let done = 0;
     for (const r of matched) {
       const updates = { searchKeyword: r.matchKeyword, yupflKeyword: r.matchYupfl || yupflKw, status: r.newStatus };
-      await HA.updateSlot(r.slot._key, updates);
+      await HI.updateCampaign(r.slot._key, updates);
       updateLocalSlot(r.slot._key, updates);
       done++;
       runBtn.textContent = `⏳ 처리 중... (${done}/${matched.length})`;
@@ -2954,7 +2891,7 @@ window.toggleProdPanel = function(e) {
   }
 
   window.openReceiptExcelModal = async function() {
-    rexUsers = await HA.getUsers();
+    rexUsers = await HI.getUsers();
     rexSelected = null;
     rexRows = [];
     rexDropdownOpen = false;
@@ -3210,12 +3147,12 @@ window.toggleProdPanel = function(e) {
     const btn = overlay.querySelector('#rex-s-submit-btn');
     btn.disabled = true; btn.innerHTML = '처리 중...';
     try {
-      const result = await HA.addSlot({
+      const result = await HI.addCampaign({
         agencyId: rexSelected.agency || rexSelected.username, userId: rexSelected.username,
         storeName, rankKeyword, url: rexNormalizeUrl(url), mid,
         startDate, endDate, days, dailyTarget, memo,
       });
-      HA.notifySingle(result).catch(() => {});
+      HI.notifySingle(result).catch(() => {});
       renderReceipts(true, true);
       overlay.remove();
     } catch (e) {
@@ -3292,7 +3229,7 @@ window.toggleProdPanel = function(e) {
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
           return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, valid: errors.length===0, error: errors.join(' / ') };
         });
-        HA.markDuplicateRows(rexRows);
+        HI.markDuplicateRows(rexRows);
         rexRenderPreview(overlay);
       } catch (err) {
         alert('파일을 읽는 중 오류가 발생했습니다. 양식을 확인해주세요.');
@@ -3345,10 +3282,10 @@ window.toggleProdPanel = function(e) {
     const agencyId = rexSelected.agency || rexSelected.username;
     const userId   = rexSelected.username;
 
-    // 행마다 HA.addSlot이 RTDB 왕복이라 순차 대기면 건수만큼 지연이 쌓여 병렬로 한 번에 쏨. 병렬이면
+    // 행마다 HI.addCampaign이 RTDB 왕복이라 순차 대기면 건수만큼 지연이 쌓여 병렬로 한 번에 쏨. 병렬이면
     // 서버 완료 순서가 엑셀 행 순서와 달라지므로 행 인덱스로 어긋낸 createdAt을 미리 만들어 정렬 고정.
     const excelBaseTs = Date.now();
-    const results = await Promise.allSettled(validRows.map((row, i) => HA.addSlot({
+    const results = await Promise.allSettled(validRows.map((row, i) => HI.addCampaign({
       agencyId, userId,
       storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
       startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget, memo: '',
@@ -3356,7 +3293,7 @@ window.toggleProdPanel = function(e) {
     })));
 
     const succeededSlots = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-    if (succeededSlots.length) HA.notifyExcelBatch(succeededSlots).catch(() => {});
+    if (succeededSlots.length) HI.notifyExcelBatch(succeededSlots).catch(() => {});
     renderReceipts(true, true);
     alert(`총 ${succeededSlots.length}건 접수 완료`);
     overlay.remove();
@@ -3416,7 +3353,7 @@ window.toggleProdPanel = function(e) {
         const result = await callBizfitProxy('/adlog-register', { fileBase64 });
         if (result.success) {
           const keys = chunk.map(r => r._slotKey);
-          await Promise.all(keys.map(k => HA.updateSlot(k, { adlogSubmitted: true })));
+          await Promise.all(keys.map(k => HI.updateCampaign(k, { adlogSubmitted: true })));
           keys.forEach(k => { const s = allSlots.find(x => x._key === k); if (s) s.adlogSubmitted = true; });
         } else {
           console.error('애드로그 자동등록 실패:', result.message);
@@ -3551,7 +3488,7 @@ window.toggleProdPanel = function(e) {
 
       if (succeededSlotKeys.length) {
         // 목록에 배지 표시용 — 성공한 슬롯만 표시
-        await Promise.all(succeededSlotKeys.map(k => HA.updateSlot(k, { adlogSubmitted: true })));
+        await Promise.all(succeededSlotKeys.map(k => HI.updateCampaign(k, { adlogSubmitted: true })));
         succeededSlotKeys.forEach(k => { const s = allSlots.find(x => x._key === k); if (s) s.adlogSubmitted = true; });
         renderReceipts(false);
       }
@@ -3632,17 +3569,13 @@ window.toggleProdPanel = function(e) {
   // ── 비즈핏 직접 접수 ────────────────────────────────────────
   async function fetchBizfitAccount(agencyId) {
     try {
-      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const snap = await get(ref(getDatabase(), `ha/bizfit_charge/${sanitizeFbKey(agencyId)}`));
-      return snap.exists() ? snap.val() : null;
+      return await HI.getBizfitCharge(agencyId);
     } catch { return null; }
   }
   // 엑셀 버전 조회 전용 계정(오렌지, 등급이 가장 최신) — 실제 접수 계정 목록과 별개 노드에 저장.
   async function fetchVersionCheckAccount() {
     try {
-      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const snap = await get(ref(getDatabase(), 'ha/version_check_account'));
-      return snap.exists() ? snap.val() : null;
+      return await HI.getVersionCheckAccount();
     } catch { return null; }
   }
 
@@ -3798,8 +3731,8 @@ window.toggleProdPanel = function(e) {
       const knownMissions = known ? Object.keys(known).map(Number) : [];
 
       if (knownMissions.length >= 2 && split) {
-        // % 규칙 무관 미션당 10% 고정 — 미션 번호(라우팅)만 ha/grades로 강제, 키워드는 화면 입력값 우선
-        // (입력칸 없는 미션만 ha/grades 값으로 보완).
+        // % 규칙 무관 미션당 10% 고정 — 미션 번호(라우팅)만 grades로 강제, 키워드는 화면 입력값 우선
+        // (입력칸 없는 미션만 grades 값으로 보완).
         knownMissions.forEach(mission => {
           const workKw = ((s.splitKeywords || {})[mission] || '').trim() || known[mission];
           const yAmt = Math.min(yupflAlloc(remaining, 10), remaining);
@@ -3814,7 +3747,7 @@ window.toggleProdPanel = function(e) {
           });
         });
       } else if (knownMissions.length === 1 && yupfl) {
-        // 미션 번호만 ha/grades 기준으로 강제하고, 키워드는 일반 탭과 동일하게 화면 유입플 키워드 칸에 지금 입력된 값을 그대로 씀
+        // 미션 번호만 grades 기준으로 강제하고, 키워드는 일반 탭과 동일하게 화면 유입플 키워드 칸에 지금 입력된 값을 그대로 씀
         const mission = knownMissions[0];
         const workKw  = (s.yupflKeyword||'').trim();
         const rules   = Array.isArray(yupfl.missionRules) ? yupfl.missionRules : [];
@@ -4203,7 +4136,7 @@ window.toggleProdPanel = function(e) {
         for (const g of retrying) {
           // 다른 창에서 이미 차감됐으면 건너뜀(그룹은 한 번에 차감되므로 하나라도 완료면 그룹 전체 완료) — 재시도는 선점을 덮어씀
           let fresh;
-          try { fresh = await Promise.all(g.slots.map(s => HA.getSlotChecked(`ha/slots/${s._key}`).then(v => v || {}))); }
+          try { fresh = await Promise.all(g.slots.map(s => HI.getCampaign(s._key).then(v => v || {}))); }
           catch (e) { alert('차감 재시도를 중단했습니다.\n' + e.message); overlay._deductFailures.push(g); continue; }
           if (fresh.some(f => f.bizfitDeducted)) { g.slots.forEach(s => updateLocalSlot(s._key, { bizfitDeducted: true })); continue; }
           const ok = await settleBizfitCashBatch(g.bizfitUid, g.slots, g.ded, g.yup, true);
@@ -4275,7 +4208,7 @@ window.toggleProdPanel = function(e) {
           const remaining = (s.normalDoneProducts || []).filter(n => !doneNames.has(n));
           const patch = { normalDoneProducts: remaining.length ? remaining : null };
           if (s.status === 'active') patch.status = 'accepted';
-          await HA.updateSlot(s._key, patch);
+          await HI.updateCampaign(s._key, patch);
           // target(모달 스냅샷)의 객체를 직접 고쳐야 재렌더에 반영됨(allSlots는 실시간 리스너가 통째로
           // 교체해버려 target과 참조가 어긋날 수 있음) — updateLocalSlot(allSlots)도 배경 목록용으로 같이 갱신.
           Object.assign(s, patch);
@@ -4326,7 +4259,7 @@ window.toggleProdPanel = function(e) {
         await Promise.all(resetSlots.map(async s => {
           const patch = { fixedSubmitted: null, splitFixedSubmitted: null };
           if (s.status === 'active') patch.status = 'accepted';
-          await HA.updateSlot(s._key, patch);
+          await HI.updateCampaign(s._key, patch);
           Object.assign(s, patch);
           updateLocalSlot(s._key, patch);
         }));
@@ -4685,7 +4618,7 @@ window.toggleProdPanel = function(e) {
           const d = await res.json();
           if (!d.success || !d.urls || !d.urls.length) { fail++; continue; }
           const joined = d.urls.join(',');
-          await HA.updateSlot(key, { deltaBlogUrl: joined });
+          await HI.updateCampaign(key, { deltaBlogUrl: joined });
           s.deltaBlogUrl = joined;
           const live = allSlots.find(x => x._key === key);
           if (live) live.deltaBlogUrl = joined;
@@ -5139,7 +5072,7 @@ window.toggleProdPanel = function(e) {
 
       // 이번에 성공한 유입플 행 → 슬롯에 fixedSubmitted 저장
       const yupflDoneSlots = [...new Set(validRows.filter(r => r._prodId === 'yupfl').map(r => r._slotKey))];
-      await Promise.all(yupflDoneSlots.map(k => HA.updateSlot(k, { fixedSubmitted: true })));
+      await Promise.all(yupflDoneSlots.map(k => HI.updateCampaign(k, { fixedSubmitted: true })));
       yupflDoneSlots.forEach(k => { const s = slotMap.get(k); if (s) s.fixedSubmitted = true; });
 
       // 이번에 성공한 분할 행 → 슬롯별로 splitFixedSubmitted[미션]을 병합 저장
@@ -5153,7 +5086,7 @@ window.toggleProdPanel = function(e) {
         const s = slotMap.get(slotKey);
         const merged = { ...(s?.splitFixedSubmitted || {}) };
         missions.forEach(m => { merged[m] = true; });
-        await HA.updateSlot(slotKey, { splitFixedSubmitted: merged });
+        await HI.updateCampaign(slotKey, { splitFixedSubmitted: merged });
         if (s) s.splitFixedSubmitted = merged;
       }));
 
@@ -5219,10 +5152,10 @@ window.toggleProdPanel = function(e) {
   // 한 plan(대행사별 rows)을 실제로 비즈핏에 등록 — UI는 손대지 않고 결과 집계만 반환.
   // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유. 같은 BizFit 계정은
   // 동시 요청 시 세션 충돌 위험이 있어 grade 단위는 순차
-  // 같은 캠페인을 다른 창/직원이 동시에 접수하면 비즈핏에 두 번 등록·결제됨 — 선점 못 한 행은 빼고 표시(HA.claimRegisterRows)
+  // 같은 캠페인을 다른 창/직원이 동시에 접수하면 비즈핏에 두 번 등록·결제됨 — 선점 못 한 행은 빼고 표시(HI.claimRegisterRows)
   async function claimRowsForRegister(rows, leg) {
     let blocked = 0;
-    const ok = await HA.claimRegisterRows(rows, leg, false, r => {
+    const ok = await HI.claimRegisterRows(rows, leg, r => {
       blocked++;
       if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="다른 창 또는 다른 직원이 같은 캠페인을 접수 중입니다">⛔ 다른 창에서 접수 중</span>';
     });
@@ -5373,7 +5306,7 @@ window.toggleProdPanel = function(e) {
       await Promise.all([...newlyOkBySlot.entries()].map(async ([slotKey, names]) => {
         const s = slotMap.get(slotKey);
         const merged = [...new Set([...(s?.normalDoneProducts || []), ...names])];
-        await HA.updateSlot(slotKey, { normalDoneProducts: merged });
+        await HI.updateCampaign(slotKey, { normalDoneProducts: merged });
         if (s) s.normalDoneProducts = merged;
       }));
       // 슬롯 단위 승인 판정 — 이 슬롯에 걸린 모든 상품행이 성공해야 승인 (일부 실패 시 보류)
@@ -5400,7 +5333,7 @@ window.toggleProdPanel = function(e) {
     return { okTotal, failTotal };
   }
 
-  // submitPlanRows와 같은 검증·등급매칭을 거치되 /register 대신 ha/scheduled_dispatch에 저장 —
+  // submitPlanRows와 같은 검증·등급매칭을 거치되 /register 대신 schedule/dispatch에 저장 —
   // 승인은 서버가 그룹 완료 확인 후 처리, 캐시차감은 예약 시점에 바로 실행.
   async function submitPlanRowsScheduled(plan, overlay, legKey, adrole, schedule) {
     const productVer = productVerFor(legKey);
@@ -5466,7 +5399,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // ════════════════════════════════════════════════════════
-  // 분할접수 현황 — ha/scheduled_dispatch 조회. 서버가 status만 pending→done으로 바꿔 완료
+  // 분할접수 현황 — schedule/dispatch 조회. 서버가 status만 pending→done으로 바꿔 완료
   // 항목도 계속 남음(수정은 pending만 가능). kimpro와 동일 구현.
   // ════════════════════════════════════════════════════════
 
@@ -5482,11 +5415,14 @@ window.toggleProdPanel = function(e) {
   // 각 그룹 자신의 상세값으로 함(apply 시점에 새로 읽음). 미리보기 텍스트영역은 안 둠(다 못 보여줘서 의미 없음).
   let _ssBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
 
-  // ── 예약 분할 현황 — 접수관리(ha/scheduled_dispatch)와 김프로(ha/kimproScheduledDispatch)를
-  // 한 화면에 합쳐서 관리(정산관리.html과 동일 패턴, 저장은 분리 유지). 항목의 _src('ha'|'kp')로
-  // 쓰기 액션을 올바른 저장소로 라우팅 — 두 노드 다 'ha' 밑이라 fbUpdate('ha', patch)로 같이 갱신 가능.
-  function scheduleDispatchSuffix(src) { return src === 'kp' ? 'kimproScheduledDispatch' : 'scheduled_dispatch'; }
-  function scheduleBatchSuffix(src)    { return src === 'kp' ? 'kimproScheduledBatches'  : 'scheduled_batches'; }
+  // ── 예약 분할 현황 — 한 벌(schedule/dispatch·batches). 옛 김프로 메뉴에서 만든 항목만 src 'kp'(_src)로
+  // 표시돼 재분할·등급 판정 때 옛 김프로 상품 설정을 씀. 저장 경로는 출처와 무관하게 같음
+  function scheduleDispatchSuffix(src) { return 'dispatch'; }
+  function scheduleBatchSuffix(src)    { return 'batches'; }
+  async function batchSnapOf(slotKey) {
+    const v = await HI.getScheduleBatch(slotKey);
+    return { exists: () => v != null, val: () => v };
+  }
 
   function fmtScheduleTime(iso) {
     if (!iso) return '-';
@@ -5499,25 +5435,21 @@ window.toggleProdPanel = function(e) {
   }
 
   // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 동일한 계산을 DOM 렌더 없이 반환.
-  // ha-store.js의 onValue 공유 캐시 구독 사용 — 예전엔 fbGet()으로 매번 통째로 받아서 무관한 슬롯
-  // 변경마다 이 테이블(수백KB~1MB)이 재다운로드되는 게 RTDB 대역폭 폭증의 주 원인이었음(김프로.html과 동일 조치).
-  function awaitScheduleDispatchBoth() {
-    return Promise.all([HA.getScheduleDispatchOnce(), HA.getKpScheduleDispatchOnce()]);
+  // hi-store의 onValue 공유 캐시 구독 사용 — 예전엔 매번 통째로 받아서 무관한 슬롯 변경마다
+  // 이 테이블(수백KB~1MB)이 재다운로드되는 게 RTDB 대역폭 폭증의 주 원인이었음.
+  function scheduleEntriesFrom(val) {
+    const out = {};
+    Object.entries(val || {}).forEach(([k, v]) => { out[k] = { ...v, _key: k, _src: v.src === 'kp' ? 'kp' : 'ha' }; });
+    return out;
   }
   async function computeScheduleGroupCount() {
-    const [haVal, kpVal] = await awaitScheduleDispatchBoth();
-    const entries = {};
-    Object.entries(haVal||{}).forEach(([k, v]) => { entries[k] = { ...v, _key: k, _src: 'ha' }; });
-    Object.entries(kpVal||{}).forEach(([k, v]) => { entries[k] = { ...v, _key: k, _src: 'kp' }; });
+    const entries = scheduleEntriesFrom(await HI.getScheduleDispatchOnce());
     // 완료(모든 조각 done)된 캠페인은 카드에서 제외 — 대기중 남은 캠페인 수만 표시(2026-09-16)
     return groupScheduleEntries(Object.values(entries)).filter(g => !g.items.every(e => isScheduleDone(e.status))).length;
   }
 
   async function reloadScheduleEntries() {
-    const [haVal, kpVal] = await awaitScheduleDispatchBoth();
-    _ssEntries = {};
-    Object.entries(haVal||{}).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k, _src: 'ha' }; });
-    Object.entries(kpVal||{}).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k, _src: 'kp' }; });
+    _ssEntries = scheduleEntriesFrom(await HI.getScheduleDispatchOnce());
     renderSplitScheduleList();
   }
 
@@ -5656,9 +5588,10 @@ window.toggleProdPanel = function(e) {
         const pendCount = g.items.length - doneCount;
         const editablePendCount = g.items.filter(e => !isScheduleDone(e.status)).length;
         const groupSrc = g.items.find(e => e._src === 'kp') ? 'kp' : 'ha';
+        // 옛 김프로 메뉴에서 만든 예약만 표시(재분할 때 옛 김프로 상품 설정을 쓰므로 구분 필요) — 그 항목이 다 끝나면 안 보임
         const srcBadge = groupSrc === 'kp'
           ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(16,185,129,.12);color:#059669;">김프로</span>'
-          : ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">하이어애드</span>';
+          : '';
         const selCount = (_ssResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
@@ -5752,14 +5685,13 @@ window.toggleProdPanel = function(e) {
   // (찰리/델타가 이 계열) gradeName만으론 구분이 안 됨 — 계열까지 합친 조합키로 고유하게 식별한다.
   function scheduleGradeCkey(adrole, gradeName) { return (adrole ? 'storage' : 'traffic') + '::' + gradeName; }
 
-  // 김프로 상품 설정(ha/kimproProdSettings)은 접수관리 자체 prods와 별도 — kp 출처 항목의 등급
+  // 옛 김프로 상품 설정(products_kp_legacy)은 접수관리 prods와 별도 — 옛 김프로 예약 항목의 등급
   // 구조 판정엔 반드시 이걸 써야 함(두 시스템 prods가 값이 다를 수 있어 섞어 쓰면 오판정 위험).
   let _kpProdsCache = null;
   async function getKpProdsForSchedule() {
     if (_kpProdsCache) return _kpProdsCache;
     try {
-      const snap = await fbGet('ha/kimproProdSettings/prods');
-      const val = snap.exists() ? snap.val() : [];
+      const val = (await HI.getLegacyKpProds()) || [];
       _kpProdsCache = Array.isArray(val) ? val : Object.values(val||{});
     } catch (e) { _kpProdsCache = []; }
     return _kpProdsCache;
@@ -5796,14 +5728,9 @@ window.toggleProdPanel = function(e) {
   // 슬롯(상세)에 저장된 검색키워드를 그대로 가져옴 — 대기중 항목마다 흩어진 값이 아니라
   // 항상 원본 상세 값을 기준으로 재분할하기 위함(2026-09-11 기획 확정 사항)
   async function fetchSourceKeyword(src, slotKey) {
-    if (src === 'kp') {
-      const snap = await fbGet(`ha/kimproSlots/${slotKey}`);
-      return snap.exists() ? (snap.val().searchKeyword || '') : '';
-    }
     const s = allSlots.find(x => x._key === slotKey);
-    if (s) return s.searchKeyword || '';
-    const snap = await fbGet(`ha/slots/${slotKey}`);
-    return snap.exists() ? (snap.val().searchKeyword || '') : '';
+    if (s && 'searchKeyword' in s) return s.searchKeyword || '';
+    return (await HI.getKeywords(slotKey)).search || '';
   }
 
   // 키워드 재분할: 1단계로 등급 수만큼 키워드 풀을 나눠 전용 슬라이스를 만들고(등급 수 < 그룹 수면
@@ -6421,11 +6348,11 @@ window.toggleProdPanel = function(e) {
       });
     });
 
-    const batchSnap = await fbGet(`ha/${batchSuffix}/${slotKey}`);
+    const batchSnap = await batchSnapOf(slotKey);
     const batch = batchSnap.exists() ? batchSnap.val() : { total: 0 };
     patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
 
-    await fbUpdate('ha', patch);
+    await HI.updateSchedule(patch); // 예약 항목 추가·삭제 + 조각 수를 한 번에(원자적)
     return { created, removed };
   }
 
@@ -6441,21 +6368,21 @@ window.toggleProdPanel = function(e) {
     const dispatchSuffix = scheduleDispatchSuffix(src);
     const batchSuffix = scheduleBatchSuffix(src);
     try {
-      const pre = await HA.readScheduledSlot(slotKey); // 못 읽으면 여기서 중단(아무것도 취소 안 됨) → 오류 팝업
+      const pre = await HI.readScheduled(slotKey); // 못 읽으면 여기서 중단(아무것도 취소 안 됨) → 오류 팝업
       const patch = {};
       targets.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; });
-      const batchSnap = await fbGet(`ha/${batchSuffix}/${slotKey}`);
+      const batchSnap = await batchSnapOf(slotKey);
       if (batchSnap.exists()) {
         const batch = batchSnap.val();
         patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
       }
-      await fbUpdate('ha', patch);
+      await HI.updateSchedule(patch);
       targets.forEach(e => { delete _ssEntries[e._key]; });
 
-      // 양쪽 사본(접수관리 expired / 김프로 ended)을 같이 종료 + 일수·종료일 재계산(HA.endScheduledSlot 참고)
+      // 캠페인 종료 + 일수·종료일 재계산(HI.endScheduled 참고 — 고정된 정산 금액도 같이 줄임)
       const dateOf = e => (e.payload?.rowData||[])[0]?.예약일;
       const kept = Object.values(_ssEntries).filter(e => e.slotKey === slotKey).map(dateOf);
-      const fields = await HA.endScheduledSlot(slotKey, targets.map(dateOf), kept, pre);
+      const fields = await HI.endScheduled(slotKey, targets.map(dateOf), kept, pre);
       const s = allSlots.find(x => x._key === slotKey);
       if (s && fields) Object.assign(s, fields, { status: 'expired' });
 
@@ -6474,7 +6401,7 @@ window.toggleProdPanel = function(e) {
     const val = inputEl.value.trim();
     inputEl.disabled = true;
     try {
-      await fbUpdate(`ha/${scheduleDispatchSuffix(entry._src === 'kp' ? 'kp' : 'ha')}/${key}/payload/rowData/0`, { 검색키워드: val });
+      await HI.updateScheduleDispatch(`${key}/payload/rowData/0`, { 검색키워드: val });
       if (_ssEntries[key]) {
         const row = (_ssEntries[key].payload.rowData || [])[0]; if (row) row.검색키워드 = val;
       }
@@ -6518,7 +6445,7 @@ window.toggleProdPanel = function(e) {
       if (!g) return;
       ev.target.disabled = true;
       try {
-        await fbUpdate(`ha/${scheduleDispatchSuffix(groupSrc)}/${key}`, {
+        await HI.updateScheduleDispatch(key, {
           adrole: g.adrole ?? null,
           'payload/gradeName':  g.gradeName,
           'payload/classType':  g.classType,
@@ -6633,6 +6560,51 @@ window.toggleProdPanel = function(e) {
     finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, d.okTotal + n.okTotal, d.failTotal + n.failTotal);
   }
 
+  // ── 📈 순위표 다운로드 (옛 김프로 메뉴에서 이식, 2026-10-13 — 대상: 전체 캠페인) ──
+  // 버튼은 index.html 상단(엑셀 접수 오른쪽). 기준순위가 같은 MID의 직전 종료건까지 보므로 종료 전체 포함.
+  // kimpro-premium /rank-table은 종료 상태를 옛 김프로 이름('ended')으로 판정 — expired를 ended로 보냄
+  window.downloadRankTable = async function() {
+    const btn = document.getElementById('rank-table-btn');
+    const original = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '📈 다운로드 중...'; }
+    try {
+      const slots = (await HI.getAll()).filter(s => s.mid);
+      await fetchGradesBatch([...new Set(slots.map(s => s.mid))].filter(mid => !GRADE_CACHE.has(mid)));
+      const midEntries = slots.map(s => ({
+        mid: s.mid,
+        startDate: s.startDate || '',
+        endDate: s.endDate || '',
+        dailyTarget: s.dailyTarget || 0,
+        agency: s.agencyId || '',
+        createdDate: s.createdAt ? ymd(new Date(s.createdAt)) : '',
+        status: s.status === 'expired' ? 'ended' : (s.status || ''),
+        isRequeue: !!s.isRequeue,
+        grade: [...new Set(_allFilterLabels(GRADE_CACHE.get(s.mid)))].join(', '),
+      }));
+      const res = await fetch('https://kimpro-premium-938928195180.asia-northeast3.run.app/rank-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memo: '1test', midEntries }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `요청 실패 (${res.status})`);
+      }
+      const blob = await res.blob();
+      const match = (res.headers.get('Content-Disposition') || '').match(/filename="?([^"]+)"?/);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = match ? match[1] : `순위표_${ymd(new Date())}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`다운로드 실패: ${e.message}`);
+      console.error(e);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = original; }
+    }
+  };
+
   // 최초 로드
   renderReceipts(false).then(attachSlotsLiveSync);
   (async () => {
@@ -6642,13 +6614,10 @@ window.toggleProdPanel = function(e) {
     renderPS();
   })();
 
-  // Firebase SDK 미리 로드 — 첫 상세 클릭 딜레이 제거
-  import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js').catch(() => {});
-
-  // lock 전체 상태 프리페치 — TCP 예열 + 캐시 초기화로 첫 상세 클릭 시 네트워크 없이 즉시 확인
-  fetch(`${LOCK_FB}.json`).then(r => r.ok ? r.json() : null).then(data => {
+  // lock 전체 상태 프리페치 — 첫 상세 클릭 시 네트워크 없이 즉시 확인(예전 REST 직접 조회는 인증이 없어 규칙에 막혔음)
+  HI.getDetailLocks().then(data => {
     if (!data || typeof data !== 'object') return;
-    const cu   = window.HA?.getCurrentUser?.() || {};
+    const cu   = HI.getCurrentUser() || {};
     const myId = cu.username || cu.id || 'unknown';
     Object.entries(data).forEach(([key, lock]) => {
       if (!lock) return;

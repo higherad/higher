@@ -1,5 +1,14 @@
 <div id="rank-page">
 <style>
+  /* 옛 index.html 공용 CSS에서 이동(아래 #rank-page 규칙이 덮지 않는 속성 유지) */
+    .rk-input{padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;background:#fff;color:var(--text);outline:none;transition:.2s}
+    .rk-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(16,185,129,.1)}
+    .rk-btn{margin-top:4px;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s}
+    .rk-btn:hover{background:var(--accent2)}
+    .rk-btn:disabled{opacity:.6;cursor:not-allowed}
+    .rk-msg{margin-top:20px;padding:14px 16px;border-radius:10px;font-size:13px;background:var(--bg);color:var(--text2)}
+    .rk-msg.warn{background:#fef9c3;color:#854d0e}
+    .rk-msg.err{background:#fee2e2;color:#991b1b}
   #rank-page .rk-tab-nav { display:flex; gap:8px; margin-bottom:20px; }
   #rank-page .rk-tab { padding:8px 20px; border-radius:10px; border:1px solid var(--border); background:#fff; font-size:13px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.2s; }
   #rank-page .rk-tab:hover { background:var(--bg); }
@@ -210,7 +219,7 @@
       if (!_getRankTrend) {
         ({ getRankTrend: _getRankTrend } = await import(new URL('rank-popup.js', document.baseURI).href));
       }
-      const slots = await HA.getSlotsLive();
+      const slots = await HI.getLive(); // 진행 중(active·split)만 쓰므로 live로 충분
       const seenDup = new Set();
       const todayStr = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (로컬)
       const active = Object.values(slots || {})
@@ -229,16 +238,7 @@
         return;
       }
 
-      const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const db = getDatabase();
-
-      const rankDataArr = await Promise.all(active.map(async s => {
-        const safeMid = s.mid.replace(/[.#$[\]/]/g, '_');
-        try {
-          const snap = await get(ref(db, `ha/ranks/${safeMid}`));
-          return snap.exists() ? snap.val() : {};
-        } catch { return {}; }
-      }));
+      const rankDataArr = await Promise.all(active.map(s => HI.getRanks(s.mid).catch(() => ({}))));
       if (!document.getElementById('rank-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
       /* 전체 날짜 수집 → 최신순 */

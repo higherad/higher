@@ -200,7 +200,7 @@
 </div>
 
 <script type="module">
-  import HA from './ha-store.js';
+  import HI from './hi-store.js';
 
   // URL에서 파일명 숨기기 — 항상 / 로만 표시
   history.replaceState(null, '', '/');
@@ -244,7 +244,7 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>로그인 중...';
 
-    const result = await HA.login(username, password);
+    const result = await HI.login(username, password);
 
     if (result.ok && (result.user.role === 'admin' || result.user.role === 'staff')) {
       sessionStorage.setItem('ha_admin_auth', '1');

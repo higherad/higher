@@ -90,7 +90,7 @@
     document.getElementById('notice-body').innerHTML =
       '<tr><td colspan="5"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    allNotices = await HA.getNotices();
+    allNotices = await HI.getNotices();
     if (!document.getElementById('notice-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
     const all   = getFiltered();
@@ -131,7 +131,7 @@
 
   window.deleteNotice = async function(key) {
     if(!confirm('삭제하시겠습니까?')) return;
-    await HA.deleteNotice(key);
+    await HI.deleteNotice(key);
     renderNotices(false);
   };
 
@@ -191,8 +191,8 @@
       content: document.getElementById('nm-content').value,
       pinned:  document.getElementById('nm-pinned').checked,
     };
-    if(key) await HA.updateNotice(key, data);
-    else    await HA.addNotice(data);
+    if(key) await HI.updateNotice(key, data);
+    else    await HI.addNotice(data);
     document.querySelector('.modal-overlay').remove();
     renderNotices(false);
   };

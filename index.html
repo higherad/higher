@@ -13,110 +13,6 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <style>
-    /* ── 광고분류 페이지 CSS ── */
-    #ac-wrap *{box-sizing:border-box}
-    #ac-wrap{font-family:'Pretendard',sans-serif;color:var(--text)}
-    .ac-search-bar{display:flex;gap:10px;margin-bottom:20px}
-    .ac-search-input{flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;outline:none;transition:.2s;background:#fff}
-    .ac-search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(16,185,129,.1)}
-    .ac-search-clear{padding:10px 16px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;transition:.2s;white-space:nowrap}
-    .ac-search-clear:hover{background:var(--bg)}
-    .ac-result-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-    .ac-result-title{font-size:16px;font-weight:800}
-    .ac-result-meta{font-size:11px;color:var(--muted);margin-top:2px}
-    .ac-export-btn,.ac-capture-btn{padding:7px 13px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2);transition:.2s;font-family:inherit}
-    .ac-export-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-    .ac-capture-btn:hover{background:var(--sidebar);color:#fff;border-color:var(--sidebar)}
-    .ac-capture-btn:disabled{opacity:.5;cursor:not-allowed}
-    .ac-tbl-scroll{overflow-x:auto;border-radius:14px;border:1px solid var(--border);margin-bottom:6px}
-    .ac-tbl-wrap{background:#fff;border-radius:14px}
-    .ac-tbl{width:100%;border-collapse:collapse;font-size:13px}
-    .ac-tbl thead th{background:#f8fafc;padding:11px 13px;text-align:center;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
-    .ac-tbl thead th:nth-child(2){text-align:center}
-    .ac-tbl tbody td{padding:9px 13px;border-bottom:1px solid #f1f5f9;text-align:center;color:var(--text);transition:background .12s;vertical-align:middle}
-    .ac-tbl tbody tr:last-child td{border-bottom:none}
-    .ac-total-row td{background:#e2e8f0!important;font-weight:800;border-top:2px solid #94a3b8;color:var(--text)}
-    .ac-bg-agency{background:rgba(34,197,94,.05)}.ac-bg-direct{background:rgba(245,158,11,.05)}.ac-bg-solo{background:rgba(59,130,246,.05)}
-    .ac-bg-agency:hover td{background:rgba(34,197,94,.1)!important}.ac-bg-direct:hover td{background:rgba(245,158,11,.1)!important}.ac-bg-solo:hover td{background:rgba(59,130,246,.1)!important}
-    .ac-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px}
-    .ac-badge-agency{background:rgba(34,197,94,.15);color:#16a34a}.ac-badge-direct{background:rgba(245,158,11,.15);color:#d97706}.ac-badge-youpfl{background:rgba(168,85,247,.15);color:#9333ea}.ac-badge-solo{background:rgba(59,130,246,.15);color:#2563eb}
-    .ac-highlight{background:#fef08a;border-radius:3px;padding:0 1px}
-    .ac-no-result{padding:48px;text-align:center;color:var(--muted);font-size:13px;background:#fff;border-radius:14px;border:1px solid var(--border)}
-    .ac-save-status{font-size:11px;color:var(--muted);text-align:right;min-height:16px;margin-bottom:16px}
-    .ac-divider{border:none;border-top:2px dashed var(--border);margin:32px 0}
-    .ac-sec{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin:0 0 10px}
-    .ac-editor{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px}
-    .ac-editor-row{display:flex;align-items:flex-start;border-bottom:1px solid var(--border)}
-    .ac-editor-row:last-child{border-bottom:none}
-    .ac-editor-label{width:86px;padding:14px;font-size:13px;font-weight:700;background:#f8fafc;border-right:1px solid var(--border);display:flex;align-items:flex-start;flex-shrink:0;padding-top:16px}
-    .ac-editor-label.agency{color:#22c55e}.ac-editor-label.direct{color:var(--warn)}.ac-editor-label.solo{color:var(--info)}
-    .ac-editor-body{flex:1;padding:12px 14px}
-    .ac-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;min-height:10px}
-    .ac-tag{display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:500}
-    .ac-tag .ac-x{cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px;transition:.15s}
-    .ac-tag .ac-x:hover{color:var(--danger)}
-    .ac-hint{font-size:11px;color:var(--muted);margin-bottom:6px}
-    .ac-add-row{display:flex;gap:6px}
-    .ac-inp{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;outline:none;transition:.2s;color:var(--text)}
-    .ac-inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(16,185,129,.1)}
-    .ac-add-btn{padding:8px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s;white-space:nowrap}
-    .ac-add-btn:hover{background:var(--accent2)}
-    .ac-upload-zone{border:2px dashed var(--border);border-radius:14px;padding:28px 20px;text-align:center;background:#f8fafc;cursor:pointer;transition:.2s;position:relative;margin-bottom:18px}
-    .ac-upload-zone:hover,.ac-upload-zone.drag-over{border-color:var(--accent);background:rgba(16,185,129,.04)}
-    .ac-upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-    .ac-upload-fname{font-size:13px;font-weight:600;color:var(--accent);display:none;margin-top:8px}
-    .ac-run-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;transition:.2s;font-family:inherit}
-    .ac-run-btn:hover:not(:disabled){background:var(--accent2);box-shadow:0 6px 20px rgba(16,185,129,.3);transform:translateY(-1px)}
-    .ac-run-btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;transform:none;box-shadow:none}
-    #ac-toast{position:fixed;bottom:24px;right:24px;z-index:9999;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;color:#fff;opacity:0;transform:translateY(6px);transition:all .3s;pointer-events:none}
-    #ac-toast.show{opacity:1;transform:translateY(0)}
-    #ac-toast.ok{background:var(--accent)}#ac-toast.err{background:var(--danger)}
-    /* 탭 */
-    .ac-tabs{display:flex;gap:8px;margin-bottom:20px}
-    .ac-tab{padding:8px 20px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;transition:.2s}
-    .ac-tab:hover{background:var(--bg)}
-    .ac-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 12px rgba(16,185,129,.25)}
-    /* 월별 선택 */
-    .ac-month-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
-    .ac-month-btn{padding:8px 16px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;transition:.2s;display:flex;align-items:center;gap:6px}
-    .ac-month-btn:hover{background:var(--bg)}
-    .ac-month-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 12px rgba(16,185,129,.2)}
-    .ac-month-cnt{font-size:11px;font-weight:700;padding:1px 7px;border-radius:8px;background:rgba(255,255,255,.25)}
-    .ac-month-btn:not(.active) .ac-month-cnt{background:var(--bg);color:var(--text2)}
-    /* 순위 조회 */
-    #rk-wrap{padding:8px 0}
-    .rk-sec{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:0 0 16px}
-    .rk-form{display:flex;flex-direction:column;gap:12px;max-width:480px}
-    .rk-field{display:flex;flex-direction:column;gap:6px}
-    .rk-label{font-size:12px;font-weight:600;color:var(--text2)}
-    .rk-input{padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;background:#fff;color:var(--text);outline:none;transition:.2s}
-    .rk-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(16,185,129,.1)}
-    .rk-btn{margin-top:4px;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s}
-    .rk-btn:hover{background:var(--accent2)}
-    .rk-btn:disabled{opacity:.6;cursor:not-allowed}
-    .rk-msg{margin-top:20px;padding:14px 16px;border-radius:10px;font-size:13px;background:var(--bg);color:var(--text2)}
-    .rk-msg.warn{background:#fef9c3;color:#854d0e}
-    .rk-msg.err{background:#fee2e2;color:#991b1b}
-    .rk-card{margin-top:20px;max-width:480px;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:20px 24px}
-    .rk-card-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
-    .rk-card-row:last-of-type{border-bottom:none}
-    .rk-card-label{font-size:12px;font-weight:600;color:var(--text2)}
-    .rk-card-val{font-size:14px;font-weight:600;color:var(--text)}
-    .rk-card-val.muted{color:var(--text2);font-weight:400}
-    .rk-rank-display{display:flex;align-items:baseline;justify-content:center;gap:6px;padding:24px 0 8px}
-    .rk-rank-num{font-size:64px;font-weight:900;line-height:1}
-    .rk-rank-unit{font-size:24px;font-weight:700;color:var(--text2)}
-    .rank-top3{color:#10b981}
-    .rank-top10{color:#3b82f6}
-    .rank-top20{color:#f59e0b}
-    .rank-low{color:var(--text2)}
-    /* 날짜별 리스트 */
-    .ac-date-row td{padding:10px 13px}
-    .ac-date-row:nth-child(even) td{background:var(--bg)}
-    .ac-date-label{font-weight:700;color:var(--text2);letter-spacing:.5px;white-space:nowrap}
-    .ac-date-total{font-weight:800;color:var(--text)}
-  </style>
   <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"/>
   <style>
     :root {
@@ -171,10 +67,6 @@
     @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
     .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
     .page-heading { font-size:22px; font-weight:800; color:var(--text); }
-    /* 김프로 화면: 자체 헤더바를 쓰므로 공용 타이틀 숨김(햄버거는 모바일용으로 유지) */
-    body.kp-mode .top-bar { margin-bottom:0; min-height:0; }
-    body.kp-mode #page-heading, body.kp-mode #page-actions { display:none; }
-    body.kp-mode main { padding:0 10px 20px; }
     /* 페이지별 상단 액션 버튼(접수관리의 엑셀 접수 등) — loadPage()가 페이지에 맞게 채움 */
     #page-actions:empty { display:none; }
     #page-actions button { padding:7px 16px; border:none; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
@@ -333,7 +225,6 @@
     <div class="nav-label">Management</div>
     <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)" title="진행 현황"><i data-lucide="layers" size="16"></i><span class="nav-text"> 진행 현황</span></div>
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)" title="접수 관리"><i data-lucide="inbox" size="16"></i><span class="nav-text"> 접수 관리</span><span class="badge" id="pending-badge" style="display:none">0</span></div>
-    <div class="nav-item" id="nav-kimpro" onclick="enterKimpro(this)" title="김프로"><i data-lucide="link-2" size="16"></i><span class="nav-text"> 김프로</span><span class="badge" id="kp-badge" style="display:none">0</span></div>
     <div class="nav-label">Finance & Users</div>
     <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)" title="정산 관리"><i data-lucide="wallet" size="16"></i><span class="nav-text"> 정산 관리</span><span class="badge" id="settle-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)" title="회원 관리"><i data-lucide="users" size="16"></i><span class="nav-text"> 회원 관리</span><span class="badge" id="users-badge" style="display:none">0</span></div>
@@ -362,8 +253,8 @@
         <span></span><span></span><span></span>
       </div>
       <div class="page-heading" id="page-heading">운영 현황 대시보드</div>
+      <div id="page-actions"></div>
     </div>
-    <div id="page-actions"></div>
   </div>
   <div id="content-area">
     <div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>
@@ -371,9 +262,9 @@
 </main>
 
 <script type="module">
-  import HA from './ha-store.js';
+  import HI from './hi-store.js';
 
-  window.HA = HA;
+  window.HI = HI;
 
   // #content-area 렌더 요청마다 증가하는 세대 번호 — await 대기 중 사용자가 다른 메뉴로 넘어가면 뒤늦게 도착한 이전 렌더가 최신 화면을 덮어쓰지 않게 막음
   let navGen = 0;
@@ -383,7 +274,7 @@
 
   // ── 로그아웃 ──────────────────────────────────────────────
   window.doLogout = () => {
-    HA.logout();
+    HI.logout();
     sessionStorage.removeItem('ha_admin_auth');
     location.href = 'admin-login.html';
   };
@@ -394,17 +285,15 @@
     const area = document.getElementById('content-area');
     area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>';
 
-    const [allNotices, allUsers, haSlots, kpSlots] = await Promise.all([
-      HA.getNotices(),
-      HA.getUsers(),
-      HA.getSlotsLive(),
-      HA.getKpSlotsLive().catch(() => []),
+    // 대시보드 수치는 전부 진행 중 캠페인(대기·접수·승인·예약) 기준 — live만 받으면 됨
+    const [allNotices, allUsers, allSlots] = await Promise.all([
+      HI.getNotices(),
+      HI.getUsers(),
+      HI.getLive(),
     ]);
     if (myGen !== navGen) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
     const notices = allNotices.slice(0, 4);
 
-    // 접수관리+김프로 합산 — 같은 캠페인 사본은 한 번만, 강제종료·임시중단 등 김프로 전용 상태는 김프로 사본 기준(HA.mergeHaKp)
-    const allSlots = HA.mergeHaKp(haSlots, kpSlots);
     const todayStr = localYMD(new Date());
     const in3 = new Date(); in3.setDate(in3.getDate() + 3);
     const in3Str = localYMD(in3);
@@ -496,7 +385,7 @@
     return (sl.status === 'active' || sl.status === 'split') && (sl.startDate || '') <= todayStr;
   }
 
-  // 순위조회.html '5일' 탭과 동일한 GAS 소스 — 어드민(ha/slots)에 없는 상품도 포함된 전체 순위 집계
+  // 순위조회.html '5일' 탭과 동일한 GAS 소스 — 어드민에 없는 상품도 포함된 전체 순위 집계
   const RANK_CHANGE_GAS_URL = 'https://script.google.com/macros/s/AKfycbxyFuM-npYQ_Rkgezgl6LqfhUCCdc3mff07ESh88VxE2nTqYeR5j1JriyY8mTRdSH_a/exec';
   const RANK_FLOOR = 301; // 5일 데이터에서 '-'(300위 밖/미확인)는 권외로 취급
 
@@ -522,19 +411,9 @@
       else result.outside++;
     };
 
-    const { getDatabase, ref, get, query, orderByKey, limitToLast } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-    const db = getDatabase();
-
-    const [dataArr, allDoneSnap, changeJson] = await Promise.all([
-      Promise.all(running.map(async s => {
-        const safeMid = s.mid.replace(/[.#$[\]/]/g, '_');
-        try {
-          // 최신 날짜 1건만 필요 (아래에서 latestDate만 사용) — 전체 히스토리 다운로드 방지
-          const snap = await get(query(ref(db, `ha/ranks/${safeMid}`), orderByKey(), limitToLast(1)));
-          return snap.exists() ? snap.val() : null;
-        } catch { return null; }
-      })),
-      get(ref(db, 'ha/pipeline/allDone')).catch(() => null),
+    const [dataArr, allDoneVal, changeJson] = await Promise.all([
+      Promise.all(running.map(s => HI.getLatestRank(s.mid).catch(() => null))),
+      HI.getPipelineAllDone().catch(() => null),
       fetch(`${RANK_CHANGE_GAS_URL}?action=getRankData&t=${Date.now()}`).then(r => r.json()).catch(() => null),
     ]);
 
@@ -547,7 +426,7 @@
       classify(Number(rd[latestDate]?.rank));
     });
 
-    // 어드민(ha/slots)에 등록되지 않은 상품 — '5일' 데이터의 최신값으로 집계, 어드민 mid는 중복 제외
+    // 어드민에 등록되지 않은 상품 — '5일' 데이터의 최신값으로 집계, 어드민 mid는 중복 제외
     if (changeJson && Array.isArray(changeJson.results)) {
       changeJson.results.forEach(item => {
         if (!item.mid || adminMids.has(item.mid)) return;
@@ -561,9 +440,8 @@
       });
     }
 
-    // 기준일 = 파이프라인 완료 시점(ha/pipeline/allDone, YYMMDD). 없으면 실데이터 최신일로 대체.
-    const allDoneVal = allDoneSnap && allDoneSnap.exists() ? String(allDoneSnap.val()) : '';
-    result.basisDate = /^\d{6}$/.test(allDoneVal)
+    // 기준일 = 파이프라인 완료 시점(pipeline/allDone, YYMMDD). 없으면 실데이터 최신일로 대체.
+    result.basisDate = /^\d{6}$/.test(String(allDoneVal || ''))
       ? `20${allDoneVal.slice(0,2)}-${allDoneVal.slice(2,4)}-${allDoneVal.slice(4,6)}`
       : (maxDate || '-');
 
@@ -635,7 +513,6 @@
 
   window.loadDashboard = function() {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    document.body.classList.remove('kp-mode'); // loadPage()를 안 거치므로 김프로 진입 시 붙은 여백 최소화 모드를 직접 해제
     document.getElementById('page-heading').textContent = '운영 현황 대시보드';
     renderDashboard();
     window.scrollTo(0, 0);
@@ -679,7 +556,7 @@
     '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
     '정산관리.html':'정산 관리',
     '회원관리.html':'회원 관리', '공지사항.html':'공지사항',
-    '광고분류.html':'광고 분류', '순위조회.html':'순위 조회', '김프로.html':'김프로',
+    '광고분류.html':'광고 분류', '순위조회.html':'순위 조회',
   };
 
   window.loadPage = async function(page, navEl, afterLoad) {
@@ -690,10 +567,10 @@
       navEl.classList.add('active');
     }
     document.getElementById('page-heading').textContent = PAGE_TITLES[page] || page;
-    // 김프로 화면은 자체 헤더바(kp-header)를 쓰므로 상단 공용 타이틀/상태pill/알림벨은 숨김
-    document.body.classList.toggle('kp-mode', page === '김프로.html');
+    // 순위표는 옛 김프로 메뉴에서 옮겨온 기능 — 전체 캠페인 대상(2026-10-13 결정)
     document.getElementById('page-actions').innerHTML = page === '접수관리.html'
       ? '<button style="background:#0d9488;color:#fff;" onclick="openReceiptExcelModal()">📊 엑셀 접수</button>'
+        + ' <button id="rank-table-btn" style="background:#334155;color:#fff;" onclick="downloadRankTable()">📈 순위표</button>'
       : '';
 
     const area = document.getElementById('content-area');
@@ -736,31 +613,22 @@
     }
   };
 
-  // ── Firebase 실시간 리스너 ────────────────────────────────
-  // 접수관리 배지와 동일한 방식 — 김프로 쪽 pending 건수(subscribeKpSlotsLive는 공유 캐시라 별도 재조회 없음)
-  // 승인 후 미러된 건이 pending으로 되돌아가면 양쪽 노드에 똑같이 pending으로 남음(공유 상태값) —
-  // 접수한 메뉴(origin)에서만 셈. origin 없는 레거시는 자기 노드 것으로 취급.
-  HA.subscribeKpSlotsLive(slots => {
-    const n = slots.filter(s => s.status === 'pending' && s.origin !== 'ha').length;
-    const el = document.getElementById('kp-badge');
-    if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
-  });
-
-  HA.onSlotsChange(slots => {
-    const n = slots.filter(s => s.status === 'pending' && s.origin !== 'kp').length;
+  // ── 사이드바 배지 (실시간) ────────────────────────────────
+  HI.subscribeLive(slots => {
+    const n = slots.filter(s => s.status === 'pending').length;
     const el = document.getElementById('pending-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
   });
 
   // ── 회원관리 배지 (신규 미승인 회원) ──────────────────────
-  HA.onUsersChange && HA.onUsersChange(users => {
+  HI.onUsersChange(users => {
     const n = users.filter(u => u.approved === false || u.approved === undefined).length;
     const el = document.getElementById('users-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
   });
 
   // ── 정산관리 배지 (미정산 건) ──────────────────────────────
-  HA.onSettlementsChange(n => {
+  HI.onUnpaidGroupsChange(n => {
     const el = document.getElementById('settle-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
   });
@@ -772,7 +640,7 @@
       return;
     }
     // 사이드바 유저 정보 표시
-    const cur = HA.getCurrentUser();
+    const cur = HI.getCurrentUser();
     if (cur) {
       const nameEl   = document.getElementById('sidebar-name');
       const roleEl   = document.getElementById('sidebar-role');
@@ -781,11 +649,13 @@
       if (roleEl)   roleEl.textContent   = cur.role === 'admin' ? 'Super Admin' : '담당자';
       if (avatarEl) avatarEl.textContent = (cur.name || cur.username).charAt(0).toUpperCase();
     }
+    // 테스트 데이터(hi_test 등)에 붙어 있으면 눈에 띄게 표시 — 외부 서버 호출은 hi-store가 막음
+    if (HI.ROOT !== 'hi') {
+      document.title = `[TEST:${HI.ROOT}] ` + document.title;
+      document.querySelector('.brand-sub').innerHTML = `<span style="color:#f87171;font-weight:800">TEST · ${HI.ROOT}</span>`;
+    }
     document.body.style.display = 'flex';
     lucide.createIcons();
-    await HA.seedIfEmpty();
-    // seedIfEmpty를 기다리는 사이 사용자가 이미 다른 메뉴를 클릭했다면(navGen 증가)
-    // 기본 랜딩 화면(대시보드/진행현황) 렌더는 건너뛴다 — 클릭 결과를 덮어쓰지 않도록.
     if (navGen === 0) {
       await renderDashboard();
     }
@@ -808,9 +678,6 @@
     localStorage.setItem('ha_sidebar_collapsed', collapsed ? '1' : '0');
   };
 
-  window.enterKimpro = function(navEl) {
-    loadPage('김프로.html', navEl);
-  };
   if (localStorage.getItem('ha_sidebar_collapsed') !== '0') {
     document.getElementById('sidebar').classList.add('collapsed');
   }

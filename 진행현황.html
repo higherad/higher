@@ -146,7 +146,6 @@
     active:  '<span class="status-badge s-active">진행</span>',
     expired: '<span class="status-badge s-expired">종료</span>',
     split:   '<span class="status-badge s-split">분할</span>',
-    ended:   '<span class="status-badge s-expired">종료</span>',
     force_stopped: '<span class="status-badge s-force">강제종료</span>',
     paused:  '<span class="status-badge s-paused">임시중단</span>',
     requeue: '<span class="status-badge s-wait">재접수 대기</span>',
@@ -163,7 +162,7 @@
   // 진행중 계열 — 승인(active) + 예약 등록 중(split, 매일 등록이 나가는 중). D-Day·종료 예정 요약·종료임박 필터 공통
   function isRunning(s) { return s.status === 'active' || s.status === 'split'; }
   function statusBadge(s, todayStr) {
-    const tag = s._src === 'kp' ? '<span class="kp-tag">김프로</span>' : '';
+    const tag = s.origin === 'kp' ? '<span class="kp-tag">김프로</span>' : ''; // 옛 김프로 메뉴에서 접수된 건
     if (isReserved(s, todayStr)) return '<span class="status-badge s-reserved">예약</span>' + tag;
     return (stLabel[s.status] || s.status) + tag;
   }
@@ -197,14 +196,13 @@
       if (status === 'reserved') { if (!isReserved(s, todayStr)) return false; }
       else if (status === 'active') { if (s.status !== 'active' || isReserved(s, todayStr)) return false; }
       else if (status) { if (s.status !== status) return false; }
-      // 전체: 이미 진행됐거나 끝난 캠페인만(대기/접수/재접수대기는 제외) — ha(active/split/expired)
-      // + kp 동의어(ended/force_stopped/paused)까지 전부 포함
-      else { if (!['active','split','expired','ended','force_stopped','paused'].includes(s.status)) return false; }
+      // 전체: 이미 진행됐거나 끝난 캠페인만(대기/접수/재접수대기는 제외) — 옛 김프로 강제종료·임시중단 포함
+      else { if (!['active','split','expired','force_stopped','paused'].includes(s.status)) return false; }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       return true;
     });
     if (range === 'all') {
-      rows.sort((a,b) => (b.startDate||'').localeCompare(a.startDate||'')); // 시작일 내림차순 — ha/kp 병합 순서(kp가 뒤에 붙는 문제)와 무관하게 통일
+      rows.sort((a,b) => (b.startDate||'').localeCompare(a.startDate||'')); // 시작일 내림차순
     } else {
       // 종료임박 필터 — 진행중(active 또는 예약 등록 중 split) + 종료일이 범위 이내인 것만, 시작 안 한(예약) 캠페인은 뒤로
       const today = new Date(); today.setHours(0,0,0,0);
@@ -276,15 +274,15 @@
     document.getElementById('stat-today-target').textContent = todayTarget.toLocaleString();
   }
 
-  // 이전 기록(종료 30일+) 표시 여부 — 이 메뉴에서만 유효(메뉴 재진입 시 스크립트 재실행으로 초기화).
-  // 데이터 자체는 ha-store.js가 세션당 1회만 받아 보관, 여기선 합칠지만 정함
+  // 종료 전체(30일+ 이전 포함) 표시 여부 — 이 메뉴에서만 유효(메뉴 재진입 시 스크립트 재실행으로 초기화).
+  // 데이터 자체는 hi-store.js가 세션당 1회만 받아 보관, 여기선 합칠지만 정함
   let _withArchive = false;
   let _historyPromise = null; // 로드 중 중복 호출(검색 입력 + » 등)이 같은 완료를 기다리게 공유
   let _historyAlerted = false;
   window.loadSlotsHistory = function() {
     if (!_historyPromise) _historyPromise = (async () => {
       try {
-        await Promise.all([HA.loadSlotsArchive(), HA.loadKpSlotsArchive()]);
+        await HI.loadClosed();
       } catch (e) {
         // 실패하면 다음 검색·» 클릭 때 다시 시도(전엔 한 번 실패하면 메뉴 재진입 전까지 재시도 안 함)
         console.error('이전 기록 로딩 실패:', e);
@@ -307,28 +305,19 @@
       document.getElementById('slots-body').innerHTML =
         '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-      const haLive  = await HA.getSlotsLive();
-      const haSlots = _withArchive ? HA.withSlotsArchive(haLive) : haLive;
+      // 기본 = 진행 중 + 최근 30일 종료(옛 화면과 같은 범위), 검색·종료필터·» = 종료 전체까지
+      const [live, recent] = await Promise.all([HI.getLive(), HI.getRecentClosed()]);
 
-      // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
-      // HA.expireSlots로 한 번에 multi-path 쓰기(접수관리.html과 동일). 김프로 슬롯을 합치기 전(ha만
-      // 있는 시점)에 처리 — 김프로 쪽 자동만료는 김프로.html 자체가 담당.
-      const toExpire = haSlots.filter(s =>
-        s.status === 'active' && s.endDate && s.endDate < todayStr
-      );
+      // ── 종료일 지난 active 캠페인 자동 종료 처리(한 번의 쓰기로 live→closed 이동) ──
+      const toExpire = live.filter(s => s.status === 'active' && s.endDate && s.endDate < todayStr);
       if (toExpire.length) {
-        await HA.expireSlots(toExpire.map(s => s._key));
+        await HI.expire(toExpire.map(s => s._key));
         toExpire.forEach(s => { s.status = 'expired'; });
       }
 
-      // 김프로 캠페인도 진행현황에 함께 표시 — 읽기 전용 병합만, 상태 변경/자동만료 등 쓰기는 김프로.html 책임.
-      // 같은 캠페인 사본은 한 번만(HA.mergeHaKp — 강제종료·임시중단 등 김프로 전용 상태면 김프로 사본 표시)
-      let kpSlots = [];
-      try {
-        const kpLive = await HA.getKpSlotsLive();
-        kpSlots = _withArchive ? HA.withKpSlotsArchive(kpLive) : kpLive;
-      } catch (e) { console.error('김프로 슬롯 로딩 실패:', e); }
-      allSlots = HA.mergeHaKp(haSlots, kpSlots);
+      const recentKeys = new Set(live.map(s => s._key));
+      const base = [...live, ...recent.filter(s => !recentKeys.has(s._key))];
+      allSlots = _withArchive ? HI.withClosed(base) : base;
       _slotsCacheLoaded = true;
     }
     if (!document.getElementById('slots-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
@@ -351,8 +340,8 @@
       body.innerHTML = '<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((s,i) => {
-        const kwCount = (s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-        const yupflCount = (s.yupflKeyword||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+        const kwCount = s.searchKwCount || 0;   // 키워드 본문은 campaign_keywords에 있고 목록엔 개수만
+        const yupflCount = s.yupflKwCount || 0;
         return `
         <tr>
           <td><input type="checkbox" class="s-check" data-key="${s._key}"></td>
@@ -409,9 +398,7 @@
     const keys = [...document.querySelectorAll('.s-check:checked')].map(c => c.dataset.key);
     if(!keys.length) return alert('선택된 항목이 없습니다.');
     if(!confirm(`${keys.length}건을 삭제하시겠습니까?`)) return;
-    // 병합된 김프로 캠페인은 저장소가 달라 삭제 함수도 다름(같은 key로 ha/slots에 쓰면 엉뚱한 스텁이 생김)
-    const kpKeySet = new Set(allSlots.filter(s => s._src === 'kp').map(s => s._key));
-    await Promise.all(keys.map(k => kpKeySet.has(k) ? HA.deleteKpSlot(k) : HA.deleteSlot(k)));
+    await Promise.all(keys.map(k => HI.trash(k)));
     renderSlots(false, true);
   };
 
@@ -426,12 +413,8 @@
   renderSlots(false);
 
   // ── 휴지통 ─────────────────────────────────────────────────
-  // 진행현황 메인 목록은 ha/slots 전용 유지(김프로 캠페인은 단가·액션 체계가 달라 그대로 섞으면
-  // 위험) — 휴지통만 별도로 ha/kimproSlots의 삭제 항목을 합쳐서 보여줌(사용자 요청, 2026-09-10)
+  // 한 벌 저장소라 탭 없이 하나로(옛 접수관리·김프로 탭 구분은 저장소가 달라서였음) — 옛 김프로 건은 '김프로' 표시
   const TRASH_DAYS = 30;
-  let kpTrashSlots = [];
-  let kpTrashLoaded = false;
-  let _trashTab = 'ha'; // 'ha' | 'kp' — 저장소가 달라 헷갈리지 않게 탭으로 구분(사용자 요청)
 
   function _trashRemaining(deletedAt) {
     if (!deletedAt) return TRASH_DAYS;
@@ -447,7 +430,6 @@
 
   window.openTrashView = async function() {
     if (document.getElementById('trash-modal')) return;
-    _trashTab = 'ha';
     const overlay = document.createElement('div');
     overlay.id = 'trash-modal';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;';
@@ -456,14 +438,14 @@
         <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:17px;font-weight:700;">🗑️ 휴지통</span>
+            <span id="trash-count" style="font-size:13px;font-weight:600;color:var(--text2);"></span>
             <span style="font-size:12px;color:var(--muted);">삭제 후 ${TRASH_DAYS}일간 보관 · 기간 만료 시 자동 영구삭제</span>
           </div>
           <div style="display:flex;gap:8px;">
-            <button onclick="emptyTrash()" style="padding:7px 14px;border:none;border-radius:6px;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">현재 탭 전체 영구삭제</button>
+            <button onclick="emptyTrash()" style="padding:7px 14px;border:none;border-radius:6px;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">전체 영구삭제</button>
             <button onclick="document.getElementById('trash-modal').remove()" style="padding:7px 14px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;font-family:inherit;">닫기</button>
           </div>
         </div>
-        <div id="trash-tab-bar" style="display:flex;gap:6px;padding:12px 24px 0;"></div>
         <div id="trash-table-area" style="min-height:200px;padding-top:12px;">
           <div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>
         </div>
@@ -472,66 +454,28 @@
     await _renderTrashContent();
   };
 
-  window.switchTrashTab = function(tab) {
-    _trashTab = tab;
-    _renderTrashContent();
-  };
-
-  function _renderTrashTabBar(haCount, kpCount) {
-    const bar = document.getElementById('trash-tab-bar');
-    if (!bar) return;
-    const tabBtn = (key, label, count) => {
-      const active = _trashTab === key;
-      return `<button onclick="switchTrashTab('${key}')" style="padding:7px 16px;border:none;border-bottom:2px solid ${active?'var(--accent)':'transparent'};background:none;font-size:13px;font-weight:${active?'700':'500'};color:${active?'var(--text)':'var(--text2)'};cursor:pointer;font-family:inherit;">${label} ${count}건</button>`;
-    };
-    bar.innerHTML = tabBtn('ha', '하이어애드', haCount) + tabBtn('kp', '김프로', kpCount);
-  }
-
-  // 이미 받아둔 module 캐시(allSlots) 재사용 — 매번 HA.getSlots()(5.8MB+) 재조회는 낭비. 삭제/복구 시 각 함수가 allSlots를 직접 patch해 최신 유지
-  // 김프로 휴지통 항목은 별도 캐시(kpTrashSlots)로 관리 — 메인 목록엔 안 섞음(단가 체계 등이 달라 위험)
+  // 이미 받아둔 allSlots 재사용 — 삭제/복구 시 각 함수가 allSlots를 직접 patch해 최신 유지
   async function _renderTrashContent() {
     const area = document.getElementById('trash-table-area');
     if (!area) return;
+    // 종료일이 오래된 캠페인도 최근에 삭제됐을 수 있어 종료 전체를 받은 뒤 찾음
+    await loadSlotsHistory();
+    const trashed = allSlots.filter(s => s.status === 'deleted');
 
-    if (!kpTrashLoaded) {
-      try {
-        // 종료일이 오래된 캠페인도 최근에 삭제됐을 수 있어 이전 기록까지 합친 캐시에서 찾음(ha 쪽 allSlots도 같이 갱신)
-        await loadSlotsHistory();
-        // origin==='ha'(접수관리에서 접수된 캠페인의 김프로 미러)는 하이어애드 탭에서 이미 보이므로 제외
-        // — 접수한 메뉴 기준으로 휴지통이 나뉘도록(사용자 요청)
-        kpTrashSlots = HA.withKpSlotsArchive(await HA.getKpSlotsLive()).filter(s => s.status === 'deleted' && s.origin !== 'ha');
-      } catch (e) { console.error('김프로 휴지통 로딩 오류:', e); kpTrashSlots = []; }
-      kpTrashLoaded = true;
-    }
-
-    // origin==='kp'(김프로 네이티브 캠페인의 ha 역미러)는 김프로 탭에서 보여야 하므로 제외
-    const haTrashed = allSlots.filter(s => s.status === 'deleted' && s.origin !== 'kp');
-    const kpTrashed = kpTrashSlots;
-
-    // 30일 초과 항목 자동 영구삭제(양쪽 다)
+    // 30일 초과 항목 자동 영구삭제
     const now = Date.now();
-    const expire = s => s.deletedAt && now > new Date(s.deletedAt).getTime() + TRASH_DAYS * 86400000;
-    const haExpired = haTrashed.filter(expire);
-    const kpExpired = kpTrashed.filter(expire);
-    if (haExpired.length) {
-      await Promise.all(haExpired.map(s => HA.permanentDeleteSlot(s._key)));
-      const expiredKeys = new Set(haExpired.map(s => s._key));
+    const expired = trashed.filter(s => s.deletedAt && now > new Date(s.deletedAt).getTime() + TRASH_DAYS * 86400000);
+    if (expired.length) {
+      await Promise.all(expired.map(s => HI.permanentDelete(s._key)));
+      const expiredKeys = new Set(expired.map(s => s._key));
       allSlots = allSlots.filter(s => !expiredKeys.has(s._key));
     }
-    if (kpExpired.length) {
-      await Promise.all(kpExpired.map(s => HA.permanentDeleteKpSlot(s._key)));
-      const expiredKeys = new Set(kpExpired.map(s => s._key));
-      kpTrashSlots = kpTrashSlots.filter(s => !expiredKeys.has(s._key));
-    }
-    const haActive = haTrashed.filter(s => !haExpired.some(e => e._key === s._key));
-    const kpActive = kpTrashed.filter(s => !kpExpired.some(e => e._key === s._key));
-    _renderTrashTabBar(haActive.length, kpActive.length);
-
-    const active = _trashTab === 'kp' ? kpActive : haActive;
-    const isKp = _trashTab === 'kp';
+    const active = trashed.filter(s => !expired.includes(s));
+    const cnt = document.getElementById('trash-count');
+    if (cnt) cnt.textContent = `${active.length}건`;
 
     if (!active.length) {
-      area.innerHTML = `<div style="padding:60px 0;text-align:center;color:var(--muted);font-size:13px;">${isKp?'김프로':'하이어애드'} 휴지통이 비어 있습니다.</div>`;
+      area.innerHTML = `<div style="padding:60px 0;text-align:center;color:var(--muted);font-size:13px;">휴지통이 비어 있습니다.</div>`;
       return;
     }
 
@@ -555,7 +499,7 @@
             const remCls = rem > 14 ? 'trash-days-ok' : rem > 7 ? 'trash-days-warn' : 'trash-days-bad';
             return `<tr style="border-bottom:1px solid var(--border);">
               <td style="padding:10px;text-align:center;color:var(--text2);">${_fmtDateOnly(s.createdAt)}</td>
-              <td style="padding:10px;text-align:center;font-weight:600;">${s.agencyId||'-'}</td>
+              <td style="padding:10px;text-align:center;font-weight:600;">${s.agencyId||'-'}${s.origin === 'kp' ? '<span class="kp-tag">김프로</span>' : ''}</td>
               <td style="padding:10px;text-align:center;">${s.userId||'-'}</td>
               <td style="padding:10px;text-align:center;">${s.storeName||'-'}</td>
               <td style="padding:10px;text-align:center;font-size:11px;color:var(--text2);">${s.mid||'-'}</td>
@@ -575,43 +519,27 @@
 
   window.restoreFromTrash = async function(key) {
     if (!confirm('이 캠페인을 복구하시겠습니까?')) return;
-    if (_trashTab === 'kp') {
-      await HA.restoreKpSlot(key);
-      kpTrashSlots = kpTrashSlots.filter(s => s._key !== key);
-    } else {
-      const slot = allSlots.find(s => s._key === key);
-      await HA.restoreSlot(key);
-      if (slot) { slot.status = slot.originalStatus || 'pending'; slot.deletedAt = null; slot.originalStatus = null; }
-    }
+    const slot = allSlots.find(s => s._key === key);
+    await HI.restore(key);
+    if (slot) { slot.status = slot.originalStatus || 'pending'; delete slot.deletedAt; delete slot.originalStatus; }
     await _renderTrashContent();
     renderSlots(false); // allSlots를 이미 위에서 patch했으므로 강제 재조회 불필요
   };
 
   window.permanentDeleteFromTrash = async function(key) {
     if (!confirm('영구 삭제하면 복구가 불가능합니다.\n정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?')) return;
-    if (_trashTab === 'kp') {
-      await HA.permanentDeleteKpSlot(key);
-      kpTrashSlots = kpTrashSlots.filter(s => s._key !== key);
-    } else {
-      await HA.permanentDeleteSlot(key);
-      allSlots = allSlots.filter(s => s._key !== key);
-    }
+    await HI.permanentDelete(key);
+    allSlots = allSlots.filter(s => s._key !== key);
     await _renderTrashContent();
   };
 
   window.emptyTrash = async function() {
-    const isKp = _trashTab === 'kp';
-    const trashed = (isKp ? kpTrashSlots : allSlots.filter(s => s.status === 'deleted'));
-    if (!trashed.length) { alert(`${isKp?'김프로':'하이어애드'} 휴지통이 이미 비어 있습니다.`); return; }
-    if (!confirm(`${isKp?'김프로':'하이어애드'} 휴지통의 항목 ${trashed.length}건을 영구 삭제합니다.\n복구할 수 없으며, 정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?`)) return;
+    const trashed = allSlots.filter(s => s.status === 'deleted');
+    if (!trashed.length) { alert('휴지통이 이미 비어 있습니다.'); return; }
+    if (!confirm(`휴지통의 항목 ${trashed.length}건을 영구 삭제합니다.\n복구할 수 없으며, 정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?`)) return;
     const trashedKeys = new Set(trashed.map(s => s._key));
-    if (isKp) {
-      await Promise.all(trashed.map(s => HA.permanentDeleteKpSlot(s._key)));
-      kpTrashSlots = kpTrashSlots.filter(s => !trashedKeys.has(s._key));
-    } else {
-      await Promise.all(trashed.map(s => HA.permanentDeleteSlot(s._key)));
-      allSlots = allSlots.filter(s => !trashedKeys.has(s._key));
-    }
+    await Promise.all(trashed.map(s => HI.permanentDelete(s._key)));
+    allSlots = allSlots.filter(s => !trashedKeys.has(s._key));
     await _renderTrashContent();
   };
 

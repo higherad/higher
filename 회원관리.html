@@ -121,7 +121,8 @@
   const PER = 20;
   let allUsers = [];
   let allSlots = [];
-  let _slotsLoaded = false; // ha/slots(5.8MB+)는 캠페인 수 표시용이라 매번 새로 받을 필요 없음 — 1회 로드 후 재사용
+  let _slotsLoaded = false; // 캠페인 전체(종료 포함)는 캠페인 수·최종 접수일 표시용이라 1회 로드 후 재사용
+  const userByKey = key => allUsers.find(x => x._key === key);
 
   function getFiltered() {
     const kw     = (document.getElementById('u-kw').value||'').toLowerCase();
@@ -154,26 +155,16 @@
     document.getElementById('user-body').innerHTML =
       '<tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
     // 회원 목록은 승인/삭제 직후 정확한 값이 필요해 매번 새로 받음(4.5KB라 저렴) — 슬롯만 캐시
-    const usersPromise = HA.getUsers();
+    const usersPromise = HI.getUsers();
     if (!_slotsLoaded || forceReload) {
-      // 회원별 누적 캠페인 수에 종료 30일+ 이전 건도 포함 — 이전 기록까지 합친 뒤 읽음(세션당 1회)
-      await HA.loadSlotsArchive();
-      const haSlots = HA.withSlotsArchive(await HA.getSlotsLive());
-      // addKpSlot이 접수 시점에 이미 userId를 매칭해둠(2026-09-10 단가 0원 버그 수정과 동일 로직) —
-      // 여기서 agencyId로 다시 덮어쓰면 그 매칭이 무효화돼 카운트가 0이 됨. 비어있는 구데이터만 대체.
-      let kpSlots = [];
-      try {
-        await HA.loadKpSlotsArchive();
-        kpSlots = HA.withKpSlotsArchive(await HA.getKpSlotsLive()).map(s => ({ ...s, _src:'kp', userId: s.userId || s.agencyId || '' }));
-      } catch (e) { console.error('김프로 슬롯 로딩 실패:', e); }
-      // active 전환 시 ha/slots에 같은 key로 미러링되는 캠페인이 있어 그대로 합치면 2중 카운트됨 — ha 쪽에 이미 있는 key는 kp 쪽에서 제외(923줄 haKeySet과 동일 패턴)
-      const haKeySet = new Set(haSlots.map(s => s._key));
-      allSlots = [...haSlots, ...kpSlots.filter(s => !haKeySet.has(s._key))];
+      allSlots = await HI.getAll(); // 진행 중 + 종료 전체(옛 김프로 출처 포함, 한 벌이라 중복 제거 불필요)
       _slotsLoaded = true;
     }
-    allUsers = await usersPromise;
+    allUsers = [...await usersPromise];
     if (!document.getElementById('user-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-    allUsers.reverse();
+    // 최신 가입순 — 키가 username이라 저장 순서가 가입순이 아님. 같은 날은 옛 push 키(legacyKey, 시간순), 새 가입(legacyKey 없음)이 위
+    const order = u => `${u.createdAt || ''}|${u.legacyKey || '~'}`;
+    allUsers.sort((a, b) => order(b).localeCompare(order(a)));
 
     // 승인 대기 카운트
     const pendingCount = allUsers.filter(u => u.approved === false).length;
@@ -252,19 +243,19 @@
   // ── 승인 ─────────────────────────────────────────────────
   window.approveUser = async function(key) {
     if (!confirm('이 회원을 승인하시겠습니까?')) return;
-    await HA.updateUser(key, { approved: true });
+    await HI.updateUser(userByKey(key).username, { approved: true });
     renderUsers(false);
   };
 
   window.pendingUser = async function(key) {
     if (!confirm('이 회원을 승인 대기 상태로 변경하시겠습니까?')) return;
-    await HA.updateUser(key, { approved: false });
+    await HI.updateUser(userByKey(key).username, { approved: false });
     renderUsers(false);
   };
 
   window.deleteUser = async function(key) {
     if (!confirm('회원을 삭제하시겠습니까?')) return;
-    await HA.deleteUser(key);
+    await HI.deleteUser(userByKey(key).username);
     renderUsers(false);
   };
 
@@ -311,12 +302,7 @@
     if(isEdit){
       (async function(){
         try{
-          const {getDatabase,ref,get,set,remove:fbRemove}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-          const db=getDatabase();
-          const safeKey=currentAgency.replace(/[.#$[\]/]/g,'_');
-          const chargeRef=ref(db,`ha/bizfit_charge/${safeKey}`);
-          const snap=await get(chargeRef);
-          let existing=snap.exists()?snap.val():null;
+          let existing=await HI.getBizfitCharge(currentAgency);
           const body=overlay.querySelector('.agency-charge-body');
           if(!body)return;
           let editing=!existing;
@@ -335,7 +321,7 @@
               body.querySelector('#cs-edit').onclick=()=>{editing=true;renderCS();};
               body.querySelector('#cs-del').onclick=async()=>{
                 if(!confirm('충전 계정 정보를 삭제하시겠습니까?'))return;
-                await fbRemove(chargeRef);existing=null;editing=true;renderCS();
+                await HI.removeBizfitCharge(currentAgency);existing=null;editing=true;renderCS();
               };
             }else{
               body.innerHTML=`
@@ -368,55 +354,27 @@
       approved:  true,
     };
     if (password) data.password = password;
-    const safe = s => (s||'').replace(/[.#$[\]]/g, '_');
     if (key) {
-      const oldUser    = allUsers.find(u => u._key === key);
+      const oldUser    = userByKey(key);
       const oldAgency  = oldUser ? (oldUser.agencyId || oldUser.agency || '') : '';
       const agencyChanged = oldAgency && oldAgency !== agencyVal;
 
-      await HA.updateUser(key, data);
+      await HI.updateUser(username, data);
 
-      // 슬롯 agencyId 동기화 — ha/kp 저장소가 분리돼 있어 소스별로 다른 업데이트 함수 필요
+      // 캠페인 agencyId 동기화(진행 중·종료 모두 — 정산 묶음 키에 대행사명이 들어감)
       const userSlots = allSlots.filter(s => s.userId === username);
-      await Promise.all(userSlots.map(s =>
-        s._src === 'kp' ? HA.updateKpSlot(s._key, { agencyId: agencyVal }) : HA.updateSlot(s._key, { agencyId: agencyVal })
-      ));
+      await Promise.all(userSlots.map(s => HI.updateCampaign(s._key, { agencyId: agencyVal })));
+      userSlots.forEach(s => { s.agencyId = agencyVal; });
 
-      // 대행사명 변경 시 스냅샷 키도 이전
+      // 대행사명 변경 시 정산 스냅샷·환불 키도 이전(옛 김프로 출처 __kimpro__ 묶음 포함)
       if (agencyChanged) {
-        try {
-          const { getDatabase, ref, get, set, remove } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-          const db = getDatabase();
-          // 김프로 쪽(ha/kimproSettleSnapshots·ha/kimproRefunds)은 그룹 키의 유저 자리가 '__kimpro__' 고정 —
-          // 전엔 접수관리 쪽만 옮겨서, 대행사명을 바꾸면 김프로 과거 정산 스냅샷이 끊겨 현재값으로 다시 고정됐음
-          const targets = [
-            ['ha/settle_snapshots', username, true], ['ha/refunds', username, false],
-            ['ha/kimproSettleSnapshots', '__kimpro__', true], ['ha/kimproRefunds', '__kimpro__', false],
-          ];
-          for (const [path, userPart, isSnap] of targets) {
-            const snap = await get(ref(db, path));
-            if (!snap.exists()) continue;
-            // 정산관리 키 생성과 같은 치환 규칙 — 스냅샷은 '/'까지 바꾸고(safe2), 환불은 안 바꿈(refundKey)
-            const k = v => (v||'').replace(isSnap ? /[.#$[\]/]/g : /[.#$[\]]/g, '_');
-            const from = `__${k(oldAgency)}__${k(userPart)}`, to = `__${k(agencyVal)}__${k(userPart)}`;
-            const moves = [];
-            snap.forEach(node => {
-              if (node.key.includes(from)) {
-                const v = node.val();
-                moves.push({ oldPath: `${path}/${node.key}`, newPath: `${path}/${node.key.replace(from, to)}`, val: isSnap ? { ...v, agencyId: agencyVal } : v });
-              }
-            });
-            for (const u of moves) {
-              await set(ref(db, u.newPath), u.val);
-              await remove(ref(db, u.oldPath));
-              console.log(`키 이전: ${u.oldPath} → ${u.newPath}`);
-            }
-          }
-        } catch(e) { console.error('키 이전 오류:', e); }
+        try { await HI.renameAgencyKeys(username, oldAgency, agencyVal); }
+        catch(e) { console.error('키 이전 오류:', e); alert('정산 스냅샷 키 이전에 실패했습니다. 새로고침 후 다시 저장해 주세요.\n' + e.message); }
       }
     } else {
       if (!password) return alert('비밀번호를 입력하세요.');
-      await HA.addUser({ ...data, password });
+      try { await HI.addUser({ ...data, password }); }
+      catch(e) { return alert(e.message); }
     }
     // BizFit 충전 계정 저장 (입력값이 있을 때만)
     const csIdEl = document.getElementById('cs-id');
@@ -424,10 +382,8 @@
       const bfId = csIdEl.value.trim();
       const bfPw = document.getElementById('cs-pw').value;
       if(bfId && bfPw && agencyVal){
-        try{
-          const {getDatabase,ref,set:dbSet}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-          await dbSet(ref(getDatabase(),`ha/bizfit_charge/${safe(agencyVal)}`),{id:bfId,pw:bfPw});
-        }catch(e){console.error('충전 계정 저장 오류:',e);}
+        try{ await HI.setBizfitCharge(agencyVal, {id:bfId,pw:bfPw}); }
+        catch(e){console.error('충전 계정 저장 오류:',e); alert('충전 계정 저장에 실패했습니다.\n' + e.message);}
       }
     }
     document.querySelector('.modal-overlay').remove();
@@ -436,7 +392,7 @@
 
   // ── 대행사 클릭 팝업 ─────────────────────────────────────
   window.openUserAgencyPopup = function(userKey) {
-    const u = allUsers.find(x => x._key === userKey);
+    const u = userByKey(userKey);
     if (!u) return;
     const agencyName = u.agency || u.agencyId || '-';
     const unitPrice  = u.unitPrice || 0;
@@ -446,14 +402,8 @@
     const pending = mySlots.filter(s => s.status === 'pending');
     const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0), 0);
 
-    // 정산 금액은 접수관리·김프로 둘 다 회원관리 단가(u.unitPrice)로 계산(정산관리.html의
-    // isBillableSlot과 동일 기준) — 김프로는 상태값 체계가 달라(ended/paused/force_stopped 등)
-    // 존재하는 상태면 정산 대상으로 봄, 재접수(isRequeue)는 새 결제 건이 아니라 제외
-    const billable = mySlots.filter(s => {
-      if (s.isRequeue) return false;
-      if (s._src === 'kp') return !!s.status;
-      return s.status==='active'||s.status==='expired'||s.status==='pending';
-    });
+    // 정산 금액은 회원관리 단가(u.unitPrice)로 계산, 대상은 정산관리와 같은 기준(HI.isBillable — 재접수·휴지통 제외)
+    const billable = mySlots.filter(HI.isBillable);
     const totalAmt = billable.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0)*unitPrice, 0);
     const totalVat = Math.round(totalAmt * 1.1);
 
