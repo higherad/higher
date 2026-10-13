@@ -1479,14 +1479,14 @@ window.toggleProdPanel = function(e) {
     {id:'p7',     name:'X7',    color:'#ec4899', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
-    {id:'yupfl',  name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, fixedPct:30, autoBalance:false, missionRules:[]},
-    {id:'yupfl2', name:'분할',   color:'#06b6d4', active:false, ratio:0, kwPct:0, fixedAlloc:true, splitProduct:true, autoBalance:false, missionRules:[]},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
     {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
     {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.4', ratio:0, kwPct:0, blogUrlProduct:true, blogSplit:1},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
-  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupfl', 'yupfl2', 'delta', 'navy']);
+  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'delta', 'navy']);
+  // 유입플·분할은 상품에서 제거됨 — 저장된 설정·그룹 프리셋에 남아 있어도 불러오지 않음
+  const REMOVED_PROD_IDS = new Set(['yupfl', 'yupfl2']);
   // 찰리/델타/네이비의 ver는 사용자 설정값이 아니라 버전체크 우회용 백엔드 고정값 — RTDB에 저장된 옛 값이
   // 코드 기본값(버전 올릴 때)을 영원히 덮어쓰지 못하게 staticFlags처럼 매 로드마다 코드 값으로 재적용한다.
   const VER_LOCKED_IDS = new Set(['charlie', 'delta', 'navy']);
@@ -1510,7 +1510,7 @@ window.toggleProdPanel = function(e) {
     // 최초 로드와 실시간 구독 콜백이 공유하는 처리 로직 — 원본 데이터를 받아 prods/prodGroups를 갱신
     const applyProdsData = (loaded) => {
       const arr = Array.isArray(loaded) ? loaded : Object.values(loaded);
-      prods = arr;
+      prods = arr.filter(p => p && !REMOVED_PROD_IDS.has(p.id));
       prods.forEach(p => {
         const f = staticFlags.get(p.id); if(f) Object.assign(p, f);
         const fd = fixedDefaults.get(p.id);
@@ -1518,11 +1518,11 @@ window.toggleProdPanel = function(e) {
         if (!Array.isArray(p.missionRules)) p.missionRules = [];
         if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
       });
-      // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다 — 예: 분할(yupfl2)
+      // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다
       const loadedIds = new Set(prods.map(p => p.id));
       DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
-      // 고정 그룹(찰리/차감/유입플/분할/델타) 노출 순서는 저장된 옛 순서와 무관하게 항상
-      // DEFAULT_PRODS 기준(차감→유입플→분할→찰리→델타)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
+      // 고정 그룹(차감/찰리/델타/네이비) 노출 순서는 저장된 순서와 무관하게 항상
+      // DEFAULT_PRODS 기준(차감→찰리→델타→네이비)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
       const fixedRank = new Map(DEFAULT_PRODS.filter(dp => FIXED_PROD_IDS.has(dp.id)).map((dp, i) => [dp.id, i]));
       const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
       let fi = 0;
@@ -2712,18 +2712,10 @@ window.toggleProdPanel = function(e) {
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,440px);">
         <div class="modal-title" style="display:flex;align-items:center;gap:6px;">🔁 대기 히스토리 재접수<span id="reaccept-help-btn" title="도움말" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text2);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer;flex-shrink:0;position:relative;top:1px;">i</span></div>
-        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">검색키워드는 ①일 이내 이력이 있어야 처리됩니다.<br>유입플은 ②를 비우면 ③ 값을 바로 쓰고, 채우면 이력을 먼저 찾고 없을 때만 ③을 씁니다.<br>조건을 모두 충족해야 접수로 전환되고, 아니면 키워드만 채워집니다.</div>
+        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">검색키워드가 ①일 이내 이력이 있으면 그 키워드로 채우고 접수로 전환합니다.</div>
         <div class="pmf" style="margin-bottom:12px;">
           <label>① 검색키워드 히스토리 검색 일자 (일)</label>
           <input type="number" id="reaccept-days-kw" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
-        </div>
-        <div class="pmf" style="margin-bottom:12px;">
-          <label>② 유입플 키워드 히스토리 검색 일자 (일)</label>
-          <input type="number" id="reaccept-days-yupfl" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
-        </div>
-        <div class="pmf" style="margin-bottom:12px;">
-          <label>③ 유입플 키워드 개별 설정</label>
-          <input type="text" id="reaccept-yupfl" value="" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
         <div class="modal-footer">
@@ -2749,14 +2741,6 @@ window.toggleProdPanel = function(e) {
       alert('검색키워드 히스토리 검색 일자를 1 이상의 숫자로 입력해주세요.');
       return;
     }
-    const daysYupflRaw = overlay.querySelector('#reaccept-days-yupfl').value.trim();
-    const yupflSkip = daysYupflRaw === ''; // 비우면 히스토리 확인 없이 ③ 개별값 바로 사용
-    const daysYupfl = yupflSkip ? null : parseInt(daysYupflRaw, 10);
-    if (!yupflSkip && (!Number.isInteger(daysYupfl) || daysYupfl < 1)) {
-      alert('유입플 키워드 히스토리 검색 일자를 1 이상의 숫자로 입력하거나 비워두세요.');
-      return;
-    }
-    const yupflKw = overlay.querySelector('#reaccept-yupfl').value.trim();
 
     const pending = allSlots.filter(s => s.status === 'pending' && s.mid);
     if (!pending.length) { resultEl.innerHTML = '<span style="color:var(--muted)">대기 상태인 슬롯이 없습니다.</span>'; return; }
@@ -2769,52 +2753,34 @@ window.toggleProdPanel = function(e) {
     // 같은 MID는 한 번만 조회 (엑셀 다운로드의 키워드 히스토리 시트와 동일 방식)
     const uniqueMids = [...new Set(pending.map(s => s.mid))];
     const histMap = new Map();
-    const yupflHistMap = new Map();
-    await Promise.all(uniqueMids.map(async mid => {
-      const [kwHist, yupflHist] = await Promise.all([
-        fullKeywordHistory(mid),
-        yupflSkip ? Promise.resolve([]) : fullYupflKeywordHistory(mid), // 스킵 모드면 유입플 히스토리 조회 자체를 안 함
-      ]);
-      histMap.set(mid, kwHist);
-      yupflHistMap.set(mid, yupflHist);
-    }));
+    await Promise.all(uniqueMids.map(async mid => { histMap.set(mid, await fullKeywordHistory(mid)); }));
 
-    // 검색키워드/유입플 각각 독립된 기간(일)으로 최근 히스토리 여부 판단
     const cutoffDayKw = ymd(new Date(Date.now() - daysKw * 24 * 3600 * 1000));
-    const cutoffDayYupfl = yupflSkip ? null : ymd(new Date(Date.now() - daysYupfl * 24 * 3600 * 1000));
     const withinCutoff = (h, cutoffDay) => !!(h && h.createdAt && ymd(new Date(h.createdAt)) >= cutoffDay);
     // 히스토리 원본(과거 수기입력·외부연동 등)엔 "1, 2, 3"처럼 콤마 뒤 공백이 섞여있을 수 있어
     // 재접수로 새로 채우는 시점에 정규화 — "1,2,3" 형태로 고정
     const normKw = kw => (kw || '').split(',').map(k => k.trim()).filter(Boolean).join(',');
     const rows = pending.map(s => {
       const kwTop = (histMap.get(s.mid) || [])[0];
-      const yTop  = (yupflHistMap.get(s.mid) || [])[0];
       const kwMatched = withinCutoff(kwTop, cutoffDayKw);
-      const yMatched  = yupflSkip ? false : withinCutoff(yTop, cutoffDayYupfl);
-      // 유입플을 스킵(②비움)했으면 개별값 사용을 그 자체로 충족된 것으로 간주 — 검색키워드만 최근이면 접수
-      const ySatisfied = yupflSkip ? true : yMatched;
-      const bothMatched = kwMatched && ySatisfied;
       return {
         slot: s,
-        matched: kwMatched || yMatched, kwMatched, yMatched, bothMatched,
-        newStatus: bothMatched ? 'accepted' : 'pending',
-        matchKeyword: kwMatched ? normKw(kwTop.searchKeyword) : (s.searchKeyword || ''),
-        matchYupfl: yMatched ? normKw(yTop.searchKeyword) : '',
+        matched: kwMatched,
+        newStatus: 'accepted',
+        matchKeyword: kwMatched ? normKw(kwTop.searchKeyword) : '',
       };
     });
     const matched = rows.filter(r => r.matched);
 
     if (!matched.length) {
-      resultEl.innerHTML = `<span style="color:var(--muted)">대기 ${pending.length}건 중 최근 히스토리(검색키워드 ${daysKw}일${yupflSkip ? '' : ` / 유입플 ${daysYupfl}일`})가 있는 건이 없습니다.</span>`;
+      resultEl.innerHTML = `<span style="color:var(--muted)">대기 ${pending.length}건 중 최근 ${daysKw}일 검색키워드 히스토리가 있는 건이 없습니다.</span>`;
       runBtn.disabled = false; runBtn.textContent = '실행';
       closeBtn.disabled = false;
       window.reacceptRunning = false;
       return;
     }
 
-    const acceptCount = matched.filter(r => r.bothMatched).length;
-    const keepCount = matched.length - acceptCount;
-    if (!confirm(`대기 ${matched.length}건 처리 대상\n- 접수 전환(접수) ${acceptCount}건\n- 키워드 갱신(대기) ${keepCount}건\n\n진행하시겠습니까?`)) {
+    if (!confirm(`대기 ${matched.length}건을 최근 검색키워드로 채우고 접수로 전환합니다. 계속할까요?`)) {
       runBtn.disabled = false; runBtn.textContent = '실행';
       closeBtn.disabled = false;
       window.reacceptRunning = false;
@@ -2824,7 +2790,7 @@ window.toggleProdPanel = function(e) {
     runBtn.textContent = `⏳ 처리 중... (0/${matched.length})`;
     let done = 0;
     for (const r of matched) {
-      const updates = { searchKeyword: r.matchKeyword, yupflKeyword: r.matchYupfl || yupflKw, status: r.newStatus };
+      const updates = { searchKeyword: r.matchKeyword, status: r.newStatus };
       await HI.updateCampaign(r.slot._key, updates);
       updateLocalSlot(r.slot._key, updates);
       done++;
@@ -2832,7 +2798,7 @@ window.toggleProdPanel = function(e) {
     }
     renderReceipts(false);
 
-    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 접수 전환 ${acceptCount}건 / 키워드만 갱신 ${keepCount}건 처리 완료</span>`;
+    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 접수 전환 ${matched.length}건 처리 완료</span>`;
     runBtn.textContent = '✅ 완료'; runBtn.disabled = true;
     closeBtn.disabled = false;
     window.reacceptRunning = false;
