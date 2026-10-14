@@ -2341,7 +2341,7 @@ window.toggleProdPanel = function(e) {
   }
   function blockIfNoYupflSource(slot) {
     if (!needsYupflSource(slot)) return false;
-    alert('유입플 분류 몫이 있는 캠페인입니다.\n접수 확인 팝업에서 유입플 출처(제이엔/풀스택)를 골라 승인해 주세요.');
+    alert('유입플 분류 몫이 있는 캠페인입니다.\n접수 확인 팝업에서 유입플(제이엔/풀스택)을 선택해 승인해 주세요.');
     return true;
   }
 
@@ -4053,9 +4053,9 @@ window.toggleProdPanel = function(e) {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
           <div style="display:flex;align-items:center;gap:14px;">
             <div class="modal-title" style="margin-bottom:0;">접수 확인</div>
-            ${target.some(needsYupflSource) ? `<select id="yupfl-source-select" onchange="setYupflSource(this.value)" title="유입플 분류 몫이 있는 캠페인의 유입플 출처 — 골라야 접수 신청 가능"
+            ${target.some(needsYupflSource) ? `<select id="yupfl-source-select" onchange="setYupflSource(this.value)" title="유입플 분류 몫이 있는 캠페인의 유입플 — 골라야 접수 신청 가능"
               style="padding:3px 8px;border:1px solid #fde68a;border-radius:6px;font-size:12px;font-weight:600;font-family:inherit;color:#b45309;background:#fffbeb;">
-              <option value="">유입플 출처 선택</option>
+              <option value="">유입플 선택</option>
               ${YUPFL_SOURCES.map(v => `<option value="${v}"${submitYupflSource===v?' selected':''}>${v}</option>`).join('')}
             </select>` : ''}
             <button id="adlog-auto-toggle" type="button" title="접수 완료(승인) 시 애드로그 자동등록 — 끄면 이 접수 건들은 수동 애드로그 버튼으로만 등록"
@@ -4702,7 +4702,7 @@ window.toggleProdPanel = function(e) {
       if (!need.length) return;
       if (!submitYupflSource) {
         e.stopImmediatePropagation(); e.preventDefault();
-        alert('유입플 출처(제이엔/풀스택)를 먼저 골라 주세요.');
+        alert('유입플(제이엔/풀스택)을 먼저 선택해 주세요.');
         return;
       }
       need.forEach(s => {
