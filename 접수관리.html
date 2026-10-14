@@ -491,7 +491,7 @@ window.toggleProdPanel = function(e) {
   }
   let _slotsLoaded = false;
   let _detailOpen  = false;
-  const userPriceMap = new Map(); // userId -> 단가(원/개), 유입플 접수 모달 금액 표시용
+  const userPriceMap = new Map(); // userId -> 단가(원/개), 차감·유입플 분류 금액 계산용
   const userBizfitUidMap = new Map(); // userId -> 비즈핏 파트너 어드민 uid(이메일), 승인 시 캐시 자동차감용
   // settleBizfitCash 등이 이 promise를 await해 로드 전 "매핑 없음" 오판을 방지
   // bizfitUid는 별도 필드 대신 bizfit_charge(BizFit 로그인 id)를 그대로 씀
@@ -533,19 +533,12 @@ window.toggleProdPanel = function(e) {
   const DELTA_ADROLE = '100';
 
   // ── 등급 배지 ────────────────────────────────────────────────
-  const GRADE_CACHE = new Map();
 
   // ── 상세 팝업 잠금 (동시 편집 방지) ─────────────────────────
   const LOCK_TTL_MS    = 10 * 60 * 1000; // 10분 초과 잠금은 자동 무효
   const LOCK_CHECK_CACHE = new Map();    // key → { conflict, by, ts }
   const LOCK_CACHE_TTL   = 10_000;      // 10초 캐시
 
-  // grades Firebase 데이터 파싱 (구: 배열/객체of객체, 신: 단일 객체)
-  function parseGradeEntries(data) {
-    if (!data) return [];
-    if (typeof data.gradeLabel === 'string') return [data];
-    return Array.isArray(data) ? data : Object.values(data);
-  }
 
   // 잠금 획득 — 트랜잭션(hi-store)으로 원자적 처리, 충돌이면 캐시에 남겨 다음 클릭은 네트워크 없이 차단
   async function acquireDetailLock(key) {
@@ -576,17 +569,6 @@ window.toggleProdPanel = function(e) {
     document.body.appendChild(overlay);
   }
 
-  // grades는 hi-store.js 공유 실시간 캐시(세션당 1회 다운로드, 이후 변경분만)에서 읽어 전체를 채운다.
-  async function fetchGradesBatch(mids) {
-    if (!mids.length) return;
-    try {
-      const data = await HI.getLiveKeywordsOnce();
-      Object.entries(data).forEach(([mid, v]) => GRADE_CACHE.set(mid, v));
-      mids.forEach(mid => { if (!(mid in data)) GRADE_CACHE.set(mid, null); });
-    } catch {
-      mids.forEach(mid => GRADE_CACHE.set(mid, null));
-    }
-  }
 
   // 캠페인타입 = 비즈핏 등록(또는 분할 예약) 때 캠페인에 저장한 실제 상품명(campaignType) — 캠페인별 기록이라 종료 후에도 남음
   const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
@@ -867,7 +849,7 @@ window.toggleProdPanel = function(e) {
     closeOverlayAndRefresh();
   };
 
-  // 상세 팝업의 키워드 입력칸(검색/유입플/분할) 값이 바뀐 경우에만 저장 — acceptFromDetail/closeDetailModal 공용
+  // 상세 팝업의 키워드·블로그URL 입력칸 값이 바뀐 경우에만 저장 — acceptFromDetail/closeDetailModal 공용
   async function saveDetailFields(key) {
     const s0 = allSlots.find(x => x._key === key);
     if (s0?.status === 'split' || s0?.status === 'active') return; // 분할 진행 중/승인 후 — 모달 필드가 disabled라 값은 안 바뀌지만, 저장 자체도 막아둠
@@ -895,8 +877,6 @@ window.toggleProdPanel = function(e) {
     }
     const input = document.getElementById('detail-keyword-input');
     const kw = input ? input.value.trim() : null;
-    const yupflInput = document.getElementById('detail-yupfl-keyword-input');
-    const yupflKw = yupflInput ? yupflInput.value.trim() : null;
     const deltaInput = document.getElementById('detail-delta-url-input');
     const deltaUrl = deltaInput ? deltaInput.value.trim() : null;
     const s = allSlots.find(x => x._key === key);
@@ -904,18 +884,9 @@ window.toggleProdPanel = function(e) {
       await HI.updateCampaign(key, { searchKeyword: kw });
       updateLocalSlot(key, { searchKeyword: kw });
     }
-    if (yupflKw !== null && yupflKw !== (s.yupflKeyword||'')) {
-      await HI.updateCampaign(key, { yupflKeyword: yupflKw });
-      updateLocalSlot(key, { yupflKeyword: yupflKw });
-    }
     if (deltaUrl !== null && deltaUrl !== (s.deltaBlogUrl||'')) {
       await HI.updateCampaign(key, { deltaBlogUrl: deltaUrl });
       updateLocalSlot(key, { deltaBlogUrl: deltaUrl });
-    }
-    const splitKeywords = collectSplitKeywords();
-    if (splitKeywords && JSON.stringify(splitKeywords) !== JSON.stringify(s.splitKeywords || {})) {
-      await HI.updateCampaign(key, { splitKeywords });
-      updateLocalSlot(key, { splitKeywords });
     }
   }
 
@@ -984,11 +955,8 @@ window.toggleProdPanel = function(e) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
-    const yupflProd  = prods.find(p => p.id === 'yupfl');
-    const splitProd  = prods.find(p => p.id === 'yupfl2');
     const deltaProd  = prods.find(p => p.id === 'delta');
     const navyProd   = prods.find(p => p.id === 'navy');
-    const yupflShown = !!yupflProd?.active;
     const deltaShown = !!deltaProd?.active;
     const navyShown  = !!navyProd?.active;
     const isSplit = s.status === 'split';
@@ -1040,15 +1008,6 @@ window.toggleProdPanel = function(e) {
           <input type="text" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)" ${dis} style="margin-top:5px;">
           <div id="mid-history-area" style="display:none;margin-top:8px;"></div>
         </div>
-        ${yupflShown ? `
-        <div class="modal-field">
-          <label style="display:flex;align-items:center;justify-content:space-between;">
-            <span style="display:flex;align-items:center;gap:6px;">유입플 키워드 <span id="yupfl-kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.yupflKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
-            ${s.mid ? `<button type="button" onclick="toggleYupflMidHistory('${escJsAttr(s.mid)}','detail-yupfl-keyword-input','yupfl-kw-count-badge')" id="yupfl-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button>` : ''}
-          </label>
-          <input type="text" id="detail-yupfl-keyword-input" value="${escProd(s.yupflKeyword||'')}" placeholder="유입플 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'yupfl-kw-count-badge')" ${dis} style="margin-top:5px;">
-          <div id="yupfl-history-area" style="display:none;margin-top:8px;"></div>
-        </div>` : ''}
         ${(deltaShown || navyShown) ? `
         <div class="modal-field">
           <label style="display:flex;align-items:center;gap:6px;">블로그 URL <span id="delta-url-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.deltaBlogUrl||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></label>
@@ -1057,7 +1016,6 @@ window.toggleProdPanel = function(e) {
             <button type="button" onclick="applyDeltaBlogUrls('${key}')" id="delta-url-apply-btn" ${dis} style="flex-shrink:0;font-size:11px;padding:6px 10px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;font-family:inherit;">적용</button>
           </div>
         </div>` : ''}
-        ${splitKeywordFieldsHtml(s, splitProd, dis)}
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
           ${(s.status==='pending' || s.status==='expired') ? `<button class="btn-save" style="background:rgba(59,130,246,1);" onclick="acceptFromDetail('${key}')">접수</button>` : ''}
@@ -1069,55 +1027,12 @@ window.toggleProdPanel = function(e) {
     // 충돌이면 modal 닫고 알림, 아니면 잠금 쓰기
   };
 
-  // 분할 상품 미션 개수만큼 "분할 키워드" 입력칸 생성 — 각자 독립된 "이전 키워드 보기"를 가짐(미션 자동매칭 없음)
-  function splitKeywordFieldsHtml(s, splitProd, dis = '') {
-    if (!splitProd?.active) return '';
-    const rules = Array.isArray(splitProd.missionRules) ? splitProd.missionRules : [];
-    if (!rules.length) return '';
-    const sk = s.splitKeywords || {};
-    const showHistBtn = !!s.mid;
-    return rules.map(r => {
-      const inputId = `split-kw-input-${r.mission}`;
-      const badgeId = `split-kw-count-${r.mission}`;
-      const areaId  = `yupfl-history-area-split-${r.mission}`;
-      const btnId   = `yupfl-hist-btn-split-${r.mission}`;
-      return `
-        <div class="modal-field">
-          <label style="display:flex;align-items:center;justify-content:space-between;">
-            <span style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;background:${missionBadgeColor(r.mission)};color:#fff;">미션:${r.mission}</span> 분할 키워드
-              <span id="${badgeId}" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${((sk[r.mission]||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length)}개</span>
-            </span>
-            ${showHistBtn ? `<button type="button" onclick="toggleYupflMidHistory('${escJsAttr(s.mid)}','${inputId}','${badgeId}','-split-${r.mission}')" id="${btnId}"
-              style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">
-              이전 키워드 보기
-            </button>` : ''}
-          </label>
-          <input type="text" class="detail-split-kw-input" id="${inputId}" data-mission="${r.mission}" value="${escProd(sk[r.mission]||'')}" placeholder="분할 키워드를 입력해주세요" oninput="updateDetailKwBadge(this,'${badgeId}')" ${dis} style="margin-top:5px;">
-          <div id="${areaId}" style="display:none;margin-top:8px;"></div>
-        </div>`;
-    }).join('');
-  }
-
-  function collectSplitKeywords() {
-    const els = [...document.querySelectorAll('.detail-split-kw-input')];
-    if (!els.length) return null;
-    const obj = {};
-    els.forEach(el => { obj[el.dataset.mission] = el.value.trim(); });
-    return obj;
-  }
-
-  // grades/{mid} 스냅샷 조회 — fetchSheetKeywordByMid/fetchYoupflKeywordByMid 공용
-  async function fetchGradeSnapshotVal(mid) {
-    return (await HI.getLiveKeywordsOnce())[sanitizeFbKey(mid)];
-  }
 
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──
   async function fetchSheetKeywordByMid(mid) {
     try {
-      const data = await fetchGradeSnapshotVal(mid);
-      if (data === undefined) return [];
-      const findKw = parseGradeEntries(data).map(g => g.findKw).find(kw => kw && kw.trim());
+      // hi/live_keywords/{mid}.findKw — bizfit-dandok이 '분류' 시트에서 매시간 동기화
+      const findKw = ((await HI.getLiveKeywordsOnce())[sanitizeFbKey(mid)]?.findKw || '').trim();
       return findKw ? [findKw] : [];
     } catch (e) {
       console.error('Firebase 키워드 조회 오류:', e);
@@ -1133,34 +1048,6 @@ window.toggleProdPanel = function(e) {
     return MISSION_BADGE_COLORS[((n % MISSION_BADGE_COLORS.length) + MISSION_BADGE_COLORS.length) % MISSION_BADGE_COLORS.length];
   }
 
-  // ── Firebase에서 MID로 현재 유입플 작업키워드 조회 (grade_sync.js의 yupflKw) — 미션 번호별로 분류 ──
-  async function fetchYoupflKeywordByMid(mid) {
-    try {
-      const data = await fetchGradeSnapshotVal(mid);
-      if (data === undefined) return [];
-      const entries = [];
-      parseGradeEntries(data).forEach(g => {
-        // grade_sync.js가 미션별로 키워드를 분리해서 올려주면 그걸 우선 사용 (missionKeywords)
-        if (g.missionKeywords && typeof g.missionKeywords === 'object') {
-          Object.entries(g.missionKeywords).forEach(([mission, kw]) => {
-            const trimmedKw = (kw || '').trim();
-            if (trimmedKw) entries.push({ mission: mission.replace(/[^0-9]/g, '') || mission, keyword: trimmedKw });
-          });
-          return;
-        }
-        // 구버전 데이터(미션별 분리 없이 전부 합쳐진 yupflKw/mission) — 하위 호환
-        const kw = (g.yupflKw || '').trim();
-        if (!kw) return;
-        const missions = (g.mission || '').split(',').map(m => m.trim()).filter(Boolean);
-        if (!missions.length) { entries.push({ mission: '', keyword: kw }); return; }
-        missions.forEach(m => entries.push({ mission: m.replace(/[^0-9]/g, '') || m, keyword: kw }));
-      });
-      return entries;
-    } catch (e) {
-      console.error('Firebase 유입플 키워드 조회 오류:', e);
-      return null; // null = 오류, [] = 결과없음
-    }
-  }
 
   // ── MID 키워드 히스토리 공통 헬퍼 ──────────────────────────
   // 같은 키워드+접수'일자'(시각 제외)면 중복으로 간주해 제거 (히스토리 모달/엑셀 다운로드 공용)
@@ -1181,7 +1068,7 @@ window.toggleProdPanel = function(e) {
     return sorted.filter((s, i) => i === 0 || s.searchKeyword !== sorted[i - 1].searchKeyword);
   }
   // 같은 MID 캠페인 전체(진행 중·종료, 옛 김프로 출처 포함)의 접수 키워드 + 변경 이력을 날짜순 반환.
-  // field: 'search'(검색키워드) | 'yupfl'(유입플). dedupHistoryByDay/dropUnchangedConsecutive 재사용 위해
+  // field: campaign_keywords 필드명('search'). dedupHistoryByDay/dropUnchangedConsecutive 재사용 위해
   // searchKeyword/createdAt 모양으로 매핑. 날짜 없는 이력(이전 때 옮긴 옛 김프로 키워드)은 그 캠페인 접수일로
   async function midKeywordHistory(mid, field) {
     const camps = await HI.getByMid(mid);
@@ -1194,7 +1081,6 @@ window.toggleProdPanel = function(e) {
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }
   const fullKeywordHistory      = mid => midKeywordHistory(mid, 'search');
-  const fullYupflKeywordHistory = mid => midKeywordHistory(mid, 'yupfl');
 
   // ── MID 이전 키워드 히스토리 ──────────────────────────────
   window.toggleMidHistory = async function(mid, currentKey) {
@@ -1294,110 +1180,12 @@ window.toggleProdPanel = function(e) {
     area.innerHTML = html;
   };
 
-  // ── MID 유입플 작업키워드 (Firebase 유입플 실시간 시트, 미션 번호별) ──
-  // targetInputId/badgeId: "적용" 시 채워질 입력칸·배지(미션 자동매칭 없음). suffix: 분할은 입력칸별 독립 영역용, 단일 유입플은 생략
-  window.toggleYupflMidHistory = async function(mid, targetInputId, badgeId, suffix) {
-    suffix = suffix || '';
-    const area = document.getElementById('yupfl-history-area' + suffix);
-    const btn  = document.getElementById('yupfl-hist-btn' + suffix);
-    if (!area) return;
-
-    if (area.style.display !== 'none') {
-      area.style.display = 'none';
-      btn.textContent = '이전 키워드 보기';
-      return;
-    }
-
-    area.style.display = 'block';
-    btn.textContent = '닫기';
-    area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);"><div class="spinner"></div> 유입플 키워드 불러오는 중...</div>';
-
-    let entries, history;
-    try {
-      [entries, history] = await Promise.all([
-        fetchYoupflKeywordByMid(mid),
-        fullYupflKeywordHistory(mid),
-      ]);
-    } catch (e) {
-      area.innerHTML = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;">⚠️ 이전 키워드를 불러오지 못했습니다: ${e.message||e}</div>`;
-      return;
-    }
-
-    let html = `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
-      <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">LIVE</span>
-      유입플 작업키워드
-      ${entries && entries.length ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${entries.length}건</span>` : ''}
-    </div>`;
-
-    if (entries === null) {
-      html += `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;">
-        ⚠️ 유입플 데이터를 불러올 수 없습니다.
-      </div>`;
-    } else if (!entries.length) {
-      html += `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:7px;padding:9px 12px;font-size:11px;color:var(--muted);">
-        해당 MID(${mid})로 등록된 유입플 작업키워드가 없습니다.
-      </div>`;
-    } else {
-      html += `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
-        ${entries.map(e => {
-          const safeKw = e.keyword.replace(/'/g, "\\'");
-          const badge  = e.mission ? `미션:${e.mission}` : '미션 미지정';
-          const badgeColor = missionBadgeColor(e.mission);
-          const kwCount = e.keyword.split(',').map(k=>k.trim()).filter(k=>k).length;
-          return `<div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${badgeColor};color:#fff;white-space:nowrap;flex-shrink:0;">${badge}</span>
-            <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#dbeafe;color:#1d4ed8;white-space:nowrap;flex-shrink:0;">${kwCount}개</span>
-            <div style="flex:1;overflow:hidden;white-space:nowrap;font-size:12px;color:#1d4ed8;font-weight:500;background:#dbeafe;padding:4px 8px;border-radius:5px;user-select:all;">${e.keyword}</div>
-            <button onclick="(function(){var el=document.getElementById('${targetInputId}');if(el){el.value='${safeKw}';updateDetailKwBadge(el,'${badgeId}');}})()"
-              style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
-              적용
-            </button>
-          </div>`;
-        }).join('')}
-      </div>`;
-    }
-
-    // ── 섹션 ②: 접수 이력 키워드 (자체 DB + kimpro(reception.html) 쪽, 미션 구분 없이 mid 기준) ──
-    html += `<div style="font-size:11px;font-weight:700;color:var(--text2);margin:10px 0 6px;display:flex;align-items:center;gap:5px;">
-      <span style="background:#94a3b8;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">히스토리</span>
-      접수 이력 키워드
-    </div>`;
-
-    if (!history.length) {
-      html += `<div style="font-size:11px;color:var(--muted);padding:6px 0;">이전 유입플 키워드 내역이 없습니다.</div>`;
-    } else {
-      html += `<div style="background:#f8fafc;border-radius:7px;padding:8px 12px;border:1px solid var(--border);max-height:220px;overflow-y:auto;">
-        ${history.map(h => {
-          const kwStr  = h.searchKeyword || '';
-          const kwCount = kwStr.split(',').map(k => k.trim()).filter(k => k).length;
-          const safeKw = kwStr.replace(/'/g, "\\'");
-          const dateStr = h.createdAt ? ymd(new Date(h.createdAt)) : '';
-          return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-              <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:11px;color:var(--text2);">${dateStr}</span>
-                <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCount}개</span>
-              </div>
-              <button onclick="(function(){var el=document.getElementById('${targetInputId}');if(el){el.value='${safeKw}';updateDetailKwBadge(el,'${badgeId}');}})()"
-                style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
-                적용
-              </button>
-            </div>
-            <div style="overflow:hidden;white-space:nowrap;font-size:11px;color:#475569;background:#f1f5f9;padding:4px 8px;border-radius:5px;user-select:all;">${kwStr}</div>
-          </div>`;
-        }).join('')}
-      </div>`;
-    }
-
-    area.innerHTML = html;
-  };
-
   window.updateKwCount = function(val) {
     const count = val.split(',').map(k => k.trim()).filter(k => k.length > 0).length;
     const badge = document.getElementById('kw-count-badge');
     if (badge) badge.textContent = count + '개';
   };
-  // 유입플/분할 키워드칸 옆 개수 배지 갱신 — 입력할 때, 그리고 "적용" 클릭 직후에도 호출됨
+  // 블로그URL 칸 옆 개수 배지 갱신 — 입력할 때, 그리고 "적용" 클릭 직후에도 호출됨
   window.updateDetailKwBadge = function(inputEl, badgeId) {
     if (!inputEl) return;
     const badge = document.getElementById(badgeId || '');
@@ -1484,7 +1272,7 @@ window.toggleProdPanel = function(e) {
 
   // 상품 유형 설정은 전 계정 공용 1벌(hi/products)
   async function loadProdSettings() {
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,classifyOnly:p.classifyOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {})}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,deductOnly:p.deductOnly,classifyOnly:p.classifyOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {})}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     // 최초 로드와 실시간 구독 콜백이 공유하는 처리 로직 — 원본 데이터를 받아 prods/prodGroups를 갱신
@@ -1495,7 +1283,6 @@ window.toggleProdPanel = function(e) {
         const f = staticFlags.get(p.id); if(f) Object.assign(p, f);
         const fd = fixedDefaults.get(p.id);
         if (fd && p.fixedPct === undefined) p.fixedPct = fd.fixedPct;
-        if (!Array.isArray(p.missionRules)) p.missionRules = [];
         if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
       });
       // 저장된 설정에 없는(=이후에 새로 추가된) 기본 상품은 뒤에 붙여준다
@@ -1545,8 +1332,7 @@ window.toggleProdPanel = function(e) {
     HI.saveProdGroups(snapGroups).catch(e => console.error('상품 그룹 저장 실패:', e));
   }
 
-  const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct,fixedPct:p.fixedPct,blogSplit:p.blogSplit,
-    missionRules: Array.isArray(p.missionRules) ? p.missionRules.map(r => ({...r})) : undefined}));
+  const prodSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct,fixedPct:p.fixedPct,blogSplit:p.blogSplit}));
   function saveProdDefault() { defaultProdsState = prodSnapshot(); }
   function deactivateProdGroup() {
     activeProdGroupId = null;
@@ -1618,7 +1404,6 @@ window.toggleProdPanel = function(e) {
       if(s.kwPct  !== undefined) p.kwPct  = s.kwPct;
       if(s.fixedPct !== undefined) p.fixedPct = s.fixedPct;
       if(s.blogSplit !== undefined) p.blogSplit = s.blogSplit;
-      if(Array.isArray(s.missionRules)) p.missionRules = s.missionRules.map(r => ({...r}));
     });
     activeProdGroupId = id; renderPS();
   };
@@ -1695,11 +1480,6 @@ window.toggleProdPanel = function(e) {
   window.toggleProd = function(id) {
     const p = prods.find(x => x.id === id); if (!p) return;
     p.active = !p.active;
-    // 유입플과 분할은 같이 켤 수 없음 — 한쪽을 켜면 다른 쪽은 자동으로 꺼짐
-    if (p.active && (id === 'yupfl' || id === 'yupfl2')) {
-      const other = prods.find(x => x.id === (id === 'yupfl' ? 'yupfl2' : 'yupfl'));
-      if (other) other.active = false;
-    }
     rebalanceProdActive('ratio'); rebalanceProdActive('kwPct');
     if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
     renderPS();
@@ -1721,7 +1501,7 @@ window.toggleProdPanel = function(e) {
     document.getElementById('prod-modal-title').textContent     = `${p.name} 설정`;
     const nameEl = document.getElementById('pm-name');
     nameEl.value = p.name;
-    // 고정 상품(차감/유입플/분할/찰리)은 이름이 로직·등급명 매칭(찰리)에 쓰이므로 수정 불가
+    // 고정 상품(차감/유입플 분류/찰리/델타/네이비)은 이름이 로직·등급명 매칭에 쓰이므로 수정 불가
     const nameLocked = FIXED_PROD_IDS.has(id);
     nameEl.readOnly = nameLocked;
     nameEl.style.background = nameLocked ? 'var(--bg2,#f1f5f9)' : '';
@@ -1739,7 +1519,6 @@ window.toggleProdPanel = function(e) {
     if (kwWrap) kwWrap.style.display = p.fixedAlloc ? 'none' : '';
 
     const isFixed = !!p.fixedAlloc;
-    const isSplit = !!p.splitProduct;
     const isDeduct = !!(p.deductOnly || p.classifyOnly);
     const actives = isFixed ? [] : ap().filter(q => !q.fixedAlloc);
     const makeGrid = (items, field, prefix) => items.map(q => `
@@ -1757,93 +1536,10 @@ window.toggleProdPanel = function(e) {
           <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 10}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
           <span style="font-size:12px;color:var(--text2);">%</span>
         </div>`
-      : isSplit
-        ? `<div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-              <span class="ri-name" style="color:${p.color}">미션 설정</span>
-              <button type="button" onclick="addMissionRuleRow()" title="미션 추가"
-                style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
-              </button>
-            </div>
-            <div id="pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
-          </div>`
-        : isFixed
-          ? `<div class="ratio-item" style="grid-column:1/-1;">
-              <span class="ri-name" style="color:${p.color}">통합 고정 배분</span>
-              <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
-              <span style="font-size:12px;color:var(--text2);">%</span>
-            </div>
-            <div class="ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;">
-                <span class="ri-name" style="color:${p.color}">키워드 배분 규칙</span>
-                <button type="button" onclick="addMissionRuleRow()" title="규칙 추가"
-                  style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
-                </button>
-              </div>
-              <div id="pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
-            </div>`
-          : makeGrid(actives, 'ratio', 'pm-ratio-');
-
-    if (isFixed && !isDeduct) {
-      const rulesWrap = document.getElementById('pm-mission-rules');
-      if (rulesWrap) {
-        const rules = (Array.isArray(p.missionRules) && p.missionRules.length) ? p.missionRules : [null];
-        rulesWrap.innerHTML = rules.map(isSplit ? splitRuleRowHtml : missionRuleRowHtml).join('');
-      }
-    }
+      : makeGrid(actives, 'ratio', 'pm-ratio-');
 
     updateProdModalNotes();
     document.getElementById('prod-modal-bg').classList.add('show');
-  };
-  function missionRuleRowHtml(rule) {
-    const divider = `<span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>`;
-    return `<div class="mission-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">키워드</span>
-      <input type="number" min="1" step="1" class="mr-kw" value="${rule?.kw ?? ''}"
-        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">개</span>
-      ${divider}
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">미션</span>
-      <input type="number" min="0" step="1" class="mr-mission" value="${rule?.mission ?? ''}"
-        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">번</span>
-      ${divider}
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">고정 배분</span>
-      <input type="number" min="0" max="100" step="1" class="mr-fixedpct" value="${rule?.fixedPct ?? ''}"
-        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">%</span>
-      <button type="button" onclick="this.closest('.mission-rule-row').remove()" title="규칙 삭제"
-        style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-left:auto;">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-      </button>
-    </div>`;
-  }
-  function splitRuleRowHtml(rule) {
-    const divider = `<span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>`;
-    return `<div class="split-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">미션</span>
-      <input type="number" min="0" step="1" class="sr-mission" value="${rule?.mission ?? ''}"
-        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">번</span>
-      ${divider}
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">고정 배분</span>
-      <input type="number" min="0" max="100" step="1" class="sr-fixedpct" value="${rule?.fixedPct ?? ''}" oninput="updateProdModalNotes()"
-        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
-      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">%</span>
-      <button type="button" onclick="this.closest('.split-rule-row').remove();updateProdModalNotes();" title="미션 삭제"
-        style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-left:auto;">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-      </button>
-    </div>`;
-  }
-  window.addMissionRuleRow = function() {
-    const wrap = document.getElementById('pm-mission-rules');
-    if (!wrap) return;
-    const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
-    wrap.insertAdjacentHTML('beforeend', (cur && cur.splitProduct) ? splitRuleRowHtml(null) : missionRuleRowHtml(null));
-    updateProdModalNotes();
   };
   // 일반 상품 키워드/일목표 배분 입력칸 합계 — updateProdModalNotes/saveProdModal 공용
   function sumProdModalInputs(actives, prefix) {
@@ -1855,18 +1551,6 @@ window.toggleProdPanel = function(e) {
   window.updateProdModalNotes = function() {
     const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
     if (!cur) return;
-    if (cur.splitProduct) {
-      const kwNote = document.getElementById('pm-kw-note');
-      const ratNote = document.getElementById('pm-ratio-note');
-      if (kwNote) kwNote.textContent = '';
-      if (ratNote) {
-        const pctEls = [...document.querySelectorAll('#pm-mission-rules .sr-fixedpct')];
-        const sum = Math.round(pctEls.reduce((s,el)=> s + (parseFloat(el.value)||0), 0)*10)/10;
-        ratNote.textContent = `고정 배분 합계: ${sum}%`;
-        ratNote.className = 'ratio-note ' + (sum > 100 ? 'ng' : '');
-      }
-      return;
-    }
     if (cur.fixedAlloc) {
       const kwNote = document.getElementById('pm-kw-note');
       const ratNote = document.getElementById('pm-ratio-note');
@@ -1941,23 +1625,6 @@ window.toggleProdPanel = function(e) {
           if(ratEl) q.ratio = Math.round((parseFloat(ratEl.value)||0)*10)/10;
         });
       }
-    } else if (p.splitProduct) {
-      const ruleRows = [...document.querySelectorAll('#pm-mission-rules .split-rule-row')];
-      const seenMission = new Set();
-      const rules = [];
-      for (const row of ruleRows) {
-        const mission     = parseInt(row.querySelector('.sr-mission')?.value, 10);
-        const rowFixedPct = parseFloat(row.querySelector('.sr-fixedpct')?.value);
-        if (!Number.isFinite(mission) || mission < 0 || !Number.isFinite(rowFixedPct) || rowFixedPct < 0 || rowFixedPct > 100) continue;
-        if (seenMission.has(mission)) { alert(`미션 ${mission}번이 중복되었습니다.`); return; }
-        seenMission.add(mission);
-        rules.push({ mission, fixedPct: rowFixedPct });
-      }
-      if (!rules.length) {
-        alert('미션을 최소 1개 이상 입력해야 합니다.');
-        return;
-      }
-      p.missionRules = rules;
     } else if (p.deductOnly || p.classifyOnly) {
       const fixedPctEl = document.getElementById('pm-fixedpct');
       if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
@@ -1965,30 +1632,6 @@ window.toggleProdPanel = function(e) {
         return;
       }
       if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
-    } else {
-      const fixedPctEl = document.getElementById('pm-fixedpct');
-      if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
-        alert('통합 고정 배분은 100%를 초과할 수 없습니다.');
-        return;
-      }
-      if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
-      const ruleRows = [...document.querySelectorAll('#pm-mission-rules .mission-rule-row')];
-      const seenKw = new Set();
-      const rules = [];
-      for (const row of ruleRows) {
-        const kw        = parseInt(row.querySelector('.mr-kw')?.value, 10);
-        const mission    = parseInt(row.querySelector('.mr-mission')?.value, 10);
-        const rowFixedPct = parseFloat(row.querySelector('.mr-fixedpct')?.value);
-        if (!Number.isFinite(kw) || kw <= 0 || !Number.isFinite(mission) || mission < 0 || !Number.isFinite(rowFixedPct) || rowFixedPct < 0 || rowFixedPct > 100) continue;
-        if (seenKw.has(kw)) { alert(`키워드 ${kw}개에 대한 규칙이 중복되었습니다.`); return; }
-        seenKw.add(kw);
-        rules.push({ kw, mission, fixedPct: rowFixedPct });
-      }
-      if (!rules.length) {
-        alert('키워드 배분 규칙을 최소 1개 이상 입력해야 합니다.');
-        return;
-      }
-      p.missionRules = rules;
     }
     prodGroups.forEach(g => { const gs=g.state.find(s=>s.id===p.id); if(gs){gs.name=p.name;gs.ver=p.ver;} });
     window.closeProdModal();
@@ -2024,71 +1667,16 @@ window.toggleProdPanel = function(e) {
     return { deductTarget: totalTarget, deductAmount: slot.isRequeue ? 0 : totalTarget * unitPrice };
   }
 
-  // 유입플 키워드 개수에 매칭되는 규칙을 찾음 — 매칭 없으면 null (이 경우 통합 고정 배분을 사용)
-  function yupflRuleFor(yupfl, workKw) {
-    const rules = Array.isArray(yupfl?.missionRules) ? yupfl.missionRules : [];
-    const kw = (workKw||'').trim();
-    const kwCount = kw ? kw.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
-    return rules.find(r => r.kw === kwCount) || null;
-  }
 
-  // 규칙에 매칭되면 규칙별 고정 배분 %, 매칭 안 되면 통합 고정 배분 %
-  function yupflPctFor(yupfl, workKw) {
-    const rule = yupflRuleFor(yupfl, workKw);
-    return rule ? rule.fixedPct : yupfl?.fixedPct;
-  }
-
-  // grades missionKeywords(진행중 미션, 등급 자동매칭과 동일 소스)를 {미션번호: 키워드}로 반환 —
-  // 알면 작업키워드 개수 추정(yupflRuleFor)보다 우선, 여러 미션이면 모호하니 폴백. kimpro와 동일 구현.
-  function knownYupflMissionKeywords(mid) {
-    if (!mid) return null;
-    const data = GRADE_CACHE.get(mid);
-    if (!data) return null;
-    const result = {};
-    parseGradeEntries(data).forEach(g => {
-      if (g.missionKeywords && typeof g.missionKeywords === 'object') {
-        Object.entries(g.missionKeywords).forEach(([mission, kw]) => {
-          const n = parseInt(mission, 10);
-          const trimmedKw = (kw||'').trim();
-          if (!Number.isNaN(n) && trimmedKw) result[n] = trimmedKw;
-        });
-      } else if (g.mission) {
-        const kw = (g.yupflKw||'').trim();
-        if (kw) {
-          g.mission.split(',').map(m => m.trim()).filter(Boolean).forEach(m => {
-            const n = parseInt(m, 10);
-            if (!Number.isNaN(n)) result[n] = kw;
-          });
-        }
-      }
-    });
-    return Object.keys(result).length ? result : null;
-  }
-
-  // 승인 시점 유입플/분할 배분 수량·금액을 스냅샷으로 남겨 정산관리에서 조회 — buildYoupflRows()와 동일 규칙을 슬롯 1건에 적용
-  // 유입플·분할은 동시 진행 불가하므로 하나의 필드(yupflAmount)로 합산 저장
+  // 승인 시점 유입플 분류 몫(일 목표)·금액을 캠페인에 고정 — 정산관리 유입플 금액 열·캐시 차감에 씀(allocate와 같은 규칙)
   function yupflFieldsFor(slot) {
     if (!slot) return {};
     const yupfl = ap().find(p => p.classifyOnly);
-    const split = ap().find(p => p.id === 'yupfl2' && p.splitProduct);
-    if (!yupfl && !split) return {};
+    if (!yupfl) return {};
     const deduct = ap().find(p => p.deductOnly);
     const base = slot.dailyTarget||0;
     const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
-
-    let target = 0;
-    if (yupfl) {
-      const workKw = (slot.yupflKeyword||'').trim();
-      const rule   = yupflRuleFor(yupfl, workKw);
-      target += Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
-    }
-    if (split && Array.isArray(split.missionRules)) {
-      split.missionRules.forEach(rule => {
-        const workKw = ((slot.splitKeywords || {})[rule.mission] || '').trim();
-        if (!workKw) return;
-        target += Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
-      });
-    }
+    const target = Math.min(yupflAlloc(remaining, yupfl.fixedPct), remaining);
     if (target <= 0) return {};
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
     return { yupflTarget: target, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice };
@@ -2228,30 +1816,17 @@ window.toggleProdPanel = function(e) {
     return items.reduce((m, p, i) => (m[p.id] = floors[i], m), {});
   }
 
-  // 유입플/분할처럼 fixedAlloc인 상품이 여러 개면 각자 몫을 먼저 떼고, 남은 걸 일반 상품끼리 비율로 나눈다.
-  // 분할은 단일 workKw가 아니라 미션별 splitKeywords를 쓰므로 미션별 합계를 그 상품의 몫으로 친다.
-  function allocate(asgn, target, workKw, splitKeywords) {
+  // 고정 몫(차감·유입플 분류, fixedAlloc)을 먼저 떼고, 남은 걸 일반 상품끼리 비율로 나눈다.
+  function allocate(asgn, target) {
     if (!asgn.length) return {};
     const fixedProds = asgn.filter(p => p.fixedAlloc);
     if (fixedProds.length) {
-      // 차감은 배열 순서와 무관하게 최우선 적용 — 이후 항목(유입플/분할)의 %는 차감하고 남은 수량을 기준으로 계산한다
+      // 차감은 배열 순서와 무관하게 최우선 적용 — 유입플 분류 %는 차감하고 남은 수량을 기준으로 계산한다
       const ordered = [...fixedProds.filter(p => p.deductOnly), ...fixedProds.filter(p => !p.deductOnly)];
       const result = {};
       let remaining = target;
       ordered.forEach(p => {
-        let amt;
-        if (p.deductOnly) {
-          amt = yupflAlloc(remaining, p.fixedPct);
-        } else if (p.splitProduct) {
-          const rules = Array.isArray(p.missionRules) ? p.missionRules : [];
-          amt = rules.reduce((s, rule) => {
-            const kw = ((splitKeywords||{})[rule.mission] || '').trim();
-            return kw ? s + yupflAlloc(remaining, rule.fixedPct) : s;
-          }, 0);
-        } else {
-          amt = yupflAlloc(remaining, yupflPctFor(p, workKw));
-        }
-        amt = Math.max(0, Math.min(amt, remaining));
+        const amt = Math.max(0, Math.min(yupflAlloc(remaining, p.fixedPct), remaining));
         result[p.id] = amt;
         remaining -= amt;
       });
@@ -2435,10 +2010,10 @@ window.toggleProdPanel = function(e) {
       : changeTo.length ? gradeProdsFromLabels(changeTo)
       : !r.isRequeue ? matchedGradeProds(r.mid) : [];
     if (!gradeProds.length) {
-      return { alloc: allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords), prods: AP, gradeProds: null };
+      return { alloc: allocate(AP.slice(), r.dailyTarget||0), prods: AP, gradeProds: null };
     }
     const asgn = [...AP.filter(p => p.fixedAlloc), ...gradeProds];
-    return { alloc: allocate(asgn, r.dailyTarget||0, r.yupflKeyword, r.splitKeywords), prods: asgn, gradeProds };
+    return { alloc: allocate(asgn, r.dailyTarget||0), prods: asgn, gradeProds };
   }
 
   // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 균등분배(ratio=1)한다.
@@ -2508,7 +2083,7 @@ window.toggleProdPanel = function(e) {
     });
     f.forEach((r, ri) => {
       const rowIdx = 4 + ri;
-      const alloc  = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      const alloc  = allocate(AP.slice(), r.dailyTarget||0);
       const kwCount = r.searchKeyword ? r.searchKeyword.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
       const base = [r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',r.days||0,null,r.dailyTarget||0,AP.length,r.searchKeyword||'',kwCount];
       const pv   = AP.map(p => alloc[p.id] ?? '');
@@ -2537,7 +2112,7 @@ window.toggleProdPanel = function(e) {
     if (blogUrlField) headers.push('블로그URL');
     headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':(h==='블로그URL'?'16A34A':'1F2937')}); });
     let curRow = 1;
-    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords)]));
+    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0)]));
     pList.forEach(prod => {
       f.forEach(r => {
         const alloc   = allocBySlot.get(r);
@@ -2572,7 +2147,7 @@ window.toggleProdPanel = function(e) {
     headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':(h==='블로그 스타트 URL'?'16A34A':'1F2937')}); });
     let curRow = 1;
     f.forEach(r => {
-      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      const alloc = allocate(AP.slice(), r.dailyTarget||0);
       const pp = alloc[prod.id] ?? 0;
       if (pp <= 0) return;
       const urls = (r.deltaBlogUrl||'').split(',').map(u=>u.trim()).filter(Boolean);
@@ -2595,47 +2170,6 @@ window.toggleProdPanel = function(e) {
     window.XLSX.utils.book_append_sheet(wb, ws, prod.name);
   }
 
-  function buildYoupflSheet(wb, f, prod, sheetName) {
-    if (!prod) return;
-    const ws = {};
-    const headers = ['순위키워드', '작업키워드', '플레이스ID', '작업타수', '신청일수', '미션', '익일시작'];
-    headers.forEach((h, ci) => {
-      sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:'1F2937'});
-    });
-    const today = new Date(); today.setHours(0,0,0,0);
-    let curRow = 1;
-    const writeRow = (rankKw, workKw, mid, yAmt, days, mission, startDate) => {
-      const start = startDate ? new Date(startDate) : today; start.setHours(0,0,0,0);
-      const ikil  = Math.max(0, Math.round((start - today) / 86400000));
-      const row   = [rankKw||'', workKw, mid||'', yAmt, days||0, mission||0, ikil];
-      row.forEach((v, ci) => { sc(ws, curRow, ci, v, { align: ci <= 2 ? 'left' : 'center' }); });
-      curRow++;
-    };
-    if (prod.splitProduct) {
-      const rules = Array.isArray(prod.missionRules) ? prod.missionRules : [];
-      f.forEach(r => {
-        rules.forEach(rule => {
-          const workKw = ((r.splitKeywords || {})[rule.mission] || '').trim();
-          if (!workKw) return;
-          const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, rule.fixedPct), r.dailyTarget||0);
-          if (yAmt <= 0) return;
-          writeRow(r.rankKeyword, workKw, r.mid, yAmt, r.days, rule.mission, r.startDate);
-        });
-      });
-    } else {
-      f.forEach(r => {
-        const workKw = (r.yupflKeyword||'').trim();
-        const rule = yupflRuleFor(prod, workKw);
-        const yAmt = Math.min(yupflAlloc(r.dailyTarget||0, rule ? rule.fixedPct : prod.fixedPct), r.dailyTarget||0);
-        if (yAmt <= 0) return;
-        writeRow(r.rankKeyword, workKw, r.mid, yAmt, r.days, rule ? rule.mission : 0, r.startDate);
-      });
-    }
-    if (curRow < 2) curRow = 2;
-    ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:6}});
-    ws['!cols'] = [{wch:18},{wch:40},{wch:14},{wch:8},{wch:8},{wch:8},{wch:8}];
-    window.XLSX.utils.book_append_sheet(wb, ws, sheetName || prod.name || '유입플');
-  }
 
   function setProg(show, pct, lbl) {
     const wrap = document.getElementById('dl-prog-wrap'); if(!wrap) return;
@@ -3542,8 +3076,7 @@ window.toggleProdPanel = function(e) {
             buildJusuSheet(wb, f);
             buildJumuSheet_(wb, f, '일반', p => !FIXED_PROD_IDS.has(p.id));
             ap().filter(p => FIXED_PROD_IDS.has(p.id) && !p.deductOnly && !p.classifyOnly).forEach(prod => {
-              if (prod.fixedAlloc) buildYoupflSheet(wb, f, prod, prod.name);
-              else if (prod.blogUrlProduct) buildDeltaSheet_(wb, f, prod);
+              if (prod.blogUrlProduct) buildDeltaSheet_(wb, f, prod);
               else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id);
             });
             window.XLSX.writeFile(wb, realAg ? `${realAg}-주문서.xlsx` : `주문서-${shortD()}.xlsx`);
@@ -3711,96 +3244,6 @@ window.toggleProdPanel = function(e) {
       : rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0), 0);
   }
 
-  // 유입플/분할 두 상품을 모두 훑어서 슬롯 하나당 최대 두 종류(유입플 1줄 + 분할 미션별 N줄)의 접수 행을 만든다.
-  // _slotKey는 슬롯 식별(승인/완료 판정용), _rowKey는 화면·제출 단위 식별(슬롯당 여러 행이 나올 수 있어 별도로 둠)
-  function buildYoupflRows(slots) {
-    const yupfl = ap().find(p => p.id === 'yupfl' && p.fixedAlloc);
-    const split = ap().find(p => p.id === 'yupfl2' && p.splitProduct);
-    if (!yupfl && !split) return [];
-    const deduct = ap().find(p => p.deductOnly);
-    const rows = [];
-    slots.forEach(s => {
-      const agencyId  = s.agencyId||'(대행사 미지정)';
-      // 슬롯 저장 단가 우선, 없으면 현재 회원 단가로 폴백 (정산관리와 동일한 규칙)
-      const unitPrice = (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null;
-      // 차감이 활성화되어 있으면 최우선 적용된 뒤 남은 수량을 유입플/분할 %의 기준으로 쓴다
-      const base = s.dailyTarget||0;
-      const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
-
-      // MID가 이미 진행중인 미션 번호(들)를 알고 있으면 그 상태를 그대로 따른다 — 미션이 1개면 유입플(단일),
-      // 2개 이상이면 분할 로직으로 강제(작업키워드 개수 규칙/화면 입력 분할 키워드는 건너뜀). 모르면 기존 방식 그대로.
-      const known = (gradeMatchOn && !s.isRequeue) ? knownYupflMissionKeywords(s.mid) : null;
-      const knownMissions = known ? Object.keys(known).map(Number) : [];
-
-      if (knownMissions.length >= 2 && split) {
-        // % 규칙 무관 미션당 10% 고정 — 미션 번호(라우팅)만 grades로 강제, 키워드는 화면 입력값 우선
-        // (입력칸 없는 미션만 grades 값으로 보완).
-        knownMissions.forEach(mission => {
-          const workKw = ((s.splitKeywords || {})[mission] || '').trim() || known[mission];
-          const yAmt = Math.min(yupflAlloc(remaining, 10), remaining);
-          if (yAmt <= 0) return;
-          rows.push({
-            _slotKey: s._key, _rowKey: `${s._key}__${mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
-            _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[mission]),
-            agencyId, userId: s.userId||'', unitPrice,
-            storeName: s.storeName||'', rankKw: s.rankKeyword||'',
-            workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
-            autoMission: mission,
-          });
-        });
-      } else if (knownMissions.length === 1 && yupfl) {
-        // 미션 번호만 grades 기준으로 강제하고, 키워드는 일반 탭과 동일하게 화면 유입플 키워드 칸에 지금 입력된 값을 그대로 씀
-        const mission = knownMissions[0];
-        const workKw  = (s.yupflKeyword||'').trim();
-        const rules   = Array.isArray(yupfl.missionRules) ? yupfl.missionRules : [];
-        const rule    = rules.find(r => r.mission === mission) || { mission, fixedPct: yupfl.fixedPct };
-        const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
-        if (yAmt > 0) {
-          rows.push({
-            _slotKey: s._key, _rowKey: s._key, _prodId: 'yupfl', _prodLabel: yupfl.name, _prodColor: yupfl.color,
-            _fixedSubmitted: !!s.fixedSubmitted,
-            agencyId, userId: s.userId||'', unitPrice,
-            storeName: s.storeName||'', rankKw: s.rankKeyword||'',
-            workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
-            autoMission: mission,
-          });
-        }
-      } else {
-        if (yupfl) {
-          const workKw = (s.yupflKeyword||'').trim();
-          const rule   = yupflRuleFor(yupfl, workKw);
-          const yAmt = Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
-          if (yAmt > 0) {
-            rows.push({
-              _slotKey: s._key, _rowKey: s._key, _prodId: 'yupfl', _prodLabel: yupfl.name, _prodColor: yupfl.color,
-              _fixedSubmitted: !!s.fixedSubmitted,
-              agencyId, userId: s.userId||'', unitPrice,
-              storeName: s.storeName||'', rankKw: s.rankKeyword||'',
-              workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
-              autoMission: rule ? rule.mission : null,
-            });
-          }
-        }
-        if (split && Array.isArray(split.missionRules)) {
-          split.missionRules.forEach(rule => {
-            const workKw = ((s.splitKeywords || {})[rule.mission] || '').trim();
-            if (!workKw) return;
-            const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
-            if (yAmt <= 0) return;
-            rows.push({
-              _slotKey: s._key, _rowKey: `${s._key}__${rule.mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
-              _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[rule.mission]),
-              agencyId, userId: s.userId||'', unitPrice,
-              storeName: s.storeName||'', rankKw: s.rankKeyword||'',
-              workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
-              autoMission: rule.mission,
-            });
-          });
-        }
-      }
-    });
-    return rows;
-  }
 
   window.submitDirect = function() {
     const checkedKeys = getCheckedKeys();
@@ -3811,18 +3254,17 @@ window.toggleProdPanel = function(e) {
     const target = base.filter(s => allowedStatuses.includes(s.status));
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.'); return; }
     const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
-    const hasFixed   = ap().some(p => p.fixedAlloc && !p.deductOnly && !p.classifyOnly);
     const hasCharlie = ap().some(p => p.id === 'charlie');
     const hasDelta   = ap().some(p => p.id === 'delta');
     const hasNavy    = ap().some(p => p.id === 'navy');
-    if (!hasNormal && !hasFixed && !hasCharlie && !hasDelta && !hasNavy) {
+    if (!hasNormal && !hasCharlie && !hasDelta && !hasNavy) {
       alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
     }
     openSubmitModal(target);
   };
 
-  // "접수 신청" 버튼을 완료 상태로 잠금 — wireSubmitTab/유입플 탭/lockDoneButtons 공용
+  // "접수 신청" 버튼을 완료 상태로 잠금 — wireSubmitTab/lockDoneButtons 공용
   function markApplyBtnDone(btn) {
     btn.disabled = true; btn.textContent = '✅ 전체 완료'; btn.style.background = '#475569'; btn.style.cursor = 'default';
   }
@@ -3861,15 +3303,6 @@ window.toggleProdPanel = function(e) {
     }).join('');
   }
 
-  // 유입플 탭 전용 — executeYoupflSubmit 안의 검사(workKw 미입력)와 동일 조건.
-  function validateYoupflRowsForSubmit(rows) {
-    let anyFail = false;
-    rows.forEach(r => {
-      if (r._fixedSubmitted) return;
-      if (!r.workKw) { r._kwFail = true; anyFail = true; }
-    });
-    return anyFail;
-  }
 
   // 반환값 { anyFail } — 세부 경고는 이 함수가 이미 subEl에 그대로 띄우고, 여기선 유무만 모아 상단 공용 경고박스/탭 아이콘에 씀(전체 접수 신청 비활성화는 fillBody에서 탭 통합 판단)
   function wireSubmitTab({ has, plan, bodyEl, subEl, applyBtn, label, daysMultiplied=false, blogUrl=false, target, emptyMsg, onSubmit }) {
@@ -3941,7 +3374,7 @@ window.toggleProdPanel = function(e) {
 
   // 레그별 "접수 신청" 버튼 셀렉터 — openSubmitModal 안 여러 곳(lockDoneButtons, 자동승인 레이스 가드)에서 공용.
   // 델타/네이비는 "블로그" 탭 하나(#bsub-apply-btn)를 공유 — 등급 체계가 달라도 UI 버튼은 하나.
-  const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', fixedKeys: '#youpfl-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn' };
+  const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn' };
 
   // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 토글을 항상 on으로 초기화 — 토글 버튼 자체의 재오픈은
   // 방금 뒤집은 값을 유지해야 하므로 renderSubmitModal()을 직접 호출한다(아래 gmBtn.onclick 참고).
@@ -3978,21 +3411,17 @@ window.toggleProdPanel = function(e) {
       agency: ag, realAg: ag === '(대행사 미지정)' ? '' : ag,
       rows: buildDeltaRows(slotsByAgency(target, ag), 'navy'),
     }));
-    const yupflRows  = buildYoupflRows(target);
     // hasNormal을 사이트 전체 설정(ap())으로 판단하면 일반 상품이 없어도 true가 되어 normalKeys가 빈 채로
-    // 교집합이 영원히 안 채워져 유입플/찰리만 쓰는 대상이 승인으로 못 넘어가므로, hasFixed/hasCharlie처럼 실제 제출 행 유무로 판단
+    // 교집합이 영원히 안 채워져 찰리·블로그만 쓰는 대상이 승인으로 못 넘어가므로, hasCharlie처럼 실제 제출 행 유무로 판단
     const hasNormal  = normalPlan.some(p => p.rows.length > 0);
-    const hasFixed   = yupflRows.length > 0;
     const hasCharlie = charliePlan.some(p => p.rows.length > 0);
     const hasDelta   = deltaPlan.some(p => p.rows.length > 0);
     const hasNavy    = navyPlan.some(p => p.rows.length > 0);
-    const defaultTab = hasNormal ? 'normal' : (hasFixed ? 'fixed' : (hasCharlie ? 'charlie' : ((hasDelta||hasNavy) ? 'blog' : 'normal')));
-    return { normalPlan, charliePlan, deltaPlan, navyPlan, yupflRows, hasNormal, hasFixed, hasCharlie, hasDelta, hasNavy, defaultTab };
+    const defaultTab = hasNormal ? 'normal' : (hasCharlie ? 'charlie' : ((hasDelta||hasNavy) ? 'blog' : 'normal'));
+    return { normalPlan, charliePlan, deltaPlan, navyPlan, hasNormal, hasCharlie, hasDelta, hasNavy, defaultTab };
   }
 
   async function renderSubmitModal(target) {
-    // 등급 자동매칭이 buildNormalRows/buildDeltaRows에서 동기적으로 GRADE_CACHE를 읽으므로 먼저 채워둔다.
-    await fetchGradesBatch([...new Set(target.map(s => s.mid).filter(Boolean))]);
     let data = computeSubmitData(target);
     scheduleValidationRows = flattenScheduleRows(data);
 
@@ -4055,8 +3484,6 @@ window.toggleProdPanel = function(e) {
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
           <button id="stab-normal" class="submit-tab${data.defaultTab==='normal'?' active':''}"
             onclick="switchSubmitTab('normal')"${!data.hasNormal?' disabled':''}>일반<span id="stab-warn-normal" class="stab-warn-ico" style="display:none;">⚠</span></button>
-          <button id="stab-fixed" class="submit-tab${data.defaultTab==='fixed'?' active':''}"
-            onclick="switchSubmitTab('fixed')" style="${data.hasFixed?'':'display:none;'}">유입플<span id="stab-warn-fixed" class="stab-warn-ico" style="display:none;">⚠</span></button>
           <button id="stab-charlie" class="submit-tab${data.defaultTab==='charlie'?' active':''}"
             onclick="switchSubmitTab('charlie')" style="${data.hasCharlie?'':'display:none;'}">찰리<span id="stab-warn-charlie" class="stab-warn-ico" style="display:none;">⚠</span></button>
           <button id="stab-blog" class="submit-tab${data.defaultTab==='blog'?' active':''}"
@@ -4074,26 +3501,6 @@ window.toggleProdPanel = function(e) {
             </div>
           </div>
           <div id="submit-body"></div>
-        </div>
-        <div id="stab-panel-fixed" style="display:${data.defaultTab==='fixed'?'block':'none'}">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <div style="font-size:12px;" id="youpfl-sub"></div>
-              <button id="reset-fixed-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0;">
-              <div style="display:flex;align-items:center;gap:6px;">
-                <span style="font-size:12px;color:var(--text2);white-space:nowrap;">미션번호 일괄 적용</span>
-                <input type="number" min="0" id="youpfl-mission-bulk-input" placeholder="예: 12" style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
-                <button type="button" onclick="applyYoupflMissionBulk(this)" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;white-space:nowrap;">적용</button>
-              </div>
-              <div style="display:flex;gap:8px;">
-                <button class="btn-cancel" id="youpfl-close-btn">닫기</button>
-                <button id="youpfl-apply-btn" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">접수 신청</button>
-              </div>
-            </div>
-          </div>
-          <div id="youpfl-body"></div>
         </div>
         <div id="stab-panel-charlie" style="display:${data.defaultTab==='charlie'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
@@ -4225,7 +3632,7 @@ window.toggleProdPanel = function(e) {
 
         // 팝업은 닫지 않고 데이터만 재계산해 이 탭 상태만 갱신
         renderReceipts(false);
-        const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+        const keepTab = ['normal','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
         data = computeSubmitData(target);
         scheduleValidationRows = flattenScheduleRows(data);
         applyTabState(keepTab);
@@ -4236,68 +3643,20 @@ window.toggleProdPanel = function(e) {
       };
     }
 
-    // 유입플은 bizfit /register를 안 거치고(별도 /youpfl-upload) premiumset.shop 정산이라 비즈핏 취소는
-    // 필요없이 환불만 하면 됨.
-    function wireFixedTabReset(btn, resetKeys) {
-      const candidates = target.filter(s => resetKeys.has(s._key));
-      if (!candidates.length) { btn.style.display = 'none'; return; }
-      btn.style.display = '';
-      btn.disabled = false; btn.textContent = '초기화';
-      btn.onclick = async () => {
-        if (!confirm(`${candidates.length}건의 유입플 접수를 취소(환불)하고 초기화합니다.`)) return;
-        btn.disabled = true; btn.textContent = '초기화 중...';
-
-        const mids = [...new Set(candidates.map(s => s.mid).filter(Boolean))];
-        let okMids = new Set(mids);
-        const errors = [];
-        try {
-          const res = await callBizfitProxy('/cleanup-youpfl-refund', { mids });
-          if (res.success) {
-            res.results.forEach(r => { if (!r.success) { okMids.delete(r.mid); errors.push(`${r.mid}: ${r.message}`); } });
-          } else {
-            okMids = new Set();
-            errors.push(`유입플 환불 요청 실패: ${res.message || ''}`);
-          }
-        } catch (e) {
-          okMids = new Set();
-          errors.push(`유입플 환불 요청 실패: ${e.message}`);
-        }
-
-        const resetSlots = candidates.filter(s => okMids.has(s.mid));
-        await Promise.all(resetSlots.map(async s => {
-          const patch = { fixedSubmitted: null, splitFixedSubmitted: null };
-          if (s.status === 'active') patch.status = 'accepted';
-          await HI.updateCampaign(s._key, patch);
-          Object.assign(s, patch);
-          updateLocalSlot(s._key, patch);
-        }));
-
-        renderReceipts(false);
-        const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
-        data = computeSubmitData(target);
-        scheduleValidationRows = flattenScheduleRows(data);
-        applyTabState(keepTab);
-        fillBody();
-        alert(`초기화 완료: ${resetSlots.length}건` + (errors.length ? `\n실패:\n${errors.join('\n')}` : ''));
-      };
-    }
 
     const submitBodyEl = overlay.querySelector('#submit-body');
     const csubBodyEl   = overlay.querySelector('#csub-body');
     const bsubBodyEl   = overlay.querySelector('#bsub-body');
-    const youpflBodyEl = overlay.querySelector('#youpfl-body');
     const submitApplyBtn = overlay.querySelector('#submit-apply-btn');
     const csubApplyBtn   = overlay.querySelector('#csub-apply-btn');
     const bsubApplyBtn   = overlay.querySelector('#bsub-apply-btn');
-    const youpflApplyBtn = overlay.querySelector('#youpfl-apply-btn');
 
     // 탭 버튼 disabled/노출 상태 갱신 — keepTab이 갱신 후에도 여전히 존재하면 유지, 아니면 새 defaultTab으로.
     function applyTabState(keepTab) {
       overlay.querySelector('#stab-normal').disabled = !data.hasNormal;
-      overlay.querySelector('#stab-fixed').style.display   = data.hasFixed   ? '' : 'none';
       overlay.querySelector('#stab-charlie').style.display = data.hasCharlie ? '' : 'none';
       overlay.querySelector('#stab-blog').style.display    = (data.hasDelta||data.hasNavy) ? '' : 'none';
-      const avail = { normal: data.hasNormal, fixed: data.hasFixed, charlie: data.hasCharlie, blog: data.hasDelta||data.hasNavy };
+      const avail = { normal: data.hasNormal, charlie: data.hasCharlie, blog: data.hasDelta||data.hasNavy };
       window.switchSubmitTab((keepTab && avail[keepTab]) ? keepTab : data.defaultTab);
     }
     // 재계산마다 재사용되는 버튼을 매번 초기 상태(활성화·기본 문구·원래 색)로 되돌려둔 뒤 wireSubmitTab 등이 다시 채움
@@ -4306,42 +3665,15 @@ window.toggleProdPanel = function(e) {
       btn.style.background = bg; btn.style.cursor = 'pointer'; btn.onclick = null;
     }
 
-    // 유입플 완료 시 예약 토글만 갱신 — fillBody() 전체를 다시 그리면 다른 탭 입력값이 날아감.
-    function refreshScheduleToggle() {
-      data = computeSubmitData(target);
-      scheduleValidationRows = flattenScheduleRows(data);
-      const activeLegs = [];
-      if (data.hasNormal)  activeLegs.push('normalKeys');
-      if (data.hasFixed)   activeLegs.push('fixedKeys');
-      if (data.hasCharlie) activeLegs.push('charlieKeys');
-      if (data.hasDelta)   activeLegs.push('deltaKeys');
-      if (data.hasNavy)    activeLegs.push('navyKeys');
-      const registerLegs = activeLegs.filter(l => l !== 'fixedKeys');
-      const yupflPending = data.hasFixed && !(data.yupflRows.length && data.yupflRows.every(r => r._fixedSubmitted));
-      const scheduleBlocked = registerLegs.length > 1 || yupflPending;
-      const scheduleBtn = overlay.querySelector('#schedule-toggle-btn');
-      if (!scheduleBtn) return;
-      scheduleBtn.disabled = scheduleBlocked;
-      scheduleBtn.style.opacity = scheduleBlocked ? '0.4' : '1';
-      scheduleBtn.style.cursor = scheduleBlocked ? 'not-allowed' : 'pointer';
-      scheduleBtn.title = registerLegs.length > 1
-        ? '일반/찰리/델타/네이비 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다'
-        : yupflPending
-          ? '유입플 탭에서 접수를 먼저 완료해야 시간대 분할 예약을 쓸 수 있습니다'
-          : '';
-      if (scheduleBlocked && scheduleConfig) window.clearScheduleConfig();
-    }
 
     // 탭 본문(plan/rows에 의존하는 부분)만 다시 그림 — 모달 뼈대(overlay/탭바)는 그대로 두고 데이터만 갱신할 때 재호출.
     function fillBody() {
-      submitBodyEl.innerHTML = ''; csubBodyEl.innerHTML = ''; bsubBodyEl.innerHTML = ''; youpflBodyEl.innerHTML = '';
+      submitBodyEl.innerHTML = ''; csubBodyEl.innerHTML = ''; bsubBodyEl.innerHTML = '';
       resetApplyBtn(submitApplyBtn, '#16a34a');
       resetApplyBtn(csubApplyBtn,   '#d946ef');
       resetApplyBtn(bsubApplyBtn,   '#22c55e');
-      resetApplyBtn(youpflApplyBtn, '#f59e0b');
 
       // 2개 이상 레그 동시 활성 시 승인 게이트 — 탭 전체 완료가 아니라 슬롯별 requiredLegsByKey 기준
-      // (안 그러면 유입플만 쓰는 슬롯은 영원히 승인 안 됨).
       const rowsBySlotOf = rows => {
         const m = new Map();
         rows.forEach(r => { if (!r._slotKey) return; if (!m.has(r._slotKey)) m.set(r._slotKey, []); m.get(r._slotKey).push(r); });
@@ -4354,7 +3686,6 @@ window.toggleProdPanel = function(e) {
       const charlieAlreadyDone = alreadyDoneOf(rowsBySlotOf(data.charliePlan.flatMap(p => p.rows)), '_normalSubmitted');
       const deltaAlreadyDone   = alreadyDoneOf(rowsBySlotOf(data.deltaPlan.flatMap(p => p.rows)), '_normalSubmitted');
       const navyAlreadyDone    = alreadyDoneOf(rowsBySlotOf(data.navyPlan.flatMap(p => p.rows)), '_normalSubmitted');
-      const fixedAlreadyDone   = alreadyDoneOf(rowsBySlotOf(data.yupflRows), '_fixedSubmitted');
 
       // "초기화" 버튼 대상 — every(전부 완료)가 아니라 some(하나라도 완료)으로 판단. 초기화는 실수를
       // 되돌리는 용도라 이 탭에 뭔가 이미 나간 게 있으면(전부는 아니어도) 되돌릴 수 있어야 한다.
@@ -4380,13 +3711,9 @@ window.toggleProdPanel = function(e) {
         ]),
         new Set([...tabDoneNames(data.deltaPlan.flatMap(p => p.rows)), ...tabDoneNames(data.navyPlan.flatMap(p => p.rows))]),
       );
-      wireFixedTabReset(
-        overlay.querySelector('#reset-fixed-btn'),
-        anyDoneOf(rowsBySlotOf(data.yupflRows), '_fixedSubmitted'),
-      );
 
       // 슬롯별로 실제 쓰는 레그 집합 — rows에 그 슬롯(_slotKey)이 등장하는지로 판단
-      const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'fixedKeys'|'charlieKeys'|'deltaKeys'|'navyKeys')
+      const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'charlieKeys'|'deltaKeys'|'navyKeys')
       const addRequired = (rows, leg) => rows.forEach(r => {
         if (!r._slotKey) return;
         if (!requiredLegsByKey.has(r._slotKey)) requiredLegsByKey.set(r._slotKey, new Set());
@@ -4396,7 +3723,6 @@ window.toggleProdPanel = function(e) {
       addRequired(data.charliePlan.flatMap(p => p.rows), 'charlieKeys');
       addRequired(data.deltaPlan.flatMap(p => p.rows), 'deltaKeys');
       addRequired(data.navyPlan.flatMap(p => p.rows), 'navyKeys');
-      addRequired(data.yupflRows, 'fixedKeys');
 
       // 게이트 유무와 상관없이 쓰는 판정 — doneSets를 받아 슬롯이 필요 레그를 전부 채웠는지로 승인 대상을 고름(조회 전용, 실행 안 함)
       const slotMapAll = new Map(allSlots.map(s => [s._key, s]));
@@ -4409,7 +3735,7 @@ window.toggleProdPanel = function(e) {
 
       // 다 완료된 슬롯은 승인(상태 전환)만 창 열자마자 자동 처리 — 차감(실제 돈)은 자동 시도 안 하고 배너 "재시도"로만 실행.
       // 탭 버튼은 렌더 시점 스냅샷이라 비동기 완료를 자동 반영 못 하므로 승인 끝나는 즉시 여기서 잠금.
-      const legHas = { normalKeys: data.hasNormal, fixedKeys: data.hasFixed, charlieKeys: data.hasCharlie, deltaKeys: data.hasDelta, navyKeys: data.hasNavy };
+      const legHas = { normalKeys: data.hasNormal, charlieKeys: data.hasCharlie, deltaKeys: data.hasDelta, navyKeys: data.hasNavy };
       function lockDoneButtons() {
         Object.entries(LEG_BTN_SEL).forEach(([leg, sel]) => {
           if (!legHas[leg]) return;
@@ -4420,13 +3746,11 @@ window.toggleProdPanel = function(e) {
 
       const activeLegs = [];
       if (data.hasNormal)  activeLegs.push('normalKeys');
-      if (data.hasFixed)   activeLegs.push('fixedKeys');
       if (data.hasCharlie) activeLegs.push('charlieKeys');
       if (data.hasDelta)   activeLegs.push('deltaKeys');
       if (data.hasNavy)    activeLegs.push('navyKeys');
       const gate = (activeLegs.length > 1) ? {
         normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
-        fixedKeys:   fixedAlreadyDone.size   ? fixedAlreadyDone   : null,
         charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
         deltaKeys:   deltaAlreadyDone.size   ? deltaAlreadyDone   : null,
         navyKeys:    navyAlreadyDone.size    ? navyAlreadyDone    : null,
@@ -4436,7 +3760,7 @@ window.toggleProdPanel = function(e) {
           // 승인/화면갱신이 통째로 스킵됨 — 여기서 막는다.
           try {
             const keys = readyKeysOf(this);
-            // normalDoneProducts/fixedSubmitted는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
+            // normalDoneProducts는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
             if (keys.length) {
               const failed = await approveSlotsWithBizfit(keys, this.slotMap);
               if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
@@ -4449,26 +3773,22 @@ window.toggleProdPanel = function(e) {
         }
       } : null;
 
-      // 서버는 승인 게이트를 모르므로 예약 허용은 register-leg 2개 이상 동시필요, 유입플 미완료 시 막음.
-      const registerLegs = activeLegs.filter(l => l !== 'fixedKeys');
-      const yupflPending = data.hasFixed && !(data.yupflRows.length && data.yupflRows.every(r => r._fixedSubmitted));
-      const scheduleBlocked = registerLegs.length > 1 || yupflPending;
+      // 서버는 승인 게이트를 모르므로 예약은 레그 2개 이상이 동시에 필요한 슬롯이 섞이면 막음.
+      const scheduleBlocked = activeLegs.length > 1;
       const scheduleBtn = overlay.querySelector('#schedule-toggle-btn');
       if (scheduleBtn) {
         scheduleBtn.disabled = scheduleBlocked;
         scheduleBtn.style.opacity = scheduleBlocked ? '0.4' : '1';
         scheduleBtn.style.cursor = scheduleBlocked ? 'not-allowed' : 'pointer';
-        scheduleBtn.title = registerLegs.length > 1
+        scheduleBtn.title = scheduleBlocked
           ? '일반/찰리/델타/네이비 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다'
-          : yupflPending
-            ? '유입플 탭에서 접수를 먼저 완료해야 시간대 분할 예약을 쓸 수 있습니다'
-            : '';
+          : '';
         if (scheduleBlocked && scheduleConfig) window.clearScheduleConfig();
       }
 
       // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
       // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
-      const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, fixedKeys: fixedAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone });
+      const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone });
       if (initialReady.length) {
         // 자동 승인 도는 틈에 관리자가 같은 레그 "접수 신청"을 누르면 이중 차감 가능 — 처리 끝날 때까지 그 레그 버튼만 잠금
         const legsInvolved = new Set();
@@ -4503,34 +3823,6 @@ window.toggleProdPanel = function(e) {
         onSubmit: () => executeSubmit(data.normalPlan, overlay, gate, 'normalKeys', null),
       });
 
-      // 고정 탭 구성
-      let fixedAnyFail = false;
-      if (data.hasFixed) {
-        const yupflAgencies = [...new Set(data.yupflRows.map(r => r.agencyId))];
-        yupflAgencies.forEach(ag => {
-          const agRows = data.yupflRows.filter(r => r.agencyId === ag);
-          const block = buildYoupflTableBlock(agRows, ag);
-          if (block) youpflBodyEl.appendChild(block);
-        });
-        const totalTarget = data.yupflRows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
-        overlay.querySelector('#youpfl-sub').innerHTML =
-          `<span style="color:var(--muted)">대행사 ${yupflAgencies.length}곳 · 유입플 ${data.yupflRows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>`;
-        // 이 탭 행이 전부 이미 완료(_fixedSubmitted)면 슬롯이 active 아니어도 완료로 표시.
-        if (target.every(s => s.status === 'active') || (data.yupflRows.length && data.yupflRows.every(r => r._fixedSubmitted))) {
-          markApplyBtnDone(youpflApplyBtn);
-        } else {
-          fixedAnyFail = validateYoupflRowsForSubmit(data.yupflRows);
-          if (fixedAnyFail) {
-            youpflApplyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
-          } else {
-            youpflApplyBtn.onclick = () => executeYoupflSubmit(data.yupflRows, overlay, gate, refreshScheduleToggle);
-          }
-        }
-      } else {
-        overlay.querySelector('#youpfl-sub').textContent = '유입플 배분 대상 슬롯이 없습니다.';
-        youpflApplyBtn.disabled = true;
-      }
-
       // 찰리 탭 구성 — NP 위치저장(adrole=100) 전용, 일반 탭과 동일한 표/제출 로직을 재사용하되
       // grade-info/register 호출에 adrole을 강제 지정해 NP트래픽 등급과 절대 섞이지 않게 한다.
       const charlieResult = wireSubmitTab({
@@ -4554,10 +3846,9 @@ window.toggleProdPanel = function(e) {
 
       // 탭 통합 — 하나라도 경고가 있으면 전체 탭의 접수 신청을 비활성화. 세부 경고는 각 탭 서브헤더에 이미 뜨므로,
       // 타이틀 아래 공용 박스에는 어느 탭인지만 간략히 표시. 각 탭 버튼에는 빨간 경고 아이콘 표시.
-      const tabNames = { normal: '일반', fixed: '유입플', charlie: '찰리', blog: '블로그' };
+      const tabNames = { normal: '일반', charlie: '찰리', blog: '블로그' };
       const tabResults = [
         { key: 'normal',  ...normalResult },
-        { key: 'fixed',   anyFail: fixedAnyFail },
         { key: 'charlie', ...charlieResult },
         { key: 'blog',    ...blogResult },
       ];
@@ -4571,7 +3862,7 @@ window.toggleProdPanel = function(e) {
       warnBox.innerHTML = combinedWarnHtml;
       warnBox.style.display = combinedWarnHtml ? 'block' : 'none';
       if (tabResults.some(t => t.anyFail)) {
-        [submitApplyBtn, youpflApplyBtn, csubApplyBtn, bsubApplyBtn].forEach(btn => {
+        [submitApplyBtn, csubApplyBtn, bsubApplyBtn].forEach(btn => {
           if (btn.disabled) return; // 이미 대상없음/전체완료로 비활성인 버튼은 그대로 둠
           btn.disabled = true;
           btn.title = '경고가 있는 탭을 먼저 수정해야 접수 신청이 가능합니다';
@@ -4599,7 +3890,7 @@ window.toggleProdPanel = function(e) {
       gradeMatchOn = !gradeMatchOn;
       if (gmIcon) gmIcon.style.background = gradeMatchOn ? '#16a34a' : '#94a3b8';
       if (gmLabel) gmLabel.style.color = gradeMatchOn ? '#16a34a' : 'var(--text2)';
-      const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+      const keepTab = ['normal','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
       data = computeSubmitData(target);
       scheduleValidationRows = flattenScheduleRows(data);
       applyTabState(keepTab);
@@ -4634,7 +3925,7 @@ window.toggleProdPanel = function(e) {
         } catch (e) { fail++; }
       }
       bsubBulkBtn.disabled = false; bsubBulkBtn.textContent = '🔗 블로그URL 일괄조회';
-      const keepTab = ['normal','fixed','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+      const keepTab = ['normal','charlie','blog'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
       data = computeSubmitData(target);
       scheduleValidationRows = flattenScheduleRows(data);
       applyTabState(keepTab);
@@ -4660,13 +3951,12 @@ window.toggleProdPanel = function(e) {
         HI.updateCampaign(s._key, { yupflSource: submitYupflSource }).catch(err => console.error('유입플 출처 저장 실패:', s._key, err));
       });
     }, true);
-    overlay.querySelector('#youpfl-close-btn').onclick = () => overlay.remove();
     overlay.querySelector('#csub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#bsub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
   }
 
   window.switchSubmitTab = function(tab) {
-    ['normal','fixed','charlie','blog'].forEach(k => {
+    ['normal','charlie','blog'].forEach(k => {
       const panel = document.getElementById(`stab-panel-${k}`);
       const btn   = document.getElementById(`stab-${k}`);
       if (panel) panel.style.display = k === tab ? 'block' : 'none';
@@ -4925,227 +4215,6 @@ window.toggleProdPanel = function(e) {
     return block;
   }
 
-  // 빈 미션번호 입력칸에만 값을 채움 — 이미 입력됐거나(자동배정 포함) 완료된(disabled) 행은 건드리지 않음
-  window.applyYoupflMissionBulk = function(btn) {
-    const overlay = btn.closest('.modal-overlay');
-    const val = overlay.querySelector('#youpfl-mission-bulk-input').value;
-    if (val === '') return;
-    overlay.querySelectorAll('#youpfl-body .ag-mission-input').forEach(el => {
-      if (!el.disabled && !el.value) el.value = val;
-    });
-  }
-
-  function buildYoupflTableBlock(rows, agencyName) {
-    if (!rows.length) return null;
-    const block = document.createElement('div');
-    block.className = 'agency-block';
-    const totalTarget = rows.reduce((a,r) => a+(r.target||0)*(r.days||0), 0);
-    const totalAmount = rows.reduce((a,r) => a+(r.target||0)*(r.days||0)*(r.unitPrice ?? userPriceMap.get(r.userId) ?? 0), 0);
-    const kwEmptyCount = rows.filter(r => !r._fixedSubmitted && !r.workKw).length;
-    const issueBadge = kwEmptyCount ? ` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">⚠️ 오류 ${kwEmptyCount}건</span>` : '';
-    const hd = document.createElement('div');
-    hd.className = 'agency-hd';
-    hd.innerHTML = `<div><div class="aname">${escProd(agencyName||'')} <span style="font-weight:400;font-size:13px;color:var(--text2)">(유입플)</span>${issueBadge}</div><div class="ameta">총 ${rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} · 금액 ${totalAmount.toLocaleString()}원</div></div>`;
-    block.appendChild(hd);
-
-    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
-    const tbl = document.createElement('table');
-    tbl.className = 'ag-table';
-    tbl.style.cssText = 'table-layout:fixed;width:100%';
-    tbl.innerHTML = `<thead><tr>
-      <th style="width:64px;text-align:center">상품</th>
-      <th style="width:160px">업체명</th>
-      <th style="width:90px">순위키워드</th>
-      <th style="width:60px;text-align:center">작업키워드</th>
-      <th style="width:100px">플레이스ID</th>
-      <th style="width:64px;text-align:right">작업타수</th>
-      <th style="width:40px;text-align:center">일수</th>
-      <th style="width:80px">시작일</th>
-      <th style="width:60px;text-align:center">미션</th>
-      <th style="width:70px;text-align:center">상태</th>
-    </tr></thead>`;
-    const tbody = document.createElement('tbody');
-    rows.forEach(r => {
-      const kwCount = (r.workKw||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-      const kwEmpty = kwCount === 0 && !r._fixedSubmitted;
-      const tr = document.createElement('tr');
-      const statusTd = document.createElement('td');
-      statusTd.style.cssText = 'text-align:center;white-space:nowrap';
-      statusTd.innerHTML = r._fixedSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : '-';
-      const hasAutoMission = r.autoMission !== null && r.autoMission !== undefined;
-      const missionTd = document.createElement('td');
-      missionTd.style.cssText = 'text-align:center;white-space:nowrap';
-      missionTd.innerHTML = `<input type="number" min="0" class="ag-mission-input" data-key="${escProd(r._rowKey||'')}"
-        value="${hasAutoMission ? r.autoMission : ''}" ${r._fixedSubmitted?'disabled':''}
-        ${hasAutoMission ? `title="키워드 ${kwCount}개 규칙으로 자동 배정된 값입니다. 직접 수정할 수 있습니다."` : ''}
-        style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;outline:none;background:white;">`;
-      tr.innerHTML = `
-        <td style="text-align:center;white-space:nowrap"><span style="font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;background:${r._prodColor||'#94a3b8'}1a;color:${r._prodColor||'#64748b'};border:1px solid ${r._prodColor||'#94a3b8'}55;">${escProd(r._prodLabel||'')}</span></td>
-        <td style="${ell}" title="${escProd(r.storeName)}">${escProd(r.storeName||'-')}</td>
-        <td style="${ell}" title="${escProd(r.rankKw)}">${escProd(r.rankKw||'-')}</td>
-        <td style="text-align:center" title="${escProd(r.workKw||'')}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwEmpty?'#fee2e2':'#eff6ff'};color:${kwEmpty?'#dc2626':'#1d4ed8'};border:1px solid ${kwEmpty?'#fca5a5':'#bfdbfe'};white-space:nowrap">${kwCount}개${kwEmpty?' ⚠️':''}</span></td>
-        <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.placeId||'')}">${escProd(r.placeId||'-')}</td>
-        <td style="text-align:right;white-space:nowrap">${(r.target||0).toLocaleString()}</td>
-        <td style="text-align:center;white-space:nowrap">${r.days||0}</td>
-        <td style="white-space:nowrap">${escProd(r.startDate||'-')}</td>
-      `;
-      tr.appendChild(missionTd);
-      tr.appendChild(statusTd);
-      tbody.appendChild(tr);
-      r._statusTd = statusTd;
-      r._missionInput = missionTd.querySelector('.ag-mission-input');
-    });
-    tbl.appendChild(tbody);
-    block.appendChild(tbl);
-    return block;
-  }
-
-  async function executeYoupflSubmit(rows, overlay, gate=null, onDone=null) {
-    const applyBtn = overlay.querySelector('#youpfl-apply-btn');
-    const closeBtn = overlay.querySelector('#youpfl-close-btn');
-    const subEl    = overlay.querySelector('#youpfl-sub');
-
-    // 슬롯 하나가 여러 행(유입플 1개 + 분할 미션별 N개)으로 나뉠 수 있어, "슬롯 완료"는
-    // 그 슬롯에서 나온 행이 전부(이미완료 또는 이번에 성공) 끝났을 때만 인정한다.
-    const rowsBySlot = new Map();
-    rows.forEach(r => {
-      if (!rowsBySlot.has(r._slotKey)) rowsBySlot.set(r._slotKey, []);
-      rowsBySlot.get(r._slotKey).push(r);
-    });
-    const slotDone = (slotKey, succeededRowKeys) =>
-      (rowsBySlot.get(slotKey) || []).every(r => r._fixedSubmitted || succeededRowKeys.has(r._rowKey));
-
-    // 이전에 이미 접수 완료된 행(일반만 남아 모달을 닫았다가 재오픈한 경우)은 재제출하지 않음
-    const alreadyRows = rows.filter(r => r._fixedSubmitted);
-    const pendingRows = rows.filter(r => !r._fixedSubmitted);
-    alreadyRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
-
-    if (!pendingRows.length) {
-      // 전부 이미 완료된 경우 — 업로드 없이 게이트만 마무리
-      subEl.innerHTML = '<span style="color:var(--accent);font-weight:600;">✅ 이미 모두 접수 완료된 항목입니다.</span>';
-      applyBtn.disabled = true; applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
-      if (gate) {
-        gate.fixedKeys = new Set(rows.map(r => r._slotKey).filter(Boolean));
-        await gate.tryApprove();
-      }
-      closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
-      return;
-    }
-
-    // 유효성 검사 — 키워드 미입력
-    pendingRows.forEach(r => {
-      if (!r.workKw) {
-        r._kwFail = true;
-        if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="키워드 미입력">❌ 키워드 미입력</span>';
-      }
-    });
-    const { ok: validRows } = await claimRowsForRegister(pendingRows.filter(r => !r._kwFail), 'yupfl');
-
-    if (!validRows.length) {
-      subEl.innerHTML = '<span style="color:var(--danger);font-weight:600;">전체 유효성 검사 실패 (키워드 미입력)</span>';
-      applyBtn.disabled = true; applyBtn.textContent = '❌ 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
-      if (gate) {
-        gate.fixedKeys = new Set([...rowsBySlot.keys()].filter(k => slotDone(k, new Set())));
-        await gate.tryApprove();
-      }
-      closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
-      return;
-    }
-
-    const missionByKey = new Map();
-    for (const r of validRows) {
-      const el = overlay.querySelector(`.ag-mission-input[data-key="${CSS.escape(r._rowKey||'')}"]`);
-      const val = el?.value;
-      if (val === '' || val === null || val === undefined) {
-        alert(`"${r.storeName||r._rowKey}" 항목의 미션 번호를 지정해주세요.`);
-        return;
-      }
-      missionByKey.set(r._rowKey, Math.max(0, parseInt(val, 10) || 0));
-    }
-
-    applyBtn.disabled = true; applyBtn.textContent = '⏳ 업로드 중...'; applyBtn.style.background = '#6b7280';
-    closeBtn.disabled = true;
-    window.bizfitSubmitting = true;
-    const normalBtn = overlay.querySelector('#submit-apply-btn');
-    const csubBtn   = overlay.querySelector('#csub-apply-btn');
-    if (normalBtn) normalBtn.disabled = true;
-    if (csubBtn)   csubBtn.disabled   = true;
-
-    function calcIkil(startDate) {
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const start = startDate ? new Date(startDate) : today; start.setHours(0, 0, 0, 0);
-      return Math.max(0, Math.round((start - today) / 86400000));
-    }
-
-    let result;
-    try {
-      result = await callBizfitProxy('/youpfl-upload', {
-        rows: validRows.map(r => ({ rankKw: r.rankKw, workKw: r.workKw, placeId: r.placeId, target: r.target, days: r.days, mission: missionByKey.get(r._rowKey), ikil: calcIkil(r.startDate) })),
-      });
-    } catch(e) {
-      result = { success: false, message: '서버 호출 실패: ' + e.message };
-    }
-
-    if (result.success) {
-      validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
-      subEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ ${escProd(result.message||'업로드 완료')}</span>`;
-
-      const slotMap = new Map(allSlots.map(s => [s._key, s]));
-      const succeededRowKeys = new Set(validRows.map(r => r._rowKey));
-
-      // 이번에 성공한 유입플 행 → 슬롯에 fixedSubmitted 저장
-      const yupflDoneSlots = [...new Set(validRows.filter(r => r._prodId === 'yupfl').map(r => r._slotKey))];
-      await Promise.all(yupflDoneSlots.map(k => HI.updateCampaign(k, { fixedSubmitted: true })));
-      yupflDoneSlots.forEach(k => { const s = slotMap.get(k); if (s) s.fixedSubmitted = true; });
-
-      // 이번에 성공한 분할 행 → 슬롯별로 splitFixedSubmitted[미션]을 병합 저장
-      const splitDoneBySlot = new Map();
-      validRows.filter(r => r._prodId === 'yupfl2').forEach(r => {
-        const mission = r._rowKey.split('__')[1];
-        if (!splitDoneBySlot.has(r._slotKey)) splitDoneBySlot.set(r._slotKey, []);
-        splitDoneBySlot.get(r._slotKey).push(mission);
-      });
-      await Promise.all([...splitDoneBySlot.entries()].map(async ([slotKey, missions]) => {
-        const s = slotMap.get(slotKey);
-        const merged = { ...(s?.splitFixedSubmitted || {}) };
-        missions.forEach(m => { merged[m] = true; });
-        await HI.updateCampaign(slotKey, { splitFixedSubmitted: merged });
-        if (s) s.splitFixedSubmitted = merged;
-      }));
-
-      // 슬롯 완료 판정 — 그 슬롯에서 나온 모든 행(유입플+분할)이 이미완료 또는 이번에 성공했는지
-      const allDoneSlotKeys = [...rowsBySlot.keys()].filter(k => slotDone(k, succeededRowKeys));
-
-      if (gate) {
-        gate.fixedKeys = new Set(allDoneSlotKeys);
-        await gate.tryApprove();
-      } else {
-        const failed = await approveSlotsWithBizfit(allDoneSlotKeys, slotMap);
-        if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
-      }
-      applyBtn.textContent = `✅ 완료 (${rows.length}건)`; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
-      window.bizfitSubmitting = false;
-      closeBtn.disabled = false; closeBtn.onclick = () => { overlay.remove(); if (!gate) renderReceipts(false); };
-      // 일반/찰리 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
-      if (normalBtn) normalBtn.disabled = false;
-      if (csubBtn)   csubBtn.disabled   = false;
-      // 유입플을 먼저 접수 완료한 경우 "시간대 분할 예약" 토글이 팝업을 닫았다 열지 않아도 곧바로 풀리도록 갱신
-      if (onDone) await onDone();
-    } else {
-      validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
-      subEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">❌ ${escProd(result.message||'업로드 실패')}</span>`;
-      applyBtn.textContent = '❌ 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
-      window.bizfitSubmitting = false;
-      if (normalBtn) normalBtn.disabled = false;
-      if (csubBtn)   csubBtn.disabled   = false;
-      // 이미 완료된 것만이라도 게이트에 반영 (새로 실패한 것은 제외)
-      if (gate) {
-        gate.fixedKeys = new Set([...rowsBySlot.keys()].filter(k => slotDone(k, new Set())));
-        await gate.tryApprove();
-      }
-      closeBtn.disabled = false; closeBtn.onclick = () => overlay.remove();
-    }
-  }
 
   // legKey: 게이트 기록 필드('normalKeys'|'charlieKeys'|'deltaKeys'|'navyKeys') — 일반/찰리/블로그(델타+네이비) 탭이 이 로직을 공유
   // adrole: 지정 시 grade-info/register를 해당 adrole로만 조회 — 등급명이 겹쳐도 원하는 메뉴로만 정확히 접수
@@ -5215,7 +4284,7 @@ window.toggleProdPanel = function(e) {
         }
       }
 
-      // 이전에 이미 접수 완료된 행(유입플만 남아 모달을 닫았다가 재오픈한 경우)은 재제출하지 않고 완료 표시만 유지
+      // 이전에 이미 접수 완료된 행(다른 탭만 남아 모달을 닫았다가 재오픈한 경우)은 재제출하지 않고 완료 표시만 유지
       const alreadyRows = p.rows.filter(r => r._normalSubmitted);
       const pendingRows = p.rows.filter(r => !r._normalSubmitted);
       alreadyRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
@@ -6489,32 +5558,29 @@ window.toggleProdPanel = function(e) {
   };
 
   function lockOtherSubmitTabs(overlay, btnPrefix) {
-    const youpflBtn = overlay.querySelector('#youpfl-apply-btn');
-    if (youpflBtn) youpflBtn.disabled = true;
     // 슬롯 상태를 동시에 건드릴 수 있는 다른 탭(일반/찰리/블로그)도 진행 중엔 잠가둔다
     const otherBtns = ALL_SUBMIT_PREFIXES
       .filter(pfx => pfx !== btnPrefix)
       .map(pfx => overlay.querySelector(`#${pfx}-apply-btn`))
       .filter(Boolean);
     otherBtns.forEach(b => { b.disabled = true; });
-    return { youpflBtn, otherBtns };
+    return { otherBtns };
   }
 
   // 접수 신청/예약 저장 공용 마무리 — 버튼 문구/색/닫기 동작만 호출부가 정하고 나머지 잠금 해제는 여기서 공통 처리
-  function finishTabUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, { text, color, onClose }) {
+  function finishTabUI(overlay, applyBtn, closeBtn, otherBtns, { text, color, onClose }) {
     window.bizfitSubmitting = false;
     applyBtn.textContent = text;
     applyBtn.style.background = color;
     applyBtn.style.cursor = 'default';
     closeBtn.disabled = false;
     closeBtn.onclick = onClose;
-    // 유입플/다른 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
-    if (youpflBtn) youpflBtn.disabled = false;
+    // 다른 탭 잠금 해제 — 이 탭을 먼저 끝낸 뒤 계속 열어둔 채로 나머지도 마저 접수할 수 있어야 함
     otherBtns.forEach(b => { b.disabled = false; });
   }
 
-  function finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, okTotal, failTotal) {
-    finishTabUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, {
+  function finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okTotal, failTotal) {
+    finishTabUI(overlay, applyBtn, closeBtn, otherBtns, {
       text: failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`,
       color: failTotal ? '#b91c1c' : '#475569',
       onClose: () => { overlay.remove(); if (!gate) renderReceipts(false); },
@@ -6523,8 +5589,8 @@ window.toggleProdPanel = function(e) {
 
   // submitPlanRowsScheduled(예약 저장) 결과 표시 — 캐시차감은 이미 실행됐고(실패 시 상단 배너), 승인(상태 전환)만
   // 서버가 예약 그룹 완료 시 처리하므로 여기선 "예약됨"까지만
-  function finishScheduleUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, scheduledCount, failTotal) {
-    finishTabUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, {
+  function finishScheduleUI(overlay, applyBtn, closeBtn, otherBtns, scheduledCount, failTotal) {
+    finishTabUI(overlay, applyBtn, closeBtn, otherBtns, {
       text: failTotal ? `⏰ 예약 ${scheduledCount}건 (실패 ${failTotal})` : `⏰ 예약 완료 (${scheduledCount}건)`,
       color: failTotal ? '#b91c1c' : '#f59e0b',
       onClose: () => { overlay.remove(); renderReceipts(false); },
@@ -6538,17 +5604,17 @@ window.toggleProdPanel = function(e) {
     window.bizfitSubmitting = true;
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
-    const { youpflBtn, otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
+    const { otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
 
     if (scheduleConfig && scheduleConfig.length) {
       const { scheduledCount, failTotal } = await submitPlanRowsScheduled(plan, overlay, legKey, adrole, scheduleConfig);
-      finishScheduleUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, scheduledCount, failTotal);
+      finishScheduleUI(overlay, applyBtn, closeBtn, otherBtns, scheduledCount, failTotal);
       return;
     }
 
     const { okTotal, failTotal } = await submitPlanRows(plan, overlay, gate, legKey, adrole);
 
-    finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, okTotal, failTotal);
+    finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okTotal, failTotal);
   }
 
   // 블로그 탭 제출 — 델타(NP 위치저장, adrole=100)와 네이비(NP트래픽, adrole 없음)는 등급 체계가 달라
@@ -6560,14 +5626,14 @@ window.toggleProdPanel = function(e) {
     window.bizfitSubmitting = true;
     applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
     closeBtn.disabled = true;
-    const { youpflBtn, otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
+    const { otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
 
     if (scheduleConfig && scheduleConfig.length) {
       const [d, n] = await Promise.all([
         submitPlanRowsScheduled(deltaPlan, overlay, 'deltaKeys', DELTA_ADROLE, scheduleConfig),
         submitPlanRowsScheduled(navyPlan, overlay, 'navyKeys', null, scheduleConfig),
       ]);
-      finishScheduleUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, d.scheduledCount + n.scheduledCount, d.failTotal + n.failTotal);
+      finishScheduleUI(overlay, applyBtn, closeBtn, otherBtns, d.scheduledCount + n.scheduledCount, d.failTotal + n.failTotal);
       return;
     }
 
@@ -6580,7 +5646,7 @@ window.toggleProdPanel = function(e) {
     // (이미 승인된 건 readyKeysOf가 걸러 중복 없음).
     if (gate) { try { await gate.tryApprove(); } catch (e) {} }
 
-    finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, d.okTotal + n.okTotal, d.failTotal + n.failTotal);
+    finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, d.okTotal + n.okTotal, d.failTotal + n.failTotal);
   }
 
   // ── 🛑 강제종료 (버튼은 index.html 상단, 순위표 오른쪽) ──
