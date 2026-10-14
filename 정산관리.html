@@ -1,17 +1,15 @@
 <div id="settle-page">
 <style>
-  #settle-page .summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
-  #settle-page .sum-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:20px 24px; position:relative; overflow:hidden; }
-  #settle-page .sum-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; }
-  #settle-page .sum-card.month::after { background:var(--accent); }
-  #settle-page .sum-card.today::after { background:var(--info); }
-  #settle-page .sum-card .sc-label { font-size:11px; color:var(--text2); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
-  #settle-page .sum-card.month .sc-value { font-size:28px; font-weight:800; color:var(--accent); line-height:1; }
-  #settle-page .sum-card.today .sc-value { font-size:28px; font-weight:800; color:var(--info); line-height:1; }
-  #settle-page .sum-card .sc-sub { font-size:12px; color:var(--muted); margin-top:6px; }
-  #settle-page .sum-card.clickable { cursor:pointer; transition:box-shadow .15s, transform .15s; }
-  #settle-page .sum-card.clickable:hover { box-shadow:0 4px 20px rgba(0,0,0,.1); transform:translateY(-2px); }
-  #settle-page .sum-card.clickable .sc-label::after { content:' ↗'; font-size:10px; opacity:.5; }
+  #settle-page .summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+  /* 금액 카드 — 접수관리 카드와 같은 모양(가운데 정렬), 금액은 조금 크게 */
+  #settle-page .sum-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
+  #settle-page .sum-card .sc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
+  #settle-page .sum-card.month .sc-value { font-size:24px; font-weight:800; color:var(--accent); line-height:1; }
+  #settle-page .sum-card.today .sc-value { font-size:24px; font-weight:800; color:var(--info); line-height:1; }
+  #settle-page .sum-card .sc-sub { font-size:11px; color:var(--muted); }
+  #settle-page .sum-card.clickable { cursor:pointer; }
+  #settle-page .sum-card.clickable:hover { border-color:#cbd5e1; background:#f8fafc; }
+  #settle-page .sum-card.clickable .sc-label::after { content:' ↗'; font-size:10px; opacity:.6; }
   .total-popup-box { background:#fff;border-radius:16px;width:660px;max-height:85vh;overflow-y:auto;overscroll-behavior:contain;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
   #settle-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
   #settle-page select, #settle-page input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
@@ -105,7 +103,7 @@
     <option value="uncharged">미충전</option>
   </select>
   <div style="display:flex;align-items:center;gap:4px;">
-    📅 <input type="date" id="sf-from" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;width:118px;">
+    <i data-lucide="calendar" style="width:15px;height:15px;color:var(--text2);"></i> <input type="date" id="sf-from" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;width:118px;">
     <span style="color:var(--text2);font-size:12px;">~</span>
     <input type="date" id="sf-to" onchange="onSettleDateChange()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;width:118px;">
     <button id="sf-date-clear" onclick="clearSettleDate()" style="display:none;margin-left:2px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
@@ -136,13 +134,13 @@
 <div id="settle-reg-overlay" class="sp-overlay" style="display:none" onclick="if(event.target===this&&!window.settleCharging)this.style.display='none'">
   <div class="sp-box">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
-      <div class="sp-title">📂 정산 등록 — 대행사별 분류</div>
+      <div class="sp-title">정산 등록 — 대행사별 분류</div>
     </div>
     <div class="sp-sub" id="settle-reg-sub"></div>
     <div id="settle-reg-body"></div>
     <div class="sp-footer">
       <button class="btn-close-sp" onclick="if(!window.settleCharging)document.getElementById('settle-reg-overlay').style.display='none'">닫기</button>
-      <button id="settle-charge-btn" onclick="startSettleCharge()" style="background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">⚡ 충전 신청</button>
+      <button id="settle-charge-btn" onclick="startSettleCharge()" style="background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">충전 신청</button>
     </div>
   </div>
 </div>
@@ -1063,19 +1061,19 @@
       if(amount<=0){statusEl.style.display='block';statusEl.textContent='금액을 입력해주세요.';return;}
       // 처리 중엔 입력창을 비활성화(금액은 계속 보이도록)하여 중복 클릭·수정 방지
       input.disabled=true;confirmBtn.disabled=true;doneBtn.disabled=true;cancelBtn.disabled=true;
-      confirmBtn.textContent='⏳ 처리 중...';statusEl.style.display='none';
+      confirmBtn.textContent='처리 중...';statusEl.style.display='none';
       // 다른 직원이 같은 행을 충전 중이면 중단(두 번 충전 방지)
       const claimKeys=[chargeKey(timeKey,agencyId,userId)];
       const claim=await HI.claimCharge(claimKeys,chargeStaffName());
       if(!claim.ok){
-        statusEl.style.display='block';statusEl.textContent=`⛔ ${claim.by||'다른 직원'}님이 이 항목을 충전 중입니다.`;
+        statusEl.style.display='block';statusEl.textContent=`${claim.by||'다른 직원'}님이 이 항목을 충전 중입니다.`;
         input.disabled=false;doneBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전';
         return;
       }
       const {ok,unknown,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
       if(!ok){
         if(!unknown) await HI.releaseCharge(claimKeys); // 확실한 실패만 선점 해제 — 결과 불명이면 유지해 재충전 차단
-        statusEl.style.display='block';statusEl.textContent=`❌ ${resultMsg}`;
+        statusEl.style.display='block';statusEl.textContent=`${resultMsg}`;
         input.disabled=false;confirmBtn.disabled=false;doneBtn.disabled=false;cancelBtn.disabled=false;confirmBtn.textContent='충전';
         // 결과 불명이면 '충전' 재클릭을 막음 — 비즈핏에서 확인 후 '완료'(기록만) 또는 창을 다시 열어 진행
         if(unknown){confirmBtn.disabled=true;confirmBtn.textContent='확인 필요';}
@@ -1083,7 +1081,7 @@
       }
       await stampCharge(snapKey,userId,snap,{chargeApiDone:true,chargeApiAmount:amount});
       modal.remove();
-      alert(confirmOk?`✅ 충전+입금완료 · ${amount.toLocaleString()}원`:`⚠️ 충전은 완료됐으나 입금완료 자동처리 실패 — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
+      alert(confirmOk?`충전+입금완료 · ${amount.toLocaleString()}원`:`충전은 완료됐으나 입금완료 자동처리 실패 — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
       renderSettle(false);
     };
     doneBtn.onclick=async()=>{
@@ -1092,7 +1090,7 @@
       const amount=Number(input.value)||0;
       if(amount<=0){statusEl.style.display='block';statusEl.textContent='금액을 입력해주세요.';return;}
       input.disabled=true;confirmBtn.disabled=true;doneBtn.disabled=true;cancelBtn.disabled=true;
-      doneBtn.textContent='⏳ 처리 중...';statusEl.style.display='none';
+      doneBtn.textContent='처리 중...';statusEl.style.display='none';
       await stampCharge(snapKey,userId,snap,{chargeApiDone:true,chargeApiAmount:amount});
       modal.remove();
       renderSettle(false);
@@ -1425,7 +1423,7 @@
 
       const hd=document.createElement('div');
       hd.className='agency-hd';
-      hd.innerHTML=`<div><div class="aname">${escProd(agency)}</div><div class="ameta">총 ${totalCamp}건 · 전체 목표 ${Math.round(totalG).toLocaleString()}건</div></div><button class="agency-copy-btn">📋 복사</button>`;
+      hd.innerHTML=`<div><div class="aname">${escProd(agency)}</div><div class="ameta">총 ${totalCamp}건 · 전체 목표 ${Math.round(totalG).toLocaleString()}건</div></div><button class="agency-copy-btn">복사</button>`;
       block.appendChild(hd);
 
       const wrap=document.createElement('div');
@@ -1456,7 +1454,7 @@
         navigator.clipboard.writeText(msg).then(()=>{
           const btn=this;
           btn.classList.add('ok');btn.textContent='✓ 복사됨';
-          setTimeout(()=>{btn.classList.remove('ok');btn.textContent='📋 복사';},1500);
+          setTimeout(()=>{btn.classList.remove('ok');btn.textContent='복사';},1500);
         });
       };
     });
@@ -1464,8 +1462,8 @@
     const cBtn=document.getElementById('settle-charge-btn');
     if(!window.settleCharging){
       const allCharged=rows.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName);
-      if(allCharged){cBtn.disabled=true;cBtn.textContent='✅ 충전 완료';cBtn.style.background='#475569';cBtn.style.cursor='default';}
-      else{cBtn.disabled=false;cBtn.textContent='⚡ 충전 신청';cBtn.style.background='#4f46e5';cBtn.style.cursor='pointer';}
+      if(allCharged){cBtn.disabled=true;cBtn.textContent='충전 완료';cBtn.style.background='#475569';cBtn.style.cursor='default';}
+      else{cBtn.disabled=false;cBtn.textContent='충전 신청';cBtn.style.background='#4f46e5';cBtn.style.cursor='pointer';}
     }
     regBody.innerHTML='';
     regBody.appendChild(container);
@@ -1477,43 +1475,43 @@
     const badge=(bg,fg,txt)=>`<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:${bg};color:${fg}">${txt}</span>`;
     const btn=document.getElementById('settle-charge-btn');
     window.settleCharging=true;
-    btn.disabled=true;btn.textContent='⏳ 처리 중...';btn.style.background='#6b7280';btn.style.cursor='default';
+    btn.disabled=true;btn.textContent='처리 중...';btn.style.background='#6b7280';btn.style.cursor='default';
     for(const cell of document.querySelectorAll('#settle-reg-body .charge-status-cell')){
       const agencyId=cell.dataset.agency;
       const amount=parseInt(cell.dataset.amount);
       const rowsData=JSON.parse(cell.closest('.agency-block').dataset.rows||'[]');
       // 담당자 도장(chargeConfirmedByName) 유무로 판정 — 건별 충전 버튼으로 이미 충전·확인된 항목도 여기서 다시 잡아낸다
       if(rowsData.every(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)){
-        cell.innerHTML=badge('#f0fdf4','#166534','✅ 이미 충전 완료');
+        cell.innerHTML=badge('#f0fdf4','#166534','이미 충전 완료');
         continue;
       }
       if(rowsData.some(r=>snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)){
-        cell.innerHTML=badge('#fee2e2','#991b1b','❌ 일부 항목 이미 충전됨 (충전 담당자 확인 필요)');
+        cell.innerHTML=badge('#fee2e2','#991b1b','일부 항목 이미 충전됨 (충전 담당자 확인 필요)');
         continue;
       }
       // 다른 직원이 같은 대행사 행을 충전 중이면 건너뜀(두 번 충전 방지)
       const claimKeys=rowsData.map(r=>chargeKey(r.timeKey,r.agencyId,r.userId));
       const claim=await HI.claimCharge(claimKeys,chargeStaffName());
       if(!claim.ok){
-        cell.innerHTML=badge('#fee2e2','#991b1b',`⛔ ${claim.by||'다른 직원'}님이 충전 중`);
+        cell.innerHTML=badge('#fee2e2','#991b1b',`${claim.by||'다른 직원'}님이 충전 중`);
         continue;
       }
-      cell.innerHTML=badge('#dbeafe','#1d4ed8',`⏳ 충전 중... ${amount.toLocaleString()}원`);
+      cell.innerHTML=badge('#dbeafe','#1d4ed8',`충전 중... ${amount.toLocaleString()}원`);
       const {ok,unknown,noAccount,resultMsg,confirmOk,confirmMsg}=await chargeAgency(agencyId,amount);
       if(!ok){
         if(!unknown) await HI.releaseCharge(claimKeys); // 확실한 실패만 선점 해제
-        cell.innerHTML=noAccount?badge('#fef9c3','#854d0e','⚠️ 계정 정보 미등록'):badge('#fee2e2','#991b1b',`❌ ${resultMsg}`);
+        cell.innerHTML=noAccount?badge('#fef9c3','#854d0e','계정 정보 미등록'):badge('#fee2e2','#991b1b',`${resultMsg}`);
         continue;
       }
       cell.innerHTML=confirmOk
-        ?badge('#dcfce7','#166534',`✅ 충전+입금완료 · ${amount.toLocaleString()}원`)
-        :badge('#fef9c3','#854d0e',`⚠️ 충전은 완료됐으나 입금완료 자동처리 실패(${amount.toLocaleString()}원) — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
+        ?badge('#dcfce7','#166534',`충전+입금완료 · ${amount.toLocaleString()}원`)
+        :badge('#fef9c3','#854d0e',`충전은 완료됐으나 입금완료 자동처리 실패(${amount.toLocaleString()}원) — 비즈핏에서 수동 확인 필요: ${confirmMsg}`);
       await Promise.all(rowsData
         .filter(r=>!snapshotMap[refundKey(r.timeKey,r.agencyId,r.userId)]?.chargeConfirmedByName)
         .map(r=>stampCharge(refundKey(r.timeKey,r.agencyId,r.userId),r.userId,ensureSnapshot(r.timeKey,r.agencyId,r.userId),{chargeApiDone:true})));
     }
     window.settleCharging=false;
-    btn.textContent='✅ 충전 완료';btn.style.background='#475569';
+    btn.textContent='충전 완료';btn.style.background='#475569';
   };
 
   renderSettle(false);

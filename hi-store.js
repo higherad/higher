@@ -484,7 +484,6 @@ const HI = {
       ...(data.isRequeue ? { isRequeue: true } : {}),
       ...(data.yupflSource ? { yupflSource: data.yupflSource } : {}),
       ...(data.changeTo ? { changeTo: data.changeTo } : {}),
-      origin: 'ha',
       // 엑셀 일괄접수는 병렬 전송이라 도착순≠행순 — 호출부가 행 인덱스로 어긋낸 createdAt을 그대로 신뢰(위조 이득 없음)
       createdAt: data.createdAt || nowIso(),
       agencyId: data.agencyId || '', userId,
@@ -838,9 +837,7 @@ const HI = {
   // 정산 대상 — 재접수(isRequeue)·휴지통 제외. 정산관리·사이드바 배지·텔레그램 봇이 같은 기준을 써야 함
   isBillable(slot) {
     if (slot.isRequeue) return false; // 재접수는 기존 배분을 이어받을 뿐 새 결제 건이 아님
-    if (BILLABLE_STATUSES.has(slot.status)) return true;
-    // 옛 김프로 출처의 전용 상태(강제종료·임시중단 등)도 정산 대상 — 휴지통만 제외
-    return slot.origin === 'kp' && !!slot.status && slot.status !== 'deleted';
+    return BILLABLE_STATUSES.has(slot.status);
   },
   getPaidSet() { return once(paidCache); },
   onPaidSetChange(cb) { return paidCache(cb); },
