@@ -5727,10 +5727,17 @@ window.toggleProdPanel = function(e) {
     };
     const addKw = ci => {
       const inp = overlay.querySelector(`[data-inp="${ci}"]`);
-      const vals = inp.value.split(',').map(v => v.trim()).filter(v => v && !cats[ci].keywords.includes(v));
-      if (!vals.length) return;
-      cats[ci].keywords.push(...vals);
-      render(); save();
+      // 중복은 띄어쓰기·대소문자 무시로 판단 — 다른 분류에 있는 키워드·같은 입력 안 반복도 빼고 알려 줌
+      const n = v => v.toLowerCase().replace(/\s+/g, '');
+      const owner = new Map(cats.flatMap(c => c.keywords.map(k => [n(k), c.name])));
+      const vals = [], dup = [];
+      inp.value.split(',').map(v => v.trim()).filter(Boolean).forEach(v => {
+        if (owner.has(n(v))) dup.push(`${v}(${owner.get(n(v))})`);
+        else { owner.set(n(v), cats[ci].name); vals.push(v); }
+      });
+      if (vals.length) { cats[ci].keywords.push(...vals); render(); save(); }
+      else inp.value = '';
+      if (dup.length) alert(`이미 있는 키워드라 뺐습니다: ${dup.join(', ')}`);
     };
     overlay.querySelector('#kc-list').addEventListener('click', e => {
       const t = e.target.dataset;
