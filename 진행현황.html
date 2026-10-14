@@ -5,6 +5,8 @@
   #slots-page .rc-stat { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
   #slots-page .rc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
   #slots-page .rc-val { font-size:22px; font-weight:800; line-height:1; }
+  #slots-page .rc-stat[onclick] { cursor:pointer; }
+  #slots-page .rc-stat[onclick]:hover { border-color:#cbd5e1; background:#f8fafc; }
   @media (max-width:1100px) { #slots-page .stat-bar { grid-template-columns:repeat(3,1fr); } }
   .type-badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:10px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
   .type-badge.mission { background:transparent; }
@@ -57,10 +59,10 @@
 </style>
 
 <div class="stat-bar">
-  <div class="rc-stat"><div class="rc-label">진행</div><div class="rc-val" id="stat-companies" style="color:var(--accent)">-</div></div>
-  <div class="rc-stat"><div class="rc-label">예약</div><div class="rc-val" id="stat-reserved" style="color:var(--warn)">-</div></div>
-  <div class="rc-stat"><div class="rc-label">분할</div><div class="rc-val" id="stat-split" style="color:#b45309">-</div></div>
-  <div class="rc-stat"><div class="rc-label">강제종료</div><div class="rc-val" id="stat-force" style="color:#dc2626">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('active')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">진행</div><div class="rc-val" id="stat-companies" style="color:var(--accent)">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('reserved')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">예약</div><div class="rc-val" id="stat-reserved" style="color:var(--warn)">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('split')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">분할</div><div class="rc-val" id="stat-split" style="color:#b45309">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('force_stopped')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">강제종료</div><div class="rc-val" id="stat-force" style="color:#dc2626">-</div></div>
   <div class="rc-stat"><div class="rc-label">전체 목표</div><div class="rc-val" id="stat-target" style="color:var(--info)">-</div></div>
   <div class="rc-stat"><div class="rc-label">진행 일 목표</div><div class="rc-val" id="stat-today-target" style="color:#7c3aed">-</div></div>
 </div>
@@ -487,6 +489,12 @@
     } finally {
       if (btn) { btn.disabled = false; label.textContent = original; }
     }
+  };
+
+  // 상단 카드 클릭 = 상태 필터(전체 목표·진행 일 목표 카드는 합계라 필터 없음)
+  window.filterByCard = function(status) {
+    document.getElementById('f-status').value = status;
+    renderSlots();
   };
 
   window.goP = n => { page=n; renderSlots(false); };

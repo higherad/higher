@@ -235,18 +235,20 @@
   #receipt-stat-bar .rc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
   #receipt-stat-bar .rc-sub { color:var(--muted); font-weight:500; margin-right:5px; padding-right:5px; border-right:1px solid var(--border); }
   #receipt-stat-bar .rc-val { font-size:22px; font-weight:800; line-height:1; }
+  #receipt-stat-bar .rc-stat[onclick] { cursor:pointer; }
+  #receipt-stat-bar .rc-stat[onclick]:hover { border-color:#cbd5e1; background:#f8fafc; }
   @media (max-width:1100px) { #receipt-stat-bar { grid-template-columns:repeat(4,1fr); } }
 </style>
 <div id="receipt-stat-bar">
-  <div class="rc-stat"><div class="rc-label">대기</div><div class="rc-val" id="stat-pending" style="color:#b45309">-</div></div>
-  <div class="rc-stat"><div class="rc-label">접수</div><div class="rc-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
-  <div class="rc-stat"><div class="rc-label">승인</div><div class="rc-val" id="stat-active" style="color:var(--accent)">-</div></div>
-  <div class="rc-stat" style="cursor:pointer;" onclick="openSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="rc-label" style="color:#b45309;font-weight:700;">분할 <span style="font-size:10px;">↗</span></div><div class="rc-val" id="stat-split" style="color:#b45309">-</div></div>
-  <div class="rc-stat" style="cursor:pointer;" onclick="filterTypeChange()" title="클릭하면 변경 요청 캠페인만 봅니다"><div class="rc-label" style="color:#dc2626;font-weight:700;">변경 <span style="font-size:10px;">↗</span></div><div class="rc-val" id="stat-change" style="color:#dc2626">-</div></div>
-  <div class="rc-stat"><div class="rc-label"><span class="rc-sub">재접수</span>대기</div><div class="rc-val" id="stat-requeue" style="color:#b45309">-</div></div>
-  <div class="rc-stat"><div class="rc-label"><span class="rc-sub">재접수</span>접수</div><div class="rc-val" id="stat-requeue-accepted" style="color:#1d4ed8">-</div></div>
-  <div class="rc-stat"><div class="rc-label"><span class="rc-sub">재접수</span>승인</div><div class="rc-val" id="stat-requeue-active" style="color:var(--accent)">-</div></div>
-  <div class="rc-stat"><div class="rc-label">강제종료</div><div class="rc-val" id="stat-force" style="color:#dc2626">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('pending')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">대기</div><div class="rc-val" id="stat-pending" style="color:#b45309">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('accepted')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">접수</div><div class="rc-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('active')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">승인</div><div class="rc-val" id="stat-active" style="color:var(--accent)">-</div></div>
+  <div class="rc-stat" onclick="openSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="rc-label" style="color:#b45309;font-weight:700;">분할 <span style="font-size:10px;">↗</span></div><div class="rc-val" id="stat-split" style="color:#b45309">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('change')" title="클릭하면 변경 요청 캠페인만 봅니다"><div class="rc-label" style="color:#dc2626;font-weight:700;">변경 <span style="font-size:10px;">↗</span></div><div class="rc-val" id="stat-change" style="color:#dc2626">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('requeue')" title="클릭하면 이 상태만 봅니다"><div class="rc-label"><span class="rc-sub">재접수</span>대기</div><div class="rc-val" id="stat-requeue" style="color:#b45309">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('requeue_accepted')" title="클릭하면 이 상태만 봅니다"><div class="rc-label"><span class="rc-sub">재접수</span>접수</div><div class="rc-val" id="stat-requeue-accepted" style="color:#1d4ed8">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('requeue_active')" title="클릭하면 이 상태만 봅니다"><div class="rc-label"><span class="rc-sub">재접수</span>승인</div><div class="rc-val" id="stat-requeue-active" style="color:var(--accent)">-</div></div>
+  <div class="rc-stat" onclick="filterByCard('force_stopped')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">강제종료</div><div class="rc-val" id="stat-force" style="color:#dc2626">-</div></div>
 </div>
 
 <!-- 상품 유형 설정 패널 -->
@@ -3375,8 +3377,9 @@ window.toggleProdPanel = function(e) {
     if (!to) return '';
     return `<div style="margin-top:3px;"><span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;" title="변경 요청 상품">${escProd(to)}</span></div>`;
   }
-  window.filterTypeChange = function() {
-    document.getElementById('filter-status').value = 'change';
+  // 상단 카드 클릭 = 상태 필터(분할 카드만 예약 분할 현황 팝업)
+  window.filterByCard = function(status) {
+    document.getElementById('filter-status').value = status;
     renderReceipts();
   };
 
