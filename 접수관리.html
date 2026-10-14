@@ -5714,7 +5714,7 @@ window.toggleProdPanel = function(e) {
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <b style="font-size:13px;">${escProd(c.name)}</b>
             <span style="font-size:11px;color:var(--muted);">${c.keywords.length}개</span>
-            <button class="action-btn" data-del="${ci}" style="margin-left:auto;background:#fef2f2;color:#b91c1c;padding:2px 8px;font-size:11px;">분류 삭제</button>
+            <span data-del="${ci}" title="분류 삭제" style="margin-left:auto;cursor:pointer;font-size:18px;line-height:1;color:#94a3b8;">&times;</span>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${c.keywords.length ? c.keywords.map((k, ki) =>
             `<span style="background:#eef2ff;color:#4338ca;border-radius:12px;padding:2px 8px;font-size:12px;">${escProd(k)} <span data-rm="${ci}:${ki}" style="cursor:pointer;color:#94a3b8;">×</span></span>`).join('')
