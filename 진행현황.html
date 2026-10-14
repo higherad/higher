@@ -379,6 +379,7 @@
   // 이미 요청 중인 건은 새 요청으로 덮어씀. 실제 강제종료는 사람이 하고, 재접수 캠페인이 요청 상품을 이어받음(hi-store forceStopMid)
   const CHANGE_STATUSES = ['active','split'];
   const NOT_PRODUCTS = new Set(['deduct','yupflc','yupfl','yupfl2']);
+  const FIXED_PRODUCTS = new Set(['charlie','delta','navy']); // 상품 유형 설정의 '고정' 줄(차감·유입플 분류는 상품 아님)
   window.openTypeChangeModal = async function() {
     const keys = [...document.querySelectorAll('.s-check:checked')].map(c => c.dataset.key);
     const targets = keys.map(k => allSlots.find(s => s._key === k)).filter(Boolean);
@@ -386,8 +387,12 @@
     if (!targets.length) { alert('변경 요청할 캠페인을 체크해 주세요.'); return; }
     if (!ok.length) { alert('진행·예약 중인 캠페인만 변경 요청할 수 있습니다.'); return; }
     const prods = await HI.getProdsOnce().catch(() => null);
-    const names = [...new Set((Array.isArray(prods) ? prods : Object.values(prods || {}))
-      .filter(p => p && p.name && !NOT_PRODUCTS.has(p.id) && !/^X\d*$/i.test(p.name.trim())).map(p => p.name))]; // X3·X4 같은 빈 자리 상품명 제외
+    // 상품 유형 설정과 같은 두 줄(일반/고정). X3·X4 같은 빈 자리 상품명 제외
+    const list = (Array.isArray(prods) ? prods : Object.values(prods || {}))
+      .filter(p => p && p.name && !NOT_PRODUCTS.has(p.id) && !/^X\d*$/i.test(p.name.trim()));
+    const namesOf = fixed => [...new Set(list.filter(p => FIXED_PRODUCTS.has(p.id) === fixed).map(p => p.name))];
+    const chip = n => `<button type="button" data-name="${esc(n)}" style="padding:4px 12px;border:1px solid var(--border);border-radius:14px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">${esc(n)}</button>`;
+    const row = (label, names) => names.length ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;"><span style="flex:0 0 28px;font-size:11px;font-weight:700;color:var(--muted);padding-top:6px;">${label}</span><div style="display:flex;flex-wrap:wrap;gap:6px;">${names.map(chip).join('')}</div></div>` : '';
     const field = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;box-sizing:border-box;';
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -396,9 +401,7 @@
         <div style="font-size:16px;font-weight:800;margin-bottom:6px;">타입 변경 요청</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">대상 ${ok.length}건${targets.length > ok.length ? ` <span style="color:var(--muted);">(진행·예약이 아닌 ${targets.length - ok.length}건 제외)</span>` : ''}${ok.some(s => s.changeRequest) ? ' · <span style="color:#b91c1c;">이미 요청 중인 건은 새 요청으로 바뀝니다</span>' : ''}</div>
         <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">바꿀 상품</div>
-        <div id="tc-prods" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-          ${names.map(n => `<button type="button" data-name="${esc(n)}" style="padding:4px 12px;border:1px solid var(--border);border-radius:14px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">${esc(n)}</button>`).join('')}
-        </div>
+        <div id="tc-prods" style="margin-bottom:8px;">${row('일반', namesOf(false))}${row('고정', namesOf(true))}</div>
         <input id="tc-custom" placeholder="목록에 없으면 직접 입력" style="${field}margin-bottom:8px;">
         <input id="tc-note" placeholder="메모(선택)" style="${field}">
         <div style="font-size:12px;margin-top:10px;color:var(--text2);">요청 내용: <b id="tc-preview" style="color:#b91c1c;">-</b></div>
