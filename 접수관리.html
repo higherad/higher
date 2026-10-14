@@ -2144,10 +2144,10 @@ window.toggleProdPanel = function(e) {
       if (res && res.success) {
         await Promise.all(targets.map(s => HI.updateCampaign(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true })));
         targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true, bizfitDeducted: true }));
-        // 최근 입금완료 건에 "[환불] 차감 금액" 메모 누적 기록(서버가 합산) — 차감과 별개라 실패해도 콘솔에만 남김
+        // 최근 입금완료 건에 "[환불] 차감 금액"·"[환불] 유입플 금액" 메모를 항목별로 누적 기록(서버가 합산) — 차감과 별개라 실패해도 콘솔에만 남김
         const agencyId = targets[0].agencyId;
-        if (deductAmount > 0) {
-          callBizfitProxy('/bizfit-charge-memo', { company: agencyId, deductAmount })
+        if (deductAmount > 0 || yupflAmount > 0) {
+          callBizfitProxy('/bizfit-charge-memo', { company: agencyId, deductAmount, yupflAmount })
             .then(mres => { if (!mres || !mres.success) console.error('비즈핏 충전 메모 실패:', agencyId, mres && mres.message); })
             .catch(e => console.error('비즈핏 충전 메모 오류:', agencyId, e));
         }
