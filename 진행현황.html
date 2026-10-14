@@ -387,7 +387,7 @@
     if (!ok.length) { alert('진행·예약 중인 캠페인만 변경 요청할 수 있습니다.'); return; }
     const prods = await HI.getProdsOnce().catch(() => null);
     const names = [...new Set((Array.isArray(prods) ? prods : Object.values(prods || {}))
-      .filter(p => p && p.name && !NOT_PRODUCTS.has(p.id)).map(p => p.name))];
+      .filter(p => p && p.name && !NOT_PRODUCTS.has(p.id) && !/^X\d*$/i.test(p.name.trim())).map(p => p.name))]; // X3·X4 같은 빈 자리 상품명 제외
     const field = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;box-sizing:border-box;';
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
