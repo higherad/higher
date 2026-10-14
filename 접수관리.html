@@ -6874,8 +6874,9 @@ window.toggleProdPanel = function(e) {
   // kimpro-premium /rank-table은 종료 상태를 'ended'로 판정 — expired를 ended로 보냄
   window.downloadRankTable = async function() {
     const btn = document.getElementById('rank-table-btn');
-    const original = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = '📈 다운로드 중...'; }
+    const label = btn?.querySelector('span') || btn;
+    const original = label ? label.textContent : '';
+    if (btn) { btn.disabled = true; label.textContent = '다운로드 중...'; }
     try {
       const slots = (await HI.getAll()).filter(s => s.mid);
       await fetchGradesBatch([...new Set(slots.map(s => s.mid))].filter(mid => !GRADE_CACHE.has(mid)));
@@ -6910,7 +6911,7 @@ window.toggleProdPanel = function(e) {
       alert(`다운로드 실패: ${e.message}`);
       console.error(e);
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = original; }
+      if (btn) { btn.disabled = false; label.textContent = original; }
     }
   };
 

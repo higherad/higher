@@ -67,15 +67,19 @@
     @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
     .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
     .page-heading { font-size:22px; font-weight:800; color:var(--text); }
-    /* 페이지별 상단 액션 버튼(접수관리의 엑셀 접수 등) — loadPage()가 페이지에 맞게 채움 */
+    /* 페이지별 상단 버튼 — loadPage()가 PAGE_ACTIONS로 채움. 오른쪽 흰 툴바 하나에 하는 일별 묶음, 묶음 사이만 세로선 */
+    .top-bar { gap:16px; flex-wrap:wrap; }
     #page-actions:empty { display:none; }
-    /* 색 없는 글자 버튼을 세로선으로 구분(옛 김프로 헤더 방식), 상단 줄 가운데 */
-    .top-bar { display:grid; grid-template-columns:1fr auto 1fr; }
-    #page-actions { display:flex; align-items:center; justify-self:center; }
-    #page-actions button { padding:6px 14px; border:none; background:transparent; color:var(--text2); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; border-radius:6px; }
+    #page-actions { display:flex; align-items:center; flex-wrap:wrap; background:#fff; border:1px solid var(--border); border-radius:10px; padding:3px; }
+    #page-actions .pa-group { display:flex; align-items:center; }
+    #page-actions .pa-group + .pa-group { border-left:1px solid var(--border); margin-left:3px; padding-left:3px; }
+    #page-actions button { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border:none; border-radius:7px; background:transparent; color:var(--text2); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; }
+    #page-actions button svg { width:15px; height:15px; flex-shrink:0; }
     #page-actions button:hover { background:rgba(15,23,42,.06); color:var(--text); }
+    #page-actions button.danger { color:var(--danger); }
+    #page-actions button.danger:hover { background:#fef2f2; }
     #page-actions button:disabled { opacity:.5; cursor:default; }
-    #page-actions button + button { border-left:1px solid var(--border); border-radius:0; }
+    #page-actions button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
     .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px; }
     .stat-card { background:var(--card); border-radius:14px; padding:20px; border:1px solid var(--border); position:relative; overflow:hidden; transition:.2s; }
@@ -178,8 +182,8 @@
 
       main, aside.collapsed ~ main { margin-left:0; padding:16px; }
 
-      .top-bar { margin-bottom:16px; grid-template-columns:1fr; row-gap:8px; }
-      #page-actions { justify-self:start; flex-wrap:wrap; }
+      .top-bar { margin-bottom:16px; }
+      #page-actions { width:100%; }
       .page-heading { font-size:17px; }
 
       .hamburger { display:flex; }
@@ -230,10 +234,10 @@
   </div>
   <div class="nav-section">
     <div class="nav-label">Management</div>
-    <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)" title="진행 현황"><i data-lucide="layers" size="16"></i><span class="nav-text"> 진행 현황</span></div>
+    <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)" title="진행 현황"><i data-lucide="activity" size="16"></i><span class="nav-text"> 진행 현황</span></div>
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)" title="접수 관리"><i data-lucide="inbox" size="16"></i><span class="nav-text"> 접수 관리</span><span class="badge" id="pending-badge" style="display:none">0</span></div>
     <div class="nav-label">Finance & Users</div>
-    <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)" title="정산 관리"><i data-lucide="wallet" size="16"></i><span class="nav-text"> 정산 관리</span><span class="badge" id="settle-badge" style="display:none">0</span></div>
+    <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)" title="정산 관리"><i data-lucide="receipt" size="16"></i><span class="nav-text"> 정산 관리</span><span class="badge" id="settle-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)" title="회원 관리"><i data-lucide="users" size="16"></i><span class="nav-text"> 회원 관리</span><span class="badge" id="users-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-notice"  onclick="loadPage('공지사항.html',this)" title="공지사항"><i data-lucide="megaphone" size="16"></i><span class="nav-text"> 공지사항</span></div>
     <div class="nav-label">Tools</div>
@@ -262,7 +266,6 @@
       <div class="page-heading" id="page-heading">운영 현황 대시보드</div>
     </div>
     <div id="page-actions"></div>
-    <div></div>
   </div>
   <div id="content-area">
     <div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>
@@ -567,6 +570,30 @@
     '광고분류.html':'광고 분류', '순위조회.html':'순위 조회',
   };
 
+  // 페이지별 상단 버튼 묶음 — [아이콘(lucide), 이름, 클릭 시 호출(페이지 스크립트의 window 함수), 옵션]. 묶음 = 하는 일이 같은 버튼
+  const PAGE_ACTIONS = {
+    '접수관리.html': [
+      [['file-spreadsheet', '엑셀 접수', 'openReceiptExcelModal()'], ['history', '재접수', 'openReacceptModal()']],
+      [['replace', '변경 요청', 'openTypeChangeModal()', { title: '체크한 캠페인에 타입 변경 요청' }], ['ban', '강제종료', 'openForceStopModal()', { danger: true }]],
+      [['download', '엑셀 다운로드', 'downloadExcelList()', { id: 'dl-single-btn' }], ['trophy', '순위표', 'downloadRankTable()', { id: 'rank-table-btn' }]],
+    ],
+    '정산관리.html': [
+      [['clipboard-plus', '정산 등록', 'openSettleRegModal()'], ['undo-2', '환불 등록', 'openPendingRefundModal()']],
+      [['check-check', '선택 입금', 'bulkPayConfirm()']],
+      [['download', '엑셀 다운로드', 'exportSettleExcel()']],
+    ],
+    '진행현황.html': [[['trash-2', '휴지통', 'openTrashView()']]],
+    '회원관리.html': [[['user-plus', '회원 추가', 'openUserModal(null)']]],
+    '공지사항.html': [[['square-pen', '공지 작성', 'openNoticeModal(null)']]],
+  };
+  function renderPageActions(page) {
+    const el = document.getElementById('page-actions');
+    el.innerHTML = (PAGE_ACTIONS[page] || []).map(group => `<div class="pa-group">${group.map(([icon, label, call, o = {}]) =>
+      `<button type="button"${o.id ? ` id="${o.id}"` : ''}${o.danger ? ' class="danger"' : ''}${o.title ? ` title="${o.title}"` : ''} onclick="${call}"><i data-lucide="${icon}"></i><span>${label}</span></button>`
+    ).join('')}</div>`).join('');
+    if (window.lucide) lucide.createIcons();
+  }
+
   window.loadPage = async function(page, navEl, afterLoad) {
     const myGen = ++navGen;
     window.closeSidebar?.();
@@ -575,14 +602,7 @@
       navEl.classList.add('active');
     }
     document.getElementById('page-heading').textContent = PAGE_TITLES[page] || page;
-    document.getElementById('page-actions').innerHTML = page === '접수관리.html'
-      ? '<button onclick="openReceiptExcelModal()">📊 엑셀 접수</button>'
-        + '<button onclick="openForceStopModal()">🛑 강제종료</button>'
-        + '<button onclick="openTypeChangeModal()" title="체크한 캠페인에 타입 변경 요청">🔀 변경 요청</button>'
-        + '<button onclick="openReacceptModal()">🔁 재접수</button>'
-        + '<button id="dl-single-btn" onclick="downloadExcelList()">📥 엑셀 다운로드</button>'
-        + '<button id="rank-table-btn" onclick="downloadRankTable()">📈 순위표</button>'
-      : '';
+    renderPageActions(page);
 
     const area = document.getElementById('content-area');
     area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>';
