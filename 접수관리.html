@@ -576,11 +576,6 @@ window.toggleProdPanel = function(e) {
     document.body.appendChild(overlay);
   }
 
-  async function fetchGrade(mid) {
-    if (!GRADE_CACHE.has(mid)) await fetchGradesBatch([mid]);
-    return GRADE_CACHE.get(mid);
-  }
-
   // grades는 hi-store.js 공유 실시간 캐시(세션당 1회 다운로드, 이후 변경분만)에서 읽어 전체를 채운다.
   async function fetchGradesBatch(mids) {
     if (!mids.length) return;
@@ -593,38 +588,19 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  // 등급 배지(회색 채움)와 유입플 미션 배지(아웃라인)를 함께 렌더링 — 예: 블랙 올리브 9번
-  function _renderGradeBadgesHtml(data) {
-    if (!data) return '-';
-    const entries = parseGradeEntries(data);
-    const gradeLabels = [...new Map(entries.map(g => [g.gradeLabel, g])).values()]
-      .flatMap(g => (g.gradeLabel || '').split(',').map(l => l.trim()).filter(l => l));
-    const missions = [...new Set(entries.flatMap(g => (g.mission || '').split(',').map(l => l.trim()).filter(l => l)))];
-    if (!gradeLabels.length && !missions.length) return '-';
-    const c = { bg:'#f1f5f9', fg:'#334155', bd:'#e2e8f0' };
-    const gradeHtml   = gradeLabels.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:${c.bg};color:${c.fg};border:1px solid ${c.bd}">${l}</span>`).join('');
-    const missionHtml = missions.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:transparent;color:${c.fg};border:1px solid ${c.bd}">${l}</span>`).join('');
-    return gradeHtml + missionHtml;
+  // 캠페인타입 = 비즈핏 등록(또는 분할 예약) 때 캠페인에 저장한 실제 상품명(campaignType) — 캠페인별 기록이라 종료 후에도 남음
+  const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
+  function typeBadgesHtml(s) {
+    const labels = typeLabels(s);
+    if (!labels.length) return '<span style="color:#cbd5e1">-</span>';
+    return `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${labels.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${escProd(l)}</span>`).join('')}</div>`;
   }
-
-  async function injectGradeBadges(slots) {
-    await Promise.all(slots.map(async s => {
-      if (!['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) || !s.mid) return;
-      const el = document.getElementById(`grade-${s._key}`);
-      if (!el) return;
-      const data = await fetchGrade(s.mid);
-      const html = _renderGradeBadgesHtml(data);
-      if (html === '-') { el.textContent = '-'; return; }
-      el.outerHTML = `<div id="grade-${s._key}" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html}</div>`;
-    }));
-  }
-
-  // 등급(gradeLabel)+유입플 미션 라벨을 합쳐서 반환 — 필터 목록/매칭에 공용 사용
-  function _allFilterLabels(cached) {
-    return parseGradeEntries(cached).flatMap(g => [
-      ...(g.gradeLabel ? g.gradeLabel.split(',').map(l => l.trim()).filter(l => l) : []),
-      ...(g.mission ? g.mission.split(',').map(l => l.trim()).filter(l => l) : []),
-    ]);
+  // 등록 성공·예약한 상품명을 캠페인에 합쳐 저장(델타 '델타#1' 같은 행 구분 꼬리는 뗌)
+  async function addCampaignType(slotKey, names, slot) {
+    const s = slot || allSlots.find(x => x._key === slotKey);
+    const merged = [...new Set([...typeLabels(s), ...names.map(n => String(n).replace(/#\d+$/, '').trim()).filter(Boolean)])];
+    await HI.updateCampaign(slotKey, { campaignType: merged });
+    if (s) s.campaignType = merged;
   }
 
   function buildGradeFilter(slots) {
@@ -632,12 +608,7 @@ window.toggleProdPanel = function(e) {
     if (!sel) return;
     const currentVal = sel.value;
     const labels = new Set();
-    slots.forEach(s => {
-      if (!s.mid) return;
-      const cached = GRADE_CACHE.get(s.mid);
-      if (!cached) return;
-      _allFilterLabels(cached).forEach(l => labels.add(l));
-    });
+    slots.forEach(s => { if (s.status !== 'deleted') typeLabels(s).forEach(l => labels.add(l)); });
     sel.innerHTML = '<option value="">전체 등급</option>';
     [...labels].sort().forEach(label => {
       const opt = document.createElement('option');
@@ -664,12 +635,7 @@ window.toggleProdPanel = function(e) {
       else if (status === 'requeue_active') { if (!(s.isRequeue && s.status === 'active')) return false; }
       else if (['pending','accepted','active'].includes(status)) { if (s.status !== status || s.isRequeue) return false; }
       else if (status && s.status !== status) return false;
-      if (gradeFilter) {
-        if (!['pending','accepted','active','split','requeue','force_stopped'].includes(s.status)) return false;
-        const cached = GRADE_CACHE.get(s.mid);
-        if (!cached) return false;
-        if (!_allFilterLabels(cached).includes(gradeFilter)) return false;
-      }
+      if (gradeFilter && !typeLabels(s).includes(gradeFilter)) return false;
       if (kwTerms.length && !kwTerms.some(t => [s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(t)))) return false;
       const slotDate = s.createdAt ? ymd(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
@@ -784,10 +750,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${escProd(s.userId||'-')}</td>
-          <td>${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status)
-            ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>${yupflSourceBadge(s)}${typeChangeLine(s)}`
-            : `<span style="color:#cbd5e1">-</span>`
-          }</td>
+          <td>${typeBadgesHtml(s)}${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) ? `${yupflSourceBadge(s)}${typeChangeLine(s)}` : ''}</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${escProd(s.rankKeyword)}</a>` : '-'}</td>
@@ -819,20 +782,7 @@ window.toggleProdPanel = function(e) {
     const chkAll = document.getElementById('check-all');
     if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
     if (window.lucide) lucide.createIcons();
-    injectGradeBadges(page);
-
-    // 등급 백그라운드 로드 — 미캐시 MID만 로드, 완료 시 필터 갱신
-    const uniqueMids    = [...new Set(allSlots.filter(s => ['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) && s.mid).map(s => s.mid))];
-    const uncachedMids  = uniqueMids.filter(mid => !GRADE_CACHE.has(mid));
-    if (uncachedMids.length) {
-      fetchGradesBatch(uncachedMids).then(() => {
-        if (!document.getElementById('receipt-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-        buildGradeFilter(allSlots);
-        if (document.getElementById('filter-slot-type').value) renderReceipts(false);
-      });
-    } else {
-      buildGradeFilter(allSlots);
-    }
+    buildGradeFilter(allSlots);
   };
 
   // ── 접수 목록 실시간 반영 ──────────────────────────────────────
@@ -1058,7 +1008,7 @@ window.toggleProdPanel = function(e) {
           </div>
           <div>
             <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">등급</div>
-            <div>${_renderGradeBadgesHtml(GRADE_CACHE.get(s.mid))}${typeChangeLine(s)}</div>
+            <div>${typeBadgesHtml(s)}${typeChangeLine(s)}</div>
           </div>
         </div>
         <div class="modal-row">
@@ -2327,8 +2277,8 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
-  // grades(GRADE_CACHE)에 MID가 있으면 상품 유형 설정 ratio 무시하고 그 등급(들)로만 접수(kimpro와
-  // 동일 구현). 팝업 토글(기본 on) 끄면 상품 유형 설정값 그대로 배분.
+  // 같은 MID의 진행 중 캠페인에 저장된 상품(gradeLabelsOf)이 있으면 상품 유형 설정 ratio 무시하고 그 상품(들)로만 접수.
+  // 팝업 토글(기본 on) 끄면 상품 유형 설정값 그대로 배분.
   let gradeMatchOn = true;
 
   // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(approveReadySlots)에서 애드로그 자동등록을 스킵.
@@ -2449,11 +2399,9 @@ window.toggleProdPanel = function(e) {
     return results.filter(r => !r.ok).map(r => r.g);
   }
 
+  // 같은 MID에서 지금 진행 중(승인·분할)인 캠페인들에 저장된 상품 — 등급 자동매칭의 기준
   function gradeLabelsOf(mid) {
-    const data = GRADE_CACHE.get(mid);
-    if (!data) return [];
-    return [...new Map(parseGradeEntries(data).map(g => [g.gradeLabel, g])).values()]
-      .flatMap(g => (g.gradeLabel || '').split(',').map(l => l.trim()).filter(l => l));
+    return [...new Set(allSlots.filter(s => s.mid === mid && (s.status === 'active' || s.status === 'split')).flatMap(typeLabels))];
   }
 
   function matchedGradeProds(mid) {
@@ -2708,14 +2656,9 @@ window.toggleProdPanel = function(e) {
     if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
     try { await HI.ensureKeywords(filtered); } catch (e) { return alert('키워드를 불러오지 못했습니다. 다시 시도해 주세요.\n' + e.message); }
 
-    // 캠페인타입 = 목록 칸과 같은 값(진행 중 상태만 등급·미션 라벨 + 유입플 출처)
+    // 캠페인타입 = 목록 칸과 같은 값(저장된 상품 + 진행 중이면 유입플 선택)
     const LIVE_TYPE = ['pending','accepted','active','split','requeue','force_stopped'];
-    await fetchGradesBatch([...new Set(filtered.filter(s => s.mid && LIVE_TYPE.includes(s.status)).map(s => s.mid))]);
-    const campaignType = s => {
-      if (!LIVE_TYPE.includes(s.status)) return '';
-      const cached = s.mid ? GRADE_CACHE.get(s.mid) : null;
-      return [...new Set(cached ? _allFilterLabels(cached) : []), s.yupflSource].filter(Boolean).join(', ');
-    };
+    const campaignType = s => [...typeLabels(s), LIVE_TYPE.includes(s.status) ? s.yupflSource : ''].filter(Boolean).join(', ');
 
     async function buildAndDownload() {
       const XLSX = window.XLSX;
@@ -5388,6 +5331,7 @@ window.toggleProdPanel = function(e) {
         const merged = [...new Set([...(s?.normalDoneProducts || []), ...names])];
         await HI.updateCampaign(slotKey, { normalDoneProducts: merged });
         if (s) s.normalDoneProducts = merged;
+        await addCampaignType(slotKey, names, s);
       }));
       // 슬롯 단위 승인 판정 — 이 슬롯에 걸린 모든 상품행이 성공해야 승인 (일부 실패 시 보류)
       await finalizeSlotApprovals();
@@ -5465,6 +5409,10 @@ window.toggleProdPanel = function(e) {
 
     await Promise.all(plan.map(p => scheduleAgency(p)));
     if (dispatchEntries.length) {
+      // 예약한 상품을 캠페인타입으로 저장(실제 등록은 서버가 나중에 하지만 상품은 지금 확정)
+      const typeBySlot = new Map();
+      dispatchEntries.forEach(e => { if (!typeBySlot.has(e.slotKey)) typeBySlot.set(e.slotKey, new Set()); typeBySlot.get(e.slotKey).add(e.payload.gradeName); });
+      await Promise.all([...typeBySlot].map(([k, names]) => addCampaignType(k, [...names]).catch(err => console.error('캠페인타입 저장 실패:', k, err))));
       const deductFailures = await initScheduledBatches(slotKeyCounts, batchGroupId);
       if (deductFailures.length && overlay) {
         overlay._deductFailures.push(...deductFailures);

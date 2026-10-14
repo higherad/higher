@@ -9,7 +9,6 @@
   #slots-page .rc-stat[onclick]:hover { border-color:#cbd5e1; background:#f8fafc; }
   @media (max-width:1100px) { #slots-page .stat-bar { grid-template-columns:repeat(3,1fr); } }
   .type-badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:10px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
-  .type-badge.mission { background:transparent; }
   .type-badge.source { background:#fef3c7; color:#b45309; border-color:#fde68a; }
   .type-badge.change { background:#fee2e2; color:#b91c1c; border-color:#fca5a5; }
   #slots-page .filter-bar {
@@ -352,28 +351,21 @@
     if(window.lucide) lucide.createIcons();
   };
 
-  // 캠페인타입 칸 — 접수관리와 같은 값: 진행 중인 건만 hi/grades 등급·미션 배지 + 유입플 출처 + 변경 요청(빨간 배지)
-  let GRADES = {};
-  // 목록보다 늦게 오면 그때 한 번 다시 그림(먼저 오면 첫 렌더가 씀)
-  HI.getGradesOnce().then(g => { GRADES = g || {}; if (_slotsCacheLoaded && document.getElementById('slots-page')) renderSlots(false); }).catch(() => {});
-  const TYPE_LIVE = ['active','split','force_stopped','paused'];
+  // 캠페인타입 칸 — 접수관리와 같은 값: 등록·예약 때 캠페인에 저장한 상품(campaignType) + 진행 중이면 유입플 선택·변경 요청(빨간 배지)
+  const TYPE_LIVE = ['active','split','force_stopped'];
   const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
   function typeCellHtml(s) {
-    if (!TYPE_LIVE.includes(s.status)) return '<span style="color:#cbd5e1">-</span>';
-    const data = s.mid ? GRADES[s.mid] : null;
-    const entries = !data ? [] : typeof data.gradeLabel === 'string' ? [data] : Object.values(data);
-    const split = v => (v || '').split(',').map(x => x.trim()).filter(Boolean);
-    const grades = [...new Set(entries.flatMap(g => split(g.gradeLabel)))];
-    const missions = [...new Set(entries.flatMap(g => split(g.mission)))];
-    const change = s.changeRequest?.to || s.changeTo || '';
+    const live = TYPE_LIVE.includes(s.status);
+    const change = live ? (s.changeRequest?.to || s.changeTo || '') : '';
     const html = [
-      ...grades.map(l => `<span class="type-badge">${esc(l)}</span>`),
-      ...missions.map(l => `<span class="type-badge mission">${esc(l)}</span>`),
-      ...(s.yupflSource ? [`<span class="type-badge source">${esc(s.yupflSource)}</span>`] : []),
+      ...typeLabels(s).map(l => `<span class="type-badge">${esc(l)}</span>`),
+      ...(live && s.yupflSource ? [`<span class="type-badge source">${esc(s.yupflSource)}</span>`] : []),
       ...(change ? [`<span class="type-badge change">${esc(change)}</span>`] : []),
     ].join('');
     return html ? `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html}</div>` : '<span style="color:#cbd5e1">-</span>';
   }
+
 
   // ── 캠페인 타입 변경 요청 ─────────────────────────────────
   // 체크한 승인·예약 캠페인에 바꿀 상품을 요청 → 접수관리·진행현황 등급 아래 빨간 배지, 접수관리 '변경' 카드·필터로 확인.
@@ -449,13 +441,7 @@
     if (btn) { btn.disabled = true; label.textContent = '다운로드 중...'; }
     const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     try {
-      const [all, grades] = await Promise.all([HI.getAll(), HI.getGradesOnce()]);
-      const labelsOf = mid => {
-        const data = (grades || {})[mid];
-        const entries = !data ? [] : typeof data.gradeLabel === 'string' ? [data] : Object.values(data);
-        const split = v => (v || '').split(',').map(x => x.trim()).filter(Boolean);
-        return [...new Set(entries.flatMap(g => [...split(g.gradeLabel), ...split(g.mission)]))].join(', ');
-      };
+      const all = await HI.getAll();
       const midEntries = all.filter(s => s.mid).map(s => ({
         mid: s.mid,
         startDate: s.startDate || '',
@@ -465,7 +451,7 @@
         createdDate: s.createdAt ? ymd(new Date(s.createdAt)) : '',
         status: s.status === 'expired' ? 'ended' : (s.status || ''),
         isRequeue: !!s.isRequeue,
-        grade: labelsOf(s.mid),
+        grade: typeLabels(s).join(', '),
       }));
       const res = await fetch('https://kimpro-premium-938928195180.asia-northeast3.run.app/rank-table', {
         method: 'POST',
