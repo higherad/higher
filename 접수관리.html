@@ -1673,15 +1673,12 @@ window.toggleProdPanel = function(e) {
   }
 
 
-  // 승인 시점 유입플 분류 몫(일 목표)·금액을 캠페인에 고정 — 정산관리 유입플 금액 열·캐시 차감에 씀(allocate와 같은 규칙)
+  // 승인 시점 유입플 분류 몫(일 목표)·금액을 캠페인에 고정 — 정산관리 유입플 금액 열·캐시 차감에 씀(allocRowsForSlot 배분 그대로)
   function yupflFieldsFor(slot) {
     if (!slot) return {};
-    const yupfl = ap().find(p => p.classifyOnly);
+    const yupfl = prods.find(p => p.classifyOnly);
     if (!yupfl) return {};
-    const deduct = ap().find(p => p.deductOnly);
-    const base = slot.dailyTarget||0;
-    const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
-    const target = Math.min(yupflAlloc(remaining, yupfl.fixedPct), remaining);
+    const target = allocRowsForSlot(slot).alloc[yupfl.id] || 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
     if (target <= 0) return {};
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
     return { yupflTarget: target, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice };
@@ -1868,11 +1865,16 @@ window.toggleProdPanel = function(e) {
     const cat = r.category || HI.kwCategoryOf(r.rankKeyword, guideCats);
     const rule = cat ? pickGuideRule(guideRules, cat, r.dailyTarget || 0) : null;
     if (!rule || !rule.reward.length) return [];
-    return rule.reward.map(g => {
+    const out = rule.reward.map(g => {
       const known = prods.find(p => p.name === g.name && !p.fixedAlloc);
       return known ? { ...known, ratio: g.ratio, kwPct: g.ratio }
         : { id: `grade_${g.name}`, name: g.name, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: g.ratio, kwPct: g.ratio, daysMultiplied: false };
     });
+    // 유입플 분류 = 가이드 풀스텍 상품 비율 합 — 리워드 상품과 같은 줄에서 비율대로 나눔(설정의 고정 %는 안 씀)
+    const yupfl = prods.find(p => p.classifyOnly);
+    const fullSum = rule.full.reduce((a, g) => a + g.ratio, 0);
+    if (yupfl && fullSum > 0) out.push({ ...yupfl, fixedAlloc: false, ratio: fullSum, kwPct: 0 });
+    return out;
   }
   window.toggleGuidePreset = async function() {
     if (guideModeOn) { guideModeOn = false; renderPS(); return; }
@@ -2041,7 +2043,8 @@ window.toggleProdPanel = function(e) {
     if (!gradeProds.length) {
       return { alloc: allocate(AP.slice(), r.dailyTarget||0), prods: AP, gradeProds: null };
     }
-    const asgn = [...AP.filter(p => p.fixedAlloc), ...gradeProds];
+    // 가이드는 유입플 분류를 비율 항목으로 넣으므로 고정 몫에서는 뺌(차감만 먼저)
+    const asgn = [...AP.filter(p => p.fixedAlloc && !(guideProds.length && p.classifyOnly)), ...gradeProds];
     return { alloc: allocate(asgn, r.dailyTarget||0), prods: asgn, gradeProds };
   }
 
@@ -2050,9 +2053,10 @@ window.toggleProdPanel = function(e) {
     if (!keywords) return '';
     const parts = keywords.split(',').map(k => k.trim()).filter(k => k);
     if (!parts.length) return '';
-    const counts = lrm(gradeProds.map(p => ({ id: p.id, ratio: p.ratio || 1 })), parts.length);
+    const kwProds = gradeProds.filter(p => !p.classifyOnly);  // 유입플 분류는 등록 안 하므로 키워드 몫 없음
+    const counts = lrm(kwProds.map(p => ({ id: p.id, ratio: p.ratio || 1 })), parts.length);
     let offset = 0;
-    for (const p of gradeProds) {
+    for (const p of kwProds) {
       if (p.id === prod.id) return parts.slice(offset, offset + (counts[p.id] || 0)).join(',');
       offset += counts[p.id] || 0;
     }
