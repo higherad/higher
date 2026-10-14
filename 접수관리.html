@@ -345,7 +345,7 @@
       <tr>
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
-        <th>캠페인타입</th><th>분류</th><th>플레이스명</th><th>MID</th><th>순위키워드</th>
+        <th>캠페인타입</th><th>플레이스명</th><th>MID</th><th>분류</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>삭제</th>
       </tr>
     </thead>
@@ -733,9 +733,9 @@ window.toggleProdPanel = function(e) {
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${escProd(s.userId||'-')}</td>
           <td>${typeBadgesHtml(s)}${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) ? `${yupflSourceBadge(s)}${typeChangeLine(s)}` : ''}</td>
-          <td style="color:var(--text2)">${s.category ? escProd(s.category) : '<span style="color:#dc2626;font-weight:700;" title="분류 없음 — 분류 설정에 키워드 추가">-</span>'}</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
+          <td style="color:var(--text2)">${s.category ? escProd(s.category) : '<span style="color:#dc2626;font-weight:700;" title="분류 없음 — 분류 설정에 키워드 추가">-</span>'}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${escProd(s.rankKeyword)}</a>` : '-'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
@@ -2212,14 +2212,14 @@ window.toggleProdPanel = function(e) {
       const statusText = { pending:'대기', accepted:'접수', active:'승인', expired:'종료', split:'분할', requeue:'재접수', force_stopped:'강제종료' };
       // 일 목표를 하루 몫으로 나눔: 리워드 = 실제 접수한 수량(일반 몫), 유입플·차감 = 승인 때 고정한 값 — 목록의 일반·유입플·차감 줄과 같은 값
       const dedDaily = s => s.deductTarget ? Math.round(s.deductTarget / (s.days || 1)) : '';
-      const header = ['접수일시','대행사','캠페인타입','분류','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','리워드','유입플','차감','상태','검색키워드'];
+      const header = ['접수일시','대행사','캠페인타입','업체명','URL','MID','분류','순위키워드','일 수','시작일','일 목표','리워드','유입플','차감','상태','검색키워드'];
       const rows = filtered.map(s => [
         s.createdAt ? ymd(new Date(s.createdAt)) : '',
-        s.agencyId||'', campaignType(s), s.category||'', s.storeName||'', s.url||'', s.mid||'',
+        s.agencyId||'', campaignType(s), s.storeName||'', s.url||'', s.mid||'', s.category||'',
         s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', Math.max(0, (s.dailyTarget||0) - (s.yupflTarget||0) - (Number(dedDaily(s))||0))||'', s.yupflTarget||'', dedDaily(s), statusText[s.status]||s.status||'-', s.searchKeyword||'',
       ]);
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-      ws['!cols'] = [{wch:12},{wch:16},{wch:18},{wch:8},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8},{wch:20}];
+      ws['!cols'] = [{wch:12},{wch:16},{wch:18},{wch:22},{wch:48},{wch:14},{wch:8},{wch:14},{wch:6},{wch:12},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8},{wch:20}];
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
       // MID별 검색키워드 히스토리(히스토리 모달과 같은 소스) — 같은 MID는 한 번만 조회
