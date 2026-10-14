@@ -2990,6 +2990,13 @@ window.toggleProdPanel = function(e) {
     const checkedKeys = getCheckedKeys();
     const target = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
     if (!target.length) { alert('다운로드할 데이터가 없습니다.'); return; }
+    // 승인 때 리워드·유입플·차감으로 나뉜 건만 — 아직 안 나뉜 건이 섞여 있으면 받지 않음
+    const unsplit = target.filter(s => !s.yupflTarget && !s.deductTarget);
+    if (unsplit.length) {
+      const names = unsplit.slice(0, 5).map(s => `· ${s.storeName || s.mid}`).join('\n') + (unsplit.length > 5 ? `\n외 ${unsplit.length - 5}건` : '');
+      alert(`아직 리워드·유입플·차감으로 나뉘지 않은 캠페인이 ${unsplit.length}건 있어 시트 분류를 할 수 없습니다.\n승인된 캠페인만 체크해서 다시 눌러 주세요.\n\n${names}`);
+      return;
+    }
     const btn = document.getElementById('dl-main-btn');
     if (btn?.disabled) return;
     const original = btn ? btn.textContent : '';
@@ -3023,9 +3030,7 @@ window.toggleProdPanel = function(e) {
         const fs = rule ? [...rule.full].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name)) : [];
         const patch = {};
         if (live && cat && !s.category) patch.category = cat;
-        // 배지는 승인 때 리워드·유입플·차감으로 나뉜 건에만 새로 달고, 이미 있으면 최신 가이드로 갱신
-        const splitDone = !!(s.yupflTarget || s.deductTarget) || fullstackLabels(s).length > 0;
-        if (live && splitDone && fs.length && fs.join() !== fullstackLabels(s).join()) patch.fullstackType = fs;
+        if (live && fs.length && fs.join() !== fullstackLabels(s).join()) patch.fullstackType = fs;
         if (Object.keys(patch).length) typeUpdates.push([s, patch]);
         return [s.agencyId || '', s.storeName || '', s.mid || '', s.rankKeyword || '', cat, s.dailyTarget || '', rule ? rule.range : '',
           ...fullNames.map(n => rule ? pct(rule.full, n) : ''), ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''),
@@ -5672,9 +5677,18 @@ window.toggleProdPanel = function(e) {
         if (owner.has(n(v))) dup.push(`${v}(${owner.get(n(v))})`);
         else { owner.set(n(v), cats[ci].name); vals.push(v); }
       });
-      if (vals.length) { cats[ci].keywords.push(...vals); render(); save(); }
+      if (vals.length) { cats[ci].keywords.push(...vals); render(); save().then(fillEmpty); }
       else inp.value = '';
       if (dup.length) alert(`이미 있는 키워드라 뺐습니다: ${dup.join(', ')}`);
+    };
+    // 키워드를 추가하면 분류가 빈 대기·접수·승인·분할 캠페인을 지금 설정으로 채움(이미 분류된 건은 그대로)
+    const fillEmpty = async () => {
+      const todo = allSlots.filter(s => ['pending', 'accepted', 'active', 'split'].includes(s.status) && !s.category)
+        .map(s => [s, HI.kwCategoryOf(s.rankKeyword, cats)]).filter(([, c]) => c);
+      if (!todo.length) return;
+      await Promise.all(todo.map(([s, category]) => HI.updateCampaign(s._key, { category }).then(() => { s.category = category; })));
+      renderReceipts(false);
+      alert(`분류가 비어 있던 캠페인 ${todo.length}건을 채웠습니다.\n\n${todo.slice(0, 5).map(([s, c]) => `· ${s.storeName || s.mid} → ${c}`).join('\n')}${todo.length > 5 ? `\n외 ${todo.length - 5}건` : ''}`);
     };
     overlay.querySelector('#kc-list').addEventListener('click', e => {
       const t = e.target.dataset;
