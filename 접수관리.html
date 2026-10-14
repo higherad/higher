@@ -563,10 +563,14 @@ window.toggleProdPanel = function(e) {
 
   // 캠페인타입 = 비즈핏 등록(또는 분할 예약) 때 캠페인에 저장한 실제 상품명(campaignType) — 캠페인별 기록이라 종료 후에도 남음
   const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
+  // 풀스텍 = 시트 분류 때 가이드로 정해진 풀스텍(유입플) 상품(fullstackType) — 등급 매칭엔 안 씀
+  const fullstackLabels = s => Array.isArray(s?.fullstackType) ? s.fullstackType : (s?.fullstackType ? Object.values(s.fullstackType) : []);
   function typeBadgesHtml(s) {
-    const labels = typeLabels(s);
-    if (!labels.length) return '<span style="color:#cbd5e1">-</span>';
-    return `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${labels.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${escProd(l)}</span>`).join('')}</div>`;
+    const badge = (l, style) => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;${style}">${escProd(l)}</span>`;
+    const html = [...typeLabels(s).map(l => badge(l, 'background:#f1f5f9;color:#334155;border:1px solid #e2e8f0')),
+      ...fullstackLabels(s).map(l => badge(l, 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4'))];
+    if (!html.length) return '<span style="color:#cbd5e1">-</span>';
+    return `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html.join('')}</div>`;
   }
   // 등록 성공·예약한 상품명을 캠페인에 합쳐 저장(델타 '델타#1' 같은 행 구분 꼬리는 뗌)
   async function addCampaignType(slotKey, names, slot) {
@@ -2085,7 +2089,7 @@ window.toggleProdPanel = function(e) {
 
     // 캠페인타입 = 목록 칸과 같은 값(저장된 상품 + 진행 중이면 유입플 선택)
     const LIVE_TYPE = ['pending','accepted','active','split','requeue','force_stopped'];
-    const campaignType = s => [...typeLabels(s), LIVE_TYPE.includes(s.status) ? s.yupflSource : ''].filter(Boolean).join(', ');
+    const campaignType = s => [...typeLabels(s), ...fullstackLabels(s), LIVE_TYPE.includes(s.status) ? s.yupflSource : ''].filter(Boolean).join(', ');
 
     async function buildAndDownload() {
       const XLSX = window.XLSX;
@@ -2999,6 +3003,8 @@ window.toggleProdPanel = function(e) {
         document.head.appendChild(s);
       })]);
       const rules = parseGuide(values || []);
+      // 분류가 빈 캠페인(접수 뒤 키워드를 추가한 경우 등)은 지금 분류 설정으로 채워서 같이 저장
+      const cats = await HI.getKwCategories();
       // 풀스텍 열 순서: 기본 → 둘러보고 나감 → 카톡 길찾기 → 카톡 공유(그 밖의 상품은 뒤에)
       const FULL_ORDER = ['기본', '둘러보고', '길찾기', '공유'];
       const fullRank = n => { const i = FULL_ORDER.findIndex(k => n.includes(k)); return i < 0 ? FULL_ORDER.length : i; };
@@ -3007,9 +3013,19 @@ window.toggleProdPanel = function(e) {
       const pct = (items, name) => { const it = items.find(p => p.name === name); return it ? `${Math.round(it.ratio * 100)}%` : ''; };
       const header = ['대행사', '업체명', 'MID', '순위키워드', '분류', '일 목표', '구간',
         ...fullNames.map(n => `[풀스텍] ${n}`), ...rewardNames.map(n => `[리워드] ${n}`), '비고'];
+      // 풀스텍 배지 이름 — 가이드 상품명을 짧게(기본·둘러보고 나감·카톡 길찾기·카톡 공유)
+      const shortFull = n => n.includes('기본') ? '기본' : n.includes('둘러보고') ? '둘러보고 나감'
+        : n.includes('길찾기') ? '카톡 길찾기' : n.includes('공유') ? '카톡 공유' : n;
+      const typeUpdates = [];
       const rows = target.map(s => {
-        const cat = s.category || '';
+        const live = !['expired', 'deleted'].includes(s.status);
+        const cat = s.category || HI.kwCategoryOf(s.rankKeyword, cats);
         const rule = cat ? pickGuideRule(rules, cat, s.dailyTarget || 0) : null;
+        const fs = rule ? [...rule.full].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name)) : [];
+        const patch = {};
+        if (live && cat && !s.category) patch.category = cat;
+        if (live && fs.length && fs.join() !== fullstackLabels(s).join()) patch.fullstackType = fs;
+        if (Object.keys(patch).length) typeUpdates.push([s, patch]);
         return [s.agencyId || '', s.storeName || '', s.mid || '', s.rankKeyword || '', cat, s.dailyTarget || '', rule ? rule.range : '',
           ...fullNames.map(n => rule ? pct(rule.full, n) : ''), ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''),
           !cat ? '분류 없음' : !rule ? `가이드에 '${cat}' 없음` : ''];
@@ -3025,6 +3041,8 @@ window.toggleProdPanel = function(e) {
       ws['!cols'] = header.map((h, i) => ({ wch: i < 7 ? [14, 22, 12, 14, 6, 8, 9][i] : h === '비고' ? 16 : 14 }));
       XLSX.utils.book_append_sheet(wb, ws, '분류');
       XLSX.writeFile(wb, `시트분류_${ymd(new Date()).replace(/-/g, '')}.xlsx`);
+      await Promise.all(typeUpdates.map(([s, patch]) => HI.updateCampaign(s._key, patch).then(() => Object.assign(s, patch))));
+      if (typeUpdates.length) renderReceipts(false);
     } catch (e) {
       alert('시트 분류 실패: ' + e.message);
     } finally {
