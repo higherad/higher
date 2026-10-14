@@ -224,31 +224,24 @@
   .pm-btn-del:hover{background:rgba(239,68,68,.18);}
 </style>
 
-<div class="stat-bar" id="receipt-stat-bar" style="grid-template-columns:repeat(6,1fr)">
-  <div class="stat-box">
-    <div class="sb-icon" style="background:rgba(245,158,11,.1)">⏳</div>
-    <div><div class="sb-label">대기</div><div class="sb-val" id="stat-pending" style="color:var(--warn)">-</div></div>
-  </div>
-  <div class="stat-box">
-    <div class="sb-icon" style="background:rgba(59,130,246,.1)">📋</div>
-    <div><div class="sb-label">접수</div><div class="sb-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
-  </div>
-  <div class="stat-box">
-    <div class="sb-icon" style="background:rgba(16,185,129,.1)">✅</div>
-    <div><div class="sb-label">승인</div><div class="sb-val" id="stat-active" style="color:var(--accent)">-</div></div>
-  </div>
-  <div class="stat-box clickable" onclick="openSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다">
-    <div class="sb-icon" style="background:#fef3c7">⏰</div>
-    <div><div class="sb-label" style="color:#b45309;font-weight:700;">예약 <span style="font-size:10px;">↗</span></div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
-  </div>
-  <div class="stat-box">
-    <div class="sb-icon" style="background:#ede9fe">🔁</div>
-    <div><div class="sb-label">재접수</div><div class="sb-val" id="stat-requeue" style="color:#6d28d9">-</div></div>
-  </div>
-  <div class="stat-box">
-    <div class="sb-icon" style="background:#fee2e2">🛑</div>
-    <div><div class="sb-label">강제종료</div><div class="sb-val" id="stat-force" style="color:#b91c1c">-</div></div>
-  </div>
+<style>
+  /* 상단 카드 — 옛 김프로 카드와 같은 모양(가운데 정렬 8칸) */
+  #receipt-stat-bar { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:16px; }
+  #receipt-stat-bar .rc-stat { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
+  #receipt-stat-bar .rc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
+  #receipt-stat-bar .rc-sub { color:var(--muted); font-weight:500; margin-right:5px; padding-right:5px; border-right:1px solid var(--border); }
+  #receipt-stat-bar .rc-val { font-size:22px; font-weight:800; line-height:1; }
+  @media (max-width:1100px) { #receipt-stat-bar { grid-template-columns:repeat(4,1fr); } }
+</style>
+<div id="receipt-stat-bar">
+  <div class="rc-stat"><div class="rc-label">대기</div><div class="rc-val" id="stat-pending" style="color:#b45309">-</div></div>
+  <div class="rc-stat"><div class="rc-label">접수</div><div class="rc-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
+  <div class="rc-stat"><div class="rc-label">승인</div><div class="rc-val" id="stat-active" style="color:var(--accent)">-</div></div>
+  <div class="rc-stat" style="cursor:pointer;" onclick="openSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="rc-label" style="color:#b45309;font-weight:700;">예약 <span style="font-size:10px;">↗</span></div><div class="rc-val" id="stat-split" style="color:#b45309">-</div></div>
+  <div class="rc-stat"><div class="rc-label"><span class="rc-sub">재접수</span>대기</div><div class="rc-val" id="stat-requeue" style="color:#b45309">-</div></div>
+  <div class="rc-stat"><div class="rc-label"><span class="rc-sub">재접수</span>접수</div><div class="rc-val" id="stat-requeue-accepted" style="color:#1d4ed8">-</div></div>
+  <div class="rc-stat"><div class="rc-label"><span class="rc-sub">재접수</span>승인</div><div class="rc-val" id="stat-requeue-active" style="color:var(--accent)">-</div></div>
+  <div class="rc-stat"><div class="rc-label">강제종료</div><div class="rc-val" id="stat-force" style="color:#dc2626">-</div></div>
 </div>
 
 <!-- 상품 유형 설정 패널 -->
@@ -748,13 +741,16 @@ window.toggleProdPanel = function(e) {
     }
     const all      = getFiltered();
     filteredAll    = all;
-    const pending  = allSlots.filter(s => s.status === 'pending').length;
-    const accepted = allSlots.filter(s => s.status === 'accepted').length;
-    const active   = allSlots.filter(s => s.status === 'active').length;
+    // 대기·접수·승인은 재접수 제외(재접수는 아래 재접수 카드로 따로)
+    const pending  = allSlots.filter(s => s.status === 'pending' && !s.isRequeue).length;
+    const accepted = allSlots.filter(s => s.status === 'accepted' && !s.isRequeue).length;
+    const active   = allSlots.filter(s => s.status === 'active' && !s.isRequeue).length;
     document.getElementById('stat-pending').textContent  = pending.toLocaleString();
     document.getElementById('stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('stat-active').textContent   = active.toLocaleString();
     document.getElementById('stat-requeue').textContent  = allSlots.filter(s => s.status === 'requeue').length.toLocaleString();
+    document.getElementById('stat-requeue-accepted').textContent = allSlots.filter(s => s.isRequeue && s.status === 'accepted').length.toLocaleString();
+    document.getElementById('stat-requeue-active').textContent   = allSlots.filter(s => s.isRequeue && s.status === 'active').length.toLocaleString();
     document.getElementById('stat-force').textContent    = allSlots.filter(s => s.status === 'force_stopped').length.toLocaleString();
     // 예약(split) 카드는 예약 분할 현황 팝업과 동일한 계산(computeScheduleGroupCount) — 재조회 중엔 깜빡임 방지로 기존 값 유지.
     computeScheduleGroupCount().then(n => {
