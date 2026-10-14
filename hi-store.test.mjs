@@ -135,4 +135,34 @@ await HI.stampChargeAndPaid([o1]);
 assert.equal(tree.hi.settle_snapshots[gk].amount, 123, '고정 금액은 건드리지 않음');
 assert.equal(tree.hi.settle_snapshots[gk].chargeConfirmedByName, '관리자');
 
+// ── 강제종료: 같은 MID 진행 중만 force_stopped, 남은 기간 재접수 1회, 다음 날 종료 ──
+const f1 = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '777', searchKeyword: 'fk', days: 10, dailyTarget: 50, unitPrice: 20,
+  startDate: '2026-10-10', endDate: '2026-10-19', yupflSource: '풀스택' });
+const fPending = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '777', days: 5, dailyTarget: 10, startDate: '2026-10-14', endDate: '2026-10-18' });
+await HI.updateCampaign(f1._key, { status: 'active' });
+assert.deepEqual(await HI.forceStopMid('777', '2026-10-14'), { stopped: 1, requeued: 1 });
+const fs1 = tree.hi.campaigns.live[f1._key];
+assert.equal(fs1.status, 'force_stopped');
+assert.equal(fs1.origEndDate, '2026-10-19');
+assert.equal(fs1.forceStoppedAt, '2026-10-14');
+assert.equal(fs1.days, 10, '원 캠페인 일수(금액) 그대로');
+assert.equal(HI.isBillable(fs1), true, '강제종료도 정산 대상');
+assert.equal(tree.hi.campaigns.live[fPending._key].status, 'pending', '승인 전 캠페인은 안 건드림');
+const rq = Object.entries(tree.hi.campaigns.live).find(([k, v]) => v.isRequeue && v.mid === '777');
+assert.ok(rq, '재접수 캠페인 생성');
+assert.equal(rq[1].status, 'requeue');
+assert.equal(rq[1].startDate, '2026-10-15');
+assert.equal(rq[1].endDate, '2026-10-19');
+assert.equal(rq[1].days, 5, '남은 일수 = 내일~원래 종료일');
+assert.equal(rq[1].yupflSource, '풀스택');
+assert.equal(tree.hi.campaign_keywords[rq[0]].search, 'fk', '검색키워드 이어받음');
+assert.equal(HI.isBillable(rq[1]), false, '재접수는 정산 제외');
+await HI.updateCampaign(f1._key, { status: 'active' });
+assert.deepEqual(await HI.forceStopMid('777', '2026-10-14'), { stopped: 1, requeued: 0 }, '재접수는 1회만');
+assert.equal(HI.shouldExpire(tree.hi.campaigns.live[f1._key], '2026-10-14'), false, '강제종료 당일은 유지');
+assert.equal(HI.shouldExpire(tree.hi.campaigns.live[f1._key], '2026-10-15'), true);
+await HI.expire([f1._key]);
+assert.equal(tree.hi.campaigns.closed[f1._key].status, 'expired');
+assert.equal(tree.hi.campaigns.closed[f1._key].endDate, '2026-10-14', '종료일 = 강제종료일');
+
 console.log('hi-store 자가검사 통과');

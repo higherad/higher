@@ -92,7 +92,8 @@ const P = {
 };
 
 const CLOSED_STATUSES   = new Set(['expired', 'deleted']);
-const BILLABLE_STATUSES = new Set(['active', 'accepted', 'expired', 'pending', 'split']);
+// force_stopped: 강제종료돼도 원 캠페인 금액은 그대로 정산(남은 기간은 정산 제외인 재접수 캠페인으로 이어감)
+const BILLABLE_STATUSES = new Set(['active', 'accepted', 'expired', 'pending', 'split', 'force_stopped']);
 // 캠페인 필드명 → campaign_keywords 필드명 (페이지는 왼쪽 필드명으로 읽고 씀)
 const KW_FIELDS = { searchKeyword: 'search', yupflKeyword: 'yupfl', splitKeywords: 'split' };
 const KW_HISTORY_MAX = 10;
@@ -479,7 +480,9 @@ const HI = {
       if (!userId) userId = u?.username || '';
     }
     const rec = {
-      status: 'pending',
+      status: data.isRequeue ? 'requeue' : 'pending',
+      ...(data.isRequeue ? { isRequeue: true } : {}),
+      ...(data.yupflSource ? { yupflSource: data.yupflSource } : {}),
       origin: 'ha',
       // 엑셀 일괄접수는 병렬 전송이라 도착순≠행순 — 호출부가 행 인덱스로 어긋낸 createdAt을 그대로 신뢰(위조 이득 없음)
       createdAt: data.createdAt || nowIso(),
@@ -522,13 +525,19 @@ const HI = {
     });
   },
   // 종료일 지난 진행 캠페인 일괄 종료(expired) — 한 번의 update로 live→closed 이동
+  // 자동 종료 대상 — 종료일 지난 승인 건, 강제종료일 다음 날부터의 강제종료 건(higherad-auto _expire_live와 같은 규칙)
+  shouldExpire(s, today) {
+    if (s.status === 'force_stopped') return !!s.forceStoppedAt && s.forceStoppedAt < today;
+    return s.status === 'active' && !!s.endDate && s.endDate < today;
+  },
   async expire(keys) {
     if (!keys.length) return;
     const curs = await Promise.all(keys.map(k => readCampaign(k)));
     const updates = {};
     curs.forEach((c, i) => {
       if (!c || c.bucket !== 'live') return;
-      updates[`${P.closed}/${keys[i]}`] = { ...c.data, status: 'expired' };
+      const forced = c.data.status === 'force_stopped' && c.data.forceStoppedAt;
+      updates[`${P.closed}/${keys[i]}`] = { ...c.data, status: 'expired', ...(forced ? { endDate: c.data.forceStoppedAt } : {}) };
       updates[`${P.live}/${keys[i]}`] = null;
     });
     if (Object.keys(updates).length) await update(ref(db), updates);
@@ -543,6 +552,35 @@ const HI = {
     await writeCampaign(key, { ...fields, status: 'expired' }, cur);
     await adjustSettleSnapshot(cur.data, Math.max(0, (Number(cur.data.days) || 0) - fields.days));
     return fields;
+  },
+
+  // 비즈핏 강제종료 성공 후 같은 MID의 진행 중(승인) 캠페인 처리 — 상태 force_stopped + 원래 종료일·강제종료일 기록
+  // (일수·금액은 안 바꿈, 다음 날 자동 종료). 남은 기간(내일~원래 종료일)이 1일 이상이면 재접수 캠페인을 1회만 만듦 —
+  // 정산 제외(isRequeue), 상태 'requeue'로 목록에 올라가 직원이 기존 접수 흐름으로 비즈핏에 다시 등록
+  async forceStopMid(mid, today = ymd(new Date())) {
+    const tmr = new Date(`${today}T00:00:00`); tmr.setDate(tmr.getDate() + 1);
+    const tomorrow = ymd(tmr);
+    const camps = (await HI.getByMid(mid)).filter(s => s.mid === mid && s.status === 'active' && !(s.startDate > today));
+    const result = { stopped: 0, requeued: 0 };
+    for (const s of camps) {
+      const origEnd = s.endDate || '';
+      const patch = { status: 'force_stopped', origEndDate: origEnd, forceStoppedAt: today };
+      const remain = origEnd ? Math.round((new Date(`${origEnd}T00:00:00`) - tmr) / 86400000) + 1 : 0;
+      if (remain >= 1 && !s.requeueCreated && await HI.claimFlag(`requeue/${s._key}`)) {
+        const kw = await HI.getKeywords(s._key);
+        await HI.addCampaign({
+          agencyId: s.agencyId, userId: s.userId, storeName: s.storeName, url: s.url, mid: s.mid,
+          rankKeyword: s.rankKeyword, searchKeyword: kw.search || '', memo: s.memo,
+          dailyTarget: s.dailyTarget, days: remain, startDate: tomorrow, endDate: origEnd,
+          unitPrice: s.unitPrice, isRequeue: true, yupflSource: s.yupflSource,
+        });
+        patch.requeueCreated = true;
+        result.requeued++;
+      }
+      await writeCampaign(s._key, patch);
+      result.stopped++;
+    }
+    return result;
   },
 
   // ── 원자적 선점 ───────────────────────────────────────────

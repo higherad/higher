@@ -570,6 +570,7 @@
     document.getElementById('page-actions').innerHTML = page === '접수관리.html'
       ? '<button style="background:#0d9488;color:#fff;" onclick="openReceiptExcelModal()">📊 엑셀 접수</button>'
         + ' <button id="rank-table-btn" style="background:#334155;color:#fff;" onclick="downloadRankTable()">📈 순위표</button>'
+        + ' <button style="background:#dc2626;color:#fff;" onclick="openForceStopModal()">🛑 강제종료</button>'
       : '';
 
     const area = document.getElementById('content-area');

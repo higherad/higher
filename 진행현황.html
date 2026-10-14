@@ -307,7 +307,7 @@
       const [live, recent] = await Promise.all([HI.getLive(), HI.getRecentClosed()]);
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리(한 번의 쓰기로 live→closed 이동) ──
-      const toExpire = live.filter(s => s.status === 'active' && s.endDate && s.endDate < todayStr);
+      const toExpire = live.filter(s => HI.shouldExpire(s, todayStr));
       if (toExpire.length) {
         await HI.expire(toExpire.map(s => s._key));
         toExpire.forEach(s => { s.status = 'expired'; });

@@ -224,7 +224,7 @@
   .pm-btn-del:hover{background:rgba(239,68,68,.18);}
 </style>
 
-<div class="stat-bar" id="receipt-stat-bar" style="grid-template-columns:repeat(4,1fr)">
+<div class="stat-bar" id="receipt-stat-bar" style="grid-template-columns:repeat(6,1fr)">
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(245,158,11,.1)">⏳</div>
     <div><div class="sb-label">대기</div><div class="sb-val" id="stat-pending" style="color:var(--warn)">-</div></div>
@@ -240,6 +240,14 @@
   <div class="stat-box clickable" onclick="openSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다">
     <div class="sb-icon" style="background:#fef3c7">⏰</div>
     <div><div class="sb-label" style="color:#b45309;font-weight:700;">예약 <span style="font-size:10px;">↗</span></div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:#ede9fe">🔁</div>
+    <div><div class="sb-label">재접수</div><div class="sb-val" id="stat-requeue" style="color:#6d28d9">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:#fee2e2">🛑</div>
+    <div><div class="sb-label">강제종료</div><div class="sb-val" id="stat-force" style="color:#b91c1c">-</div></div>
   </div>
 </div>
 
@@ -306,6 +314,8 @@
     <option value="accepted">접수</option>
     <option value="split">분할</option>
     <option value="active">승인</option>
+    <option value="requeue">재접수</option>
+    <option value="force_stopped">강제종료</option>
   </select>
   <select id="filter-slot-type" onchange="renderReceipts()">
     <option value="">전체 등급</option>
@@ -505,7 +515,12 @@ window.toggleProdPanel = function(e) {
     active:   '<span class="status-badge s-active">승인</span>',
     expired:  '<span class="status-badge s-expired">종료</span>',
     split:    '<span class="status-badge s-pending" style="background:#fef3c7;color:#b45309;">분할</span>',
+    requeue:  '<span class="status-badge s-pending" style="background:#ede9fe;color:#6d28d9;">재접수</span>',
+    force_stopped: '<span class="status-badge s-expired" style="background:#fee2e2;color:#b91c1c;">강제종료</span>',
   };
+  // 재접수 캠페인이 접수·승인으로 넘어간 뒤에도 재접수 건임을 표시
+  const requeueTag = s => s.isRequeue && s.status !== 'requeue'
+    ? ' <span style="font-size:10px;font-weight:700;color:#6d28d9;" title="강제종료 후 남은 기간 재접수 — 정산 제외">재접수</span>' : '';
 
   const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const sanitizeFbKey = s => s.replace(/[.#$[\]/]/g, '_');
@@ -595,7 +610,7 @@ window.toggleProdPanel = function(e) {
 
   async function injectGradeBadges(slots) {
     await Promise.all(slots.map(async s => {
-      if (!['pending','accepted','active','split'].includes(s.status) || !s.mid) return;
+      if (!['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) || !s.mid) return;
       const el = document.getElementById(`grade-${s._key}`);
       if (!el) return;
       const data = await fetchGrade(s.mid);
@@ -646,7 +661,7 @@ window.toggleProdPanel = function(e) {
       if (s.status === 'deleted') return false;
       if (status && s.status !== status) return false;
       if (gradeFilter) {
-        if (!['pending','accepted','active','split'].includes(s.status)) return false;
+        if (!['pending','accepted','active','split','requeue','force_stopped'].includes(s.status)) return false;
         const cached = GRADE_CACHE.get(s.mid);
         if (!cached) return false;
         if (!_allFilterLabels(cached).includes(gradeFilter)) return false;
@@ -718,9 +733,7 @@ window.toggleProdPanel = function(e) {
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
       // 한 번의 multi-path 쓰기로 live→closed 이동
       const todayStr = ymd(new Date());
-      const toExpire = allSlots.filter(s =>
-        s.status === 'active' && s.endDate && s.endDate < todayStr
-      );
+      const toExpire = allSlots.filter(s => HI.shouldExpire(s, todayStr));
       if (toExpire.length) {
         await HI.expire(toExpire.map(s => s._key));
         toExpire.forEach(s => { s.status = 'expired'; });
@@ -741,6 +754,8 @@ window.toggleProdPanel = function(e) {
     document.getElementById('stat-pending').textContent  = pending.toLocaleString();
     document.getElementById('stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('stat-active').textContent   = active.toLocaleString();
+    document.getElementById('stat-requeue').textContent  = allSlots.filter(s => s.status === 'requeue').length.toLocaleString();
+    document.getElementById('stat-force').textContent    = allSlots.filter(s => s.status === 'force_stopped').length.toLocaleString();
     // 예약(split) 카드는 예약 분할 현황 팝업과 동일한 계산(computeScheduleGroupCount) — 재조회 중엔 깜빡임 방지로 기존 값 유지.
     computeScheduleGroupCount().then(n => {
       const el = document.getElementById('stat-split');
@@ -761,7 +776,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${escProd(s.userId||'-')}</td>
-          <td>${['pending','accepted','active','split'].includes(s.status)
+          <td>${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status)
             ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>${yupflSourceBadge(s)}`
             : `<span style="color:#cbd5e1">-</span>`
           }</td>
@@ -772,11 +787,11 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}${dailySplitHtml(s)}</td>
-          <td>${stMap[s.status]||s.status}${s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : ''}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
+          <td>${stMap[s.status]||s.status}${requeueTag(s)}${s.status==='force_stopped' && s.forceStoppedAt ? `<div style="font-size:10px;color:var(--muted);">${s.forceStoppedAt.slice(5)} 강제종료 · 다음 날 종료</div>` : ''}${s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : ''}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
               <button class="action-btn" style="background:#f1f5f9;color:var(--text2);" onclick="viewDetail('${s._key}')">상세</button>
-              ${s.status==='pending' ? `
+              ${s.status==='pending' || s.status==='requeue' ? `
                 <button class="action-btn" style="background:rgba(59,130,246,.15);color:#1d4ed8;" onclick="acceptOne('${s._key}')">접수</button>
               ` : ''}
               ${s.status==='accepted' ? `
@@ -799,7 +814,7 @@ window.toggleProdPanel = function(e) {
     injectGradeBadges(page);
 
     // 등급 백그라운드 로드 — 미캐시 MID만 로드, 완료 시 필터 갱신
-    const uniqueMids    = [...new Set(allSlots.filter(s => ['pending','accepted','active','split'].includes(s.status) && s.mid).map(s => s.mid))];
+    const uniqueMids    = [...new Set(allSlots.filter(s => ['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) && s.mid).map(s => s.mid))];
     const uncachedMids  = uniqueMids.filter(mid => !GRADE_CACHE.has(mid));
     if (uncachedMids.length) {
       fetchGradesBatch(uncachedMids).then(() => {
@@ -2053,7 +2068,8 @@ window.toggleProdPanel = function(e) {
     if (dTarget <= 0) return {};
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
     const totalTarget = dTarget * (slot.days||0); // 전체 목표 차감(일수 반영) — buildNormalRows와 동일 기준으로 맞춰 차감 금액과 일치시킴
-    return { deductTarget: totalTarget, deductAmount: totalTarget * unitPrice };
+    // 재접수는 원 캠페인 승인 때 전체 기간 몫을 이미 캐시 차감함 — 수량은 같게 두고 금액만 0(이중 차감 방지)
+    return { deductTarget: totalTarget, deductAmount: slot.isRequeue ? 0 : totalTarget * unitPrice };
   }
 
   // 유입플 키워드 개수에 매칭되는 규칙을 찾음 — 매칭 없으면 null (이 경우 통합 고정 배분을 사용)
@@ -2123,7 +2139,7 @@ window.toggleProdPanel = function(e) {
     }
     if (target <= 0) return {};
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
-    return { yupflTarget: target, yupflAmount: target * (slot.days||0) * unitPrice };
+    return { yupflTarget: target, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice };
   }
 
   // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐
@@ -6592,6 +6608,172 @@ window.toggleProdPanel = function(e) {
 
     finishSubmitUI(overlay, applyBtn, closeBtn, youpflBtn, otherBtns, gate, d.okTotal + n.okTotal, d.failTotal + n.failTotal);
   }
+
+  // ── 🛑 강제종료 (버튼은 index.html 상단, 순위표 오른쪽) ──
+  // 엑셀(영업점/MID/Pcode, 강제종료 열이 있으면 O인 행만 — tools 임시중단_강제종료_양식 그대로 사용 가능)을 올려
+  // macro-7-bizfit-stop /process-stream으로 비즈핏 강제종료(임시중단 없음). 성공한 MID는 HI.forceStopMid로
+  // 진행 중 캠페인을 강제종료 상태로 바꾸고 남은 기간 재접수 캠페인 생성. 같은 MID에 예약(split)이 있으면 실행 불가
+  const BIZFIT_STOP_SERVER = 'https://macro-7-bizfit-stop-938928195180.asia-northeast3.run.app';
+  function loadXlsx() {
+    if (window.XLSX) return Promise.resolve();
+    return new Promise((ok, fail) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      sc.onload = ok; sc.onerror = () => fail(new Error('엑셀 라이브러리 로드 실패'));
+      document.head.appendChild(sc);
+    });
+  }
+  const fsSplitBlocked = mid => allSlots.some(s => s.mid === mid && s.status === 'split');
+  const fsActiveCount  = mid => allSlots.filter(s => s.mid === mid && s.status === 'active').length;
+
+  window.openForceStopModal = function() {
+    if (document.getElementById('fs-modal')) return;
+    let entries = [], running = false;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'fs-modal';
+    overlay.innerHTML = `
+      <div class="modal-box" style="width:min(96vw,760px);max-height:84vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div class="modal-title" style="margin-bottom:0;">🛑 강제종료</div>
+          <button type="button" id="fs-tpl" class="action-btn" style="background:#f1f5f9;color:var(--text2);">양식 받기</button>
+          <label class="action-btn" style="background:#0d9488;color:#fff;cursor:pointer;">📂 엑셀 올리기<input type="file" id="fs-file" accept=".xlsx,.xls" style="display:none"></label>
+          <span style="font-size:11px;color:var(--muted);">영업점 / MID / Pcode</span>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6;">
+          성공하면 그 MID의 진행 중(승인) 캠페인이 <b>강제종료</b>로 바뀌고 다음 날 자동 종료돼요(정산 금액은 그대로).
+          남은 기간(내일~원래 종료일)은 <b>재접수</b> 캠페인으로 목록에 올라가니 접수 흐름으로 다시 등록해 주세요(정산 제외).
+        </div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;">
+          <thead><tr style="background:var(--bg);">
+            <th style="width:30px;padding:6px;"><input type="checkbox" id="fs-all"></th>
+            <th style="padding:6px;text-align:left;">영업점</th><th style="padding:6px;text-align:left;">MID / Pcode</th>
+            <th style="padding:6px;">진행 중</th><th style="padding:6px;text-align:left;">상태</th>
+          </tr></thead>
+          <tbody id="fs-body"></tbody>
+        </table>
+        <div id="fs-log" style="margin-top:10px;max-height:140px;overflow-y:auto;font-size:11px;font-family:monospace;color:var(--text2);"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+          <button class="btn-cancel" id="fs-close">닫기</button>
+          <button id="fs-run" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">강제종료 실행</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const $ = sel => overlay.querySelector(sel);
+    const log = msg => { $('#fs-log').insertAdjacentHTML('beforeend', `<div>${new Date().toLocaleTimeString('ko-KR',{hour12:false})} ${escProd(msg)}</div>`); $('#fs-log').scrollTop = 1e9; };
+    const ST = { ready:'대기', running:'⏳ 진행 중', success:'✅ 완료', fail:'❌ 실패', blocked:'⛔ 예약 진행 중 — 강제종료 불가' };
+    function render() {
+      $('#fs-body').innerHTML = entries.length ? entries.map((e, i) => `
+        <tr style="border-top:1px solid var(--border);${e.status==='blocked'?'opacity:.55;':''}">
+          <td style="padding:6px;text-align:center;"><input type="checkbox" data-i="${i}" ${e.checked?'checked':''} ${e.status==='blocked'||running?'disabled':''}></td>
+          <td style="padding:6px;font-weight:600;">${escProd(e.agency)}</td>
+          <td style="padding:6px;">${escProd(e.mid)}<div style="font-size:10px;color:var(--muted);">${escProd(e.pcode)}</div></td>
+          <td style="padding:6px;text-align:center;">${fsActiveCount(e.mid)}건</td>
+          <td style="padding:6px;">${ST[e.status]}${e.result?`<div style="font-size:10px;color:var(--muted);">${escProd(e.result)}</div>`:''}</td>
+        </tr>`).join('') : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted);">엑셀을 올려 주세요.</td></tr>';
+      const sel = entries.filter(e => e.checked && e.status !== 'blocked');
+      $('#fs-run').disabled = running || !sel.length;
+      $('#fs-run').style.opacity = $('#fs-run').disabled ? '.5' : '';
+      $('#fs-run').textContent = running ? '실행 중...' : `강제종료 실행${sel.length ? ` (${sel.length})` : ''}`;
+    }
+    $('#fs-body').addEventListener('change', e => { const i = e.target.dataset.i; if (i != null) { entries[i].checked = e.target.checked; render(); } });
+    $('#fs-all').onchange = e => { entries.forEach(x => { if (x.status !== 'blocked' && x.status !== 'success') x.checked = e.target.checked; }); render(); };
+    $('#fs-close').onclick = () => { if (running) { alert('실행 중에는 닫을 수 없습니다.'); return; } overlay.remove(); };
+    $('#fs-tpl').onclick = async () => {
+      await loadXlsx();
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([['영업점','MID','Pcode']]);
+      ws['!cols'] = [{wch:18},{wch:14},{wch:22}];
+      XLSX.utils.book_append_sheet(wb, ws, '강제종료');
+      XLSX.writeFile(wb, '강제종료_양식.xlsx');
+    };
+    $('#fs-file').onchange = async e => {
+      const file = e.target.files[0]; e.target.value = '';
+      if (!file) return;
+      try {
+        await loadXlsx();
+        const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+        if (range.e.r > 5000) range.e.r = 5000; // 서식만 있는 빈 셀로 !ref가 커지면 느려짐
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', range });
+        const hdr = (rows[0] || []).map(h => String(h || '').trim());
+        const col = re => hdr.findIndex(h => re.test(h));
+        const ci = { agency: col(/영업점/), mid: col(/mid/i), pcode: col(/pcode/i), force: col(/강제종료/) };
+        const missing = [['영업점', ci.agency], ['MID', ci.mid], ['Pcode', ci.pcode]].filter(([, i]) => i < 0).map(([n]) => n);
+        if (missing.length) { alert(`양식이 맞지 않습니다 — ${missing.join('/')} 열을 찾을 수 없습니다.`); return; }
+        let added = 0, skipped = 0;
+        for (const row of rows.slice(1)) {
+          const agency = String(row[ci.agency] || '').trim(), mid = String(row[ci.mid] || '').trim();
+          const pcodes = String(row[ci.pcode] || '').split(',').map(x => x.trim()).filter(Boolean);
+          if (ci.force >= 0 && String(row[ci.force] || '').trim().toUpperCase() !== 'O') { if (agency || mid) skipped++; continue; }
+          if (!agency || !mid || !pcodes.length) { if (agency || mid) skipped++; continue; }
+          for (const pcode of pcodes) {
+            if (entries.some(x => x.mid === mid && x.pcode === pcode)) { skipped++; continue; }
+            const blocked = fsSplitBlocked(mid);
+            entries.push({ agency, mid, pcode, checked: !blocked, status: blocked ? 'blocked' : 'ready', result: '' });
+            added++;
+          }
+        }
+        log(`엑셀: ${added}건 추가${skipped ? `, ${skipped}건 건너뜀(빈 칸·중복·강제종료 O 아님)` : ''}`);
+        render();
+      } catch (err) { alert('엑셀 읽기 실패: ' + err.message); }
+    };
+    $('#fs-run').onclick = async () => {
+      // 실행 직전 예약 상태 재확인(목록이 실시간이라 업로드 뒤 예약이 생겼을 수 있음)
+      entries.forEach(x => { if (x.status !== 'success' && fsSplitBlocked(x.mid)) { x.status = 'blocked'; x.checked = false; } });
+      const sel = entries.filter(x => x.checked && x.status !== 'blocked' && x.status !== 'success');
+      if (!sel.length) { render(); alert('실행할 항목이 없습니다.'); return; }
+      if (!confirm(`${sel.length}건을 비즈핏에서 강제종료합니다.\n되돌릴 수 없습니다. 진행할까요?`)) return;
+      running = true;
+      sel.forEach(x => { x.status = 'running'; x.result = ''; });
+      render();
+      log(`▶ 시작 — ${sel.length}건`);
+      const okMids = new Set();
+      try {
+        const res = await fetch(`${BIZFIT_STOP_SERVER}/process-stream`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries: sel.map(x => ({ mid: x.mid, pcode: x.pcode, agency: x.agency, do_pause: false, do_force: true })) }),
+        });
+        if (!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
+        const reader = res.body.getReader(), dec = new TextDecoder();
+        let buf = '';
+        read: while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n'); buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let d; try { d = JSON.parse(line.slice(6)); } catch { continue; }
+            if (d.entry_result) {
+              const r = d.entry_result;
+              const x = sel.find(e => e.mid === r.mid && e.pcode === (r.pcode || ''));
+              if (x) { x.status = r.success ? 'success' : 'fail'; x.result = r.message || ''; }
+              if (r.success) okMids.add(r.mid);
+              log(`${r.success ? '✅' : '❌'} ${r.mid} — ${r.message || ''}`);
+              render();
+            }
+            if (d.error) { log(`❌ 서버 오류: ${d.error}`); break read; }
+            if (d.done) break read;
+          }
+        }
+      } catch (err) { log(`❌ ${err.message}`); }
+      sel.forEach(x => { if (x.status === 'running') { x.status = 'fail'; x.result = x.result || '결과 없음 — 비즈핏에서 직접 확인 필요'; } });
+      // 비즈핏 성공 MID만 우리 캠페인 반영(MID당 1회)
+      for (const mid of okMids) {
+        try {
+          const r = await HI.forceStopMid(mid);
+          log(`🛑 ${mid} — 캠페인 ${r.stopped}건 강제종료${r.requeued ? `, 재접수 ${r.requeued}건 생성` : ''}`);
+        } catch (err) { log(`⚠️ ${mid} — 비즈핏은 종료됐지만 캠페인 반영 실패: ${err.message} — 이 MID 캠페인 상태를 직접 확인해 주세요`); }
+      }
+      running = false;
+      log(`━━ 완료 — 성공 ${sel.filter(x => x.status === 'success').length} · 실패 ${sel.filter(x => x.status === 'fail').length}`);
+      render();
+      renderReceipts(false, true);
+    };
+    render();
+  };
 
   // ── 📈 순위표 다운로드 (대상: 전체 캠페인) ──
   // 버튼은 index.html 상단(엑셀 접수 오른쪽). 기준순위가 같은 MID의 직전 종료건까지 보므로 종료 전체 포함.
