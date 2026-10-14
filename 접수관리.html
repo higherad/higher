@@ -3013,9 +3013,8 @@ window.toggleProdPanel = function(e) {
       const pct = (items, name) => { const it = items.find(p => p.name === name); return it ? `${Math.round(it.ratio * 100)}%` : ''; };
       const header = ['대행사', '업체명', 'MID', '순위키워드', '분류', '일 목표', '구간',
         ...fullNames.map(n => `[풀스텍] ${n}`), ...rewardNames.map(n => `[리워드] ${n}`), '비고'];
-      // 풀스텍 배지 이름 — 가이드 상품명을 짧게(기본·둘러보고 나감·카톡 길찾기·카톡 공유)
-      const shortFull = n => n.includes('기본') ? '기본' : n.includes('둘러보고') ? '둘러보고 나감'
-        : n.includes('길찾기') ? '카톡 길찾기' : n.includes('공유') ? '카톡 공유' : n;
+      // 풀스텍 배지 이름 — 가이드 상품명을 짧게(기본·둘러보고·길찾기·공유)
+      const shortFull = n => FULL_ORDER.find(k => n.includes(k)) || n;
       const typeUpdates = [];
       const rows = target.map(s => {
         const live = !['expired', 'deleted'].includes(s.status);
@@ -3024,7 +3023,9 @@ window.toggleProdPanel = function(e) {
         const fs = rule ? [...rule.full].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name)) : [];
         const patch = {};
         if (live && cat && !s.category) patch.category = cat;
-        if (live && fs.length && fs.join() !== fullstackLabels(s).join()) patch.fullstackType = fs;
+        // 배지는 승인 때 리워드·유입플·차감으로 나뉜 건에만 새로 달고, 이미 있으면 최신 가이드로 갱신
+        const splitDone = !!(s.yupflTarget || s.deductTarget) || fullstackLabels(s).length > 0;
+        if (live && splitDone && fs.length && fs.join() !== fullstackLabels(s).join()) patch.fullstackType = fs;
         if (Object.keys(patch).length) typeUpdates.push([s, patch]);
         return [s.agencyId || '', s.storeName || '', s.mid || '', s.rankKeyword || '', cat, s.dailyTarget || '', rule ? rule.range : '',
           ...fullNames.map(n => rule ? pct(rule.full, n) : ''), ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''),
