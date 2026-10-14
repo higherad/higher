@@ -6769,10 +6769,15 @@ window.toggleProdPanel = function(e) {
       $('#fs-run').disabled = running || !sel.length;
       $('#fs-run').style.opacity = $('#fs-run').disabled ? '.5' : '';
       $('#fs-run').textContent = running ? '실행 중...' : `강제종료 실행${sel.length ? ` (${sel.length})` : ''}`;
+      $('#fs-close').disabled = running; // 실행 중엔 닫기 자체를 못 누르게
+      $('#fs-close').style.opacity = running ? '.4' : '';
+      $('#fs-close').style.cursor = running ? 'not-allowed' : '';
     }
     $('#fs-body').addEventListener('change', e => { const i = e.target.dataset.i; if (i != null) { entries[i].checked = e.target.checked; render(); } });
     $('#fs-all').onchange = e => { entries.forEach(x => { if (x.status !== 'blocked' && x.status !== 'success') x.checked = e.target.checked; }); render(); };
-    $('#fs-close').onclick = () => { if (running) { alert('실행 중에는 닫을 수 없습니다.'); return; } overlay.remove(); };
+    $('#fs-close').onclick = () => { if (!running) overlay.remove(); };
+    // 실행 중 새로고침·탭 닫기 경고 — 끊기면 비즈핏 종료 뒤 캠페인 반영(강제종료 상태·재접수 생성)이 안 됨
+    const warnLeave = e => { e.preventDefault(); e.returnValue = ''; };
     $('#fs-tpl').onclick = async () => {
       await loadXlsx();
       const wb = XLSX.utils.book_new();
@@ -6820,6 +6825,7 @@ window.toggleProdPanel = function(e) {
       if (!sel.length) { render(); alert('실행할 항목이 없습니다.'); return; }
       if (!confirm(`${sel.length}건을 비즈핏에서 강제종료합니다.\n되돌릴 수 없습니다. 진행할까요?`)) return;
       running = true;
+      window.addEventListener('beforeunload', warnLeave);
       sel.forEach(x => { x.status = 'running'; x.result = ''; });
       render();
       log(`▶ 시작 — ${sel.length}건`);
@@ -6862,6 +6868,7 @@ window.toggleProdPanel = function(e) {
         } catch (err) { log(`⚠️ ${mid} — 비즈핏은 종료됐지만 캠페인 반영 실패: ${err.message} — 이 MID 캠페인 상태를 직접 확인해 주세요`); }
       }
       running = false;
+      window.removeEventListener('beforeunload', warnLeave);
       log(`━━ 완료 — 성공 ${sel.filter(x => x.status === 'success').length} · 실패 ${sel.filter(x => x.status === 'fail').length}`);
       render();
       renderReceipts(false, true);
