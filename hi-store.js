@@ -83,6 +83,7 @@ const P = {
   liveKeywords:   `${ROOT}/live_keywords`,   // MID별 찾기 키워드(bizfit-dandok 매시간 동기화)
   ranks:          `${ROOT}/ranks`,
   adClassify:     `${ROOT}/ad_classify`,
+  kwCategories:   `${ROOT}/kw_categories`,  // 순위키워드 분류 [{name, keywords:[...]}] — 접수 시 캠페인 category로 저장
   pipeline:       `${ROOT}/pipeline`,
   claims:         `${ROOT}/claims`,
   chargeClaims:   `${ROOT}/charge_claims`,
@@ -276,6 +277,10 @@ async function writeCampaign(key, patch, cur = null) {
   if (Object.keys(rest).length) {
     const found = cur || await readCampaign(key);
     if (!found) throw new Error(`없는 캠페인입니다 (${key})`);
+    if (CATEGORIZE_STATUSES.has(rest.status) && !found.data.category && rest.category === undefined) {
+      const cat = kwCategoryOf(rest.rankKeyword ?? found.data.rankKeyword, (await get(ref(db, P.kwCategories))).val());
+      if (cat) rest.category = cat;
+    }
     const target = 'status' in rest ? bucketOf(rest.status) : found.bucket;
     if (target !== found.bucket) {
       updates[`${P[target]}/${key}`] = withoutNulls({ ...found.data, ...rest });
@@ -286,6 +291,15 @@ async function writeCampaign(key, patch, cur = null) {
   }
   if (Object.keys(kw).length) Object.assign(updates, await keywordUpdates(key, kw));
   if (Object.keys(updates).length) await update(ref(db), updates);
+}
+
+// 순위키워드 분류 — 공백·대소문자 무시하고 키워드를 포함하면 그 분류(목록 위쪽 분류 우선)
+const CATEGORIZE_STATUSES = new Set(['accepted', 'active', 'split']);
+export function kwCategoryOf(rankKeyword, cats) {
+  const n = v => String(v || '').toLowerCase().replace(/\s+/g, '');
+  const kw = n(rankKeyword);
+  if (!kw) return '';
+  return Object.values(cats || {}).find(c => Object.values(c.keywords || {}).some(k => n(k) && kw.includes(n(k))))?.name || '';
 }
 
 // 검색·유입플 키워드가 바뀌면 이력에 추가(최근 10개)
@@ -745,6 +759,8 @@ const HI = {
     return (await get(query(ref(db, `${P.ranks}/${safeKey(mid)}`), orderByKey(), limitToLast(1)))).val();
   },
   async getPipelineAllDone() { return (await get(ref(db, `${P.pipeline}/allDone`))).val(); },
+  async getKwCategories() { return Object.values((await get(ref(db, P.kwCategories))).val() || {}); },
+  saveKwCategories(list) { return set(ref(db, P.kwCategories), list); },
   async getAdClassify() { return (await get(ref(db, P.adClassify))).val() || { groups: null, result: null }; },
   saveAdClassifyGroups(groups) { return set(ref(db, `${P.adClassify}/groups`), groups); },
   async getAdClassifyDaily() { return (await get(ref(db, `${P.adClassify}/daily`))).val() || {}; },

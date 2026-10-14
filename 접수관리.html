@@ -345,12 +345,12 @@
       <tr>
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
-        <th>캠페인타입</th><th>플레이스명</th><th>MID</th><th>순위키워드</th>
+        <th>캠페인타입</th><th>분류</th><th>플레이스명</th><th>MID</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>삭제</th>
       </tr>
     </thead>
     <tbody id="receipt-body">
-      <tr><td colspan="16" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
+      <tr><td colspan="17" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
     </tbody>
   </table>
 </div>
@@ -678,7 +678,7 @@ window.toggleProdPanel = function(e) {
 
     if (!_slotsLoaded || forceReload) {
       document.getElementById('receipt-body').innerHTML =
-        '<tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+        '<tr><td colspan="17"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
       allSlots = await listSlots();
       _slotsLoaded = true;
 
@@ -723,7 +723,7 @@ window.toggleProdPanel = function(e) {
     const body  = document.getElementById('receipt-body');
 
     if (!page.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="16">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="17">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = page.map((s,i) => `
         <tr>
@@ -733,6 +733,7 @@ window.toggleProdPanel = function(e) {
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${escProd(s.userId||'-')}</td>
           <td>${typeBadgesHtml(s)}${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) ? `${yupflSourceBadge(s)}${typeChangeLine(s)}` : ''}</td>
+          <td style="color:var(--text2)">${escProd(s.category||'-')}</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${escProd(s.rankKeyword)}</a>` : '-'}</td>
@@ -5665,6 +5666,82 @@ window.toggleProdPanel = function(e) {
   }
   const fsSplitBlocked = mid => allSlots.some(s => s.mid === mid && s.status === 'split');
   const fsActiveCount  = mid => allSlots.filter(s => s.mid === mid && s.status === 'active').length;
+
+  // ── 분류 설정: 분류별 키워드 — 접수·승인 때 순위키워드에 키워드가 들어 있으면 그 분류를 캠페인에 저장(hi-store writeCampaign)
+  window.openKwCategoryModal = async function() {
+    if (document.getElementById('kc-modal')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'kc-modal';
+    overlay.innerHTML = `
+      <div class="modal-box" style="width:min(96vw,560px);max-height:82vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div class="modal-title" style="margin-bottom:0;">분류 설정</div>
+          <span id="kc-x" style="cursor:pointer;font-size:22px;color:var(--muted);line-height:1;">&times;</span>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
+          · 접수할 때 순위키워드에 키워드가 들어 있으면 그 분류가 들어갑니다(띄어쓰기 무시)<br>
+          · 여러 분류에 걸리면 위쪽 분류가 우선 · 이미 접수된 건은 바뀌지 않습니다
+        </div>
+        <div id="kc-list"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></div>
+        <div style="display:flex;gap:6px;margin-top:12px;">
+          <input id="kc-new" placeholder="새 분류 이름" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;">
+          <button class="action-btn" id="kc-add" style="background:#4f46e5;color:#fff;">분류 추가</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#kc-x').onclick = close;
+    overlay.onclick = e => { if (e.target === overlay) close(); };
+
+    let cats = (await HI.getKwCategories()).map(c => ({ name: c.name, keywords: Object.values(c.keywords || {}) }));
+    const save = () => HI.saveKwCategories(cats).catch(e => alert('분류 저장 실패: ' + e.message));
+    const render = () => {
+      overlay.querySelector('#kc-list').innerHTML = cats.length ? cats.map((c, ci) => `
+        <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <b style="font-size:13px;">${escProd(c.name)}</b>
+            <span style="font-size:11px;color:var(--muted);">${c.keywords.length}개</span>
+            <button class="action-btn" data-del="${ci}" style="margin-left:auto;background:#fef2f2;color:#b91c1c;padding:2px 8px;font-size:11px;">분류 삭제</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${c.keywords.length ? c.keywords.map((k, ki) =>
+            `<span style="background:#eef2ff;color:#4338ca;border-radius:12px;padding:2px 8px;font-size:12px;">${escProd(k)} <span data-rm="${ci}:${ki}" style="cursor:pointer;color:#94a3b8;">×</span></span>`).join('')
+            : '<span style="font-size:11px;color:var(--muted);">키워드 없음</span>'}</div>
+          <div style="display:flex;gap:6px;">
+            <input data-inp="${ci}" placeholder="예) 맛집, 식당 (쉼표로 여러 개)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;">
+            <button class="action-btn" data-add="${ci}" style="background:#f1f5f9;color:var(--text2);">추가</button>
+          </div>
+        </div>`).join('') : '<div style="font-size:12px;color:var(--muted);padding:10px 0;">분류가 없습니다. 아래에서 추가하세요.</div>';
+    };
+    const addKw = ci => {
+      const inp = overlay.querySelector(`[data-inp="${ci}"]`);
+      const vals = inp.value.split(',').map(v => v.trim()).filter(v => v && !cats[ci].keywords.includes(v));
+      if (!vals.length) return;
+      cats[ci].keywords.push(...vals);
+      render(); save();
+    };
+    overlay.querySelector('#kc-list').addEventListener('click', e => {
+      const t = e.target.dataset;
+      if (t.add) addKw(+t.add);
+      else if (t.rm) { const [ci, ki] = t.rm.split(':').map(Number); cats[ci].keywords.splice(ki, 1); render(); save(); }
+      else if (t.del && confirm(`"${cats[+t.del].name}" 분류를 삭제할까요?`)) { cats.splice(+t.del, 1); render(); save(); }
+    });
+    overlay.querySelector('#kc-list').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.target.dataset.inp) { e.preventDefault(); addKw(+e.target.dataset.inp); }
+    });
+    const addCat = () => {
+      const inp = overlay.querySelector('#kc-new');
+      const name = inp.value.trim();
+      if (!name) return;
+      if (cats.some(c => c.name === name)) return alert('이미 있는 분류입니다.');
+      cats.push({ name, keywords: [] });
+      inp.value = '';
+      render(); save();
+    };
+    overlay.querySelector('#kc-add').onclick = addCat;
+    overlay.querySelector('#kc-new').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addCat(); } };
+    render();
+  };
 
   window.openForceStopModal = function() {
     if (document.getElementById('fs-modal')) return;

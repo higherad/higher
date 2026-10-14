@@ -44,7 +44,7 @@ globalThis.fetch = async () => ({ ok: true, json: async () => ({}) });
 let src = readFileSync(new URL('./hi-store.js', import.meta.url), 'utf8')
   .replace(/import \{([^}]*)\}\s*from "[^"]+";/g, (_, names) =>
     `const {${names.replace(/(\w+) as (\w+)/g, '$1: $2')}} = globalThis.__fb;`);
-const { default: HI, remainingAfterCancel } = await import('data:text/javascript,' + encodeURIComponent(src));
+const { default: HI, remainingAfterCancel, kwCategoryOf } = await import('data:text/javascript,' + encodeURIComponent(src));
 
 // ── 접수: live + 키워드 분리 ──
 tree.hi = { users: { u1: { username: 'u1', agencyId: 'A', unitPrice: 30 } } };
@@ -170,5 +170,19 @@ assert.equal(tree.hi.campaigns.closed[f1._key].endDate, '2026-10-14', '종료일
 assert.equal(HI.dailySplitHtml({ dailyTarget: 100, days: 3 }), '', '승인 전(고정값 없음)은 표시 안 함');
 const splitHtml = HI.dailySplitHtml({ dailyTarget: 100, days: 3, yupflTarget: 35, deductTarget: 90 });
 assert.ok(splitHtml.includes('일반 35') && splitHtml.includes('유입플 35') && splitHtml.includes('차감 30'), splitHtml);
+
+// ── 순위키워드 분류: 접수·승인 때 1회 저장, 이후 설정이 바뀌어도 유지 ──
+const cats = [{ name: '맛집', keywords: ['맛집', '식당'] }, { name: '병원', keywords: ['피부과'] }];
+assert.equal(kwCategoryOf('강남 맛집', cats), '맛집', '공백 무시 포함');
+assert.equal(kwCategoryOf('강남피부과', cats), '병원');
+assert.equal(kwCategoryOf('강남카페', cats), '', '해당 없음');
+tree.hi.kw_categories = cats;
+const k1 = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '222', rankKeyword: '역삼 식당', days: 1, dailyTarget: 1 });
+assert.equal(tree.hi.campaigns.live[k1._key].category, undefined, '대기 상태엔 없음');
+await HI.updateCampaign(k1._key, { status: 'accepted' });
+assert.equal(tree.hi.campaigns.live[k1._key].category, '맛집', '접수 때 저장');
+tree.hi.kw_categories = [{ name: '기타', keywords: ['식당'] }];
+await HI.updateCampaign(k1._key, { status: 'active' });
+assert.equal(tree.hi.campaigns.live[k1._key].category, '맛집', '이미 있으면 안 바꿈');
 
 console.log('hi-store 자가검사 통과');
