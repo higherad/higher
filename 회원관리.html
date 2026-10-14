@@ -154,7 +154,7 @@
     // 회원 목록은 승인/삭제 직후 정확한 값이 필요해 매번 새로 받음(4.5KB라 저렴) — 슬롯만 캐시
     const usersPromise = HI.getUsers();
     if (!_slotsLoaded || forceReload) {
-      allSlots = await HI.getAll(); // 진행 중 + 종료 전체(옛 김프로 출처 포함, 한 벌이라 중복 제거 불필요)
+      allSlots = await HI.getAll(); // 진행 중 + 종료 전체
       _slotsLoaded = true;
     }
     allUsers = [...await usersPromise];
@@ -283,7 +283,7 @@
         </div>
         <div class="modal-field"><label>메모</label><input id="um-memo" value="${u.memo||''}"></div>
         <div class="charge-sect">
-          <div class="charge-sect-title">⚡ 충전 계정 정보</div>
+          <div class="charge-sect-title">충전 계정 정보</div>
           <div class="agency-charge-body">${isEdit
             ? '<span style="color:var(--muted);font-size:12px">불러오는 중...</span>'
             : `<div class="modal-row" style="margin-bottom:0"><div class="modal-field"><label>BizFit ID</label><input id="cs-id" type="text" placeholder="로그인 아이디" autocomplete="off"></div><div class="modal-field"><label>BizFit PW</label><div class="pw-input-wrap"><input id="cs-pw" type="password" placeholder="패스워드" autocomplete="new-password"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div></div>`
@@ -363,7 +363,7 @@
       await Promise.all(userSlots.map(s => HI.updateCampaign(s._key, { agencyId: agencyVal })));
       userSlots.forEach(s => { s.agencyId = agencyVal; });
 
-      // 대행사명 변경 시 정산 스냅샷·환불 키도 이전(옛 김프로 출처 __kimpro__ 묶음 포함)
+      // 대행사명 변경 시 정산 스냅샷·환불 키도 이전
       if (agencyChanged) {
         try { await HI.renameAgencyKeys(username, oldAgency, agencyVal); }
         catch(e) { console.error('키 이전 오류:', e); alert('정산 스냅샷 키 이전에 실패했습니다. 새로고침 후 다시 저장해 주세요.\n' + e.message); }

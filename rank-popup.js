@@ -108,7 +108,7 @@ export async function openRankPopup(slot) {
   overlay.innerHTML = `
     <div class="rank-modal-box">
       <div style="margin-bottom:4px;">
-        <div class="rank-modal-title">📊 일자별 순위</div>
+        <div class="rank-modal-title">일자별 순위</div>
         <div class="rank-modal-sub">${slot.storeName} &nbsp;·&nbsp; MID: ${slot.mid} &nbsp;·&nbsp; 순위키워드: <strong>${slot.rankKeyword || '-'}</strong></div>
       </div>
       <div id="rank-table-area">

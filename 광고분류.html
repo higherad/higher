@@ -83,23 +83,23 @@
   <!-- 헤더: 탭 + 구분 설정 버튼 -->
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap">
     <div class="ac-tabs" id="ac-tabs" style="margin-bottom:0">
-      <button class="ac-tab active" onclick="acSwitchTab('realtime',this)">⚡ 실시간</button>
-      <button class="ac-tab" onclick="acSwitchTab('daily',this)">📅 전일</button>
-      <button class="ac-tab" onclick="acSwitchTab('monthly',this)">📆 월별</button>
-      <button class="ac-tab" onclick="acSwitchTab('dates',this)">📋 날짜별</button>
+      <button class="ac-tab active" onclick="acSwitchTab('realtime',this)"><i data-lucide="zap" style="width:14px;height:14px;vertical-align:-2px;"></i> 실시간</button>
+      <button class="ac-tab" onclick="acSwitchTab('daily',this)"><i data-lucide="calendar" style="width:14px;height:14px;vertical-align:-2px;"></i> 전일</button>
+      <button class="ac-tab" onclick="acSwitchTab('monthly',this)"><i data-lucide="calendar-range" style="width:14px;height:14px;vertical-align:-2px;"></i> 월별</button>
+      <button class="ac-tab" onclick="acSwitchTab('dates',this)"><i data-lucide="list" style="width:14px;height:14px;vertical-align:-2px;"></i> 날짜별</button>
     </div>
-    <button class="ac-export-btn" style="background:#eef2ff;color:#4f46e5;border-color:#c7d2fe" onclick="acOpenGroupsPopup()">🏷️ 구분 설정</button>
+    <button class="ac-export-btn" style="background:#eef2ff;color:#4f46e5;border-color:#c7d2fe" onclick="acOpenGroupsPopup()"><i data-lucide="tags" style="width:14px;height:14px;vertical-align:-2px;"></i> 구분 설정</button>
   </div>
 
   <!-- 검색 -->
   <div class="ac-search-bar">
-    <input class="ac-search-input" id="ac-search" placeholder="🔍  업체명 검색..." oninput="acSearch(this.value)">
+    <input class="ac-search-input" id="ac-search" placeholder="업체명 검색..." oninput="acSearch(this.value)">
     <button class="ac-search-clear" onclick="acClearSearch()">검색 초기화</button>
   </div>
 
   <!-- 결과 -->
   <div id="ac-result-area">
-    <div class="ac-no-result">⚡ 실시간 데이터를 불러오는 중입니다...</div>
+    <div class="ac-no-result">실시간 데이터를 불러오는 중입니다...</div>
   </div>
   <div class="ac-save-status" id="ac-save-status"></div>
 </div>
@@ -108,7 +108,7 @@
 <div class="modal-overlay" id="ac-groups-overlay" style="display:none" onclick="if(event.target===this)acCloseGroupsPopup()">
   <div style="background:#fff;border-radius:14px;max-width:560px;width:92%;max-height:82vh;overflow-y:auto;padding:22px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div style="font-size:16px;font-weight:800">🏷️ 구분 설정</div>
+      <div style="font-size:16px;font-weight:800">구분 설정</div>
       <span style="cursor:pointer;font-size:22px;color:var(--muted,#94a3b8);line-height:1" onclick="acCloseGroupsPopup()">&times;</span>
     </div>
     <div class="ac-editor" id="ac-editor">
@@ -147,9 +147,9 @@
     // 검색창 placeholder 전환
     const si=document.getElementById('ac-search');
     si.value='';
-    si.placeholder=tab==='dates'?'🔍  날짜 검색 (예: 04.07)...':'🔍  업체명 검색...';
+    si.placeholder=tab==='dates'?'날짜 검색 (예: 04.07)...':'업체명 검색...';
     if(tab==='realtime'){
-      showEmpty('⚡ 지난 조회 결과를 불러오는 중...');
+      showEmpty('지난 조회 결과를 불러오는 중...');
       setStatus('');
       const r=await loadCachedRealtime();
       if(_activeTab!=='realtime') return; // 대기 중 다른 탭으로 이동한 경우 렌더 중단
@@ -159,7 +159,7 @@
       setStatus('');
       const r=window._acDailyResult;
       if(r){ renderResult(r,''); }
-      else showEmpty('📅 아직 저장된 전일 데이터가 없습니다 (매일 자동으로 갱신됩니다).');
+      else showEmpty('아직 저장된 전일 데이터가 없습니다 (매일 자동으로 갱신됩니다).');
     } else if(tab==='monthly'){
       loadMonthly();
     } else {
@@ -225,7 +225,7 @@
     if(!vals.length)return;
     vals.forEach(v=>{if(!_groups[gi].stores.includes(v))_groups[gi].stores.push(v);});
     inp.value=''; renderEditor(); fbSaveGroups(_groups);
-    toast(`✅ ${vals.length}개 업체 추가됨`);
+    toast(`${vals.length}개 업체 추가됨`);
   };
 
   /* ── 구분 설정 기준 분류 계산 (실시간 조회용 — 일별 자동 저장은 Cloud Run이 담당) ── */
@@ -272,9 +272,9 @@
   function showRealtimePrompt(){
     document.getElementById('ac-result-area').innerHTML=`
       <div class="ac-no-result">
-        ⚡ 조회 버튼을 눌러 지금 이 순간의 BizFit·유입플 데이터를 가져옵니다.
+        조회 버튼을 눌러 지금 이 순간의 BizFit·유입플 데이터를 가져옵니다.
         <div style="margin-top:16px;display:flex;justify-content:center">
-          <button class="ac-run-btn" style="width:auto;padding:12px 28px" onclick="loadRealtime()">🔍 실시간 조회</button>
+          <button class="ac-run-btn" style="width:auto;padding:12px 28px" onclick="loadRealtime()">실시간 조회</button>
         </div>
       </div>`;
   }
@@ -285,7 +285,7 @@
     return {rows:j.rows||[], youpflTotal:j.youpflTotal};
   }
   window.loadRealtime=async function(){
-    showEmpty('⚡ BizFit에서 실시간 데이터를 조회하는 중...');
+    showEmpty('BizFit에서 실시간 데이터를 조회하는 중...');
     setStatus('');
     try{
       const{rows,youpflTotal}=await fetchLiveData();
@@ -303,26 +303,26 @@
         window._acMonthData=buildMonthData(daily);
       }
       renderRealtimeResult(result,'');
-      setStatus('⚡ 실시간 조회 완료 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
+      setStatus('실시간 조회 완료 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
     }catch(e){
-      showEmpty('❌ 실시간 데이터 조회 실패: '+e.message);
+      showEmpty('실시간 데이터 조회 실패: '+e.message);
     }
   };
   function renderRealtimeResult(result,keyword){
-    if(!result){showEmpty('⚡ 실시간 데이터를 불러오는 중입니다...');return;}
+    if(!result){showEmpty('실시간 데이터를 불러오는 중입니다...');return;}
     window._acLastResult=result;
     document.getElementById('ac-result-area').innerHTML=buildTable(result,keyword,'realtime',window._acMonthData||null);
   }
 
   /* ── 날짜별 ── */
   async function loadDates(){
-    showEmpty('📋 날짜별 데이터를 불러오는 중...');
+    showEmpty('날짜별 데이터를 불러오는 중...');
     setStatus('');
     try{
       const daily=await fbLoadDaily();
       if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
       const keys=Object.keys(daily).sort().reverse(); // 최신순
-      if(!keys.length){showEmpty('📋 저장된 날짜별 데이터가 없습니다.');return;}
+      if(!keys.length){showEmpty('저장된 날짜별 데이터가 없습니다.');return;}
       window._acDailyAll=daily;
 
       // 월 목록 추출 (최신순)
@@ -342,7 +342,7 @@
 
       acSelectDateMonth(defaultMonth);
     }catch(e){
-      showEmpty('❌ 날짜별 데이터 로드 실패: '+e.message);
+      showEmpty('날짜별 데이터 로드 실패: '+e.message);
     }
   }
 
@@ -439,8 +439,8 @@
           <div class="ac-result-meta">${keys.length}일 데이터</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="ac-export-btn" onclick="acExportDates()">⬇ CSV</button>
-          <button class="ac-capture-btn" id="ac-cap-btn" onclick="acCapture()">📷 이미지 저장</button>
+          <button class="ac-export-btn" onclick="acExportDates()">CSV</button>
+          <button class="ac-capture-btn" id="ac-cap-btn" onclick="acCapture()">이미지 저장</button>
         </div>
       </div>
       <div class="ac-tbl-scroll" id="ac-tbl-target"><div class="ac-tbl-wrap">
@@ -457,13 +457,13 @@
 
   /* ── 월별 합산 ── */
   async function loadMonthly(){
-    showEmpty('📆 월별 데이터를 불러오는 중...');
+    showEmpty('월별 데이터를 불러오는 중...');
     setStatus('');
     try{
       const daily=await fbLoadDaily();
       if (!document.getElementById('ac-wrap')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
       const keys=Object.keys(daily).sort(); // ["260301","260302",...]
-      if(!keys.length){showEmpty('📆 저장된 일별 데이터가 없습니다.');return;}
+      if(!keys.length){showEmpty('저장된 일별 데이터가 없습니다.');return;}
 
       // 현재 달 (yyMM) 기준으로 필터
       const now=new Date();
@@ -474,7 +474,7 @@
 
       renderMonthSelector(months, curYYMM, daily);
     }catch(e){
-      showEmpty('❌ 월별 데이터 로드 실패: '+e.message);
+      showEmpty('월별 데이터 로드 실패: '+e.message);
     }
   }
 
@@ -565,7 +565,7 @@
     document.getElementById('ac-result-area').innerHTML=`<div class="ac-no-result">${msg}</div>`;
   }
   function renderResult(result, keyword){
-    if(!result){showEmpty('📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');return;}
+    if(!result){showEmpty('하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');return;}
     window._acLastResult=result;
     document.getElementById('ac-result-area').innerHTML=buildTable(result, keyword, 'daily', window._acMonthData||null);
   }
@@ -690,7 +690,7 @@
       }
     });
 
-    if(kw&&!visible) return `<div class="ac-no-result">🔍 "<b>${keyword}</b>" 검색 결과가 없습니다.</div>`;
+    if(kw&&!visible) return `<div class="ac-no-result">"<b>${keyword}</b>" 검색 결과가 없습니다.</div>`;
 
     const td0=`background:#1e293b;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a`;
     const td1=`background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a`;
@@ -716,20 +716,20 @@
       :'';
 
     const exportFn={daily:'acExport',monthly:'acExportMonthly',realtime:'acExportRealtime'}[mode]||'acExport';
-    const exportBtn=`<button class="ac-export-btn" onclick="${exportFn}()">⬇ CSV</button>`;
+    const exportBtn=`<button class="ac-export-btn" onclick="${exportFn}()">CSV</button>`;
     const titleText={daily:'분류 결과',monthly:'월별 합산',realtime:'실시간 조회 결과'}[mode]||'분류 결과';
-    const refreshBtn=mode==='realtime'?`<button class="ac-export-btn" onclick="loadRealtime()">🔄 새로고침</button>`:'';
+    const refreshBtn=mode==='realtime'?`<button class="ac-export-btn" onclick="loadRealtime()">새로고침</button>`:'';
 
     return `
       <div class="ac-result-hdr">
         <div>
           <div class="ac-result-title">${titleText}${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
-          <div class="ac-result-meta">✅ ${ts}</div>
+          <div class="ac-result-meta">${ts}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${refreshBtn}
           ${exportBtn}
-          <button class="ac-capture-btn" id="ac-cap-btn" onclick="acCapture()">📷 이미지 저장</button>
+          <button class="ac-capture-btn" id="ac-cap-btn" onclick="acCapture()">이미지 저장</button>
         </div>
       </div>
       <div class="ac-tbl-scroll" id="ac-tbl-target">
@@ -834,7 +834,7 @@
     }
 
     try{
-      btn.disabled=true; btn.textContent='📷 캡처 중...';
+      btn.disabled=true; btn.textContent='캡처 중...';
       await ensureH2C();
 
       // sticky thead 임시 해제 (캡처 시 잘림 방지)
@@ -914,10 +914,10 @@
       a.download='광고분류_'+dateStr+'.png';
       a.click();
 
-      btn.textContent='✅ 저장 완료';
-      setTimeout(()=>{btn.disabled=false;btn.textContent='📷 이미지 저장';},2000);
+      btn.textContent='저장 완료';
+      setTimeout(()=>{btn.disabled=false;btn.textContent='이미지 저장';},2000);
     }catch(e){
-      btn.disabled=false; btn.textContent='📷 이미지 저장';
+      btn.disabled=false; btn.textContent='이미지 저장';
       toast('캡처 실패: '+e.message,'err');
     }
   };
@@ -938,7 +938,7 @@
       }
     }catch(e){
       renderEditor();
-      setStatus('⚠️ 불러오기 실패: '+e.message);
+      setStatus('불러오기 실패: '+e.message);
     }
     // 기본 진입 탭: 실시간 — 이전에 조회한 결과가 Firebase에 있으면 그대로 보여주고, 없으면 버튼 클릭 대기
     const cached=await loadCachedRealtime();
