@@ -3377,7 +3377,7 @@ window.toggleProdPanel = function(e) {
   // ── 캠페인 타입 변경 요청 ─────────────────────────────────────
   // 직원이 바꿀 상품을 적어 요청 → 목록 타입 배지 빨간색·'변경' 카드 집계. 실제 강제종료·재접수는 사람이 직접 하고,
   // 끝나면 요청자가 아닌 다른 직원이 '변경 완료'로 닫음(기록은 changeRequest에 남김). 광고주에겐 서버가 이 필드를 안 보냄
-  const TYPE_CHANGE_STATUSES = ['pending','accepted','active','split'];
+  const TYPE_CHANGE_STATUSES = ['active','split']; // 승인·예약(이미 비즈핏에 등록된 건)만
   const isTypeChangeReq = s => !!(s && s.changeRequest && !s.changeRequest.doneAt && TYPE_CHANGE_STATUSES.includes(s.status));
   const fmtMd = iso => { const d = new Date(iso); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
   function typeChangeLine(s) {
@@ -3418,7 +3418,7 @@ window.toggleProdPanel = function(e) {
     const targets = (keys || getCheckedKeys()).map(k => allSlots.find(s => s._key === k)).filter(Boolean);
     const ok = targets.filter(s => TYPE_CHANGE_STATUSES.includes(s.status));
     if (!targets.length) { alert('변경 요청할 캠페인을 체크해 주세요.'); return; }
-    if (!ok.length) { alert('대기·접수·승인·예약 상태 캠페인만 변경 요청할 수 있습니다.'); return; }
+    if (!ok.length) { alert('승인·예약 상태 캠페인만 변경 요청할 수 있습니다.'); return; }
     const names = [...new Set(prods.filter(p => !p.deductOnly && !p.classifyOnly && p.name).map(p => p.name))];
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
