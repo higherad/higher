@@ -147,10 +147,6 @@
   .ps-tog.on::after{left:16px;}
   .ps-tog.off::after{left:2px;}
   /* 다운로드 진행 */
-  .dl-prog-wrap{margin-bottom:12px;background:white;border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
-  .dl-prog-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
-  .dl-prog-fill{height:100%;background:linear-gradient(90deg,var(--info),#7c3aed);border-radius:2px;width:0%;transition:width .3s;}
-  .dl-prog-lbl{font-size:11px;color:var(--text2);text-align:center;margin-top:6px;}
   /* 접수 모달 탭 */
   .submit-tab{padding:9px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:none;cursor:pointer;color:var(--text2);font-family:inherit;margin-bottom:-2px;transition:color .15s,border-color .15s;}
   .submit-tab.active{color:var(--info);border-bottom-color:var(--info);}
@@ -295,11 +291,6 @@
   </div>
 </div>
 
-<!-- 다운로드 진행 표시 -->
-<div class="dl-prog-wrap" id="dl-prog-wrap" style="display:none;">
-  <div class="dl-prog-bar"><div class="dl-prog-fill" id="dl-prog-fill"></div></div>
-  <div class="dl-prog-lbl" id="dl-prog-lbl"></div>
-</div>
 
 
 <div class="filter-bar">
@@ -2069,116 +2060,6 @@ window.toggleProdPanel = function(e) {
   }
   function slotsByAgency(slots, ag) { return slots.filter(s => agencyLabel(s) === ag); }
 
-  function buildJusuSheet(wb, f) {
-    const ws = {};
-    const AP = ap();
-    const totalGil = f.reduce((s, r) => s + (r.dailyTarget||0)*(r.days||0), 0);
-    sc(ws, 0, 0, '총 일 목표 합계', {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:'111827'});
-    sc(ws, 1, 0, totalGil, {font:{bold:true}, fill:'F3F4F6'});
-    const baseH = ['업체명','URL','MID','순위키워드','일수','시작일','일 목표','분류','검색키워드','키워드 수'];
-    const headers = [...baseH, ...AP.map(p=>p.name), '합계'];
-    headers.forEach((h, ci) => {
-      const prod = (ci >= 10 && ci < 10 + AP.length) ? AP[ci - 10] : null;
-      const fill = prod ? prod.color.replace('#','') : (ci < 10 ? 'D97706' : '374151');
-      sc(ws, 3, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill, align:'center'});
-    });
-    f.forEach((r, ri) => {
-      const rowIdx = 4 + ri;
-      const alloc  = allocate(AP.slice(), r.dailyTarget||0);
-      const kwCount = r.searchKeyword ? r.searchKeyword.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
-      const base = [r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',r.days||0,null,r.dailyTarget||0,AP.length,r.searchKeyword||'',kwCount];
-      const pv   = AP.map(p => alloc[p.id] ?? '');
-      const row  = [...base, ...pv, (r.dailyTarget||0)*(r.days||0)];
-      row.forEach((v, ci) => {
-        if (v===''||v===undefined) return;
-        if (ci===5) { scDate(ws, rowIdx, 5, r.startDate); return; }
-        const pi=ci-10, isProd=ci>=10&&ci<10+AP.length&&pv[pi]!=='', fc=isProd?AP[pi].color.replace('#',''):null;
-        sc(ws, rowIdx, ci, v, { align:[0,1,3,8].includes(ci)?'left':'center', font:fc?{color:{rgb:fc},bold:true}:{} });
-      });
-    });
-    ws['!ref'] = f.length
-      ? window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:3+f.length, c:headers.length-1}})
-      : window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:4, c:headers.length-1}});
-    ws['!cols'] = [{wch:22},{wch:44},{wch:14},{wch:18},{wch:6},{wch:13},{wch:12},{wch:6},{wch:44},{wch:8},...AP.map(()=>({wch:10})),{wch:10}];
-    window.XLSX.utils.book_append_sheet(wb, ws, '접수');
-  }
-
-  function buildJumuSheet_(wb, f, label, filterFn, blogUrlField=null) {
-    const ws = {};
-    const AP = ap();
-    const pList = AP.filter(filterFn);
-    if(!pList.length) return;
-    const daysColLabel = pList.every(p => p.daysMultiplied) ? '전체 목표' : '일 수';
-    const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표',daysColLabel,'예약일','검색키워드'];
-    if (blogUrlField) headers.push('블로그URL');
-    headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':(h==='블로그URL'?'16A34A':'1F2937')}); });
-    let curRow = 1;
-    const allocBySlot = new Map(f.map(r => [r, allocate(AP.slice(), r.dailyTarget||0)]));
-    pList.forEach(prod => {
-      f.forEach(r => {
-        const alloc   = allocBySlot.get(r);
-        const pp      = alloc[prod.id] ?? 0;
-        const daysVal = prod.daysMultiplied ? pp*(r.days||0) : (r.days||0);
-        const kw      = kwForProd(r.searchKeyword||'', prod);
-        const pc      = prod.color.replace('#','');
-        const row     = [prod.name,r.storeName||'',r.url||'',r.mid||'',r.rankKeyword||'',pp,daysVal,null,kw];
-        if (blogUrlField) row.push(r[blogUrlField]||'');
-        row.forEach((v, ci) => {
-          if(ci===7){ scDate(ws, curRow, 7, r.startDate); return; }
-          sc(ws, curRow, ci, v, { align:[0,1,2,4,8,9].includes(ci)?'left':'center', font:ci===0?{color:{rgb:pc},bold:true}:{} });
-        });
-        curRow++;
-      });
-    });
-    if(curRow<2) curRow=2;
-    const lastCol = blogUrlField ? 9 : 8;
-    ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:lastCol}});
-    ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:8},{wch:13},{wch:52}].concat(blogUrlField ? [{wch:44}] : []);
-    window.XLSX.utils.book_append_sheet(wb, ws, label);
-  }
-
-  // 델타/네이비 공용 시트 — buildJumuSheet_와 달리 "분할" 설정값(N)만큼 일 목표를 다시 쪼개 블로그 URL을
-  // 1개씩 매칭한 행을 만든다(1슬롯=N행). splitEven/buildDeltaRows와 동일한 분할 규칙 사용.
-  function buildDeltaSheet_(wb, f, prod) {
-    const ws = {};
-    const AP = ap();
-    const n = Math.max(1, parseInt(prod.blogSplit, 10) || 1);
-    const daysColLabel = prod.daysMultiplied ? '전체 목표' : '일 수';
-    const headers = ['상품등급명','업체명','URL','MID','순위키워드','일 목표',daysColLabel,'예약일','검색키워드','블로그 스타트 URL'];
-    headers.forEach((h, ci) => { sc(ws, 0, ci, h, {font:{bold:true,color:{rgb:'FFFFFF'}}, fill:h==='검색키워드'?'DC2626':(h==='블로그 스타트 URL'?'16A34A':'1F2937')}); });
-    let curRow = 1;
-    f.forEach(r => {
-      const alloc = allocate(AP.slice(), r.dailyTarget||0);
-      const pp = alloc[prod.id] ?? 0;
-      if (pp <= 0) return;
-      const urls = (r.deltaBlogUrl||'').split(',').map(u=>u.trim()).filter(Boolean);
-      // 델타는 검색키워드를 별도로 나누지 않고 순위키워드와 동일한 값을 그대로 쓴다(사용자 지정 규칙) — 네이비는 일반 검색키워드 그대로 사용.
-      const kw = prod.id === 'delta' ? (r.rankKeyword||'') : kwForProd(r.searchKeyword||'', prod);
-      splitEven(pp, n).forEach((partTarget, i) => {
-        if (partTarget <= 0) return;
-        const daysVal = prod.daysMultiplied ? partTarget*(r.days||0) : (r.days||0);
-        const row = [prod.name, r.storeName||'', r.url||'', r.mid||'', r.rankKeyword||'', partTarget, daysVal, null, kw, urls[i]||''];
-        row.forEach((v, ci) => {
-          if (ci===7) { scDate(ws, curRow, 7, r.startDate); return; }
-          sc(ws, curRow, ci, v, { align:[0,1,2,4,8,9].includes(ci)?'left':'center' });
-        });
-        curRow++;
-      });
-    });
-    if (curRow < 2) curRow = 2;
-    ws['!ref']  = window.XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:curRow-1,c:9}});
-    ws['!cols'] = [{wch:10},{wch:22},{wch:44},{wch:14},{wch:18},{wch:8},{wch:8},{wch:13},{wch:52},{wch:44}];
-    window.XLSX.utils.book_append_sheet(wb, ws, prod.name);
-  }
-
-
-  function setProg(show, pct, lbl) {
-    const wrap = document.getElementById('dl-prog-wrap'); if(!wrap) return;
-    wrap.style.display = show ? 'block' : 'none';
-    document.getElementById('dl-prog-fill').style.width = (pct||0) + '%';
-    document.getElementById('dl-prog-lbl').textContent  = lbl || '';
-  }
-
   // ── 엑셀 다운로드 (접수 리스트) ────────────────────────────
   window.downloadExcelList = async function() {
     const btn = document.getElementById('dl-single-btn');
@@ -3068,51 +2949,86 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  // ── 엑셀 다운로드 (대행사별 · 3시트) ────────────────────────
-  window.downloadExcel = function() {
+  // ── 시트 분류: 구글시트 '접수 가이드'의 가이드 탭(분류 × 일 목표 구간 → 상품별 비율)으로 캠페인마다 설정할 상품·% 엑셀
+  // 가이드 탭: 1행에서 '리워드'가 들어간 칸부터 리워드 상품, 그 앞(C열~)은 풀스텍 상품 · A열 구분은 병합이라 위 값을 이어 씀
+  function parseGuide(values) {
+    const rewardCol = (values[0] || []).findIndex(v => String(v).includes('리워드'));
+    if (rewardCol < 0) throw new Error("가이드 탭 1행에서 리워드 가이드 시작 칸을 찾지 못했습니다.");
+    const pairs = (row, from, to) => {
+      const out = [];
+      for (let c = from; c + 1 < to; c += 2) {
+        const name = String(row[c] ?? '').replace(/\s+/g, ' ').trim();
+        const ratio = Number(row[c + 1]) || 0;
+        if (name && ratio > 0) out.push({ name, ratio });
+      }
+      return out;
+    };
+    const rules = [];
+    let cat = '';
+    values.slice(2).forEach(row => {
+      if (String(row[0] ?? '').trim()) cat = String(row[0]).trim();
+      const range = String(row[1] ?? '').trim();
+      const nums = (range.match(/\d+/g) || []).map(Number);
+      if (!cat || !nums.length) return;
+      rules.push({ cat, range, min: nums[0], max: range.includes('이상') || nums.length < 2 ? Infinity : nums[1],
+        full: pairs(row, 2, rewardCol), reward: pairs(row, rewardCol, Math.max(row.length, rewardCol + 6)) });
+    });
+    return rules;
+  }
+  // 구간 사이 값(예: 10~99와 101 이상 사이의 100)은 바로 위 구간, 가장 낮은 구간보다 작으면 첫 구간
+  function pickGuideRule(rules, cat, target) {
+    const list = rules.filter(r => r.cat === cat).sort((a, b) => a.min - b.min);
+    if (!list.length) return null;
+    return list.find(r => target >= r.min && target <= r.max) || list.find(r => r.min > target) || list[list.length - 1];
+  }
+
+  window.downloadExcel = async function() {
     const checkedKeys = getCheckedKeys();
     const target = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
     if (!target.length) { alert('다운로드할 데이터가 없습니다.'); return; }
-    if (!ap().length)   { alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.'); return; }
-
-    function doDownload() {
-      const agencies = getAgencies(target);
-      const btn = document.getElementById('dl-main-btn');
-      if (btn) btn.disabled = true;
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const shortD = () => { const d=new Date(); return String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'); };
-      (async () => {
-        try {
-          for (let i = 0; i < agencies.length; i++) {
-            const ag = agencies[i], f = slotsByAgency(target, ag), realAg = ag === '(대행사 미지정)' ? '' : ag;
-            setProg(true, Math.round(100*i/agencies.length), `[${ag}] 시트 생성 중... (${i+1}/${agencies.length}개 대행사)`);
-            await sleep(60);
-            const wb = window.XLSX.utils.book_new();
-            buildJusuSheet(wb, f);
-            buildJumuSheet_(wb, f, '일반', p => !FIXED_PROD_IDS.has(p.id));
-            ap().filter(p => FIXED_PROD_IDS.has(p.id) && !p.deductOnly && !p.classifyOnly).forEach(prod => {
-              if (prod.blogUrlProduct) buildDeltaSheet_(wb, f, prod);
-              else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id);
-            });
-            window.XLSX.writeFile(wb, realAg ? `${realAg}-주문서.xlsx` : `주문서-${shortD()}.xlsx`);
-            await sleep(300);
-          }
-          setProg(true, 100, `완료 ✅  ${agencies.length}개 대행사 · ${target.length}건`);
-          await sleep(2000);
-        } catch(e) {
-          alert('오류: ' + e.message);
-        } finally {
-          if (btn) btn.disabled = false;
-          setProg(false);
-        }
-      })();
-    }
-
-    if (window.XLSX) { doDownload(); } else {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      s.onload = doDownload;
-      document.head.appendChild(s);
+    const btn = document.getElementById('dl-main-btn');
+    if (btn?.disabled) return;
+    const original = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '다운로드 중...'; }
+    try {
+      const [{ values }] = await Promise.all([HI.getGuideSheet(), window.XLSX ? null : new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('엑셀 라이브러리를 불러오지 못했습니다.'));
+        document.head.appendChild(s);
+      })]);
+      const rules = parseGuide(values || []);
+      // 풀스텍 열 순서: 기본 → 둘러보고 나감 → 카톡 길찾기 → 카톡 공유(그 밖의 상품은 뒤에)
+      const FULL_ORDER = ['기본', '둘러보고', '길찾기', '공유'];
+      const fullRank = n => { const i = FULL_ORDER.findIndex(k => n.includes(k)); return i < 0 ? FULL_ORDER.length : i; };
+      const fullNames = [...new Set(rules.flatMap(r => r.full.map(p => p.name)))].sort((a, b) => fullRank(a) - fullRank(b));
+      const rewardNames = [...new Set(rules.flatMap(r => r.reward.map(p => p.name)))];
+      const pct = (items, name) => { const it = items.find(p => p.name === name); return it ? `${Math.round(it.ratio * 100)}%` : ''; };
+      const header = ['대행사', '업체명', 'MID', '순위키워드', '분류', '일 목표', '구간',
+        ...fullNames.map(n => `[풀스텍] ${n}`), ...rewardNames.map(n => `[리워드] ${n}`), '비고'];
+      const rows = target.map(s => {
+        const cat = s.category || '';
+        const rule = cat ? pickGuideRule(rules, cat, s.dailyTarget || 0) : null;
+        return [s.agencyId || '', s.storeName || '', s.mid || '', s.rankKeyword || '', cat, s.dailyTarget || '', rule ? rule.range : '',
+          ...fullNames.map(n => rule ? pct(rule.full, n) : ''), ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''),
+          !cat ? '분류 없음' : !rule ? `가이드에 '${cat}' 없음` : ''];
+      });
+      const XLSX = window.XLSX;
+      const wb = XLSX.utils.book_new();
+      // 가이드 시트는 구글시트 내용 그대로(비율만 %로)
+      const guideAoa = (values || []).map((r, ri) => r.map((v, ci) => ri >= 2 && ci >= 3 && ci % 2 === 1 && typeof v === 'number' ? `${Math.round(v * 100)}%` : v));
+      const gws = XLSX.utils.aoa_to_sheet(guideAoa);
+      gws['!cols'] = [{wch:8}, {wch:10}, ...Array.from({ length: 12 }, (_, i) => ({ wch: i % 2 ? 6 : 26 }))];
+      XLSX.utils.book_append_sheet(wb, gws, '가이드');
+      const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+      ws['!cols'] = header.map((h, i) => ({ wch: i < 7 ? [14, 22, 12, 14, 6, 8, 9][i] : h === '비고' ? 16 : 14 }));
+      XLSX.utils.book_append_sheet(wb, ws, '분류');
+      XLSX.writeFile(wb, `시트분류_${ymd(new Date()).replace(/-/g, '')}.xlsx`);
+    } catch (e) {
+      alert('시트 분류 실패: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = original; }
     }
   };
 
@@ -3158,7 +3074,7 @@ window.toggleProdPanel = function(e) {
     return final || { success: false, message: '서버 응답 없음' };
   }
 
-  // buildJumuSheet_('일반', ...)와 동일한 배분 로직 — 엑셀 셀 대신 등록 페이로드 행 생성.
+  // 일반 상품 배분 — 등록 페이로드 행 생성.
   // 찰리는 등급/가격 체계가 달라 별도 메뉴(NP 위치저장)로 접수해야 해서 prodFilter로 charlie만 뽑아 별도 호출
   function buildNormalRows(slots, prodFilter = p => !FIXED_PROD_IDS.has(p.id)) {
     const deductProd = ap().find(p => p.deductOnly);
