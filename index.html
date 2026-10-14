@@ -82,8 +82,7 @@
     #page-actions button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
     .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px; }
-    .stat-card { background:var(--card); border-radius:14px; padding:20px; border:1px solid var(--border); position:relative; overflow:hidden; transition:.2s; }
-    .stat-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.06); }
+    .stat-card { background:var(--card); border-radius:14px; padding:20px; border:1px solid var(--border); position:relative; overflow:hidden; text-align:center; }
     .stat-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; }
     .stat-card.c-green::after { background:var(--accent); }
     .stat-card.c-warn::after  { background:var(--warn); }
