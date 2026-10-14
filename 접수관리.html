@@ -296,6 +296,7 @@
 </div>
 
 <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;gap:8px;">
+  <button class="action-btn" style="background:#dc2626;color:#fff;padding:7px 16px;font-size:12px;" onclick="openTypeChangeModal()" title="체크한 캠페인에 타입 변경 요청">🔀 변경 요청</button>
   <button class="action-btn" id="reaccept-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="openReacceptModal()">🔁 재접수</button>
   <button class="action-btn" id="dl-single-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcelList()">📥 엑셀 다운로드</button>
   <!-- <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 승인</button> -->
@@ -3399,11 +3400,9 @@ window.toggleProdPanel = function(e) {
         </div>
       </div>`;
     }
-    return `<div style="${box}background:var(--bg);border:1px solid var(--border);display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">타입 변경 요청</span>
-      <input id="tc-to" placeholder="바꿀 상품 (예: 찰리/카키)" style="flex:1;min-width:140px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
-      <input id="tc-note" placeholder="메모(선택)" style="flex:1;min-width:120px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
-      <button type="button" class="action-btn" style="background:#dc2626;color:#fff;" onclick="requestTypeChange('${s._key}')">요청</button>
+    return `<div style="${box}background:var(--bg);border:1px solid var(--border);display:flex;gap:6px;align-items:center;justify-content:space-between;">
+      <span style="font-size:12px;font-weight:700;color:var(--text2);">타입 변경 요청</span>
+      <button type="button" class="action-btn" style="background:#dc2626;color:#fff;" onclick="openTypeChangeModal(['${s._key}'])">🔀 변경 요청</button>
     </div>`;
   }
   async function saveTypeChange(key, changeRequest) {
@@ -3412,11 +3411,65 @@ window.toggleProdPanel = function(e) {
     await closeDetailModal(key);
     renderReceipts(false);
   }
-  window.requestTypeChange = async function(key) {
-    const to = document.getElementById('tc-to')?.value.trim();
-    if (!to) { alert('바꿀 상품을 입력해 주세요.'); return; }
-    const cu = HI.getCurrentUser() || {};
-    await saveTypeChange(key, { to, note: document.getElementById('tc-note')?.value.trim() || '', by: cu.username || '-', byName: cu.name || cu.username || '', at: new Date().toISOString() });
+  // 바꿀 상품은 상품 유형 설정 목록에서 골라 표기를 통일(차감·유입플 분류 같은 배분 전용 항목은 제외), 없을 때만 직접 입력.
+  // keys 없이 열면 목록에서 체크한 캠페인 대상. 이미 요청 중인 건은 새 요청으로 덮어씀
+  window.openTypeChangeModal = function(keys) {
+    const fromDetail = !!keys;
+    const targets = (keys || getCheckedKeys()).map(k => allSlots.find(s => s._key === k)).filter(Boolean);
+    const ok = targets.filter(s => TYPE_CHANGE_STATUSES.includes(s.status));
+    if (!targets.length) { alert('변경 요청할 캠페인을 체크해 주세요.'); return; }
+    if (!ok.length) { alert('대기·접수·승인·예약 상태 캠페인만 변경 요청할 수 있습니다.'); return; }
+    const names = [...new Set(prods.filter(p => !p.deductOnly && !p.classifyOnly && p.name).map(p => p.name))];
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.zIndex = '10001'; // 상세 창 위에 뜨도록
+    overlay.innerHTML = `
+      <div class="modal-box" style="width:min(94vw,460px);">
+        <div class="modal-title">🔀 타입 변경 요청</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">대상 ${ok.length}건${targets.length > ok.length ? ` <span style="color:var(--muted);">(상태가 맞지 않는 ${targets.length - ok.length}건 제외)</span>` : ''}${ok.some(isTypeChangeReq) ? ' · <span style="color:#b91c1c;">이미 요청 중인 건은 새 요청으로 바뀝니다</span>' : ''}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">바꿀 상품</div>
+        <div id="tc-prods" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+          ${names.map(n => `<button type="button" data-name="${escProd(n)}" style="padding:4px 12px;border:1px solid var(--border);border-radius:14px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">${escProd(n)}</button>`).join('')}
+        </div>
+        <input id="tc-custom" placeholder="목록에 없으면 직접 입력" style="width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-bottom:8px;">
+        <input id="tc-note" placeholder="메모(선택)" style="width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
+        <div style="font-size:12px;margin-top:10px;color:var(--text2);">요청 내용: <b id="tc-preview" style="color:#b91c1c;">-</b></div>
+        <div class="modal-footer">
+          <button class="btn-cancel" id="tc-close">닫기</button>
+          <button class="btn-save" id="tc-submit" style="background:#dc2626;">요청</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const picked = [];
+    const toText = () => [...picked, overlay.querySelector('#tc-custom').value.trim()].filter(Boolean).join('/');
+    const refresh = () => {
+      overlay.querySelectorAll('#tc-prods button').forEach(b => {
+        const on = picked.includes(b.dataset.name);
+        b.style.background = on ? '#dc2626' : '#fff'; b.style.color = on ? '#fff' : ''; b.style.borderColor = on ? '#dc2626' : '';
+      });
+      overlay.querySelector('#tc-preview').textContent = toText() || '-';
+    };
+    overlay.querySelector('#tc-prods').onclick = e => {
+      const n = e.target.dataset?.name; if (!n) return;
+      const i = picked.indexOf(n); i < 0 ? picked.push(n) : picked.splice(i, 1);
+      refresh();
+    };
+    overlay.querySelector('#tc-custom').oninput = refresh;
+    overlay.querySelector('#tc-close').onclick = () => overlay.remove();
+    overlay.querySelector('#tc-submit').onclick = async e => {
+      const to = toText();
+      if (!to) { alert('바꿀 상품을 골라 주세요.'); return; }
+      e.target.disabled = true;
+      const cu = HI.getCurrentUser() || {};
+      const req = { to, note: overlay.querySelector('#tc-note').value.trim(), by: cu.username || '-', byName: cu.name || cu.username || '', at: new Date().toISOString() };
+      try {
+        await Promise.all(ok.map(s => HI.updateCampaign(s._key, { changeRequest: req })));
+      } catch (err) { e.target.disabled = false; alert('요청 저장 실패: ' + err.message); return; }
+      ok.forEach(s => updateLocalSlot(s._key, { changeRequest: req }));
+      overlay.remove();
+      if (fromDetail) await closeDetailModal(ok[0]._key);
+      renderReceipts(false);
+    };
   };
   window.cancelTypeChange = async function(key) {
     if (!confirm('변경 요청을 취소할까요?')) return;
