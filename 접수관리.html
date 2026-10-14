@@ -2181,6 +2181,17 @@ window.toggleProdPanel = function(e) {
 
   // ── 엑셀 다운로드 (접수 리스트) ────────────────────────────
   window.downloadExcelList = async function() {
+    const btn = document.getElementById('dl-single-btn');
+    if (btn?.disabled) return;
+    const label = btn?.querySelector('span') || btn;
+    const original = label ? label.textContent : '';
+    if (btn) { btn.disabled = true; label.textContent = '다운로드 중...'; }
+    try { await runExcelDownload(); }
+    catch (e) { alert('엑셀 다운로드 실패: ' + e.message); }
+    finally { if (btn) { btn.disabled = false; label.textContent = original; } }
+  };
+
+  async function runExcelDownload() {
     const checkedKeys = getCheckedKeys();
     // 선택 없이 목록 전체를 받을 땐 종료 30일+ 이전 기록까지 포함(공유 캐시 기본값엔 없음)
     if (!checkedKeys.length && !_withArchive) {
@@ -2210,8 +2221,6 @@ window.toggleProdPanel = function(e) {
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
       // MID별 검색키워드 히스토리(히스토리 모달과 같은 소스) — 같은 MID는 한 번만 조회
-      const btn = document.getElementById('dl-single-btn');
-      if (btn) btn.disabled = true;
       const midRows = [...new Map(filtered.filter(s => s.mid).map(s => [s.mid, s])).values()];
       const histHeader = ['MID','업체명','날짜','키워드'];
       const kwHistRows = [];
@@ -2221,7 +2230,6 @@ window.toggleProdPanel = function(e) {
           kwHistRows.push([s.mid, s.storeName || '', h.createdAt ? ymd(new Date(h.createdAt)) : '', h.searchKeyword]);
         });
       });
-      if (btn) btn.disabled = false;
       if (kwHistRows.length) {
         const kwHistWs = XLSX.utils.aoa_to_sheet([histHeader, ...kwHistRows]);
         kwHistWs['!cols'] = [{wch:14},{wch:22},{wch:12},{wch:40}];
@@ -2233,13 +2241,15 @@ window.toggleProdPanel = function(e) {
       XLSX.writeFile(wb, `접수_${dateStr}.xlsx`);
     }
 
-    if (window.XLSX) { buildAndDownload(); } else {
+    if (!window.XLSX) await new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      s.onload = buildAndDownload;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('엑셀 라이브러리를 불러오지 못했습니다.'));
       document.head.appendChild(s);
-    }
-  };
+    });
+    await buildAndDownload();
+  }
 
   // ── 대기 슬롯 히스토리 재접수 (같은 MID의 최근 N일 키워드 히스토리로 자동 접수) ──
   window.openReacceptModal = function() {
