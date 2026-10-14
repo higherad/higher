@@ -762,7 +762,7 @@ window.toggleProdPanel = function(e) {
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${escProd(s.userId||'-')}</td>
           <td>${['pending','accepted','active','split'].includes(s.status)
-            ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>`
+            ? `<span id="grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>${yupflSourceBadge(s)}`
             : `<span style="color:#cbd5e1">-</span>`
           }</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
@@ -864,6 +864,7 @@ window.toggleProdPanel = function(e) {
   window.approveOne = async function(key, btn) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     const targetSlot = allSlots.find(s => s._key === key);
+    if (blockIfNoYupflSource(targetSlot)) { if (btn) { btn.disabled = false; btn.textContent = '승인'; } return; }
     const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
     await HI.approve(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
@@ -969,6 +970,7 @@ window.toggleProdPanel = function(e) {
   // ── 상태 변경 ────────────────────────────────────────────
   window.changeStatusTo = async function(key, newStatus) {
     const labelMap = { pending: '대기', accepted: '접수', active: '승인' };
+    if (newStatus === 'active' && blockIfNoYupflSource(allSlots.find(x => x._key === key))) return;
     if (!confirm(`상태를 "${labelMap[newStatus]}"(으)로 변경하시겠습니까?`)) return;
     await HI.updateCampaign(key, { status: newStatus });
     updateLocalSlot(key, { status: newStatus });
@@ -2314,6 +2316,22 @@ window.toggleProdPanel = function(e) {
   // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(approveReadySlots)에서 애드로그 자동등록을 스킵.
   // 행 단위 단건 승인 버튼(approveOne)은 이 토글과 무관하게 항상 자동등록.
   let adlogAutoOn = true;
+
+  // 유입플 출처(제이엔/풀스택) — 유입플 분류 몫이 있는 캠페인은 접수 확인 팝업에서 골라야 접수 신청·승인 가능.
+  // 신청 클릭 때 캠페인에 yupflSource로 저장하고 목록 캠페인타입 칸에 배지로 표시(진행 중 상태에서만)
+  const YUPFL_SOURCES = ['제이엔', '풀스택'];
+  let submitYupflSource = '';
+  window.setYupflSource = v => { submitYupflSource = v; };
+  const needsYupflSource = s => !!s && !s.yupflSource && (yupflFieldsFor(s).yupflTarget || 0) > 0;
+  function yupflSourceBadge(s) {
+    if (!s.yupflSource) return '';
+    return `<div style="margin-top:3px;"><span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a;">${escProd(s.yupflSource)}</span></div>`;
+  }
+  function blockIfNoYupflSource(slot) {
+    if (!needsYupflSource(slot)) return false;
+    alert('유입플 분류 몫이 있는 캠페인입니다.\n접수 확인 팝업에서 유입플 출처(제이엔/풀스택)를 골라 승인해 주세요.');
+    return true;
+  }
 
   // ── 시간대 분할 예약 접수 (kimpro와 동일 구현 + higher 전용 캐시차감 스냅샷) ──
   // /register 대신 schedule/dispatch에 페이로드만 저장, 서버가 지정 시각에 재생. 다중leg
@@ -3945,6 +3963,7 @@ window.toggleProdPanel = function(e) {
   async function openSubmitModal(target) {
     gradeMatchOn = true;
     adlogAutoOn = true;
+    submitYupflSource = '';
     scheduleConfig = null;
     scheduleDraftRows = [{ time: '10:00', pct: 100 }];
     scheduleKwSplit = false;
@@ -4020,6 +4039,11 @@ window.toggleProdPanel = function(e) {
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
             </button>
+            ${target.some(needsYupflSource) ? `<select id="yupfl-source-select" onchange="setYupflSource(this.value)" title="유입플 분류 몫이 있는 캠페인의 유입플 출처 — 골라야 접수 신청 가능"
+              style="padding:3px 8px;border:1px solid #fde68a;border-radius:6px;font-size:12px;font-weight:600;font-family:inherit;color:#b45309;background:#fffbeb;">
+              <option value="">유입플 출처 선택</option>
+              ${YUPFL_SOURCES.map(v => `<option value="${v}"${submitYupflSource===v?' selected':''}>${v}</option>`).join('')}
+            </select>` : ''}
           </div>
         </div>
         <div id="submit-warn-box" style="display:none;margin-bottom:10px;"></div>
@@ -4636,6 +4660,21 @@ window.toggleProdPanel = function(e) {
     fillBody();
 
     overlay.querySelector('#submit-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
+    // 접수 신청 버튼 공통 관문(캡처 단계라 각 버튼 onclick보다 먼저) — 유입플 출처 미선택이면 막고, 골랐으면 해당 캠페인에 저장
+    overlay.addEventListener('click', e => {
+      if (!e.target.closest('#submit-apply-btn, #csub-apply-btn, #bsub-apply-btn')) return;
+      const need = target.filter(needsYupflSource);
+      if (!need.length) return;
+      if (!submitYupflSource) {
+        e.stopImmediatePropagation(); e.preventDefault();
+        alert('유입플 출처(제이엔/풀스택)를 먼저 골라 주세요.');
+        return;
+      }
+      need.forEach(s => {
+        s.yupflSource = submitYupflSource;
+        HI.updateCampaign(s._key, { yupflSource: submitYupflSource }).catch(err => console.error('유입플 출처 저장 실패:', s._key, err));
+      });
+    }, true);
     overlay.querySelector('#youpfl-close-btn').onclick = () => overlay.remove();
     overlay.querySelector('#csub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#bsub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
