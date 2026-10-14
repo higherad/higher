@@ -3002,7 +3002,7 @@ window.toggleProdPanel = function(e) {
     const unsplit = target.filter(s => !s.yupflTarget && !s.deductTarget);
     if (unsplit.length) {
       const names = unsplit.slice(0, 5).map(s => `· ${s.storeName || s.mid}`).join('\n') + (unsplit.length > 5 ? `\n외 ${unsplit.length - 5}건` : '');
-      alert(`아직 리워드·유입플·차감으로 나뉘지 않은 캠페인이 ${unsplit.length}건 있어 시트 분류를 할 수 없습니다.\n승인된 캠페인만 체크해서 다시 눌러 주세요.\n\n${names}`);
+      alert(`승인 전 캠페인 ${unsplit.length}건이 있어요.\n승인된 캠페인만 체크해 주세요.\n\n${names}`);
       return;
     }
     const btn = document.getElementById('dl-main-btn');
