@@ -125,7 +125,7 @@
       </tr>
     </thead>
     <tbody id="settle-body">
-      <tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -532,7 +532,7 @@
     if (resetPage) { sPage = 1; }
     selectedSnapKeys.clear(); updateExportBtn();
     if (!_settleLoaded || forceReload) {
-      document.getElementById('settle-body').innerHTML='<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      document.getElementById('settle-body').innerHTML='<tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
       // 과거 날짜 정산 금액에 종료 30일+ 이전 캠페인도 필요 — 종료 전체까지(세션당 1회)
       let paid, refunds, snaps;
       try {
@@ -541,7 +541,7 @@
         ]);
       } catch (e) {
         console.error('정산 데이터 로딩 실패:', e);
-        document.getElementById('settle-body').innerHTML='<tr><td colspan="14" style="color:var(--danger);text-align:center;padding:40px">정산 데이터를 불러오지 못했습니다. 새로고침해 주세요.</td></tr>';
+        document.getElementById('settle-body').innerHTML='<tr><td colspan="16" style="color:var(--danger);text-align:center;padding:40px">정산 데이터를 불러오지 못했습니다. 새로고침해 주세요.</td></tr>';
         return;
       }
       paidSet = new Set(paid); refundMap = {...refunds}; snapshotMap = {...snaps};
@@ -615,7 +615,7 @@
     const start=(sPage-1)*PER;
     const list=rows.slice(start,start+PER);
     const body=document.getElementById('settle-body');
-    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';return;}
+    if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="16">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
       const safe=s=>s.replace(/[.#$[\]/]/g,'_');
       const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
