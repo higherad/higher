@@ -101,12 +101,12 @@
     <thead>
       <tr>
         <th style="width:30px;"><input type="checkbox" id="s-check-all" onchange="document.querySelectorAll('.s-check').forEach(c=>c.checked=this.checked)"></th><th>번호</th><th>대행사</th><th>유저ID</th><th>캠페인타입</th>
-        <th>플레이스명</th><th>MID</th><th>순위키워드</th>
+        <th>플레이스명</th><th>MID</th><th>분류</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>D-Day</th><th>상태</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="slots-body">
-      <tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="17"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -277,7 +277,7 @@
     const todayStr = todayYMD();
     if (!_slotsCacheLoaded || forceReload) {
       document.getElementById('slots-body').innerHTML =
-        '<tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+        '<tr><td colspan="17"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
       // 기본 = 진행 중 + 최근 30일 종료, 검색·종료필터·» = 종료 전체까지
       const [live, recent] = await Promise.all([HI.getLive(), HI.getRecentClosed()]);
@@ -311,7 +311,7 @@
     const body  = document.getElementById('slots-body');
 
     if (!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="16">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="17">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((s,i) => {
         const kwCount = s.searchKwCount || 0;   // 키워드 본문은 campaign_keywords에 있고 목록엔 개수만
@@ -324,6 +324,7 @@
           <td>${typeCellHtml(s)}</td>
           <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : `<span style="font-weight:500">${s.storeName||'-'}</span>`}</td>
           <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
+          <td style="color:var(--text2)">${s.category ? esc(s.category) : '<span style="color:#dc2626;font-weight:700;">-</span>'}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${s.rankKeyword}</a>` : '-'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
