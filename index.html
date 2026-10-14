@@ -573,15 +573,15 @@
   const PAGE_ACTIONS = {
     '접수관리.html': [
       [['file-spreadsheet', '엑셀 접수', 'openReceiptExcelModal()'], ['history', '재접수', 'openReacceptModal()']],
-      [['replace', '변경 요청', 'openTypeChangeModal()', { title: '체크한 캠페인에 타입 변경 요청' }], ['ban', '강제종료', 'openForceStopModal()', { danger: true }]],
-      [['download', '엑셀 다운로드', 'downloadExcelList()', { id: 'dl-single-btn' }], ['trophy', '순위표', 'downloadRankTable()', { id: 'rank-table-btn' }]],
+      [['ban', '강제종료', 'openForceStopModal()', { danger: true }]],
+      [['download', '엑셀 다운로드', 'downloadExcelList()', { id: 'dl-single-btn' }]],
     ],
     '정산관리.html': [
       [['clipboard-plus', '정산 등록', 'openSettleRegModal()'], ['undo-2', '환불 등록', 'openPendingRefundModal()']],
       [['check-check', '선택 입금', 'bulkPayConfirm()']],
       [['download', '엑셀 다운로드', 'exportSettleExcel()']],
     ],
-    '진행현황.html': [[['trash-2', '휴지통', 'openTrashView()']]],
+    '진행현황.html': [[['replace', '변경 요청', 'openTypeChangeModal()', { title: '체크한 캠페인에 타입 변경 요청' }]], [['trophy', '순위표', 'downloadRankTable()', { id: 'rank-table-btn' }]], [['trash-2', '휴지통', 'openTrashView()']]],
     '회원관리.html': [[['user-plus', '회원 추가', 'openUserModal(null)']]],
     '공지사항.html': [[['square-pen', '공지 작성', 'openNoticeModal(null)']]],
   };

@@ -3359,10 +3359,9 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 캠페인 타입 변경 요청 ─────────────────────────────────────
-  // 목록에서 체크해 바꿀 상품으로 요청(승인·예약 건만) → 등급 아래 빨간 배지·'변경' 카드 집계. 표시는 원 캠페인이 종료(closed)될
+  // 신청은 진행현황(체크 후 변경 요청, 승인·예약 건만) → 여기선 등급 아래 빨간 배지·'변경' 카드 집계. 표시는 원 캠페인이 종료(closed)될
   // 때까지 유지 — 상태를 접수·대기로 바꾸거나 강제종료 당일이어도 그대로. 실제 강제종료는 사람이 직접 하고, 강제종료로 생기는
   // 재접수 캠페인이 요청 상품(changeTo)을 이어받아 빨간 배지·등급 매칭에 씀. 완료·취소 단계 없음. 광고주에겐 서버가 이 필드를 안 보냄
-  const TYPE_CHANGE_STATUSES = ['active','split']; // 신청 가능한 상태 — 승인·예약(이미 비즈핏에 등록된 건)만
   const isTypeChangeReq = s => !!(s && s.changeRequest && !['expired','deleted'].includes(s.status));
   // 등급 배지 아래 빨간 배지 — 변경 요청 중인 원 캠페인, 그리고 요청 상품을 이어받은 재접수 캠페인(진행 중 상태 동안)
   const typeChangeTo = s => isTypeChangeReq(s) ? s.changeRequest.to
@@ -3372,63 +3371,6 @@ window.toggleProdPanel = function(e) {
     if (!to) return '';
     return `<div style="margin-top:3px;"><span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;" title="${escProd(s.changeRequest?.note||'변경 상품')}">${escProd(to)}</span></div>`;
   }
-  // 바꿀 상품은 상품 유형 설정 목록에서 골라 표기를 통일(차감·유입플 분류 같은 배분 전용 항목은 제외), 없을 때만 직접 입력.
-  // 목록에서 체크한 캠페인 대상. 이미 요청 중인 건은 새 요청으로 덮어씀
-  window.openTypeChangeModal = function() {
-    const targets = getCheckedKeys().map(k => allSlots.find(s => s._key === k)).filter(Boolean);
-    const ok = targets.filter(s => TYPE_CHANGE_STATUSES.includes(s.status));
-    if (!targets.length) { alert('변경 요청할 캠페인을 체크해 주세요.'); return; }
-    if (!ok.length) { alert('승인·예약 상태 캠페인만 변경 요청할 수 있습니다.'); return; }
-    const names = [...new Set(prods.filter(p => !p.deductOnly && !p.classifyOnly && p.name).map(p => p.name))];
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="modal-box" style="width:min(94vw,460px);">
-        <div class="modal-title">🔀 타입 변경 요청</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">대상 ${ok.length}건${targets.length > ok.length ? ` <span style="color:var(--muted);">(상태가 맞지 않는 ${targets.length - ok.length}건 제외)</span>` : ''}${ok.some(isTypeChangeReq) ? ' · <span style="color:#b91c1c;">이미 요청 중인 건은 새 요청으로 바뀝니다</span>' : ''}</div>
-        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">바꿀 상품</div>
-        <div id="tc-prods" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-          ${names.map(n => `<button type="button" data-name="${escProd(n)}" style="padding:4px 12px;border:1px solid var(--border);border-radius:14px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">${escProd(n)}</button>`).join('')}
-        </div>
-        <input id="tc-custom" placeholder="목록에 없으면 직접 입력" style="width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-bottom:8px;">
-        <input id="tc-note" placeholder="메모(선택)" style="width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
-        <div style="font-size:12px;margin-top:10px;color:var(--text2);">요청 내용: <b id="tc-preview" style="color:#b91c1c;">-</b></div>
-        <div class="modal-footer">
-          <button class="btn-cancel" id="tc-close">닫기</button>
-          <button class="btn-save" id="tc-submit" style="background:#dc2626;">요청</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-    const picked = [];
-    const toText = () => [...picked, overlay.querySelector('#tc-custom').value.trim()].filter(Boolean).join('/');
-    const refresh = () => {
-      overlay.querySelectorAll('#tc-prods button').forEach(b => {
-        const on = picked.includes(b.dataset.name);
-        b.style.background = on ? '#dc2626' : '#fff'; b.style.color = on ? '#fff' : ''; b.style.borderColor = on ? '#dc2626' : '';
-      });
-      overlay.querySelector('#tc-preview').textContent = toText() || '-';
-    };
-    overlay.querySelector('#tc-prods').onclick = e => {
-      const n = e.target.dataset?.name; if (!n) return;
-      const i = picked.indexOf(n); i < 0 ? picked.push(n) : picked.splice(i, 1);
-      refresh();
-    };
-    overlay.querySelector('#tc-custom').oninput = refresh;
-    overlay.querySelector('#tc-close').onclick = () => overlay.remove();
-    overlay.querySelector('#tc-submit').onclick = async e => {
-      const to = toText();
-      if (!to) { alert('바꿀 상품을 골라 주세요.'); return; }
-      e.target.disabled = true;
-      const cu = HI.getCurrentUser() || {};
-      const req = { to, note: overlay.querySelector('#tc-note').value.trim(), by: cu.username || '-', byName: cu.name || cu.username || '', at: new Date().toISOString() };
-      try {
-        await Promise.all(ok.map(s => HI.updateCampaign(s._key, { changeRequest: req })));
-      } catch (err) { e.target.disabled = false; alert('요청 저장 실패: ' + err.message); return; }
-      ok.forEach(s => updateLocalSlot(s._key, { changeRequest: req }));
-      overlay.remove();
-      renderReceipts(false);
-    };
-  };
   window.filterTypeChange = function() {
     document.getElementById('filter-status').value = 'change';
     renderReceipts();
@@ -6875,51 +6817,6 @@ window.toggleProdPanel = function(e) {
     render();
   };
 
-  // ── 📈 순위표 다운로드 (대상: 전체 캠페인) ──
-  // 버튼은 index.html 상단(엑셀 접수 오른쪽). 기준순위가 같은 MID의 직전 종료건까지 보므로 종료 전체 포함.
-  // kimpro-premium /rank-table은 종료 상태를 'ended'로 판정 — expired를 ended로 보냄
-  window.downloadRankTable = async function() {
-    const btn = document.getElementById('rank-table-btn');
-    const label = btn?.querySelector('span') || btn;
-    const original = label ? label.textContent : '';
-    if (btn) { btn.disabled = true; label.textContent = '다운로드 중...'; }
-    try {
-      const slots = (await HI.getAll()).filter(s => s.mid);
-      await fetchGradesBatch([...new Set(slots.map(s => s.mid))].filter(mid => !GRADE_CACHE.has(mid)));
-      const midEntries = slots.map(s => ({
-        mid: s.mid,
-        startDate: s.startDate || '',
-        endDate: s.endDate || '',
-        dailyTarget: s.dailyTarget || 0,
-        agency: s.agencyId || '',
-        createdDate: s.createdAt ? ymd(new Date(s.createdAt)) : '',
-        status: s.status === 'expired' ? 'ended' : (s.status || ''),
-        isRequeue: !!s.isRequeue,
-        grade: [...new Set(_allFilterLabels(GRADE_CACHE.get(s.mid)))].join(', '),
-      }));
-      const res = await fetch('https://kimpro-premium-938928195180.asia-northeast3.run.app/rank-table', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memo: '1test', midEntries }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || `요청 실패 (${res.status})`);
-      }
-      const blob = await res.blob();
-      const match = (res.headers.get('Content-Disposition') || '').match(/filename="?([^"]+)"?/);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = match ? match[1] : `순위표_${ymd(new Date())}.xlsx`;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      alert(`다운로드 실패: ${e.message}`);
-      console.error(e);
-    } finally {
-      if (btn) { btn.disabled = false; label.textContent = original; }
-    }
-  };
 
   // 최초 로드
   renderReceipts(false).then(attachSlotsLiveSync);

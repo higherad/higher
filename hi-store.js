@@ -725,6 +725,7 @@ const HI = {
   // 상품 설정 (전 계정 공용 1벌)
   // ════════════════════════════════════════════════════════
   onProdsChange(cb) { return prodsCache(cb); },
+  getProdsOnce() { return once(prodsCache); },
   onProdGroupsChange(cb) { return prodGroupsCache(cb); },
   saveProds(prods) { return set(ref(db, `${P.products}/prods`), prods); },
   saveProdGroups(groups) { return set(ref(db, `${P.products}/groups`), groups && groups.length ? groups : null); },
