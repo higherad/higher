@@ -1,11 +1,11 @@
 <div id="slots-page">
 <style>
   /* 상단 카드 — 접수관리와 같은 모양 */
-  #slots-page .stat-bar { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:16px; }
+  #slots-page .stat-bar { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:16px; }
   #slots-page .rc-stat { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
   #slots-page .rc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
   #slots-page .rc-val { font-size:22px; font-weight:800; line-height:1; }
-  @media (max-width:1100px) { #slots-page .stat-bar { grid-template-columns:repeat(4,1fr); } }
+  @media (max-width:1100px) { #slots-page .stat-bar { grid-template-columns:repeat(3,1fr); } }
   .type-badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:10px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
   .type-badge.mission { background:transparent; }
   .type-badge.source { background:#fef3c7; color:#b45309; border-color:#fde68a; }
@@ -47,7 +47,6 @@
   .s-force    { background:rgba(239,68,68,.1); color:#dc2626; }
   .s-paused   { background:rgba(124,58,237,.1); color:#7c3aed; }
   .s-wait     { background:rgba(59,130,246,.1); color:#1d4ed8; }
-  .kp-tag     { display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:6px; background:#f1f5f9; color:#0f172a; margin-left:4px; vertical-align:1px; }
   .dday-today  { background:#fef2f2; color:var(--danger); font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
   .dday-urgent { background:#fff7ed; color:#c2410c; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
   .dday-soon   { background:#fefce8; color:#a16207; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
@@ -61,7 +60,6 @@
   <div class="rc-stat"><div class="rc-label">진행</div><div class="rc-val" id="stat-companies" style="color:var(--accent)">-</div></div>
   <div class="rc-stat"><div class="rc-label">예약</div><div class="rc-val" id="stat-reserved" style="color:var(--warn)">-</div></div>
   <div class="rc-stat"><div class="rc-label">분할</div><div class="rc-val" id="stat-split" style="color:#b45309">-</div></div>
-  <div class="rc-stat"><div class="rc-label">임시중단</div><div class="rc-val" id="stat-paused" style="color:#7c3aed">-</div></div>
   <div class="rc-stat"><div class="rc-label">강제종료</div><div class="rc-val" id="stat-force" style="color:#dc2626">-</div></div>
   <div class="rc-stat"><div class="rc-label">전체 목표</div><div class="rc-val" id="stat-target" style="color:var(--info)">-</div></div>
   <div class="rc-stat"><div class="rc-label">진행 일 목표</div><div class="rc-val" id="stat-today-target" style="color:#7c3aed">-</div></div>
@@ -82,7 +80,6 @@
     <option value="reserved">예약</option>
     <option value="split">분할</option>
     <option value="force_stopped">강제종료</option>
-    <option value="paused">임시중단</option>
     <option value="expired">종료</option>
   </select>
   <select id="ef-range" onchange="renderSlots()">
@@ -104,7 +101,7 @@
       <tr>
         <th>번호</th><th>대행사</th><th>유저ID</th><th>캠페인타입</th>
         <th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색/유입플키워드</th><th>D-Day</th><th>상태</th><th>순위</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>검색키워드</th><th>D-Day</th><th>상태</th><th>순위</th>
       </tr>
     </thead>
     <tbody id="slots-body">
@@ -141,9 +138,8 @@
   // 진행중 계열 — 승인(active) + 예약 등록 중(split, 매일 등록이 나가는 중). D-Day·종료 예정 요약·종료임박 필터 공통
   function isRunning(s) { return s.status === 'active' || s.status === 'split'; }
   function statusBadge(s, todayStr) {
-    const tag = s.origin === 'kp' ? '<span class="kp-tag">김프로</span>' : ''; // 옛 김프로 메뉴에서 접수된 건
-    if (isReserved(s, todayStr)) return '<span class="status-badge s-reserved">예약</span>' + tag;
-    return (stLabel[s.status] || s.status) + tag;
+    if (isReserved(s, todayStr)) return '<span class="status-badge s-reserved">예약</span>';
+    return stLabel[s.status] || s.status;
   }
 
   // ── 종료예정(D-Day) 계산 — 종료예정.html에서 흡수 ─────────────
@@ -175,7 +171,7 @@
       if (status === 'reserved') { if (!isReserved(s, todayStr)) return false; }
       else if (status === 'active') { if (s.status !== 'active' || isReserved(s, todayStr)) return false; }
       else if (status) { if (s.status !== status) return false; }
-      // 전체: 이미 진행됐거나 끝난 캠페인만(대기/접수/재접수대기는 제외) — 옛 김프로 강제종료·임시중단 포함
+      // 전체: 이미 진행됐거나 끝난 캠페인만(대기/접수/재접수대기는 제외)
       else { if (!['active','split','expired','force_stopped','paused'].includes(s.status)) return false; }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       return true;
@@ -239,7 +235,6 @@
     const inProgress  = active.filter(s => !isReserved(s, todayStr));
     const split       = allSlots.filter(s => s.status === 'split').length;
     const forceStopped = allSlots.filter(s => s.status === 'force_stopped').length;
-    const paused      = allSlots.filter(s => s.status === 'paused').length;
     // 목표 카드 2개는 같은 대상 — 진행중(active+split)이면서 시작일이 지난 캠페인(대시보드 진행중 집계와 동일 기준)
     const running     = allSlots.filter(s => isRunning(s) && hasStarted(s));
     const totalTarget = running.reduce((a,s) => a+((s.dailyTarget||0)*(s.days||0)), 0);
@@ -248,7 +243,6 @@
     document.getElementById('stat-reserved').textContent     = reserved.length;
     document.getElementById('stat-split').textContent        = split;
     document.getElementById('stat-force').textContent        = forceStopped;
-    document.getElementById('stat-paused').textContent       = paused;
     document.getElementById('stat-target').textContent      = totalTarget.toLocaleString();
     document.getElementById('stat-today-target').textContent = todayTarget.toLocaleString();
   }
@@ -320,7 +314,6 @@
     } else {
       body.innerHTML = list.map((s,i) => {
         const kwCount = s.searchKwCount || 0;   // 키워드 본문은 campaign_keywords에 있고 목록엔 개수만
-        const yupflCount = s.yupflKwCount || 0;
         return `
         <tr>
           <td style="color:var(--text2)">${all.length - start - i}</td>
@@ -334,7 +327,7 @@
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
-          <td><span class="kw-badge">검색 ${kwCount}개</span> <span class="kw-badge" style="background:#fef3c7;color:#b45309;">유입 ${yupflCount}개</span></td>
+          <td><span class="kw-badge">${kwCount}개</span></td>
           <td>${isRunning(s) && hasStarted(s) ? ddayBadge(getDday(s.endDate)) : '-'}</td>
           <td>${statusBadge(s, todayStr)}</td>
           <td>
@@ -404,7 +397,7 @@
   renderSlots(false);
 
   // ── 휴지통 ─────────────────────────────────────────────────
-  // 한 벌 저장소라 탭 없이 하나로 — 옛 김프로 출처 건은 '김프로' 표시
+  // 한 벌 저장소라 탭 없이 하나로
   const TRASH_DAYS = 30;
 
   function _trashRemaining(deletedAt) {
@@ -490,7 +483,7 @@
             const remCls = rem > 14 ? 'trash-days-ok' : rem > 7 ? 'trash-days-warn' : 'trash-days-bad';
             return `<tr style="border-bottom:1px solid var(--border);">
               <td style="padding:10px;text-align:center;color:var(--text2);">${_fmtDateOnly(s.createdAt)}</td>
-              <td style="padding:10px;text-align:center;font-weight:600;">${s.agencyId||'-'}${s.origin === 'kp' ? '<span class="kp-tag">김프로</span>' : ''}</td>
+              <td style="padding:10px;text-align:center;font-weight:600;">${s.agencyId||'-'}</td>
               <td style="padding:10px;text-align:center;">${s.userId||'-'}</td>
               <td style="padding:10px;text-align:center;">${s.storeName||'-'}</td>
               <td style="padding:10px;text-align:center;font-size:11px;color:var(--text2);">${s.mid||'-'}</td>
