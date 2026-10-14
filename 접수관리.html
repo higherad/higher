@@ -771,7 +771,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
-          <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
+          <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}${dailySplitHtml(s)}</td>
           <td>${stMap[s.status]||s.status}${s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : ''}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
@@ -1481,12 +1481,15 @@ window.toggleProdPanel = function(e) {
     {id:'p7',     name:'X7',    color:'#ec4899', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
+    // 유입플 분류: 차감 뒤 남은 일 목표에서 이 비율만큼 유입플로 떼어 분류만 함(비즈핏 등록·유입플 접수 없음).
+    // 승인 때 yupflTarget·yupflAmount로 고정하고 그 금액은 차감 상품 몫과 합쳐 비즈핏 캐시에서 차감. 캠페인 dailyTarget은 그대로
+    {id:'yupflc', name:'유입플 분류', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
     {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
     {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.4', ratio:0, kwPct:0, blogUrlProduct:true, blogSplit:1},
   ];
   let prods = DEFAULT_PRODS.map(p => ({...p}));
-  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'delta', 'navy']);
+  const FIXED_PROD_IDS = new Set(['charlie', 'deduct', 'yupflc', 'delta', 'navy']);
   // 유입플·분할은 상품에서 제거됨 — 저장된 설정·그룹 프리셋에 남아 있어도 불러오지 않음
   const REMOVED_PROD_IDS = new Set(['yupfl', 'yupfl2']);
   // 찰리/델타/네이비의 ver는 사용자 설정값이 아니라 버전체크 우회용 백엔드 고정값 — RTDB에 저장된 옛 값이
@@ -1506,7 +1509,7 @@ window.toggleProdPanel = function(e) {
 
   // 상품 유형 설정은 전 계정 공용 1벌(hi/products)
   async function loadProdSettings() {
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {})}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,classifyOnly:p.classifyOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {})}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     // 최초 로드와 실시간 구독 콜백이 공유하는 처리 로직 — 원본 데이터를 받아 prods/prodGroups를 갱신
@@ -1758,7 +1761,7 @@ window.toggleProdPanel = function(e) {
 
     const isFixed = !!p.fixedAlloc;
     const isSplit = !!p.splitProduct;
-    const isDeduct = !!p.deductOnly;
+    const isDeduct = !!(p.deductOnly || p.classifyOnly);
     const actives = isFixed ? [] : ap().filter(q => !q.fixedAlloc);
     const makeGrid = (items, field, prefix) => items.map(q => `
           <div class="ratio-item">
@@ -1771,7 +1774,7 @@ window.toggleProdPanel = function(e) {
 
     document.getElementById('pm-ratio-grid').innerHTML = isDeduct
       ? `<div class="ratio-item" style="grid-column:1/-1;">
-          <span class="ri-name" style="color:${p.color}">차감 비율</span>
+          <span class="ri-name" style="color:${p.color}">${p.deductOnly ? '차감' : '유입플'} 비율</span>
           <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 10}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
           <span style="font-size:12px;color:var(--text2);">%</span>
         </div>`
@@ -1976,10 +1979,10 @@ window.toggleProdPanel = function(e) {
         return;
       }
       p.missionRules = rules;
-    } else if (p.deductOnly) {
+    } else if (p.deductOnly || p.classifyOnly) {
       const fixedPctEl = document.getElementById('pm-fixedpct');
       if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
-        alert('차감 비율은 100%를 초과할 수 없습니다.');
+        alert(`${p.deductOnly ? '차감' : '유입플'} 비율은 100%를 초과할 수 없습니다.`);
         return;
       }
       if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
@@ -2028,6 +2031,16 @@ window.toggleProdPanel = function(e) {
   // ── 분배 로직 ─────────────────────────────────────────────────
 
   function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
+
+  // 목록 일 목표 칸 아래 일반/유입플(/차감) 분할 표시 — 승인 전은 지금 설정으로 계산, 승인 후는 승인 때 고정한 값
+  function dailySplitHtml(s) {
+    const fixed = s.status !== 'pending' && s.status !== 'accepted';
+    const yup = fixed ? (s.yupflTarget || 0) : (yupflFieldsFor(s).yupflTarget || 0);
+    if (!yup || !s.dailyTarget) return '';
+    const ded = fixed ? Math.round((s.deductTarget || 0) / (s.days || 1)) : Math.round((deductFieldsFor(s).deductTarget || 0) / (s.days || 1));
+    const normal = Math.max(0, s.dailyTarget - yup - ded);
+    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">일반 ${normal.toLocaleString()} · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}</span>${ded ? ` · 차감 ${ded.toLocaleString()}` : ''}</div>`;
+  }
 
   // 승인 시점에 차감 비율로 배분되는 수량/금액을 스냅샷으로 남겨 정산관리에서 조회 가능하게 함
   function deductFieldsFor(slot) {
@@ -2086,7 +2099,7 @@ window.toggleProdPanel = function(e) {
   // 유입플·분할은 동시 진행 불가하므로 하나의 필드(yupflAmount)로 합산 저장
   function yupflFieldsFor(slot) {
     if (!slot) return {};
-    const yupfl = ap().find(p => p.id === 'yupfl' && p.fixedAlloc);
+    const yupfl = ap().find(p => p.classifyOnly);
     const split = ap().find(p => p.id === 'yupfl2' && p.splitProduct);
     if (!yupfl && !split) return {};
     const deduct = ap().find(p => p.deductOnly);
@@ -3525,7 +3538,7 @@ window.toggleProdPanel = function(e) {
             const wb = window.XLSX.utils.book_new();
             buildJusuSheet(wb, f);
             buildJumuSheet_(wb, f, '일반', p => !FIXED_PROD_IDS.has(p.id));
-            ap().filter(p => FIXED_PROD_IDS.has(p.id) && !p.deductOnly).forEach(prod => {
+            ap().filter(p => FIXED_PROD_IDS.has(p.id) && !p.deductOnly && !p.classifyOnly).forEach(prod => {
               if (prod.fixedAlloc) buildYoupflSheet(wb, f, prod, prod.name);
               else if (prod.blogUrlProduct) buildDeltaSheet_(wb, f, prod);
               else buildJumuSheet_(wb, f, prod.name, p => p.id === prod.id);
@@ -3795,7 +3808,7 @@ window.toggleProdPanel = function(e) {
     const target = base.filter(s => allowedStatuses.includes(s.status));
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.'); return; }
     const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
-    const hasFixed   = ap().some(p => p.fixedAlloc && !p.deductOnly);
+    const hasFixed   = ap().some(p => p.fixedAlloc && !p.deductOnly && !p.classifyOnly);
     const hasCharlie = ap().some(p => p.id === 'charlie');
     const hasDelta   = ap().some(p => p.id === 'delta');
     const hasNavy    = ap().some(p => p.id === 'navy');
