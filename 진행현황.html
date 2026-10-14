@@ -402,8 +402,7 @@
         <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">대상 ${ok.length}건${targets.length > ok.length ? ` <span style="color:var(--muted);">(진행·예약이 아닌 ${targets.length - ok.length}건 제외)</span>` : ''}${ok.some(s => s.changeRequest) ? ' · <span style="color:#b91c1c;">이미 요청 중인 건은 새 요청으로 바뀝니다</span>' : ''}</div>
         <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">바꿀 상품</div>
         <div id="tc-prods" style="margin-bottom:8px;">${row('일반', namesOf(false))}${row('고정', namesOf(true))}</div>
-        <input id="tc-custom" placeholder="목록에 없으면 직접 입력" style="${field}margin-bottom:8px;">
-        <input id="tc-note" placeholder="메모(선택)" style="${field}">
+        <input id="tc-custom" placeholder="목록에 없으면 직접 입력" style="${field}">
         <div style="font-size:12px;margin-top:10px;color:var(--text2);">요청 내용: <b id="tc-preview" style="color:#b91c1c;">-</b></div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
           <button type="button" id="tc-close" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit;">닫기</button>
@@ -432,7 +431,7 @@
       if (!to) { alert('바꿀 상품을 골라 주세요.'); return; }
       e.target.disabled = true;
       const cu = HI.getCurrentUser() || {};
-      const req = { to, note: overlay.querySelector('#tc-note').value.trim(), by: cu.username || '-', byName: cu.name || cu.username || '', at: new Date().toISOString() };
+      const req = { to, by: cu.username || '-', byName: cu.name || cu.username || '', at: new Date().toISOString() };
       try {
         await Promise.all(ok.map(s => HI.updateCampaign(s._key, { changeRequest: req })));
       } catch (err) { e.target.disabled = false; alert('요청 저장 실패: ' + err.message); return; }
