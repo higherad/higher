@@ -123,7 +123,7 @@
 
   /* ── 유틸 ── */
   const LIVE_URL='https://macro-4-bizfit-traffic-938928195180.asia-northeast3.run.app';
-  const DEFAULTS=[{name:'대행사',stores:[]},{name:'직광고주',stores:[]},{name:'단독',stores:[]},{name:'유입플',stores:[]}];
+  const DEFAULTS=[{name:'대행사',stores:[]},{name:'직광고주',stores:[]},{name:'단독',stores:[]}];
   const norm =s=>String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^\w가-힣]/g,'').trim();
   const normT=s=>String(s||'').toLowerCase().replace(/\s+/g,'').trim();
   const fmt  =n=>n?Number(n).toLocaleString():'';
@@ -252,17 +252,7 @@
     return{groupSums,total,ts:new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})};
   }
 
-  /* ── 유입플 물량을 분류 결과에 주입 (구분 설정의 '유입플' 그룹에 반영) ── */
-  function injectYoupfl(result, total){
-    let yg=result.groupSums.find(g=>g.name==='유입플');
-    if(!yg){ yg={name:'유입플',stores:[],gSum:0}; result.groupSums.push(yg); }
-    yg.stores=[{name:'유입플 플레이스',raw:'유입플',ns:0,np:total,nps:0,na:0,vm:0,kko:0,sum:total}];
-    yg.gSum=total;
-    result.total=computeTotal(result.groupSums);
-    return result;
-  }
-
-  /* ── 실시간 조회 (BizFit + 유입플 즉석 조회 — 조회 시 ad_classify/realtime에 덮어쓰기 저장) ── */
+  /* ── 실시간 조회 (BizFit 즉석 조회 — 조회 시 ad_classify/realtime에 덮어쓰기 저장) ── */
   async function loadCachedRealtime(){
     if(window._acRealtimeResult) return window._acRealtimeResult;
     const r=await fbLoadRealtime();
@@ -272,7 +262,7 @@
   function showRealtimePrompt(){
     document.getElementById('ac-result-area').innerHTML=`
       <div class="ac-no-result">
-        조회 버튼을 눌러 지금 이 순간의 BizFit·유입플 데이터를 가져옵니다.
+        조회 버튼을 눌러 지금 이 순간의 BizFit 데이터를 가져옵니다.
         <div style="margin-top:16px;display:flex;justify-content:center">
           <button class="ac-run-btn" style="width:auto;padding:12px 28px" onclick="loadRealtime()">실시간 조회</button>
         </div>
@@ -282,19 +272,18 @@
     const r=await fetch(`${LIVE_URL}/live`);
     const j=await r.json();
     if(!j.success) throw new Error((j.logs&&j.logs.length)?j.logs[j.logs.length-1]:'조회 실패');
-    return {rows:j.rows||[], youpflTotal:j.youpflTotal};
+    return j.rows||[];
   }
   window.loadRealtime=async function(){
     showEmpty('BizFit에서 실시간 데이터를 조회하는 중...');
     setStatus('');
     try{
-      const{rows,youpflTotal}=await fetchLiveData();
+      const rows=await fetchLiveData();
       const acData=rows.map(r=>({
         storeN:norm(String(r[2]||'').split(',').pop()),
         typeN:normT(r[9]),goal:Number(r[15])||0
       })).filter(r=>r.storeN);
-      let result=classify(acData);
-      if(youpflTotal!=null) result=injectYoupfl(result,youpflTotal);
+      const result=classify(acData);
       window._acRealtimeResult=result;
       fbSaveRealtime(result);
       if(!window._acDailyAll){
@@ -346,8 +335,7 @@
     }
   }
 
-  // 해당 날짜 레코드의 groupSums에서 '유입플' 그룹 합계를 추출
-  // (유입플은 injectYoupflData에서 store.np 필드에 값을 담아 저장되므로 총 NP트래픽에서 분리해야 함)
+  // 과거 날짜 레코드의 '유입플' 그룹 합계(유입플 사이트 종료 전 기록) — NP트래픽 값에 섞여 저장돼 있어 분리해 표시
   function getYoupflSum(day){
     if(!day||!day.groupSums) return 0;
     const yg=day.groupSums.find(g=>g.name==='유입플');
@@ -523,7 +511,7 @@
     };
 
     // 저장된 일별 데이터를 순회하며 raw 또는 name으로 매칭해 누적
-    // (유입플처럼 _groups.stores가 비어있고 injectYoupflData로 주입된 경우 동적 추가)
+    // (과거 유입플 기록처럼 구분 설정에 없는 그룹은 동적 추가)
     monthKeys.forEach(k=>{
       const day=daily[k];
       if(!day||!day.groupSums) return;
@@ -670,24 +658,6 @@
         </tr>`;
       });
 
-      // 실시간 탭 · '단독' 그룹 하단에 유입플 제외 총합 행 추가 (검증용) — 하단 '총합' 행과 동일한 항목별 구성
-      if(!kw && mode==='realtime' && g.name==='단독'){
-        const exTotal=computeTotal(groupSums.filter(x=>x.name!=='유입플'));
-        const eb =`background:#fef3c7;color:#92400e;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #f59e0b;border-bottom:2px solid #f59e0b`;
-        const eb2=`background:#fef3c7;color:#92400e;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #f59e0b;border-bottom:2px solid #f59e0b`;
-        tbody+=`<tr>
-          <td colspan="2" style="${eb}">총합 (유입플 제외)</td>
-          <td style="${eb2}">${fmt(exTotal.ns)}</td>
-          <td style="${eb2}">${fmt(exTotal.np)}</td>
-          <td style="${eb2}">${fmt(exTotal.nps)}</td>
-          <td style="${eb2}">${fmt(exTotal.na)}</td>
-          <td style="${eb2}">${fmt(exTotal.vm)}</td>
-          <td style="${eb2}">${fmt(exTotal.kko)}</td>
-          <td style="${eb}">${fmt(exTotal.sum)}</td>
-          <td style="${eb2}"></td>
-          ${md?`<td style="${eb2}"></td><td style="${eb2}"></td>`:''}
-        </tr>`;
-      }
     });
 
     if(kw&&!visible) return `<div class="ac-no-result">"<b>${keyword}</b>" 검색 결과가 없습니다.</div>`;
