@@ -2700,18 +2700,27 @@ window.toggleProdPanel = function(e) {
     if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
     try { await HI.ensureKeywords(filtered); } catch (e) { return alert('키워드를 불러오지 못했습니다. 다시 시도해 주세요.\n' + e.message); }
 
+    // 캠페인타입 = 목록 칸과 같은 값(진행 중 상태만 등급·미션 라벨 + 유입플 출처)
+    const LIVE_TYPE = ['pending','accepted','active','split','requeue','force_stopped'];
+    await fetchGradesBatch([...new Set(filtered.filter(s => s.mid && LIVE_TYPE.includes(s.status)).map(s => s.mid))]);
+    const campaignType = s => {
+      if (!LIVE_TYPE.includes(s.status)) return '';
+      const cached = s.mid ? GRADE_CACHE.get(s.mid) : null;
+      return [...new Set(cached ? _allFilterLabels(cached) : []), s.yupflSource].filter(Boolean).join(', ');
+    };
+
     async function buildAndDownload() {
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
-      const statusText = { pending:'대기', accepted:'접수', active:'승인', expired:'종료', split:'분할' };
-      const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','상태','검색키워드','유입플키워드'];
+      const statusText = { pending:'대기', accepted:'접수', active:'승인', expired:'종료', split:'분할', requeue:'재접수', force_stopped:'강제종료' };
+      const header = ['접수일시','대행사','캠페인타입','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','상태','검색키워드','유입플키워드'];
       const rows = filtered.map(s => [
         s.createdAt ? ymd(new Date(s.createdAt)) : '',
-        s.agencyId||'', s.storeName||'', s.url||'', s.mid||'',
+        s.agencyId||'', campaignType(s), s.storeName||'', s.url||'', s.mid||'',
         s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', statusText[s.status]||s.status||'-', s.searchKeyword||'', s.yupflKeyword||'',
       ]);
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-      ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:8},{wch:20},{wch:20}];
+      ws['!cols'] = [{wch:12},{wch:16},{wch:18},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:8},{wch:20},{wch:20}];
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
       // MID별 검색키워드/유입플키워드 히스토리(자체 DB + kimpro 쪽 히스토리 포함, 히스토리 모달과
