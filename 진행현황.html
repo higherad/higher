@@ -375,7 +375,7 @@
 
   // ── 캠페인 타입 변경 요청 ─────────────────────────────────
   // 체크한 승인·예약 캠페인에 바꿀 상품을 요청 → 접수관리·진행현황 등급 아래 빨간 배지, 접수관리 '변경' 카드·필터로 확인.
-  // 상품은 상품 유형 설정 목록에서 골라 표기를 통일(차감·유입플 분류처럼 배분 전용 항목 제외), 없을 때만 직접 입력.
+  // 상품은 상품 유형 설정 목록에서만 골라 표기를 통일(차감·유입플 분류처럼 배분 전용 항목 제외).
   // 이미 요청 중인 건은 새 요청으로 덮어씀. 실제 강제종료는 사람이 하고, 재접수 캠페인이 요청 상품을 이어받음(hi-store forceStopMid)
   const CHANGE_STATUSES = ['active','split'];
   const NOT_PRODUCTS = new Set(['deduct','yupflc','yupfl','yupfl2']);
@@ -393,7 +393,6 @@
     const namesOf = fixed => [...new Set(list.filter(p => FIXED_PRODUCTS.has(p.id) === fixed).map(p => p.name))];
     const chip = n => `<button type="button" data-name="${esc(n)}" style="padding:4px 12px;border:1px solid var(--border);border-radius:14px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">${esc(n)}</button>`;
     const row = (label, names) => names.length ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;"><span style="flex:0 0 28px;font-size:11px;font-weight:700;color:var(--muted);padding-top:6px;">${label}</span><div style="display:flex;flex-wrap:wrap;gap:6px;">${names.map(chip).join('')}</div></div>` : '';
-    const field = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;box-sizing:border-box;';
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
@@ -402,7 +401,6 @@
         <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">대상 ${ok.length}건${targets.length > ok.length ? ` <span style="color:var(--muted);">(진행·예약이 아닌 ${targets.length - ok.length}건 제외)</span>` : ''}${ok.some(s => s.changeRequest) ? ' · <span style="color:#b91c1c;">이미 요청 중인 건은 새 요청으로 바뀝니다</span>' : ''}</div>
         <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">바꿀 상품</div>
         <div id="tc-prods" style="margin-bottom:8px;">${row('일반', namesOf(false))}${row('고정', namesOf(true))}</div>
-        <input id="tc-custom" placeholder="목록에 없으면 직접 입력" style="${field}">
         <div style="font-size:12px;margin-top:10px;color:var(--text2);">요청 내용: <b id="tc-preview" style="color:#b91c1c;">-</b></div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
           <button type="button" id="tc-close" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit;">닫기</button>
@@ -411,7 +409,7 @@
       </div>`;
     document.body.appendChild(overlay);
     const picked = [];
-    const toText = () => [...picked, overlay.querySelector('#tc-custom').value.trim()].filter(Boolean).join('/');
+    const toText = () => picked.join('/');
     const refresh = () => {
       overlay.querySelectorAll('#tc-prods button').forEach(b => {
         const on = picked.includes(b.dataset.name);
@@ -424,7 +422,6 @@
       const i = picked.indexOf(n); i < 0 ? picked.push(n) : picked.splice(i, 1);
       refresh();
     };
-    overlay.querySelector('#tc-custom').oninput = refresh;
     overlay.querySelector('#tc-close').onclick = () => overlay.remove();
     overlay.querySelector('#tc-submit').onclick = async e => {
       const to = toText();
