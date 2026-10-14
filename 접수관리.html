@@ -6746,7 +6746,7 @@ window.toggleProdPanel = function(e) {
           </tr></thead>
           <tbody id="fs-body"></tbody>
         </table>
-        <div id="fs-log" style="margin-top:10px;max-height:140px;overflow-y:auto;font-size:11px;font-family:monospace;color:var(--text2);"></div>
+        <div id="fs-log" style="margin-top:10px;font-size:11px;color:var(--text2);"></div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
           <button class="btn-cancel" id="fs-close">닫기</button>
           <button id="fs-run" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">강제종료 실행</button>
@@ -6754,7 +6754,7 @@ window.toggleProdPanel = function(e) {
       </div>`;
     document.body.appendChild(overlay);
     const $ = sel => overlay.querySelector(sel);
-    const log = msg => { $('#fs-log').insertAdjacentHTML('beforeend', `<div>${new Date().toLocaleTimeString('ko-KR',{hour12:false})} ${escProd(msg)}</div>`); $('#fs-log').scrollTop = 1e9; };
+    const log = msg => { $('#fs-log').innerHTML = `<div>${new Date().toLocaleTimeString('ko-KR',{hour12:false})} ${escProd(msg)}</div>`; }; // 최신 한 줄만(행별 결과는 표 상태 칸에 남음)
     const ST = { ready:'대기', running:'⏳ 진행 중', success:'✅ 완료', fail:'❌ 실패', blocked:'⛔ 예약 진행 중 — 강제종료 불가' };
     function render() {
       $('#fs-body').innerHTML = entries.length ? entries.map((e, i) => `
