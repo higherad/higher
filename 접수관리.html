@@ -108,7 +108,11 @@
   .prod-panel.collapsed .prod-pb{display:none;}
   .prod-panel.collapsed .prod-ph-desc{display:none;}
   .prod-panel.collapsed .prod-ph-actions{display:none !important;}
-  .prod-toggle-icon{margin-left:2px;font-size:11px;color:var(--text2);transition:transform .2s;display:inline-block;}
+  .prod-toggle-icon{margin-left:2px;color:var(--text2);transition:transform .2s;display:inline-flex;}
+  .prod-ph svg{width:15px;height:15px;color:var(--text2);flex-shrink:0;}
+  .prod-ph-actions button{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:#fff;color:var(--text2);font:600 12px inherit;font-family:inherit;padding:5px 10px;border-radius:7px;cursor:pointer;}
+  .prod-ph-actions button:hover{color:var(--text);background:#f1f5f9;}
+  .prod-ph-actions button svg{width:13px;height:13px;}
   .prod-panel.collapsed .prod-toggle-icon{transform:rotate(-90deg);}
   .prod-grp-btn{display:inline-flex;align-items:center;gap:7px;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px 5px 12px;cursor:pointer;transition:all .2s;user-select:none;}
   .prod-grp-btn:hover{border-color:rgba(0,0,0,.2);background:white;}
@@ -248,13 +252,13 @@
 <!-- 상품 유형 설정 패널 -->
 <div class="prod-panel collapsed" id="prod-panel">
   <div class="prod-ph" onclick="toggleProdPanel(event)">
-    <span>📦</span>
+    <i data-lucide="package"></i>
     <span class="prod-ph-title">상품 유형 설정</span>
-    <span class="prod-toggle-icon">&#9660;</span>
+    <span class="prod-toggle-icon"><i data-lucide="chevron-down"></i></span>
     <span class="prod-ph-desc" style="flex:1;text-align:center;font-size:11px;color:var(--muted);">상품을 클릭하면 상품명·버전·고정 비율 설정 가능</span>
     <div class="prod-ph-actions" onclick="event.stopPropagation()" style="display:flex;gap:6px;">
-      <button class="action-btn" style="background:var(--info);color:#fff;font-size:11px;padding:4px 10px;" onclick="showAddProdModal()">＋ 상품 추가</button>
-      <button class="action-btn" style="background:#475569;color:#fff;font-size:11px;padding:4px 10px;" onclick="showAddProdGroup()">＋ 그룹 추가</button>
+      <button type="button" onclick="showAddProdModal()"><i data-lucide="plus"></i>상품 추가</button>
+      <button type="button" onclick="showAddProdGroup()"><i data-lucide="folder-plus"></i>그룹 추가</button>
     </div>
   </div>
   <div class="prod-pb">
