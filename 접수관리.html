@@ -4418,27 +4418,42 @@ window.toggleProdPanel = function(e) {
     const productVer = productVerFor(legKey);
     const batchGroupId = `sch_${genId()}`;
     let scheduledCount = 0, failTotal = 0;
+    const scheduledRows = [];
     const dispatchEntries = [];
     const slotKeyCounts = new Map();
 
     async function scheduleAgency(p) {
       if (!p.rows.length) return;
+      // 행 상태 칸 — 일반 접수(submitPlanRows)와 같은 표시. 예약 성공 표시는 예약 저장이 끝난 뒤(아래 scheduledRows)
+      const mark = (rows, html) => rows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = html; });
+      const fail = (label, title = '') => `<span style="color:var(--danger);" title="${escProd(title)}">${label}</span>`;
+      mark(p.rows.filter(r => r._normalSubmitted), '<span style="color:var(--accent);">✅ 완료</span>');
       const pendingRows = p.rows.filter(r => !r._normalSubmitted);
       if (!pendingRows.length) return;
+      mark(pendingRows, '<span style="color:var(--info);">⏳</span>');
 
-      pendingRows.forEach(r => { if (truncateAndValidateRow(r, scheduleKwSplit)) r._kwFail = true; });
+      pendingRows.forEach(r => {
+        const f = truncateAndValidateRow(r, scheduleKwSplit);
+        if (f) { r._kwFail = true; mark([r], fail(f.label, f.title)); }
+      });
       const { ok: validRows, blocked } = await claimRowsForRegister(pendingRows.filter(r => !r._kwFail), legKey);
       if (!validRows.length) { failTotal += pendingRows.length; return; }
       failTotal += blocked;
 
       const account = p.realAg ? await fetchBizfitAccount(p.realAg) : null;
-      if (!account) { failTotal += validRows.length; return; }
+      if (!account) { failTotal += validRows.length; mark(validRows, fail('❌ 계정 미등록')); return; }
 
       let gi;
       try {
         gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, adrole: adrole || undefined, rawData: [] });
       } catch(e) { gi = { success:false }; }
-      if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) { failTotal += validRows.length; return; }
+      if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) { failTotal += validRows.length; mark(validRows, fail('❌ 등급조회 실패', gi.message || '')); return; }
+
+      const gradeNames = new Set(gi.gradeGroups.map(g => g.gradeName));
+      const unmatched = validRows.filter(r => !gradeNames.has(r.상품등급명));
+      mark(unmatched, fail('❌ 등급 불일치'));
+      failTotal += unmatched.length;
+      scheduledRows.push(...validRows.filter(r => gradeNames.has(r.상품등급명)));
 
       const expanded = validRows.flatMap(r => splitRowBySchedule(r, schedule));
       if (!expanded.length) return;
@@ -4474,6 +4489,7 @@ window.toggleProdPanel = function(e) {
         overlay._renderDeductFailures();
       }
       await Promise.all(dispatchEntries.map(saveScheduledDispatch));
+      scheduledRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 예약 완료</span>'; });
       // adlog.kr은 서버가 만든 xlsx를 거부해서(브라우저 SheetJS 파일만 통과) 서버가 나중에 처리하는
       // 예약 완료(active 전환) 시점엔 등록 불가 — 그래서 지금(접수 신청 클릭 시점) 미리 등록해둠.
       if (adlogAutoOn) await autoRegisterAdlog([...slotKeyCounts.keys()].map(k => allSlots.find(s => s._key === k)));
