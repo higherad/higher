@@ -1350,11 +1350,13 @@ window.toggleProdPanel = function(e) {
   function renderProdGroups() {
     const wrap = document.getElementById('prodGroupWrap');
     if (!wrap) return;
+    const guideBtn = `<div class="prod-grp-btn${guideModeOn?' active-g':''}" onclick="toggleGuidePreset()" style="padding-right:12px;"
+      title="캠페인마다 분류·일 목표 구간으로 구글시트 접수 가이드의 리워드 상품·비율로 배분"><span class="prod-grp-name">가이드_접수</span></div>`;
     if (!prodGroups.length) {
-      wrap.innerHTML = `<span style="font-size:11px;color:var(--muted);">저장된 그룹 없음</span>`;
+      wrap.innerHTML = guideBtn + `<span style="font-size:11px;color:var(--muted);">저장된 그룹 없음</span>`;
       return;
     }
-    wrap.innerHTML = prodGroups.map(g => {
+    wrap.innerHTML = guideBtn + prodGroups.map(g => {
       const isActive = g.id === activeProdGroupId;
       const dots = g.state.map(s => {
         const p = prods.find(x => x.id === s.id);
@@ -1396,6 +1398,7 @@ window.toggleProdPanel = function(e) {
   window.applyProdGroup = function(id) {
     if (id === activeProdGroupId) { deactivateProdGroup(); return; }
     const g = prodGroups.find(x => x.id === id); if(!g) return;
+    guideModeOn = false;
     if (!activeProdGroupId) saveProdDefault();
     g.state.forEach(s => {
       const p = prods.find(x => x.id === s.id); if(!p) return;
@@ -1857,6 +1860,31 @@ window.toggleProdPanel = function(e) {
     return '';
   }
 
+  // ── 가이드_접수 프리셋 ──────────────────────────────────────────
+  // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
+  // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 원래 방식(등급 매칭/상품 설정)으로.
+  let guideModeOn = false, guideRules = [], guideCats = [];
+  function guideProdsFor(r) {
+    const cat = r.category || HI.kwCategoryOf(r.rankKeyword, guideCats);
+    const rule = cat ? pickGuideRule(guideRules, cat, r.dailyTarget || 0) : null;
+    if (!rule || !rule.reward.length) return [];
+    return rule.reward.map(g => {
+      const known = prods.find(p => p.name === g.name && !p.fixedAlloc);
+      return known ? { ...known, ratio: g.ratio, kwPct: g.ratio }
+        : { id: `grade_${g.name}`, name: g.name, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: g.ratio, kwPct: g.ratio, daysMultiplied: false };
+    });
+  }
+  window.toggleGuidePreset = async function() {
+    if (guideModeOn) { guideModeOn = false; renderPS(); return; }
+    try {
+      const [{ values }, cats] = await Promise.all([HI.getGuideSheet(), HI.getKwCategories()]);
+      guideRules = parseGuide(values || []);
+      guideCats = cats;
+    } catch (e) { alert('가이드를 불러오지 못했습니다: ' + e.message); return; }
+    if (activeProdGroupId) deactivateProdGroup();
+    guideModeOn = true; renderPS();
+  };
+
   // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
   // 같은 MID의 진행 중 캠페인에 저장된 상품(gradeLabelsOf)이 있으면 상품 유형 설정 ratio 무시하고 그 상품(들)로만 접수.
   // 팝업 토글(기본 on) 끄면 상품 유형 설정값 그대로 배분.
@@ -2005,7 +2033,9 @@ window.toggleProdPanel = function(e) {
     const AP = ap();
     // 변경 요청으로 생긴 재접수(changeTo)는 요청한 상품으로, 그 외 재접수는 매칭 안 함
     const changeTo = (r.changeTo || '').split('/').map(x => x.trim()).filter(Boolean);
-    const gradeProds = !gradeMatchOn ? []
+    const guideProds = guideModeOn && !changeTo.length ? guideProdsFor(r) : [];
+    const gradeProds = guideProds.length ? guideProds
+      : !gradeMatchOn ? []
       : changeTo.length ? gradeProdsFromLabels(changeTo)
       : !r.isRequeue ? matchedGradeProds(r.mid) : [];
     if (!gradeProds.length) {
@@ -2015,12 +2045,12 @@ window.toggleProdPanel = function(e) {
     return { alloc: allocate(asgn, r.dailyTarget||0), prods: asgn, gradeProds };
   }
 
-  // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 균등분배(ratio=1)한다.
+  // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 ratio대로(등급 매칭은 모두 1 = 균등, 가이드는 가이드 비율) 나눈다.
   function kwForGradeProd(keywords, prod, gradeProds) {
     if (!keywords) return '';
     const parts = keywords.split(',').map(k => k.trim()).filter(k => k);
     if (!parts.length) return '';
-    const counts = lrm(gradeProds.map(p => ({ id: p.id, ratio: 1 })), parts.length);
+    const counts = lrm(gradeProds.map(p => ({ id: p.id, ratio: p.ratio || 1 })), parts.length);
     let offset = 0;
     for (const p of gradeProds) {
       if (p.id === prod.id) return parts.slice(offset, offset + (counts[p.id] || 0)).join(',');
