@@ -792,7 +792,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
-          <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}${dailySplitHtml(s)}</td>
+          <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}${HI.dailySplitHtml(s)}</td>
           <td>${stMap[s.status]||s.status}${requeueTag(s)}${s.status==='force_stopped' && s.forceStoppedAt ? `<div style="font-size:10px;color:var(--muted);">${s.forceStoppedAt.slice(5)} 강제종료 · 다음 날 종료</div>` : ''}${s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : ''}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
@@ -2054,15 +2054,6 @@ window.toggleProdPanel = function(e) {
   // ── 분배 로직 ─────────────────────────────────────────────────
 
   function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
-
-  // 목록 일 목표 칸 아래 일반/유입플(/차감) 분할 표시 — 승인(예약 포함) 때 캠페인에 고정한 값만(승인 전엔 표시 안 함)
-  function dailySplitHtml(s) {
-    const yup = s.yupflTarget || 0;
-    if (!yup || !s.dailyTarget) return '';
-    const ded = Math.round((s.deductTarget || 0) / (s.days || 1));
-    const normal = Math.max(0, s.dailyTarget - yup - ded);
-    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">일반 ${normal.toLocaleString()} · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}</span>${ded ? ` · 차감 ${ded.toLocaleString()}` : ''}</div>`;
-  }
 
   // 승인 시점에 차감 비율로 배분되는 수량/금액을 스냅샷으로 남겨 정산관리에서 조회 가능하게 함
   function deductFieldsFor(slot) {

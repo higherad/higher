@@ -166,4 +166,9 @@ await HI.expire([f1._key]);
 assert.equal(tree.hi.campaigns.closed[f1._key].status, 'expired');
 assert.equal(tree.hi.campaigns.closed[f1._key].endDate, '2026-10-14', '종료일 = 강제종료일');
 
+// ── 일 목표 분할 표시: 승인 때 고정한 값이 있을 때만 ──
+assert.equal(HI.dailySplitHtml({ dailyTarget: 100, days: 3 }), '', '승인 전(고정값 없음)은 표시 안 함');
+const splitHtml = HI.dailySplitHtml({ dailyTarget: 100, days: 3, yupflTarget: 35, deductTarget: 90 });
+assert.ok(splitHtml.includes('일반 35') && splitHtml.includes('유입플 35') && splitHtml.includes('차감 30'), splitHtml);
+
 console.log('hi-store 자가검사 통과');

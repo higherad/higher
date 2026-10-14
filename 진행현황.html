@@ -326,7 +326,7 @@
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
-          <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
+          <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong>${HI.dailySplitHtml(s)}</td>
           <td><span class="kw-badge">${kwCount}개</span></td>
           <td>${isRunning(s) && hasStarted(s) ? ddayBadge(getDday(s.endDate)) : '-'}</td>
           <td>${statusBadge(s, todayStr)}</td>
