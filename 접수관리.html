@@ -2212,11 +2212,13 @@ window.toggleProdPanel = function(e) {
       const statusText = { pending:'대기', accepted:'접수', active:'승인', expired:'종료', split:'분할', requeue:'재접수', force_stopped:'강제종료' };
       // 일 목표를 하루 몫으로 나눔: 리워드 = 실제 접수한 수량(일반 몫), 유입플·차감 = 승인 때 고정한 값 — 목록의 일반·유입플·차감 줄과 같은 값
       const dedDaily = s => s.deductTarget ? Math.round(s.deductTarget / (s.days || 1)) : '';
+      // 유입플·차감으로 나뉘지 않은 건(승인 전 등)은 리워드도 빈칸
+      const rewardDaily = s => (s.yupflTarget || s.deductTarget) ? Math.max(0, (s.dailyTarget||0) - (s.yupflTarget||0) - (Number(dedDaily(s))||0)) : '';
       const header = ['접수일시','대행사','캠페인타입','업체명','URL','MID','순위키워드','분류','일 수','시작일','일 목표','리워드','유입플','차감','상태','검색키워드'];
       const rows = filtered.map(s => [
         s.createdAt ? ymd(new Date(s.createdAt)) : '',
         s.agencyId||'', campaignType(s), s.storeName||'', s.url||'', s.mid||'',
-        s.rankKeyword||'', s.category||'', s.days||'', s.startDate||'', s.dailyTarget||'', Math.max(0, (s.dailyTarget||0) - (s.yupflTarget||0) - (Number(dedDaily(s))||0))||'', s.yupflTarget||'', dedDaily(s), statusText[s.status]||s.status||'-', s.searchKeyword||'',
+        s.rankKeyword||'', s.category||'', s.days||'', s.startDate||'', s.dailyTarget||'', rewardDaily(s), s.yupflTarget||'', dedDaily(s), statusText[s.status]||s.status||'-', s.searchKeyword||'',
       ]);
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
       ws['!cols'] = [{wch:12},{wch:16},{wch:18},{wch:22},{wch:48},{wch:14},{wch:14},{wch:8},{wch:6},{wch:12},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8},{wch:20}];
