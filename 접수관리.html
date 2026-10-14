@@ -1726,7 +1726,11 @@ window.toggleProdPanel = function(e) {
     const normalProds = [], fixedProds = [];
     for (const p of prods) (FIXED_PROD_IDS.has(p.id) ? fixedProds : normalProds).push(p);
     document.getElementById('psWrapNormal').innerHTML = normalProds.map(prodHtml).join('');
-    document.getElementById('psWrapFixed').innerHTML  = fixedProds.map(prodHtml).join('');
+    // 배분 전용(차감·유입플 분류)과 실제 상품(찰리 등) 사이 세로 구분선
+    const isAllocOnly = p => p.deductOnly || p.classifyOnly;
+    const allocOnly = fixedProds.filter(isAllocOnly), fixedReal = fixedProds.filter(p => !isAllocOnly(p));
+    const sep = allocOnly.length && fixedReal.length ? '<span style="align-self:stretch;width:1px;background:var(--border);margin:4px 6px;flex-shrink:0;"></span>' : '';
+    document.getElementById('psWrapFixed').innerHTML  = allocOnly.map(prodHtml).join('') + sep + fixedReal.map(prodHtml).join('');
     updatePSNavArrows();
   }
 
