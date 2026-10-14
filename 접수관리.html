@@ -584,17 +584,25 @@ window.toggleProdPanel = function(e) {
     const sel = document.getElementById('filter-slot-type');
     if (!sel) return;
     const currentVal = sel.value;
-    // 상품 유형 설정(일반·고정)에 있는 상품은 리워드, 그 밖(풀스텍 배지 등)은 유입플 묶음
+    // 리워드·유입플 묶음마다 '전체' 항목 + 개별 상품
     const labels = new Set();
     slots.forEach(s => { if (s.status !== 'deleted') [...typeLabels(s), ...fullstackLabels(s)].forEach(l => labels.add(l)); });
-    const prodNames = new Set(prods.map(p => p.name));
-    const group = (title, list) => list.length
-      ? `<optgroup label="${title}">${list.sort().map(l => `<option value="${escProd(l)}">${escProd(l)}</option>`).join('')}</optgroup>` : '';
+    const group = (title, value, list) => list.length
+      ? `<optgroup label="${title}"><option value="${value}">${title} 전체</option>${list.sort().map(l => `<option value="${escProd(l)}">${escProd(l)}</option>`).join('')}</optgroup>` : '';
     sel.innerHTML = '<option value="">전체 등급</option>'
-      + group('리워드', [...labels].filter(l => prodNames.has(l)))
-      + group('유입플', [...labels].filter(l => !prodNames.has(l)));
+      + group('리워드', GRADE_REWARD, [...labels].filter(isRewardLabel))
+      + group('유입플', GRADE_YUPFL, [...labels].filter(l => !isRewardLabel(l)));
     sel.disabled = false;
-    if (labels.has(currentVal)) sel.value = currentVal;
+    if (labels.has(currentVal) || [GRADE_REWARD, GRADE_YUPFL].includes(currentVal)) sel.value = currentVal;
+  }
+  // 등급 필터 묶음 전체 값 — 리워드 = 상품 유형 설정(일반·고정)에 있는 상품, 유입플 = 그 밖(풀스텍 배지 등)
+  const GRADE_REWARD = '__reward', GRADE_YUPFL = '__yupfl';
+  const isRewardLabel = l => prods.some(p => p.name === l);
+  function matchGrade(s, g) {
+    const labels = [...typeLabels(s), ...fullstackLabels(s)];
+    if (g === GRADE_REWARD) return labels.some(isRewardLabel);
+    if (g === GRADE_YUPFL) return labels.some(l => !isRewardLabel(l));
+    return labels.includes(g);
   }
 
   function getFiltered() {
@@ -612,7 +620,7 @@ window.toggleProdPanel = function(e) {
       else if (status === 'requeue_active') { if (!(s.isRequeue && s.status === 'active')) return false; }
       else if (['pending','accepted','active'].includes(status)) { if (s.status !== status || s.isRequeue) return false; }
       else if (status && s.status !== status) return false;
-      if (gradeFilter && ![...typeLabels(s), ...fullstackLabels(s)].includes(gradeFilter)) return false;
+      if (gradeFilter && !matchGrade(s, gradeFilter)) return false;
       if (kwTerms.length && !kwTerms.some(t => [s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(t)))) return false;
       const slotDate = s.createdAt ? ymd(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
