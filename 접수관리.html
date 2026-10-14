@@ -3028,9 +3028,9 @@ window.toggleProdPanel = function(e) {
       const pct = (items, name) => { const it = items.find(p => p.name === name); return it ? `${Math.round(it.ratio * 100)}%` : ''; };
       // 풀스텍 배지 이름 — 가이드 상품명을 짧게(기본·둘러보고·카톡(길찾기)·카톡(공유) — 다른 길찾기·공유 상품과 구분)
       const shortFull = n => { const k = FULL_ORDER.find(k => n.includes(k)); return !k ? n : n.includes('카톡') && k !== '기본' && k !== '둘러보고' ? `카톡(${k})` : k; };
-      // A~F 캠페인·분류·구간 → 리워드 하루 수량 + 리워드 상품 % → 유입플 하루 수량 + 풀스텍 상품 %(승인 때 나눈 값)
+      // A~F 캠페인·분류·구간 → 리워드 하루 수량 + 리워드 상품 % → 유입플 하루 수량 + 풀스텍 상품 %(승인 때 나눈 값) → 일수·시작일(풀스텍 자동 접수 매크로가 씀)
       const header = ['대행사', '업체명', 'MID', '순위키워드', '분류', '구간',
-        '리워드', ...rewardNames, '유입플', ...fullNames.map(shortFull)];
+        '리워드', ...rewardNames, '유입플', ...fullNames.map(shortFull), '일수', '시작일'];
       const typeUpdates = [];
       const rows = target.map(s => {
         const live = !['expired', 'deleted'].includes(s.status);
@@ -3045,7 +3045,8 @@ window.toggleProdPanel = function(e) {
         const yup = s.yupflTarget || 0;
         const reward = Math.max(0, (s.dailyTarget || 0) - yup - ded);
         return [s.agencyId || '', s.storeName || '', s.mid || '', s.rankKeyword || '', cat, rule ? rule.range : '',
-          reward, ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''), yup, ...fullNames.map(n => rule ? pct(rule.full, n) : '')];
+          reward, ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''), yup, ...fullNames.map(n => rule ? pct(rule.full, n) : ''),
+          s.days || '', s.startDate || ''];
       });
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
