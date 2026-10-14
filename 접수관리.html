@@ -2210,14 +2210,16 @@ window.toggleProdPanel = function(e) {
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
       const statusText = { pending:'대기', accepted:'접수', active:'승인', expired:'종료', split:'분할', requeue:'재접수', force_stopped:'강제종료' };
-      const header = ['접수일시','대행사','캠페인타입','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','상태','검색키워드'];
+      // 유입플·차감은 승인 때 고정한 하루 몫(목록의 일반·유입플·차감 줄과 같은 값), 나뉘지 않은 건은 빈칸
+      const dedDaily = s => s.deductTarget ? Math.round(s.deductTarget / (s.days || 1)) : '';
+      const header = ['접수일시','대행사','캠페인타입','업체명','URL','MID','순위키워드','일 수','시작일','총 목표','일 목표','유입플','차감','상태','검색키워드'];
       const rows = filtered.map(s => [
         s.createdAt ? ymd(new Date(s.createdAt)) : '',
         s.agencyId||'', campaignType(s), s.storeName||'', s.url||'', s.mid||'',
-        s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', statusText[s.status]||s.status||'-', s.searchKeyword||'',
+        s.rankKeyword||'', s.days||'', s.startDate||'', (s.dailyTarget||0)*(s.days||0)||'', s.dailyTarget||'', s.yupflTarget||'', dedDaily(s), statusText[s.status]||s.status||'-', s.searchKeyword||'',
       ]);
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-      ws['!cols'] = [{wch:12},{wch:16},{wch:18},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:8},{wch:20}];
+      ws['!cols'] = [{wch:12},{wch:16},{wch:18},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8},{wch:20}];
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
       // MID별 검색키워드 히스토리(히스토리 모달과 같은 소스) — 같은 MID는 한 번만 조회
