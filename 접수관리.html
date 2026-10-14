@@ -584,15 +584,15 @@ window.toggleProdPanel = function(e) {
     const sel = document.getElementById('filter-slot-type');
     if (!sel) return;
     const currentVal = sel.value;
+    // 상품 유형 설정(일반·고정)에 있는 상품은 리워드, 그 밖(풀스텍 배지 등)은 유입플 묶음
     const labels = new Set();
-    slots.forEach(s => { if (s.status !== 'deleted') typeLabels(s).forEach(l => labels.add(l)); });
-    sel.innerHTML = '<option value="">전체 등급</option>';
-    [...labels].sort().forEach(label => {
-      const opt = document.createElement('option');
-      opt.value = label;
-      opt.textContent = label;
-      sel.appendChild(opt);
-    });
+    slots.forEach(s => { if (s.status !== 'deleted') [...typeLabels(s), ...fullstackLabels(s)].forEach(l => labels.add(l)); });
+    const prodNames = new Set(prods.map(p => p.name));
+    const group = (title, list) => list.length
+      ? `<optgroup label="${title}">${list.sort().map(l => `<option value="${escProd(l)}">${escProd(l)}</option>`).join('')}</optgroup>` : '';
+    sel.innerHTML = '<option value="">전체 등급</option>'
+      + group('리워드', [...labels].filter(l => prodNames.has(l)))
+      + group('유입플', [...labels].filter(l => !prodNames.has(l)));
     sel.disabled = false;
     if (labels.has(currentVal)) sel.value = currentVal;
   }
@@ -612,7 +612,7 @@ window.toggleProdPanel = function(e) {
       else if (status === 'requeue_active') { if (!(s.isRequeue && s.status === 'active')) return false; }
       else if (['pending','accepted','active'].includes(status)) { if (s.status !== status || s.isRequeue) return false; }
       else if (status && s.status !== status) return false;
-      if (gradeFilter && !typeLabels(s).includes(gradeFilter)) return false;
+      if (gradeFilter && ![...typeLabels(s), ...fullstackLabels(s)].includes(gradeFilter)) return false;
       if (kwTerms.length && !kwTerms.some(t => [s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(t)))) return false;
       const slotDate = s.createdAt ? ymd(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
