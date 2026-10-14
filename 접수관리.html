@@ -2051,12 +2051,11 @@ window.toggleProdPanel = function(e) {
 
   function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
 
-  // 목록 일 목표 칸 아래 일반/유입플(/차감) 분할 표시 — 승인 전은 지금 설정으로 계산, 승인 후는 승인 때 고정한 값
+  // 목록 일 목표 칸 아래 일반/유입플(/차감) 분할 표시 — 승인(예약 포함) 때 캠페인에 고정한 값만(승인 전엔 표시 안 함)
   function dailySplitHtml(s) {
-    const fixed = s.status !== 'pending' && s.status !== 'accepted';
-    const yup = fixed ? (s.yupflTarget || 0) : (yupflFieldsFor(s).yupflTarget || 0);
+    const yup = s.yupflTarget || 0;
     if (!yup || !s.dailyTarget) return '';
-    const ded = fixed ? Math.round((s.deductTarget || 0) / (s.days || 1)) : Math.round((deductFieldsFor(s).deductTarget || 0) / (s.days || 1));
+    const ded = Math.round((s.deductTarget || 0) / (s.days || 1));
     const normal = Math.max(0, s.dailyTarget - yup - ded);
     return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">일반 ${normal.toLocaleString()} · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}</span>${ded ? ` · 차감 ${ded.toLocaleString()}` : ''}</div>`;
   }
