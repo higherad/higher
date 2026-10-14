@@ -733,7 +733,7 @@ window.toggleProdPanel = function(e) {
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${escProd(s.userId||'-')}</td>
           <td>${typeBadgesHtml(s)}${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) ? `${yupflSourceBadge(s)}${typeChangeLine(s)}` : ''}</td>
-          <td style="color:var(--text2)">${escProd(s.category||'-')}</td>
+          <td style="color:var(--text2)">${s.category ? escProd(s.category) : '<span style="color:#dc2626;font-weight:700;" title="분류 없음 — 분류 설정에 키워드 추가">-</span>'}</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${escProd(s.rankKeyword)}</a>` : '-'}</td>
