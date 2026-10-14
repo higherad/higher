@@ -580,7 +580,7 @@ window.toggleProdPanel = function(e) {
   async function fetchGradesBatch(mids) {
     if (!mids.length) return;
     try {
-      const data = await HI.getGradesOnce();
+      const data = await HI.getLiveKeywordsOnce();
       Object.entries(data).forEach(([mid, v]) => GRADE_CACHE.set(mid, v));
       mids.forEach(mid => { if (!(mid in data)) GRADE_CACHE.set(mid, null); });
     } catch {
@@ -1109,7 +1109,7 @@ window.toggleProdPanel = function(e) {
 
   // grades/{mid} 스냅샷 조회 — fetchSheetKeywordByMid/fetchYoupflKeywordByMid 공용
   async function fetchGradeSnapshotVal(mid) {
-    return (await HI.getGradesOnce())[sanitizeFbKey(mid)];
+    return (await HI.getLiveKeywordsOnce())[sanitizeFbKey(mid)];
   }
 
   // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──

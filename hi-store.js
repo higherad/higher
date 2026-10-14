@@ -80,7 +80,7 @@ const P = {
   users:          `${ROOT}/users`,
   staff:          `${ROOT}/staff`,
   notices:        `${ROOT}/notices`,
-  grades:         `${ROOT}/grades`,
+  liveKeywords:   `${ROOT}/live_keywords`,   // MID별 찾기 키워드(bizfit-dandok 매시간 동기화)
   ranks:          `${ROOT}/ranks`,
   adClassify:     `${ROOT}/ad_classify`,
   pipeline:       `${ROOT}/pipeline`,
@@ -237,7 +237,7 @@ const snapshotsCache      = makeValueCache(P.snapshots, v => v || {});
 const dispatchCache       = makeValueCache(P.dispatch, v => v || {});
 const prodsCache          = makeValueCache(`${P.products}/prods`, v => v || null);
 const prodGroupsCache     = makeValueCache(`${P.products}/groups`, v => v || null);
-const gradesCache         = makeValueCache(P.grades, v => v || {});
+const liveKeywordsCache   = makeValueCache(P.liveKeywords, v => v || {});
 const usersCache          = makeValueCache(P.users, v => Object.entries(v || {}).map(([k, u]) => ({ ...u, _key: k })));
 
 // 종료·휴지통 전체 — 정산·진행현황·검색처럼 과거 기록이 필요한 화면만 세션당 1회 받음(실시간 아님)
@@ -738,8 +738,7 @@ const HI = {
   // ════════════════════════════════════════════════════════
   // 등급·순위·파이프라인·광고분류
   // ════════════════════════════════════════════════════════
-  getGradesOnce() { return once(gradesCache); },
-  onGradesChange(cb) { return gradesCache(cb); },
+  getLiveKeywordsOnce() { return once(liveKeywordsCache); },
   async getRanks(mid) { return (await get(ref(db, `${P.ranks}/${safeKey(mid)}`))).val() || {}; },
   // 최신 날짜 1건만(전체 이력 다운로드 방지)
   async getLatestRank(mid) {
