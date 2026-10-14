@@ -303,10 +303,10 @@ async function keywordUpdates(key, kw) {
   return out;
 }
 
-// 정산 고정 스냅샷 축소 — 예약 대기분 취소로 일수가 줄면 이미 고정된 묶음 금액도 같이 줄임
-async function shrinkSettleSnapshot(slot, newDays) {
-  const lostDays = (Number(slot.days) || 0) - newDays;
-  if (lostDays <= 0 || !slot.createdAt) return;
+// 정산 고정 스냅샷 증감 — 예약 대기분 취소(일수 감소)·휴지통 이동/복구로 묶음 금액이 바뀌면 이미 저장된 스냅샷도 같이 맞춤.
+// lostDays·lostSlots가 음수면 늘림(복구). 스냅샷이 없으면(아직 고정 전) 정산관리가 실시간 계산하므로 할 일 없음
+async function adjustSettleSnapshot(slot, lostDays, lostSlots = 0) {
+  if (!lostDays || !slot.createdAt) return;
   const path = `${P.snapshots}/${HI.settleGroupKey(slot)}`;
   const snap = await get(ref(db, path));
   if (!snap.exists()) return;
@@ -316,6 +316,7 @@ async function shrinkSettleSnapshot(slot, newDays) {
   await update(ref(db, path), {
     totalTarget: Math.max(0, (cur.totalTarget || 0) - lostTarget),
     amount: (cur.amount || 0) - lostTarget * price,
+    slotCount: Math.max(0, (cur.slotCount || 0) - lostSlots),
   });
 }
 
@@ -504,11 +505,14 @@ const HI = {
     const cur = await readCampaign(key);
     if (!cur || cur.data.status === 'deleted') return;
     await writeCampaign(key, { status: 'deleted', deletedAt: nowIso(), originalStatus: cur.data.status || 'pending' }, cur);
+    if (HI.isBillable(cur.data)) await adjustSettleSnapshot(cur.data, Number(cur.data.days) || 0, 1);
   },
   async restore(key) {
     const cur = await readCampaign(key);
     if (!cur || cur.data.status !== 'deleted') return;
-    await writeCampaign(key, { status: cur.data.originalStatus || 'pending', deletedAt: null, originalStatus: null }, cur);
+    const restored = { ...cur.data, status: cur.data.originalStatus || 'pending' };
+    await writeCampaign(key, { status: restored.status, deletedAt: null, originalStatus: null }, cur);
+    if (HI.isBillable(restored)) await adjustSettleSnapshot(restored, -(Number(restored.days) || 0), -1);
   },
   // 영구삭제 — 캠페인·키워드·입금표시를 한 번에
   async permanentDelete(key) {
@@ -537,7 +541,7 @@ const HI = {
     if (!cur) return null;
     const fields = remainingAfterCancel(cur.data, canceledDates, keptDates);
     await writeCampaign(key, { ...fields, status: 'expired' }, cur);
-    await shrinkSettleSnapshot(cur.data, fields.days);
+    await adjustSettleSnapshot(cur.data, Math.max(0, (Number(cur.data.days) || 0) - fields.days));
     return fields;
   },
 

@@ -70,9 +70,15 @@ assert.equal(tree.hi.campaigns.closed[c._key].memo, 'm', '이동 시 필드 보�
 
 // ── 휴지통 → 복구(원래 상태가 live면 live로) ──
 await HI.updateCampaign(c._key, { status: 'active' });
+const cs = tree.hi.campaigns.live[c._key], cgk = HI.settleGroupKey(cs), cTgt = cs.dailyTarget * cs.days;
+tree.hi.settle_snapshots = { [cgk]: { amount: 10000, totalTarget: 500, slotCount: 3, unitPrice: 20 } };
 await HI.trash(c._key);
 assert.equal(tree.hi.campaigns.closed[c._key].originalStatus, 'active');
+assert.equal(tree.hi.settle_snapshots[cgk].amount, 10000 - cTgt * (cs.unitPrice || 20), '휴지통 → 저장된 정산 금액에서 빠짐');
+assert.equal(tree.hi.settle_snapshots[cgk].slotCount, 2);
 await HI.restore(c._key);
+assert.deepEqual(tree.hi.settle_snapshots[cgk], { amount: 10000, totalTarget: 500, slotCount: 3, unitPrice: 20 }, '복구 → 원래 금액');
+delete tree.hi.settle_snapshots;
 assert.equal(tree.hi.campaigns.live[c._key].status, 'active');
 assert.equal(tree.hi.campaigns.live[c._key].originalStatus, undefined, '복구 후 휴지통 필드 제거');
 assert.equal(tree.hi.campaigns.closed[c._key], undefined);
