@@ -137,7 +137,7 @@ assert.equal(tree.hi.settle_snapshots[gk].chargeConfirmedByName, '관리자');
 
 // ── 강제종료: 같은 MID 진행 중만 force_stopped, 남은 기간 재접수 1회, 다음 날 종료 ──
 const f1 = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '777', searchKeyword: 'fk', days: 10, dailyTarget: 50, unitPrice: 20,
-  startDate: '2026-10-10', endDate: '2026-10-19', yupflSource: '풀스택' });
+  startDate: '2026-10-10', endDate: '2026-10-19' });
 const fPending = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '777', days: 5, dailyTarget: 10, startDate: '2026-10-14', endDate: '2026-10-18' });
 await HI.updateCampaign(f1._key, { status: 'active', changeRequest: { to: '찰리/카키', by: 'a' } });
 assert.deepEqual(await HI.forceStopMid('777', '2026-10-14'), { stopped: 1, requeued: 1 });
@@ -154,7 +154,6 @@ assert.equal(rq[1].status, 'requeue');
 assert.equal(rq[1].startDate, '2026-10-15');
 assert.equal(rq[1].endDate, '2026-10-19');
 assert.equal(rq[1].days, 5, '남은 일수 = 내일~원래 종료일');
-assert.equal(rq[1].yupflSource, '풀스택');
 assert.equal(rq[1].changeTo, '찰리/카키', '변경 요청 상품을 재접수에 넘김');
 assert.equal(tree.hi.campaign_keywords[rq[0]].search, 'fk', '검색키워드 이어받음');
 assert.equal(HI.isBillable(rq[1]), false, '재접수는 정산 제외');

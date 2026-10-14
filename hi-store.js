@@ -496,7 +496,6 @@ const HI = {
     const rec = {
       status: data.isRequeue ? 'requeue' : 'pending',
       ...(data.isRequeue ? { isRequeue: true } : {}),
-      ...(data.yupflSource ? { yupflSource: data.yupflSource } : {}),
       ...(data.changeTo ? { changeTo: data.changeTo } : {}),
       // 엑셀 일괄접수는 병렬 전송이라 도착순≠행순 — 호출부가 행 인덱스로 어긋낸 createdAt을 그대로 신뢰(위조 이득 없음)
       createdAt: data.createdAt || nowIso(),
@@ -594,7 +593,7 @@ const HI = {
           agencyId: s.agencyId, userId: s.userId, storeName: s.storeName, url: s.url, mid: s.mid,
           rankKeyword: s.rankKeyword, searchKeyword: kw.search || '', memo: s.memo,
           dailyTarget: s.dailyTarget, days: remain, startDate: tomorrow, endDate: origEnd,
-          unitPrice: s.unitPrice, isRequeue: true, yupflSource: s.yupflSource,
+          unitPrice: s.unitPrice, isRequeue: true,
           // 변경 요청 중이던 캠페인이면 요청 상품을 넘김 — 접수 때 등급 매칭이 이 상품으로 배분
           changeTo: s.changeRequest?.to || '',
         });
