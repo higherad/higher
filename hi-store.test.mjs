@@ -109,8 +109,14 @@ globalThis.sessionStorage.getItem = () => JSON.stringify({ username: 'admin', na
 tree.hi.users = { o: { username: 'o', agencyId: '[단독]오렌지', unitPrice: 20 } };
 const o1 = { _key: 'o1', status: 'active', agencyId: '[단독]오렌지', userId: 'o', createdAt: '2026-10-13T10:00:05.000Z', dailyTarget: 10, days: 3, unitPrice: 20, deductAmount: 7 };
 const o2 = { ...o1, _key: 'o2', status: 'pending', dailyTarget: 5 };
+const gk = HI.settleGroupKey(o1);
 await HI.stampChargeAndPaid([o1, o2]);
-const gk = HI.settleGroupKey(o1), s1 = tree.hi.settle_snapshots[gk];
+assert.equal(tree.hi.settle_snapshots?.[gk], undefined, '묶음에 미승인 건이 있으면 도장 안 찍음');
+await HI.stampChargeAndPaid([o1, { ...o2, status: 'deleted' }]);
+assert.equal(tree.hi.settle_snapshots[gk].amount, 30 * 20, '미승인 건을 지우면 남은 건만으로 도장');
+delete tree.hi.settle_snapshots[gk]; delete tree.hi.billing.paid.o1;
+await HI.stampChargeAndPaid([o1, { ...o2, status: 'split' }]);
+const s1 = tree.hi.settle_snapshots[gk];
 assert.equal(s1.amount, (30 + 15) * 20, '새 묶음 금액 = 묶음 전체');
 assert.equal(s1.slotCount, 2);
 assert.equal(s1.deductAmt, 14);

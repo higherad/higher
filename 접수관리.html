@@ -963,6 +963,7 @@ window.toggleProdPanel = function(e) {
     await HI.trash(key);
     allSlots = allSlots.filter(x => x._key !== key);
     renderReceipts(false);
+    if (s) await autoStampSettlement([{ ...s, status: 'deleted' }]); // 남은 건이 전부 승인 상태면 이때 도장
   };
 
   // ── 상태 변경 ────────────────────────────────────────────
@@ -972,6 +973,7 @@ window.toggleProdPanel = function(e) {
     await HI.updateCampaign(key, { status: newStatus });
     updateLocalSlot(key, { status: newStatus });
     closeOverlayAndRefresh();
+    if (newStatus === 'active') await autoStampSettlement([allSlots.find(x => x._key === key)]);
   };
 
   // ── 상세 보기 ─────────────────────────────────────────────
