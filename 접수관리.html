@@ -6722,7 +6722,7 @@ window.toggleProdPanel = function(e) {
 
   window.openForceStopModal = function() {
     if (document.getElementById('fs-modal')) return;
-    let entries = [], running = false;
+    let entries = [], running = false, stopRequested = false;
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'fs-modal';
@@ -6766,9 +6766,14 @@ window.toggleProdPanel = function(e) {
           <td style="padding:6px;">${ST[e.status]}${e.result?`<div style="font-size:10px;color:var(--muted);">${escProd(e.result)}</div>`:''}</td>
         </tr>`).join('') : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted);">엑셀을 올려 주세요.</td></tr>';
       const sel = entries.filter(e => e.checked && e.status !== 'blocked');
-      $('#fs-run').disabled = running || !sel.length;
-      $('#fs-run').style.opacity = $('#fs-run').disabled ? '.5' : '';
-      $('#fs-run').textContent = running ? '실행 중...' : `강제종료 실행${sel.length ? ` (${sel.length})` : ''}`;
+      // 실행 중엔 같은 버튼이 '중단'으로 바뀜(누르면 진행 중인 묶음까지만 처리하고 멈춤)
+      const run = $('#fs-run');
+      run.disabled = running ? stopRequested : !sel.length;
+      run.style.opacity = run.disabled ? '.5' : '';
+      run.style.background = running ? '#fff' : '#dc2626';
+      run.style.color = running ? '#dc2626' : '#fff';
+      run.style.border = running ? '1px solid #dc2626' : 'none';
+      run.textContent = !running ? `강제종료 실행${sel.length ? ` (${sel.length})` : ''}` : stopRequested ? '중단하는 중...' : '중단';
       $('#fs-close').disabled = running; // 실행 중엔 닫기 자체를 못 누르게
       $('#fs-close').style.opacity = running ? '.4' : '';
       $('#fs-close').style.cursor = running ? 'not-allowed' : '';
@@ -6818,22 +6823,15 @@ window.toggleProdPanel = function(e) {
         render();
       } catch (err) { alert('엑셀 읽기 실패: ' + err.message); }
     };
-    $('#fs-run').onclick = async () => {
-      // 실행 직전 예약 상태 재확인(목록이 실시간이라 업로드 뒤 예약이 생겼을 수 있음)
-      entries.forEach(x => { if (x.status !== 'success' && fsSplitBlocked(x.mid)) { x.status = 'blocked'; x.checked = false; } });
-      const sel = entries.filter(x => x.checked && x.status !== 'blocked' && x.status !== 'success');
-      if (!sel.length) { render(); alert('실행할 항목이 없습니다.'); return; }
-      if (!confirm(`${sel.length}건을 비즈핏에서 강제종료합니다.\n되돌릴 수 없습니다. 진행할까요?`)) return;
-      running = true;
-      window.addEventListener('beforeunload', warnLeave);
-      sel.forEach(x => { x.status = 'running'; x.result = ''; });
-      render();
-      log(`▶ 시작 — ${sel.length}건`);
+    // 강제종료 서버는 받은 건을 끝까지 처리하므로(연결을 끊어도 계속됨) 3건씩 나눠 보내고, 중단하면 다음 묶음을 안 보냄.
+    // 묶음마다 비즈핏 성공 MID를 바로 캠페인에 반영(중단·이탈해도 끝난 건은 반영돼 있게)
+    const FS_CHUNK = 3;
+    async function fsRunChunk(chunk) {
       const okMids = new Set();
       try {
         const res = await fetch(`${BIZFIT_STOP_SERVER}/process-stream`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entries: sel.map(x => ({ mid: x.mid, pcode: x.pcode, agency: x.agency, do_pause: false, do_force: true })) }),
+          body: JSON.stringify({ entries: chunk.map(x => ({ mid: x.mid, pcode: x.pcode, agency: x.agency, do_pause: false, do_force: true })) }),
         });
         if (!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
         const reader = res.body.getReader(), dec = new TextDecoder();
@@ -6848,7 +6846,7 @@ window.toggleProdPanel = function(e) {
             let d; try { d = JSON.parse(line.slice(6)); } catch { continue; }
             if (d.entry_result) {
               const r = d.entry_result;
-              const x = sel.find(e => e.mid === r.mid && e.pcode === (r.pcode || ''));
+              const x = chunk.find(e => e.mid === r.mid && e.pcode === (r.pcode || ''));
               if (x) { x.status = r.success ? 'success' : 'fail'; x.result = r.message || ''; }
               if (r.success) okMids.add(r.mid);
               log(`${r.success ? '✅' : '❌'} ${r.mid} — ${r.message || ''}`);
@@ -6859,17 +6857,35 @@ window.toggleProdPanel = function(e) {
           }
         }
       } catch (err) { log(`❌ ${err.message}`); }
-      sel.forEach(x => { if (x.status === 'running') { x.status = 'fail'; x.result = x.result || '결과 없음 — 비즈핏에서 직접 확인 필요'; } });
-      // 비즈핏 성공 MID만 우리 캠페인 반영(MID당 1회)
+      chunk.forEach(x => { if (x.status === 'running') { x.status = 'fail'; x.result = x.result || '결과 없음 — 비즈핏에서 직접 확인 필요'; } });
       for (const mid of okMids) {
         try {
           const r = await HI.forceStopMid(mid);
           log(`🛑 ${mid} — 캠페인 ${r.stopped}건 강제종료${r.requeued ? `, 재접수 ${r.requeued}건 생성` : ''}`);
         } catch (err) { log(`⚠️ ${mid} — 비즈핏은 종료됐지만 캠페인 반영 실패: ${err.message} — 이 MID 캠페인 상태를 직접 확인해 주세요`); }
       }
-      running = false;
+    }
+    $('#fs-run').onclick = async () => {
+      if (running) { stopRequested = true; log('중단 요청 — 진행 중인 건까지만 처리하고 멈춰요'); render(); return; }
+      // 실행 직전 예약 상태 재확인(목록이 실시간이라 업로드 뒤 예약이 생겼을 수 있음)
+      entries.forEach(x => { if (x.status !== 'success' && fsSplitBlocked(x.mid)) { x.status = 'blocked'; x.checked = false; } });
+      const sel = entries.filter(x => x.checked && x.status !== 'blocked' && x.status !== 'success');
+      if (!sel.length) { render(); alert('실행할 항목이 없습니다.'); return; }
+      if (!confirm(`${sel.length}건을 비즈핏에서 강제종료합니다.\n되돌릴 수 없습니다. 진행할까요?`)) return;
+      running = true; stopRequested = false;
+      window.addEventListener('beforeunload', warnLeave);
+      sel.forEach(x => { x.status = 'running'; x.result = ''; });
+      render();
+      log(`▶ 시작 — ${sel.length}건`);
+      for (let i = 0; i < sel.length; i += FS_CHUNK) {
+        if (stopRequested) break;
+        await fsRunChunk(sel.slice(i, i + FS_CHUNK));
+      }
+      const stopped = sel.filter(x => x.status === 'running');
+      stopped.forEach(x => { x.status = 'ready'; x.result = '중단됨 — 실행 안 함'; });
+      running = false; stopRequested = false;
       window.removeEventListener('beforeunload', warnLeave);
-      log(`━━ 완료 — 성공 ${sel.filter(x => x.status === 'success').length} · 실패 ${sel.filter(x => x.status === 'fail').length}`);
+      log(`━━ ${stopped.length ? '중단' : '완료'} — 성공 ${sel.filter(x => x.status === 'success').length} · 실패 ${sel.filter(x => x.status === 'fail').length}${stopped.length ? ` · 미실행 ${stopped.length}` : ''}`);
       render();
       renderReceipts(false, true);
     };
