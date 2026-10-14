@@ -1681,7 +1681,10 @@ window.toggleProdPanel = function(e) {
     const target = allocRowsForSlot(slot).alloc[yupfl.id] || 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
     if (target <= 0) return {};
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
-    return { yupflTarget: target, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice };
+    // 가이드_접수로 승인하면 가이드 풀스텍 상품을 풀스텍 배지(fullstackType)로 같이 기록 — 시트 분류와 같은 값
+    const rule = guideModeOn && !slot.changeTo ? guideRuleFor(slot) : null;
+    return { yupflTarget: target, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice,
+      ...(rule && rule.full.length ? { fullstackType: fullstackOf(rule) } : {}) };
   }
 
   // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐
@@ -1861,9 +1864,17 @@ window.toggleProdPanel = function(e) {
   // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
   // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 원래 방식(등급 매칭/상품 설정)으로.
   let guideModeOn = false, guideRules = [], guideCats = [];
-  function guideProdsFor(r) {
+  // 풀스텍 상품 순서(기본 → 둘러보고 나감 → 카톡 길찾기 → 카톡 공유, 그 밖은 뒤)와 배지용 짧은 이름 — 시트 분류·가이드_접수 공용
+  const FULL_ORDER = ['기본', '둘러보고', '길찾기', '공유'];
+  const fullRank = n => { const i = FULL_ORDER.findIndex(k => n.includes(k)); return i < 0 ? FULL_ORDER.length : i; };
+  const shortFull = n => { const k = FULL_ORDER.find(k => n.includes(k)); return !k ? n : n.includes('카톡') && k !== '기본' && k !== '둘러보고' ? `카톡(${k})` : k; };
+  const fullstackOf = rule => [...rule.full].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name));
+  function guideRuleFor(r) {
     const cat = r.category || HI.kwCategoryOf(r.rankKeyword, guideCats);
-    const rule = cat ? pickGuideRule(guideRules, cat, r.dailyTarget || 0) : null;
+    return cat ? pickGuideRule(guideRules, cat, r.dailyTarget || 0) : null;
+  }
+  function guideProdsFor(r) {
+    const rule = guideRuleFor(r);
     if (!rule || !rule.reward.length) return [];
     const out = rule.reward.map(g => {
       const known = prods.find(p => p.name === g.name && !p.fixedAlloc);
@@ -3048,14 +3059,9 @@ window.toggleProdPanel = function(e) {
       const rules = parseGuide(values || []);
       // 분류가 빈 캠페인(접수 뒤 키워드를 추가한 경우 등)은 지금 분류 설정으로 채워서 같이 저장
       const cats = await HI.getKwCategories();
-      // 풀스텍 열 순서: 기본 → 둘러보고 나감 → 카톡(길찾기) → 카톡(공유)(그 밖의 상품은 뒤에)
-      const FULL_ORDER = ['기본', '둘러보고', '길찾기', '공유'];
-      const fullRank = n => { const i = FULL_ORDER.findIndex(k => n.includes(k)); return i < 0 ? FULL_ORDER.length : i; };
       const fullNames = [...new Set(rules.flatMap(r => r.full.map(p => p.name)))].sort((a, b) => fullRank(a) - fullRank(b));
       const rewardNames = [...new Set(rules.flatMap(r => r.reward.map(p => p.name)))];
       const pct = (items, name) => { const it = items.find(p => p.name === name); return it ? `${Math.round(it.ratio * 100)}%` : ''; };
-      // 풀스텍 배지 이름 — 가이드 상품명을 짧게(기본·둘러보고·카톡(길찾기)·카톡(공유) — 다른 길찾기·공유 상품과 구분)
-      const shortFull = n => { const k = FULL_ORDER.find(k => n.includes(k)); return !k ? n : n.includes('카톡') && k !== '기본' && k !== '둘러보고' ? `카톡(${k})` : k; };
       // A~F 캠페인·분류·구간 → 리워드 하루 수량 + 리워드 상품 % → 유입플 하루 수량 + 풀스텍 상품 %(승인 때 나눈 값) → 일수·시작일(풀스텍 자동 접수 매크로가 씀)
       const header = ['대행사', '업체명', 'MID', '순위키워드', '분류', '구간',
         '리워드', ...rewardNames, '유입플', ...fullNames.map(shortFull), '일수', '시작일'];
@@ -3064,7 +3070,7 @@ window.toggleProdPanel = function(e) {
         const live = !['expired', 'deleted'].includes(s.status);
         const cat = s.category || HI.kwCategoryOf(s.rankKeyword, cats);
         const rule = cat ? pickGuideRule(rules, cat, s.dailyTarget || 0) : null;
-        const fs = rule ? [...rule.full].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name)) : [];
+        const fs = rule ? fullstackOf(rule) : [];
         const patch = {};
         if (live && cat && !s.category) patch.category = cat;
         if (live && fs.length && fs.join() !== fullstackLabels(s).join()) patch.fullstackType = fs;
