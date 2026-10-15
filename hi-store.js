@@ -910,20 +910,18 @@ const HI = {
     if (slot.isRequeue) return false; // 재접수는 기존 배분을 이어받을 뿐 새 결제 건이 아님
     return BILLABLE_STATUSES.has(slot.status);
   },
-  // 캠페인 정산 금액 = (전체 − 유입플) 수량 × 리워드 단가 + 업체별 유입플 수량 × 그 대행사의 업체 단가(user.yupflPrices).
-  // 업체별 수량(yupflByVendor)이 없는 캠페인(업체 분류 전 승인·미승인)은 전체 × 리워드 단가, 유입플 금액은 승인 때 값.
-  // missing = 단가 없는 업체(금액 0으로 계산). 정산관리·자동 정산 도장·회원관리·텔레그램 봇(settlement.py)·회원 화면(higherad-auto) 같은 규칙
+  // 캠페인 정산 금액 = 전체 수량 × 리워드 단가(유입플 몫도 리워드 단가). yupfl·byVendor = 업체별 수량 × 그 대행사의 업체 단가
+  // (user.yupflPrices) — 정산관리 유입플 칸·팝업 참고용이라 금액에 안 더하고, 단가가 없어도 막지 않음(missing 비움).
+  // 업체별 수량(yupflByVendor)이 없는 캠페인(업체 분류 전 승인·미승인)의 유입플은 승인 때 값.
+  // 정산관리·자동 정산 도장·회원관리·텔레그램 봇(settlement.py)·회원 화면 같은 규칙
   slotBill(s, user) {
     const price = Number(s.unitPrice) > 0 ? Number(s.unitPrice) : (user?.unitPrice || 0);
-    const days = s.days || 0, total = (s.dailyTarget || 0) * days;
+    const days = s.days || 0, amount = (s.dailyTarget || 0) * days * price;
     const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
-    // byVendor = 업체별 유입플 금액(정산관리 유입플 칸 팝업) — 업체 분류 전 승인 건은 '업체 분류 전' 한 줄
-    if (!vend.length) return { amount: total * price, yupfl: s.yupflAmount || 0, missing: [], byVendor: s.yupflAmount ? { '업체 분류 전': s.yupflAmount } : {} };
+    if (!vend.length) return { amount, yupfl: s.yupflAmount || 0, missing: [], byVendor: s.yupflAmount ? { '업체 분류 전': s.yupflAmount } : {} };
     const vp = user?.yupflPrices || {};
     const byVendor = Object.fromEntries(vend.map(([v, n]) => [v, n * days * (Number(vp[v]) || 0)]));
-    const yupfl = Object.values(byVendor).reduce((a, x) => a + x, 0);
-    const yupQty = vend.reduce((a, [, n]) => a + n, 0) * days;
-    return { amount: (total - yupQty) * price + yupfl, yupfl, missing: vend.filter(([v]) => !(Number(vp[v]) > 0)).map(([v]) => v), byVendor };
+    return { amount, yupfl: Object.values(byVendor).reduce((a, x) => a + x, 0), missing: [], byVendor };
   },
   // 그날(YYYY-MM-DD) 진행 중(active·split, 시작일~종료일) 캠페인의 업체별 유입플 일 수량 — 광고분류 '유입플' 구분.
   // bizfit-jobs BizFit_Traffic_auto.py yupfl_daily_by_vendor와 같은 규칙
