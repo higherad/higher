@@ -571,8 +571,6 @@ window.toggleProdPanel = function(e) {
     if (vendors.includes(t)) return { reward: 0, yupfl: 100, vendor: t };
     return null;
   }
-  const ratioLabel = ({ reward, yupfl, vendor }) => vendor || (!yupfl ? '리워드' : `${reward}:${yupfl}`);
-  const ratioBadgeHtml = r => `<span title="리워드:유입플 (엑셀 비고)" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${ratioLabel(r)}</span>`;
   // 유입플 업체 = 승인 때 유입플 몫을 '유입플' 상품 설정의 업체 비율로 나눈 값(yupflByVendor {업체명: 일 수량}) — 업체명 = 가이드 시트 탭 이름.
   // 비고가 업체명이면 그 업체에 전부
   const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스택', ratio: 100 }]; };
@@ -756,7 +754,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
-          <td>${s.yupflRatio ? ratioBadgeHtml(s.yupflRatio) : '<span style="color:#cbd5e1">-</span>'}</td>
+          <td>${HI.ratioBadgeHtml(s.yupflRatio)}</td>
           <td>${typeBadgesHtml(s)}${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) ? typeChangeLine(s) : ''}</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
@@ -2807,7 +2805,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.days ?? '-'}</td>
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
-        <td>${r.yupflRatio ? ratioBadgeHtml(r.yupflRatio) : '-'}</td>
+        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio) : '-'}</td>
         <td>${r.valid ? '<span class="rex-row-status rex-row-ok">정상</span>' : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';

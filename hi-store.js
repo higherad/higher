@@ -568,6 +568,12 @@ const HI = {
   },
   // 종료일 지난 진행 캠페인 일괄 종료(expired) — 한 번의 update로 live→closed 이동
   // 일 목표 칸 아래 일반/유입플(/차감) 분할 표시 — 승인·예약 때 캠페인에 고정한 값(yupflTarget)이 있을 때만(접수관리·진행현황 공용)
+  // 엑셀 비고 비율 배지(yupflRatio) — 업체명·'리워드'·'리워드%:유입플%'(접수관리·진행현황 공용)
+  ratioBadgeHtml(r) {
+    if (!r) return '<span style="color:#cbd5e1">-</span>';
+    const label = r.vendor || (!r.yupfl ? '리워드' : `${r.reward}:${r.yupfl}`);
+    return `<span title="리워드:유입플 (엑셀 비고)" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${label}</span>`;
+  },
   dailySplitHtml(s) {
     const yup = s.yupflTarget || 0;
     if (!yup || !s.dailyTarget) return '';
