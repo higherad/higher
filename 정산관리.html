@@ -1178,7 +1178,7 @@
     ov.innerHTML=`<div class="total-popup-box" style="width:min(96vw,340px)">
       <div class="sp-title">${escProd(u.agency||u.agencyId||userId)} 단가</div>
       <div class="sp-sub">단가 변경은 회원관리에서</div>
-      <table class="sp-tbl"><tbody>${row('리워드',u.unitPrice)}${names.map(n=>row(`유입플 · ${n}`,vp[n])).join('')}</tbody></table>
+      <table class="sp-tbl"><tbody>${(u.rewardPrices?.length?u.rewardPrices:[{name:'리워드',price:u.unitPrice}]).map(r=>row(`리워드 · ${r.name}`,r.price)).join('')}${names.map(n=>row(`유입플 · ${n}`,vp[n])).join('')}</tbody></table>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
     </div>`;
     ov.onclick=e=>{if(e.target===ov)ov.remove();};

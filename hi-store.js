@@ -90,7 +90,7 @@ const P = {
   detailLocks:    `${ROOT}/detail_locks`,
   bizfitCharge:   `${ROOT}/bizfit_charge`,
   versionCheck:   `${ROOT}/version_check_account`,
-  costs:          `${ROOT}/costs`,              // 지출관리 원가 {reward: 원, yupfl:{업체명: 원}} — 전 직원 공용
+  costs:          `${ROOT}/costs`,              // 지출관리 원가 {reward:[{name, price}](계산은 첫 줄), yupfl:{업체명: 원}} — 전 직원 공용
   costSnapshots:  `${ROOT}/cost_snapshots`,     // 지출관리 지난 날짜 묶음 금액 고정(키 = settleGroupKey, 1회 저장 후 안 바뀜)
 };
 
@@ -789,6 +789,7 @@ const HI = {
       role: 'member',
       unitPrice: Number(data.unitPrice) || 0,
       ...(data.yupflPrices && Object.keys(data.yupflPrices).length ? { yupflPrices: data.yupflPrices } : {}),  // 유입플 업체별 단가
+      ...(data.rewardPrices?.length ? { rewardPrices: data.rewardPrices } : {}),  // 리워드 단가 목록(첫 줄 = unitPrice)
       memo: data.memo || '',
       createdAt: nowIso().slice(0, 10),
       approved: data.approved ?? false,
@@ -889,7 +890,8 @@ const HI = {
   slotCost(s, costs) {
     const days = s.days || 0, missing = [];
     const vend = s.yupflByVendor ? Object.entries(s.yupflByVendor) : s.yupflTarget ? [['풀스택', s.yupflTarget]] : [];
-    const yc = costs?.yupfl || {}, rc = Number(costs?.reward) || 0;
+    // ponytail: 리워드 원가는 여러 줄 저장하지만 계산은 첫 줄 하나(정산 수량이 리워드 합계뿐) — 상품별 계산은 상품별 수량 저장 후 추가
+    const yc = costs?.yupfl || {}, rc = Array.isArray(costs?.reward) ? Number(costs.reward[0]?.price) || 0 : Number(costs?.reward) || 0;
     const yupfl = {};
     let yupQty = 0;
     vend.filter(([, n]) => n > 0).forEach(([v, n]) => {
@@ -902,7 +904,7 @@ const HI = {
     const reward = rewardQty * rc;
     return { rewardQty, reward, yupfl, total: reward + Object.values(yupfl).reduce((a, v) => a + v, 0), deduct: s.deductAmount || 0, missing };
   },
-  async getCosts() { return (await get(ref(db, P.costs))).val() || { reward: 0, yupfl: {} }; },
+  async getCosts() { return (await get(ref(db, P.costs))).val() || { reward: [], yupfl: {} }; },
   async getCostSnapshots() { return (await get(ref(db, P.costSnapshots))).val() || {}; },
   // 없는 키만 저장(이미 고정된 묶음은 절대 덮지 않음 — 캐시 말고 DB에서 키마다 확인)
   async freezeCostSnapshots(map) {

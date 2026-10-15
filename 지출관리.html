@@ -43,7 +43,7 @@
   .btn-close-sp { padding:9px 24px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit; }
   .cost-row { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
   .cost-row input { padding:7px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box; }
-  .cost-row .c-name { flex:1; min-width:0; }
+  .cost-row .c-name { width:160px; }
   .cost-row .c-price { width:110px; text-align:right; }
   .cost-row .c-del { border:none; background:transparent; color:var(--danger); cursor:pointer; font-size:14px; }
   .cost-add { border:1px dashed var(--border); background:transparent; border-radius:7px; padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text2); font-family:inherit; }
@@ -82,7 +82,7 @@
   // 회계 기록이라 정산완료 묶음 금액은 한 번 고정(hi/cost_snapshots) 후 안 바뀜. 고정 시점: 페이지 열 때 + 원가 저장 직전(옛 원가로).
   // 원가 미설정·승인 전 건이 남은 묶음은 고정 보류(현재 원가로 표시)
   const PER = 50, POP_PER = 12;
-  let slots = [], costs = { reward: 0, yupfl: {} }, snaps = {}, prods = [], paidSet = new Set(), page = 1, rows = [], allRows = [], vendors = [];
+  let slots = [], costs = { reward: [], yupfl: {} }, snaps = {}, prods = [], paidSet = new Set(), page = 1, rows = [], allRows = [], vendors = [];
   const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const won = n => `${Math.round(n).toLocaleString()}원`;
   const pad = n => String(n).padStart(2, '0');
@@ -241,39 +241,47 @@
   window.openCostMonthPopup = () => openPeriodPopup('월별 지출 내역', '전체 기간 · 월별 합산', '월', aggregate(allRows, t => t.slice(0, 7)));
   window.openCostDayPopup = () => openPeriodPopup(`${curYM.slice(0, 4)}년 ${Number(curYM.slice(5))}월 일자별 지출`, `${curYM} · 일자별 합산`, '날짜', aggregate(allRows, t => t.slice(0, 7) === curYM ? t.slice(0, 10) : null));
 
-  // ── 원가 설정 — 리워드 원가 1개 + 유입플 업체는 '추가'로 이름+원가 행(전 직원 공용 hi/costs) ──
+  // ── 원가 설정 — 리워드·유입플 각각 '추가'로 이름+원가 행(전 직원 공용 hi/costs). 리워드는 첫 줄만 계산에 씀 ──
   window.openCostModal = function() {
-    const row = (n = '', v = '') => `<div class="cost-row">
-        <input class="c-name" list="cost-vendor-names" value="${esc(n)}" placeholder="유입플 업체명">
+    const row = (grp, n = '', v = '') => `<div class="cost-row">
+        <input class="c-name"${grp === 'yupfl' ? ' list="cost-vendor-names"' : ''} value="${esc(n)}" placeholder="${grp === 'yupfl' ? '유입플 업체명' : '리워드 이름'}">
         <input class="c-price" type="number" min="0" value="${v}" placeholder="원가(원)">
         <button type="button" class="c-del" title="삭제">✕</button></div>`;
+    const rewardRows = Array.isArray(costs.reward) ? costs.reward : Number(costs.reward) > 0 ? [{ name: '리워드', price: costs.reward }] : [];
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
-    ov.innerHTML = `<div class="total-popup-box" style="width:min(96vw,480px)">
+    ov.innerHTML = `<div class="total-popup-box" style="width:auto;max-width:96vw">
       <div class="sp-title">원가 설정</div>
       <div class="sp-section">리워드</div>
-      <div class="cost-row"><input class="c-name" value="리워드" disabled><input class="c-price" id="cost-reward" type="number" min="0" value="${Number(costs.reward) || ''}" placeholder="원가(원)"><span style="width:22px"></span></div>
+      <div class="cost-rows" data-grp="reward">${rewardRows.map(r => row('reward', r.name, r.price)).join('')}</div>
+      <button type="button" class="cost-add" data-grp="reward">+ 리워드 추가</button>
       <div class="sp-section">유입플</div>
-      <div class="cost-rows">${Object.entries(costs.yupfl || {}).map(([n, v]) => row(n, v)).join('')}</div>
-      <button type="button" class="cost-add">+ 유입플 추가</button>
+      <div class="cost-rows" data-grp="yupfl">${Object.entries(costs.yupfl || {}).map(([n, v]) => row('yupfl', n, v)).join('')}</div>
+      <button type="button" class="cost-add" data-grp="yupfl">+ 유입플 추가</button>
       <datalist id="cost-vendor-names">${vendorNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist>
       <div class="sp-footer"><button class="btn-close-sp" id="cost-cancel">취소</button><button class="btn-save-sp" id="cost-save">저장</button></div>
     </div>`;
     document.body.appendChild(ov);
     ov.addEventListener('click', e => {  // 바깥 클릭으로는 안 닫힘(입력 중 실수로 닫히지 않게) — 취소·저장으로만
-      if (e.target.closest('.cost-add')) { ov.querySelector('.cost-rows').insertAdjacentHTML('beforeend', row()); ov.querySelector('.cost-rows .cost-row:last-child .c-name').focus(); }
+      const add = e.target.closest('.cost-add');
+      if (add) { const box = ov.querySelector(`.cost-rows[data-grp="${add.dataset.grp}"]`); box.insertAdjacentHTML('beforeend', row(add.dataset.grp)); box.lastElementChild.querySelector('.c-name').focus(); }
       if (e.target.closest('.c-del')) e.target.closest('.cost-row').remove();
     });
     ov.querySelector('#cost-cancel').onclick = () => ov.remove();
     ov.querySelector('#cost-save').onclick = async () => {
-      const next = { reward: Number(ov.querySelector('#cost-reward').value) || 0, yupfl: {} };
+      const next = { reward: [], yupfl: {} };
       for (const r of ov.querySelectorAll('.cost-rows .cost-row')) {
-        const n = r.querySelector('.c-name').value.trim(), v = Number(r.querySelector('.c-price').value) || 0;
+        const grp = r.parentElement.dataset.grp, n = r.querySelector('.c-name').value.trim(), v = Number(r.querySelector('.c-price').value) || 0;
         if (!n && !v) continue;
-        if (!n || !(v > 0)) return alert('업체명과 0보다 큰 원가를 함께 입력해 주세요.');
-        if (/[.#$\[\]\/]/.test(n)) return alert(`업체명에 . # $ [ ] / 는 쓸 수 없습니다: ${n}`);
-        if (next.yupfl[n] != null) return alert(`같은 업체가 두 번 있습니다: ${n}`);
-        next.yupfl[n] = v;
+        if (!n || !(v > 0)) return alert('이름과 0보다 큰 원가를 함께 입력해 주세요.');
+        if (/[.#$\[\]\/]/.test(n)) return alert(`이름에 . # $ [ ] / 는 쓸 수 없습니다: ${n}`);
+        if (grp === 'reward') {
+          if (next.reward.some(x => x.name === n)) return alert(`같은 리워드가 두 번 있습니다: ${n}`);
+          next.reward.push({ name: n, price: v });
+        } else {
+          if (next.yupfl[n] != null) return alert(`같은 업체가 두 번 있습니다: ${n}`);
+          next.yupfl[n] = v;
+        }
       }
       try {
         await freezePaid(costs); // 바꾸기 전 원가로 정산완료 묶음부터 고정

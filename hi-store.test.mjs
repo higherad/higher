@@ -197,6 +197,7 @@ assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 2, deductTarget: 20, dedu
   { rewardQty: 200 - 80 - 20, reward: 1000, yupfl: { 풀스택: 448, 제이엔: 0 }, total: 1448, deduct: 600, missing: ['제이엔'] });
 assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 1, yupflTarget: 40 }, costs).yupfl, { 풀스택: 320 }, '업체 분류 전 유입플은 풀스택');
 assert.deepEqual(HI.slotCost({ dailyTarget: 10, days: 1 }, {}).missing, ['리워드']);
+assert.equal(HI.slotCost({ dailyTarget: 10, days: 1 }, { reward: [{ name: '리워드', price: 7 }, { name: '블랙', price: 99 }] }).reward, 70, '리워드 원가는 첫 줄');
 
 // 지출 고정은 없는 키만 — 이미 고정된 묶음은 덮지 않음
 assert.equal(await HI.freezeCostSnapshots({ g1: { total: 100 } }), 1);
