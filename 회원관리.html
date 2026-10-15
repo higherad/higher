@@ -34,7 +34,6 @@
   .modal-field input:focus { border-color:var(--accent); }
   .modal-row { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
   .modal-row-3 { grid-template-columns:1fr 1fr 1fr; }
-  .um-row-add { border:1px dashed var(--border); background:transparent; border-radius:7px; padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text2); font-family:inherit; }
   .modal-footer { display:flex;justify-content:flex-end;gap:10px;margin-top:20px; }
   .btn-cancel { padding:8px 20px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;font-size:13px; }
   .btn-save   { padding:8px 20px;border:none;border-radius:7px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600; }
@@ -256,22 +255,15 @@
   };
 
   const escHtml = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // 리워드 단가 목록 [{name, price}] — 첫 줄 = 정산 계산 단가(unitPrice). 목록 저장 전 회원은 unitPrice 한 줄
-  // ponytail: 리워드 여러 줄은 저장만, 계산은 첫 줄(정산 수량이 리워드 합계뿐) — 상품별 계산은 상품별 수량 저장 후 추가
+  // 리워드 단가 목록 [{name, price}] — 첫 줄 '리워드' = 정산 계산 단가(unitPrice), 그 아래 가이드 리워드 탭 상품 줄은 저장만
+  // ponytail: 상품별 리워드 단가는 저장만(정산 수량이 리워드 합계뿐) — 상품별 계산은 상품별 수량 저장 후 추가
   const rewardPricesOf = u => u.rewardPrices?.length ? u.rewardPrices : [{ name: '리워드', price: u.unitPrice || 0 }];
-  // 단가 한 줄(이름 + 단가 + 삭제) — 지출관리 원가 설정과 같은 방식
-  // 유입플 줄은 업체명 고정(가이드 시트 탭 이름) — 금액만 입력, 삭제 없음
-  const ypRowHtml = (n = '', v = '', grp = 'yupfl') => `<div class="um-price-row" data-grp="${grp}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <input class="um-p-name" value="${escHtml(n)}" placeholder="리워드 이름" style="width:110px"${grp === 'yupfl' ? ' disabled' : ''}>
-      <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:80px;text-align:center">
-      ${grp === 'yupfl' ? '<span style="width:22px"></span>' : '<button type="button" onclick="this.parentElement.remove()" title="삭제" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px">✕</button>'}</div>`;
-  // 유입플 = 업체 목록(상단 '단가 불러오기'로 갱신) + 목록에서 빠졌지만 단가가 남은 업체
-  const yupflRowsHtml = (list, cur) => [...new Set([...list, ...Object.keys(cur)])].map(n => ypRowHtml(n, cur[n] || '')).join('');
-  window.addPriceRow = grp => {
-    const el = document.getElementById(grp === 'reward' ? 'um-reward-prices' : 'um-yupfl-prices');
-    el.insertAdjacentHTML('beforeend', ypRowHtml('', '', grp));
-    el.lastElementChild.querySelector('.um-p-name').focus();
-  };
+  // 단가 한 줄 — 항목명 고정(가이드 시트), 금액만 입력
+  const ypRowHtml = (n, v = '', grp = 'yupfl', base = false) => `<div class="um-price-row" data-grp="${grp}"${base ? ' data-base="1"' : ''} style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <input class="um-p-name" value="${escHtml(n)}" style="width:110px" disabled>
+      <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:80px;text-align:center"></div>`;
+  // 목록 + 목록에서 빠졌지만 단가가 남은 항목
+  const itemRowsHtml = (list, cur, grp) => [...new Set([...list, ...Object.keys(cur)])].map(n => ypRowHtml(n, cur[n] || '', grp)).join('');
   // 단가 열 '보기' — 리워드·유입플 업체별 단가 읽기 전용 팝업(수정은 '수정' 버튼)
   window.openUserPricePopup = function(key) {
     const u = userByKey(key);
@@ -307,8 +299,7 @@
           <div class="modal-field"><label>업체명 (대행사)</label><input id="um-agency" value="${currentAgency}" placeholder="업체명을 입력하세요"></div>
         </div>
         <div class="modal-field"><label>리워드 단가 (원) *</label>
-          <div id="um-reward-prices">${rewardPricesOf(u).map(r => ypRowHtml(r.name, r.price, 'reward')).join('')}</div>
-          <button type="button" class="um-row-add" onclick="addPriceRow('reward')">+ 리워드 추가</button></div>
+          <div id="um-reward-prices">${ypRowHtml('리워드', rewardPricesOf(u)[0].price || '', 'reward', true)}</div></div>
         <div class="modal-field"><label>유입플 업체별 단가 (원)</label>
           <div id="um-yupfl-prices"><span style="color:var(--muted);font-size:12px">불러오는 중...</span></div></div>
         <div class="modal-field"><label>메모</label><input id="um-memo" value="${u.memo||''}"></div>
@@ -326,9 +317,13 @@
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('user-save-btn').onclick = () => saveUser(key);
-    HI.getYupflVendors().catch(() => []).then(list => {
-      const el = document.getElementById('um-yupfl-prices');
-      if (el) { el.innerHTML = yupflRowsHtml(list, u.yupflPrices || {}); el.dataset.loaded = '1'; }
+    // 항목 = 가이드 시트(리워드 탭 상품·유입플 업체 탭) — 상단 '단가 불러오기'로 갱신
+    HI.getGuideItems().catch(() => ({ rewards: [], vendors: [] })).then(items => {
+      const rEl = document.getElementById('um-reward-prices'), el = document.getElementById('um-yupfl-prices');
+      if (!rEl || !el) return;
+      rEl.insertAdjacentHTML('beforeend', itemRowsHtml(items.rewards, Object.fromEntries(rewardPricesOf(u).slice(1).map(r => [r.name, r.price])), 'reward'));
+      el.innerHTML = itemRowsHtml(items.vendors, u.yupflPrices || {}, 'yupfl');
+      el.dataset.loaded = '1';
     });
     if(isEdit){
       (async function(){
@@ -376,23 +371,17 @@
     const password = document.getElementById('um-password').value.trim();
     if (!username) return alert('아이디를 입력하세요.');
     const agencyVal = document.getElementById('um-agency').value.trim();
-    // 업체 목록이 뜨기 전에 저장하면 기존 유입플 단가가 비워짐 — 다 뜬 뒤에만
-    if (!document.getElementById('um-yupfl-prices')?.dataset.loaded) return alert('유입플 업체 목록을 불러오는 중입니다. 잠시 후 다시 저장해 주세요.');
-    const yupflPrices = {}, rewardPrices = [];
-    for (const r of document.querySelectorAll('.um-price-row')) {
-      const n = r.querySelector('.um-p-name').value.trim(), v = Number(r.querySelector('.um-p-price').value) || 0;
-      if (!v && (r.dataset.grp === 'yupfl' || !n)) continue;  // 유입플은 비워 두면 미설정
-      if (!n || !(v > 0)) return alert('이름과 0보다 큰 단가를 함께 입력해 주세요.');
-      if (/[.#$\[\]\/]/.test(n)) return alert(`이름에 . # $ [ ] / 는 쓸 수 없습니다: ${n}`);
-      if (r.dataset.grp === 'reward') {
-        if (rewardPrices.some(x => x.name === n)) return alert(`같은 리워드가 두 번 있습니다: ${n}`);
-        rewardPrices.push({ name: n, price: v });
-      } else {
-        if (yupflPrices[n] != null) return alert(`같은 업체가 두 번 있습니다: ${n}`);
-        yupflPrices[n] = v;
-      }
+    // 항목 목록이 뜨기 전에 저장하면 기존 상품·업체 단가가 비워짐 — 다 뜬 뒤에만
+    if (!document.getElementById('um-yupfl-prices')?.dataset.loaded) return alert('단가 항목을 불러오는 중입니다. 잠시 후 다시 저장해 주세요.');
+    const base = Number(document.querySelector('.um-price-row[data-base] .um-p-price').value) || 0;
+    if (!(base > 0)) return alert('리워드 단가를 입력해 주세요.');
+    // 리워드 = [기본 '리워드' 줄, 금액 넣은 상품 줄…], 유입플 = {업체: 단가} — 비운 칸은 미설정
+    const yupflPrices = {}, rewardPrices = [{ name: '리워드', price: base }];
+    for (const r of document.querySelectorAll('.um-price-row:not([data-base])')) {
+      const n = r.querySelector('.um-p-name').value, v = Number(r.querySelector('.um-p-price').value) || 0;
+      if (!(v > 0)) continue;
+      if (r.dataset.grp === 'reward') rewardPrices.push({ name: n, price: v }); else yupflPrices[n] = v;
     }
-    if (!rewardPrices.length) return alert('리워드 단가를 1줄 이상 입력해 주세요.');
     const data = {
       username,
       agency:    agencyVal,

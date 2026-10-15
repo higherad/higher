@@ -45,8 +45,6 @@
   .cost-row input { padding:7px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box; }
   .cost-row .c-name { width:110px; }
   .cost-row .c-price { width:80px; text-align:center; }
-  .cost-row .c-del { border:none; background:transparent; color:var(--danger); cursor:pointer; font-size:14px; }
-  .cost-add { border:1px dashed var(--border); background:transparent; border-radius:7px; padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text2); font-family:inherit; }
   .btn-save-sp { padding:9px 24px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit; }
   @media (max-width: 900px) { #cost-page .summary-grid { grid-template-columns:repeat(2,1fr); } .sp-cards { grid-template-columns:1fr; } }
 </style>
@@ -241,55 +239,47 @@
   window.openCostMonthPopup = () => openPeriodPopup('월별 지출 내역', '전체 기간 · 월별 합산', '월', aggregate(allRows, t => t.slice(0, 7)));
   window.openCostDayPopup = () => openPeriodPopup(`${curYM.slice(0, 4)}년 ${Number(curYM.slice(5))}월 일자별 지출`, `${curYM} · 일자별 합산`, '날짜', aggregate(allRows, t => t.slice(0, 7) === curYM ? t.slice(0, 10) : null));
 
-  // ── 원가 설정 — 리워드·유입플 각각 '추가'로 이름+원가 행(전 직원 공용 hi/costs). 리워드는 첫 줄만 계산에 씀 ──
+  // ── 원가 설정 — 항목은 가이드 시트(리워드 탭 상품·유입플 업체 탭, 회전 아이콘으로 갱신), 금액만 입력(전 직원 공용 hi/costs) ──
+  // 리워드 맨 위 '리워드' 줄 = 계산에 쓰는 원가(costs.reward[0]), 상품 줄은 저장만(상품별 계산은 추후)
   window.openCostModal = async function() {
-    let vendorList;
-    try { vendorList = await HI.getYupflVendors(); } catch (e) { return alert('유입플 업체 목록을 불러오지 못했습니다: ' + e.message); }
-    const row = (grp, n = '', v = '') => `<div class="cost-row">
-        <input class="c-name" value="${esc(n)}" placeholder="리워드 이름"${grp === 'yupfl' ? ' disabled' : ''}>
-        <input class="c-price" type="number" min="0" value="${v}" placeholder="원가(원)">
-        ${grp === 'yupfl' ? '<span style="width:22px"></span>' : '<button type="button" class="c-del" title="삭제">✕</button>'}</div>`;
-    // 유입플 = 업체 목록(회전 아이콘으로 갱신) + 목록에서 빠졌지만 원가가 남은 업체. 다시 그릴 때 입력 중인 값 유지
-    const yupflRows = (list, cur) => [...new Set([...list, ...Object.keys(cur)])].map(n => row('yupfl', n, cur[n] || '')).join('');
-    const curYupfl = () => Object.fromEntries([...ov.querySelectorAll('.cost-rows[data-grp="yupfl"] .cost-row')].map(r => [r.querySelector('.c-name').value, r.querySelector('.c-price').value]));
-    const rewardRows = Array.isArray(costs.reward) ? costs.reward : Number(costs.reward) > 0 ? [{ name: '리워드', price: costs.reward }] : [];
+    let items;
+    try { items = await HI.getGuideItems(); } catch (e) { return alert('가이드 항목을 불러오지 못했습니다: ' + e.message); }
+    const row = (n, v = '', base = false) => `<div class="cost-row"${base ? ' data-base="1"' : ''}>
+        <input class="c-name" value="${esc(n)}" disabled>
+        <input class="c-price" type="number" min="0" value="${v}" placeholder="원가(원)"></div>`;
+    const rewardList = Array.isArray(costs.reward) ? costs.reward : Number(costs.reward) > 0 ? [{ name: '리워드', price: costs.reward }] : [];
+    // 목록 + 목록에서 빠졌지만 금액이 남은 항목. 다시 그릴 때 입력 중인 값 유지
+    const rowsOf = (list, cur) => [...new Set([...list, ...Object.keys(cur)])].map(n => row(n, cur[n] || '')).join('');
+    const curOf = grp => Object.fromEntries([...ov.querySelectorAll(`.cost-rows[data-grp="${grp}"] .cost-row:not([data-base])`)].map(r => [r.querySelector('.c-name').value, r.querySelector('.c-price').value]));
+    const rewardRowsHtml = cur => row('리워드', rewardList[0]?.price || '', true) + rowsOf(items.rewards, cur);
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
     ov.innerHTML = `<div class="total-popup-box" style="width:auto;max-width:96vw">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="sp-title">원가 설정</div><button type="button" class="yp-refresh" title="가이드 시트 탭에서 유입플 업체 항목만 다시 불러오기(입력한 원가는 그대로)" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:30px;height:30px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text2)"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i></button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="sp-title">원가 설정</div><button type="button" class="yp-refresh" title="가이드 시트에서 리워드 상품·유입플 업체 항목만 다시 불러오기(입력한 원가는 그대로)" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:30px;height:30px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text2)"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i></button></div>
       <div class="sp-section">리워드</div>
-      <div class="cost-rows" data-grp="reward">${rewardRows.map(r => row('reward', r.name, r.price)).join('')}</div>
-      <button type="button" class="cost-add" data-grp="reward">+ 리워드 추가</button>
+      <div class="cost-rows" data-grp="reward">${rewardRowsHtml(Object.fromEntries(rewardList.slice(1).map(r => [r.name, r.price])))}</div>
       <div class="sp-section">유입플</div>
-      <div class="cost-rows" data-grp="yupfl">${yupflRows(vendorList, costs.yupfl || {})}</div>
+      <div class="cost-rows" data-grp="yupfl">${rowsOf(items.vendors, costs.yupfl || {})}</div>
       <div class="sp-footer"><button class="btn-close-sp" id="cost-cancel">취소</button><button class="btn-save-sp" id="cost-save">저장</button></div>
     </div>`;
     document.body.appendChild(ov);
     if (window.lucide) lucide.createIcons();
     ov.querySelector('.yp-refresh').onclick = async () => {
-      try { vendorList = await HI.refreshYupflVendors(); } catch (e) { return alert('가이드 시트를 불러오지 못했습니다: ' + e.message); }
-      ov.querySelector('.cost-rows[data-grp="yupfl"]').innerHTML = yupflRows(vendorList, curYupfl());
+      const base = ov.querySelector('.cost-rows[data-grp="reward"] [data-base] .c-price').value, cr = curOf('reward'), cy = curOf('yupfl');
+      try { items = await HI.refreshGuideItems(); } catch (e) { return alert('가이드 시트를 불러오지 못했습니다: ' + e.message); }
+      ov.querySelector('.cost-rows[data-grp="reward"]').innerHTML = rewardRowsHtml(cr);
+      ov.querySelector('.cost-rows[data-grp="reward"] [data-base] .c-price').value = base;
+      ov.querySelector('.cost-rows[data-grp="yupfl"]').innerHTML = rowsOf(items.vendors, cy);
     };
-    ov.addEventListener('click', e => {  // 바깥 클릭으로는 안 닫힘(입력 중 실수로 닫히지 않게) — 취소·저장으로만
-      const add = e.target.closest('.cost-add');
-      if (add) { const box = ov.querySelector(`.cost-rows[data-grp="${add.dataset.grp}"]`); box.insertAdjacentHTML('beforeend', row(add.dataset.grp)); box.lastElementChild.querySelector('.c-name').focus(); }
-      if (e.target.closest('.c-del')) e.target.closest('.cost-row').remove();
-    });
+    // 바깥 클릭으로는 안 닫힘(입력 중 실수로 닫히지 않게) — 취소·저장으로만
     ov.querySelector('#cost-cancel').onclick = () => ov.remove();
     ov.querySelector('#cost-save').onclick = async () => {
-      const next = { reward: [], yupfl: {} };
-      for (const r of ov.querySelectorAll('.cost-rows .cost-row')) {
-        const grp = r.parentElement.dataset.grp, n = r.querySelector('.c-name').value.trim(), v = Number(r.querySelector('.c-price').value) || 0;
-        if (!v && (grp === 'yupfl' || !n)) continue;  // 유입플은 비워 두면 미설정
-        if (!n || !(v > 0)) return alert('이름과 0보다 큰 원가를 함께 입력해 주세요.');
-        if (/[.#$\[\]\/]/.test(n)) return alert(`이름에 . # $ [ ] / 는 쓸 수 없습니다: ${n}`);
-        if (grp === 'reward') {
-          if (next.reward.some(x => x.name === n)) return alert(`같은 리워드가 두 번 있습니다: ${n}`);
-          next.reward.push({ name: n, price: v });
-        } else {
-          if (next.yupfl[n] != null) return alert(`같은 업체가 두 번 있습니다: ${n}`);
-          next.yupfl[n] = v;
-        }
+      // 리워드 = [기본 '리워드' 줄, 금액 넣은 상품 줄…], 유입플 = {업체: 원가} — 비운 칸은 미설정
+      const next = { reward: [{ name: '리워드', price: Number(ov.querySelector('[data-base] .c-price').value) || 0 }], yupfl: {} };
+      for (const r of ov.querySelectorAll('.cost-rows .cost-row:not([data-base])')) {
+        const n = r.querySelector('.c-name').value, v = Number(r.querySelector('.c-price').value) || 0;
+        if (!(v > 0)) continue;
+        if (r.parentElement.dataset.grp === 'reward') next.reward.push({ name: n, price: v }); else next.yupfl[n] = v;
       }
       try {
         await freezePaid(costs); // 바꾸기 전 원가로 정산완료 묶음부터 고정
