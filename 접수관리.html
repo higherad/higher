@@ -335,7 +335,7 @@
     <thead>
       <tr>
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
-        <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
+        <th>번호</th><th>접수일시</th><th>대행사</th><th>비율</th>
         <th>캠페인타입</th><th>플레이스명</th><th>MID</th><th>순위키워드</th><th>분류</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>삭제</th>
       </tr>
@@ -565,6 +565,17 @@ window.toggleProdPanel = function(e) {
   const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
   // 풀스텍 = 시트 분류 때 가이드로 정해진 풀스텍(유입플) 상품(fullstackType) — 등급 매칭엔 안 씀
   const fullstackLabels = s => Array.isArray(s?.fullstackType) ? s.fullstackType : (s?.fullstackType ? Object.values(s.fullstackType) : []);
+  // 엑셀 비고의 리워드:유입플 비율 — '리워드'(전부 리워드)·'유입플'(전부 유입플)·'1:9'~'9:1'(앞이 리워드, 합 10). 그 밖은 null
+  function parseRatioNote(t) {
+    t = String(t || '').replace(/\s+/g, '');
+    const m = t.match(/^([1-9])[:：]([1-9])$/);
+    if (m) return +m[1] + +m[2] === 10 ? { reward: +m[1], yupfl: +m[2] } : null;
+    if (t === '리워드') return { reward: 1, yupfl: 0 };
+    if (t === '유입플') return { reward: 0, yupfl: 1 };
+    return null;
+  }
+  const ratioLabel = ({ reward, yupfl }) => !yupfl ? '리워드' : !reward ? '유입플' : `${reward}:${yupfl}`;
+  const ratioBadgeHtml = r => `<span title="리워드:유입플 (엑셀 비고)" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${ratioLabel(r)}</span>`;
   function typeBadgesHtml(s) {
     const badge = (l, style) => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;${style}">${escProd(l)}</span>`;
     const html = [...typeLabels(s).map(l => badge(l, 'background:#f1f5f9;color:#334155;border:1px solid #e2e8f0')),
@@ -734,7 +745,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
-          <td>${escProd(s.userId||'-')}</td>
+          <td>${s.yupflRatio ? ratioBadgeHtml(s.yupflRatio) : '<span style="color:#cbd5e1">-</span>'}</td>
           <td>${typeBadgesHtml(s)}${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) ? typeChangeLine(s) : ''}</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
@@ -1897,7 +1908,8 @@ window.toggleProdPanel = function(e) {
     const yupfl = prods.find(p => p.classifyOnly);
     const fullSum = rule.full.reduce((a, g) => a + g.ratio, 0);
     if (yupfl && fullSum > 0) out.push({ ...yupfl, fixedAlloc: false, ratio: fullSum, kwPct: 0 });
-    return guideRatio ? applyGuideRatio(out, guideRatio) : out;
+    const ratio = r.yupflRatio || guideRatio;
+    return ratio ? applyGuideRatio(out, ratio) : out;
   }
   // 공용 리워드:유입플 비율로 두 묶음 합계를 다시 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
   function applyGuideRatio(items, { reward, yupfl }) {
@@ -2104,7 +2116,13 @@ window.toggleProdPanel = function(e) {
   // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 매칭된 등급 있으면 고정 항목은 그대로
   // 두고 나머지만 균등분배, 없으면 기존 ratio 배분. 재접수는 변경 요청 상품(changeTo)이 있으면 그 상품, 없으면 매칭 안 함.
   function allocRowsForSlot(r) {
-    const AP = ap();
+    // 엑셀 비고 비율(yupflRatio)이 있으면 유입플 분류 % 대신 그 비율(가이드_접수 공용 비율보다도 우선)
+    const R = r.yupflRatio;
+    const AP = !R ? ap() : (() => {
+      const pct = R.yupfl / (R.reward + R.yupfl) * 100, y = prods.find(p => p.classifyOnly);
+      const list = ap().map(p => p.classifyOnly ? { ...p, fixedPct: pct } : p);
+      return y && !list.some(p => p.classifyOnly) ? [...list, { ...y, fixedPct: pct }] : list;
+    })();
     // 변경 요청으로 생긴 재접수(changeTo)는 요청한 상품으로, 그 외 재접수는 매칭 안 함
     const changeTo = (r.changeTo || '').split('/').map(x => x.trim()).filter(Boolean);
     const guideProds = guideModeOn && !changeTo.length ? guideProdsFor(r) : [];
@@ -2482,7 +2500,7 @@ window.toggleProdPanel = function(e) {
               <table class="rex-preview-table">
                 <thead><tr>
                   <th style="width:30px">#</th><th>업체명</th><th>URL</th><th style="width:100px">MID</th>
-                  <th>순위키워드</th><th style="width:50px">일수</th><th style="width:86px">시작일</th><th style="width:70px">일목표</th><th style="width:160px">상태</th>
+                  <th>순위키워드</th><th style="width:50px">일수</th><th style="width:86px">시작일</th><th style="width:70px">일목표</th><th style="width:60px">비고</th><th style="width:160px">상태</th>
                 </tr></thead>
                 <tbody id="rex-preview-body"></tbody>
               </table>
@@ -2698,6 +2716,7 @@ window.toggleProdPanel = function(e) {
         const daysCol   = hdr.findIndex(h => /일수/.test(h));
         const targetCol = hdr.findIndex(h => /일목표/.test(h));
         const startCol  = hdr.findIndex(h => /시작일/.test(h));
+        const noteCol   = hdr.findIndex(h => /비고/.test(h));  // 선택 — 리워드:유입플 비율(parseRatioNote)
         const missing = [];
         if (storeCol  < 0) missing.push('업체명/상호명');
         if (urlCol    < 0) missing.push('URL');
@@ -2726,6 +2745,11 @@ window.toggleProdPanel = function(e) {
           if (startDate && days !== null && !isNaN(days) && days > 0) {
             const endD = new Date(startDate); endD.setDate(endD.getDate()+days-1); endDate = rexFmt(endD);
           }
+          // 엑셀이 '6:4'를 시간(06:04 = 하루의 비율 숫자)으로 바꿔 저장한 경우 시:분으로 되돌림
+          const noteRaw      = noteCol >= 0 ? r[noteCol] : '';
+          const noteMin      = typeof noteRaw === 'number' && noteRaw > 0 && noteRaw < 1 ? Math.round(noteRaw * 1440) : null;
+          const note         = noteMin != null ? `${Math.floor(noteMin / 60)}:${noteMin % 60}` : String(noteRaw ?? '').trim();
+          const yupflRatio   = parseRatioNote(note);
           const errors = [];
           const urlMid = url ? rexExtractMid(url) : null;
           if (!storeName)       errors.push('업체명 누락');
@@ -2736,9 +2760,10 @@ window.toggleProdPanel = function(e) {
           if (!startDate)       errors.push('시작일 형식 오류');
           else if (startDate < uploadTodayStr) errors.push('오늘 이전 시작일');
           if (!mid)             errors.push('MID 누락');
+          if (note && !yupflRatio) errors.push('비고는 리워드/유입플/1:9~9:1만');
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
-          return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, valid: errors.length===0, error: errors.join(' / ') };
+          return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, valid: errors.length===0, error: errors.join(' / ') };
         });
         HI.markDuplicateRows(rexRows);
         rexRenderPreview(overlay);
@@ -2769,6 +2794,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.days ?? '-'}</td>
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
+        <td>${r.yupflRatio ? ratioBadgeHtml(r.yupflRatio) : '-'}</td>
         <td>${r.valid ? '<span class="rex-row-status rex-row-ok">정상</span>' : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';
@@ -2800,6 +2826,7 @@ window.toggleProdPanel = function(e) {
       agencyId, userId,
       storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
       startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget, memo: '',
+      ...(row.yupflRatio ? { yupflRatio: row.yupflRatio } : {}),
       createdAt: new Date(excelBaseTs + i).toISOString(),
     })));
 
@@ -2814,10 +2841,10 @@ window.toggleProdPanel = function(e) {
     const wb = XLSX.utils.book_new();
     const todayStr = rexFmt(new Date());
     const ws = XLSX.utils.aoa_to_sheet([
-      ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표'],
-      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000],
+      ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고(리워드/유입플/1:9~9:1, 선택)'],
+      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,'6:4'],
     ]);
-    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10}];
+    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws, '접수');
     XLSX.writeFile(wb, '접수관리_엑셀접수_양식.xlsx');
   }
