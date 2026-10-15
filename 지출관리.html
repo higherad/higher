@@ -1,7 +1,7 @@
 <div id="cost-page">
 <style>
   /* 카드·팝업은 정산관리와 같은 모양(sum-card·sp-*) */
-  #cost-page .summary-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:16px; }
+  #cost-page .summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
   #cost-page .sum-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
   #cost-page .sum-card .sc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
   #cost-page .sum-card .sc-value { font-size:24px; font-weight:800; line-height:1; }
@@ -84,7 +84,7 @@
   // 회계 기록이라 정산완료 묶음 금액은 한 번 고정(hi/cost_snapshots) 후 안 바뀜. 고정 시점: 페이지 열 때 + 원가 저장 직전(옛 원가로).
   // 원가 미설정·승인 전 건이 남은 묶음은 고정 보류(현재 원가로 표시)
   const PER = 50, POP_PER = 12;
-  let slots = [], costs = { reward: [], yupfl: {} }, snaps = {}, prods = [], paidSet = new Set(), page = 1, rows = [], allRows = [], vendors = [];
+  let slots = [], costs = { reward: [], yupfl: {} }, snaps = {}, prods = [], paidSet = new Set(), settleSnaps = {}, users = [], refunds = {}, page = 1, rows = [], allRows = [], vendors = [];
   const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const won = n => `${Math.round(n).toLocaleString()}원`;
   const pad = n => String(n).padStart(2, '0');
@@ -145,6 +145,15 @@
     const live = new Map(liveGroups(costs).map(r => [r.key, r]));
     const m = new Map([...live].filter(([, r]) => r.paid));
     Object.entries(snaps).forEach(([k, sn]) => { if (sn.count > 0 && (!live.has(k) || live.get(k).paid)) m.set(k, { ...sn, key: k, missing: [], frozen: true }); });
+    // 정산 금액(비교용) — 정산관리와 같은 값: 지난 날짜는 정산 고정 금액, 그 외는 HI.slotBill 합 − 환불
+    const bySlots = new Map();
+    slots.filter(HI.isBillable).forEach(sl => { const k = HI.settleGroupKey(sl); bySlots.set(k, [...(bySlots.get(k) || []), sl]); });
+    const userOf = sl => users.find(u => u.username === sl.userId);
+    m.forEach((r, k) => {
+      const list = bySlots.get(k) || [];
+      r.settle = r.t.slice(0, 10) < todayStr && settleSnaps[k] ? settleSnaps[k].amount || 0
+        : list.reduce((a, sl) => a + HI.slotBill(sl, userOf(sl)).amount, 0) - (list[0] ? refunds[HI.refundGroupKey(list[0])] || 0 : 0);
+    });
     return [...m.values()].sort((a, b) => b.t.localeCompare(a.t));
   }
 
@@ -154,8 +163,8 @@
     list.forEach(r => {
       const k = keyOf(r.t);
       if (!k) return;
-      const a = out[k] ||= { count: 0, tgt: 0, reward: 0, yupfl: 0, total: 0, deduct: 0 };
-      a.count += r.count || 0; a.tgt += r.tgt || 0; a.reward += r.reward || 0; a.yupfl += yupSum(r); a.total += r.total || 0; a.deduct += r.deduct || 0;
+      const a = out[k] ||= { count: 0, tgt: 0, reward: 0, yupfl: 0, total: 0, deduct: 0, settle: 0 };
+      a.count += r.count || 0; a.tgt += r.tgt || 0; a.reward += r.reward || 0; a.yupfl += yupSum(r); a.total += r.total || 0; a.deduct += r.deduct || 0; a.settle += r.settle || 0;
     });
     return out;
   }
@@ -170,9 +179,7 @@
     document.getElementById('cost-summary').innerHTML =
       card('', 'openCostYearPopup()', '총 지출액(VAT 별도)', all.total, 'var(--danger)', `${all.count}건 전체`)
       + card('', 'openCostMonthPopup()', `당월 지출액 (${Number(curYM.slice(5))}월)`, month.total, 'var(--danger)', `${month.count}건`)
-      + card('', 'openCostDayPopup()', `당일 지출액 (${todayStr})`, today.total, 'var(--info)', `${today.count}건`)
-      + card('', '', '당월 리워드', month.reward, 'var(--text)', '')
-      + card('', '', '당월 유입플', month.yupfl, '#7c3aed', '');
+      + card('', 'openCostDayPopup()', `당일 지출액 (${todayStr})`, today.total, 'var(--info)', `${today.count}건`);
   }
 
   window.renderCost = function(keepPage) {
@@ -184,7 +191,7 @@
     const kw = (document.getElementById('cf-kw').value || '').trim().toLowerCase();
     rows = allRows.filter(r => { const d = r.t.slice(0, 10); return !((from && d < from) || (to && d > to)) && (!kw || (r.agency || '').toLowerCase().includes(kw)); });
     vendors = vendorNames();
-    document.getElementById('cost-head').innerHTML = `<tr><th>접수일시</th><th>대행사</th><th>캠페인 수</th><th>전체 목표 합산</th><th>리워드</th>${vendors.map(v => `<th style="color:#c4b5fd">${esc(v)}</th>`).join('')}<th>지출 합계(VAT 별도)</th><th>지출 합계(VAT 포함)</th><th style="color:#6ee7b7">차감(수입)</th></tr>`;
+    document.getElementById('cost-head').innerHTML = `<tr><th>접수일시</th><th>대행사</th><th>캠페인 수</th><th>전체 목표 합산</th><th style="color:#7dd3fc">리워드</th>${vendors.map(v => `<th style="color:#c4b5fd">${esc(v)}</th>`).join('')}<th>지출 합계(VAT 별도)</th><th>지출 합계(VAT 포함)</th><th style="color:#6ee7b7">차감(수입)</th></tr>`;
     const body = document.getElementById('cost-body');
     const list = rows.slice((page - 1) * PER, page * PER);
     if (!list.length) { body.innerHTML = `<tr><td colspan="${8 + vendors.length}" style="padding:40px;color:var(--muted)">데이터가 없습니다.</td></tr>`; document.getElementById('cost-pg').innerHTML = ''; return; }
@@ -194,7 +201,7 @@
         <td style="font-weight:700">${esc(r.agency)}</td>
         <td>${r.count}건</td>
         <td><strong>${(r.tgt || 0).toLocaleString()}</strong></td>
-        <td>${r.missing.includes('리워드') ? '<span class="cost-need">원가 설정 필요</span>' : r.reward ? won(r.reward) : '-'}</td>
+        <td style="color:#0284c7">${r.missing.includes('리워드') ? '<span class="cost-need">원가 설정 필요</span>' : r.reward ? won(r.reward) : '-'}</td>
         ${vendors.map(v => `<td style="color:#7c3aed">${r.missing.includes(v) ? '<span class="cost-need">원가 설정 필요</span>' : r.yupfl?.[v] ? won(r.yupfl[v]) : '-'}</td>`).join('')}
         <td><strong style="color:var(--danger)">${won(r.total)}</strong></td>
         <td style="font-weight:700;color:var(--info)">${won(Math.round(r.total * 1.1))}</td>
@@ -212,18 +219,18 @@
     const sum = keys.reduce((a, k) => { a.total += data[k].total; a.reward += data[k].reward; a.yupfl += data[k].yupfl; a.deduct += data[k].deduct; return a; }, { total: 0, reward: 0, yupfl: 0, deduct: 0 });
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
-    ov.innerHTML = `<div class="total-popup-box" style="width:800px">
+    ov.innerHTML = `<div class="total-popup-box" style="width:min(96vw,1000px)">
       <div class="sp-title">${title}</div>
       <div class="sp-sub">${sub}</div>
       <div class="sp-cards">
         <div class="sp-card c-red"><div class="sp-card-label">지출 합계(VAT 별도)</div><div class="sp-card-value" style="color:var(--danger)">${won(sum.total)}</div></div>
-        <div class="sp-card c-blue"><div class="sp-card-label">리워드</div><div class="sp-card-value" style="color:var(--info)">${won(sum.reward)}</div></div>
+        <div class="sp-card c-blue"><div class="sp-card-label">리워드</div><div class="sp-card-value" style="color:#0284c7">${won(sum.reward)}</div></div>
         <div class="sp-card c-purple"><div class="sp-card-label">유입플</div><div class="sp-card-value" style="color:#7c3aed">${won(sum.yupfl)}</div></div>
         <div class="sp-card c-green"><div class="sp-card-label">차감(수입)</div><div class="sp-card-value" style="color:#059669">+${won(sum.deduct)}</div></div>
       </div>
       <div class="sp-section">${keyLabel}별 합산</div>
       <table class="sp-tbl">
-        <thead><tr><th>${keyLabel}</th><th>캠페인 수</th><th>전체 목표 합산</th><th>리워드</th><th>유입플</th><th>지출 합계(VAT 별도)</th><th>지출 합계(VAT 포함)</th><th>차감(수입)</th></tr></thead>
+        <thead><tr><th>${keyLabel}</th><th>캠페인 수</th><th>전체 목표 합산</th><th style="color:#7dd3fc">리워드</th><th style="color:#c4b5fd">유입플</th><th>지출 합계(VAT 별도)</th><th>지출 합계(VAT 포함)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th style="color:#6ee7b7">차감</th></tr></thead>
         <tbody class="pp-body"></tbody>
       </table>
       <div class="cost-pagination pp-pg" style="margin-top:12px;"></div>
@@ -235,8 +242,8 @@
     const draw = () => {
       const pages = Math.ceil(keys.length / POP_PER) || 1;
       const slice = keys.slice((cur - 1) * POP_PER, cur * POP_PER);
-      ov.querySelector('.pp-body').innerHTML = slice.length ? slice.map(k => { const v = data[k]; return `<tr><td style="font-weight:600">${k}</td><td>${v.count}건</td><td>${v.tgt.toLocaleString()}</td><td>${won(v.reward)}</td><td style="color:#7c3aed">${won(v.yupfl)}</td><td style="font-weight:700;color:var(--danger)">${won(v.total)}</td><td style="font-weight:700;color:var(--info)">${won(Math.round(v.total * 1.1))}</td><td style="font-weight:700;color:#059669">${v.deduct ? '+' + won(v.deduct) : '-'}</td></tr>`; }).join('')
-        : '<tr><td colspan="8" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>';
+      ov.querySelector('.pp-body').innerHTML = slice.length ? slice.map(k => { const v = data[k]; return `<tr><td style="font-weight:600">${k}</td><td>${v.count}건</td><td>${v.tgt.toLocaleString()}</td><td style="color:#0284c7">${won(v.reward)}</td><td style="color:#7c3aed">${won(v.yupfl)}</td><td style="font-weight:700;color:var(--danger)">${won(v.total)}</td><td style="font-weight:700;color:var(--danger)">${won(Math.round(v.total * 1.1))}</td><td style="font-weight:700;color:var(--accent)">${won(v.settle)}</td><td style="font-weight:700;color:var(--info)">${won(Math.round(v.settle * 1.1))}</td><td style="font-weight:700;color:#059669">${v.deduct ? '+' + won(v.deduct) : '-'}</td></tr>`; }).join('')
+        : '<tr><td colspan="10" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>';
       ov.querySelector('.pp-pg').innerHTML = pages < 2 ? '' : Array.from({ length: pages }, (_, i) => `<button class="pg-btn${i + 1 === cur ? ' active' : ''}" data-pg="${i + 1}">${i + 1}</button>`).join('');
     };
     ov.querySelector('.pp-pg').addEventListener('click', e => { const b = e.target.closest('[data-pg]'); if (b) { cur = +b.dataset.pg; draw(); } });
@@ -325,7 +332,9 @@
     try {
       let p;
       let paid;
-      [slots, costs, snaps, p, paid] = await Promise.all([HI.getAll(), HI.getCosts(), HI.getCostSnapshots(), HI.getProdsOnce(), HI.getPaidSet()]);
+      [slots, costs, snaps, p, paid, settleSnaps, users, refunds] = await Promise.all([HI.getAll(), HI.getCosts(), HI.getCostSnapshots(), HI.getProdsOnce(), HI.getPaidSet(),
+        HI.getAllSettleSnapshots(), HI.getUsers(), HI.getRefunds()]);
+      settleSnaps = settleSnaps || {}; refunds = refunds || {};
       prods = Object.values(p || {}).filter(Boolean);
       paidSet = new Set(paid);
       if (!document.getElementById('cost-page')) return;
