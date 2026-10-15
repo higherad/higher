@@ -301,7 +301,8 @@
       const el = document.getElementById('um-yupfl-prices');
       if (!el) return;
       const vp = u.yupflPrices || {};
-      const vendors = (Object.values(prods || {}).find(p => p && p.classifyOnly)?.vendors || []).map(v => v.name);
+      const vl = Object.values(prods || {}).find(p => p && p.classifyOnly)?.vendors;
+      const vendors = (vl?.length ? vl : [{ name: '풀스택' }]).map(v => v.name);  // 업체 미설정이면 기본 풀스택(접수관리와 같은 기본값)
       const names = [...new Set([...vendors, ...Object.keys(vp)])];
       el.innerHTML = names.length ? names.map(n => `<div class="modal-field" style="flex:1 1 120px;margin-bottom:6px"><label style="font-weight:500">${escHtml(n)}</label><input type="number" class="um-yp" data-vendor="${escHtml(n)}" value="${vp[n] || ''}" placeholder="미설정"></div>`).join('')
         : '<span style="color:var(--muted);font-size:12px">등록된 유입플 업체 없음</span>';

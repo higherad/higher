@@ -93,7 +93,8 @@
 
   // 유입플 업체 이름 — 상품 유형 설정·승인 기록·저장된 원가·고정 기록(열·원가 설정 자동완성)
   function vendorNames() {
-    const yup = new Set((prods.find(p => p && p.classifyOnly)?.vendors || []).map(v => v.name));
+    const vl = prods.find(p => p && p.classifyOnly)?.vendors;
+    const yup = new Set((vl?.length ? vl : [{ name: '풀스택' }]).map(v => v.name));  // 업체 미설정이면 기본 풀스택
     slots.forEach(s => Object.keys(s.yupflByVendor || {}).forEach(n => yup.add(n)));
     Object.keys(costs.yupfl || {}).forEach(n => yup.add(n));
     Object.values(snaps).forEach(sn => Object.keys(sn.yupfl || {}).forEach(n => yup.add(n)));

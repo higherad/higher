@@ -1168,7 +1168,8 @@
   window.openPricePopup=async function(userId){
     const u=allUsers.find(x=>x.username===userId)||{};
     const prods=await HI.getProdsOnce().catch(()=>null);
-    const vendors=(Object.values(prods||{}).find(p=>p&&p.classifyOnly)?.vendors||[]).map(v=>v.name);
+    const vl=Object.values(prods||{}).find(p=>p&&p.classifyOnly)?.vendors;
+    const vendors=(vl?.length?vl:[{name:'풀스택'}]).map(v=>v.name); // 업체 미설정이면 기본 풀스택
     const vp=u.yupflPrices||{};
     const names=[...new Set([...vendors,...Object.keys(vp)])];
     const row=(k,v)=>`<tr><td style="padding:6px 10px;color:var(--text2)">${escProd(k)}</td><td style="padding:6px 10px;text-align:right;font-weight:700">${v>0?Number(v).toLocaleString()+'원':'<span style="color:var(--danger)">단가 설정 필요</span>'}</td></tr>`;
