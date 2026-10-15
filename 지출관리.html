@@ -250,7 +250,6 @@
     ov.className = 'sp-overlay';
     ov.innerHTML = `<div class="total-popup-box" style="width:min(96vw,480px)">
       <div class="sp-title">원가 설정</div>
-      <div class="sp-sub">개당 원가(원, VAT 별도) · 전 직원 공용 · 없는 항목은 '원가 설정 필요' · 이미 고정(🔒)된 금액은 안 바뀜</div>
       <div class="sp-section">리워드</div>
       <div class="cost-row"><input class="c-name" value="리워드 (전 상품 공통)" disabled><input class="c-price" id="cost-reward" type="number" min="0" value="${Number(costs.reward) || ''}" placeholder="원가(원)"><span style="width:22px"></span></div>
       <div class="sp-section">유입플</div>
@@ -260,8 +259,7 @@
       <div class="sp-footer"><button class="btn-close-sp" id="cost-cancel">취소</button><button class="btn-save-sp" id="cost-save">저장</button></div>
     </div>`;
     document.body.appendChild(ov);
-    ov.addEventListener('click', e => {
-      if (e.target === ov) return ov.remove();
+    ov.addEventListener('click', e => {  // 바깥 클릭으로는 안 닫힘(입력 중 실수로 닫히지 않게) — 취소·저장으로만
       if (e.target.closest('.cost-add')) { ov.querySelector('.cost-rows').insertAdjacentHTML('beforeend', row()); ov.querySelector('.cost-rows .cost-row:last-child .c-name').focus(); }
       if (e.target.closest('.c-del')) e.target.closest('.cost-row').remove();
     });
