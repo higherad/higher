@@ -163,13 +163,13 @@
     const today = aggregate(allRows, t => t.slice(0, 10) === todayStr ? 'd' : null).d || { count: 0, total: 0 };
     const unit = '<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span>';
     const card = (cls, onclick, label, v, color, sub) => `<div class="sum-card${onclick ? ' clickable' : ''}"${onclick ? ` onclick="${onclick}"` : ''}>
-        <div class="sc-label">${label}</div><div class="sc-value" style="color:${color}">${Math.round(v).toLocaleString()}${unit}</div><div class="sc-sub">${sub}</div></div>`;
+        <div class="sc-label">${label}</div><div class="sc-value" style="color:${color}">${Math.round(v).toLocaleString()}${unit}</div>${sub ? `<div class="sc-sub">${sub}</div>` : ''}</div>`;
     document.getElementById('cost-summary').innerHTML =
       card('', 'openCostYearPopup()', '총 지출액(VAT 별도)', all.total, 'var(--danger)', `${all.count}건 전체`)
       + card('', 'openCostMonthPopup()', `당월 지출액 (${Number(curYM.slice(5))}월)`, month.total, 'var(--danger)', `${month.count}건`)
       + card('', 'openCostDayPopup()', `당일 지출액 (${todayStr})`, today.total, 'var(--info)', `${today.count}건`)
-      + card('', '', '당월 리워드', month.reward, 'var(--text)', '리워드 원가')
-      + card('', '', '당월 유입플', month.yupfl, '#7c3aed', '유입플 업체 원가');
+      + card('', '', '당월 리워드', month.reward, 'var(--text)', '')
+      + card('', '', '당월 유입플', month.yupfl, '#7c3aed', '');
   }
 
   window.renderCost = function(keepPage) {
