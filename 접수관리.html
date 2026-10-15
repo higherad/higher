@@ -576,9 +576,17 @@ window.toggleProdPanel = function(e) {
   }
   const ratioLabel = ({ reward, yupfl }) => !yupfl ? '리워드' : !reward ? '유입플' : `${reward}:${yupfl}`;
   const ratioBadgeHtml = r => `<span title="리워드:유입플 (엑셀 비고)" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${ratioLabel(r)}</span>`;
+  // 유입플 업체 = 승인 때 유입플 몫을 '유입플' 상품 설정의 업체 비율로 나눈 값(yupflByVendor {업체명: 일 수량})
+  const vendorLabels = s => Object.keys(s?.yupflByVendor || {}).filter(k => s.yupflByVendor[k] > 0);
+  const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스텍', ratio: 10 }]; };
+  function vendorSplit(target) {
+    const vs = yupflVendors().filter(v => v.name && v.ratio > 0);
+    const a = lrm(vs.map(v => ({ id: v.name, ratio: v.ratio })), target);
+    return Object.fromEntries(Object.entries(a).filter(([, n]) => n > 0));
+  }
   function typeBadgesHtml(s) {
     const badge = (l, style) => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;${style}">${escProd(l)}</span>`;
-    const html = [...typeLabels(s).map(l => badge(l, 'background:#f1f5f9;color:#334155;border:1px solid #e2e8f0')),
+    const html = [...vendorLabels(s).map(l => badge(l, 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa')),...typeLabels(s).map(l => badge(l, 'background:#f1f5f9;color:#334155;border:1px solid #e2e8f0')),
       ...fullstackLabels(s).map(l => badge(l, 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4'))];
     if (!html.length) return '<span style="color:#cbd5e1">-</span>';
     return `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html.join('')}</div>`;
@@ -597,7 +605,7 @@ window.toggleProdPanel = function(e) {
     const currentVal = sel.value;
     // 리워드·유입플 묶음마다 '전체' 항목 + 개별 상품
     const labels = new Set();
-    slots.forEach(s => { if (s.status !== 'deleted') [...typeLabels(s), ...fullstackLabels(s)].forEach(l => labels.add(l)); });
+    slots.forEach(s => { if (s.status !== 'deleted') [...typeLabels(s), ...fullstackLabels(s), ...vendorLabels(s)].forEach(l => labels.add(l)); });
     const group = (title, value, list) => list.length
       ? `<optgroup label="${title}"><option value="${value}">${title} 전체</option>${list.sort().map(l => `<option value="${escProd(l)}">${escProd(l)}</option>`).join('')}</optgroup>` : '';
     sel.innerHTML = '<option value="">전체 등급</option>'
@@ -610,7 +618,7 @@ window.toggleProdPanel = function(e) {
   const GRADE_REWARD = '__reward', GRADE_YUPFL = '__yupfl';
   const isRewardLabel = l => prods.some(p => p.name === l);
   function matchGrade(s, g) {
-    const labels = [...typeLabels(s), ...fullstackLabels(s)];
+    const labels = [...typeLabels(s), ...fullstackLabels(s), ...vendorLabels(s)];
     if (g === GRADE_REWARD) return labels.some(isRewardLabel);
     if (g === GRADE_YUPFL) return labels.some(l => !isRewardLabel(l));
     return labels.includes(g);
@@ -866,7 +874,7 @@ window.toggleProdPanel = function(e) {
   // ── 접수 처리 ─────────────────────────────────────────────
   // 승인 건을 대기·접수로 되돌리면 승인 때 붙인 배지·유입플 분류를 지움 — 다시 승인하면 그때 값으로 새로 계산(캐시 차감은 수동 처리)
   const unapprovePatch = key => allSlots.find(x => x._key === key)?.status === 'active'
-    ? { campaignType: null, fullstackType: null, yupflTarget: null, yupflAmount: null } : {};
+    ? { campaignType: null, fullstackType: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null } : {};
   window.acceptOne = async function(key) {
     const patch = { status: 'accepted', ...unapprovePatch(key) };
     await HI.updateCampaign(key, patch);
@@ -1269,9 +1277,9 @@ window.toggleProdPanel = function(e) {
     {id:'p7',     name:'X7',    color:'#ec4899', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
-    // 유입플 분류: 차감 뒤 남은 일 목표에서 이 비율만큼 유입플로 떼어 분류만 함(비즈핏 등록·유입플 접수 없음).
+    // 유입플(id yupflc): 차감 뒤 남은 일 목표에서 이 비율만큼 유입플로 떼어 분류만 함(비즈핏 등록·유입플 접수 없음).
     // 승인 때 yupflTarget·yupflAmount로 고정(캐시 차감·메모는 YUPFL_CASH_DEDUCT로 켜고 끔). 캠페인 dailyTarget은 그대로
-    {id:'yupflc', name:'유입플 분류', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false},
+    {id:'yupflc', name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false, vendors:[{name:'풀스텍', ratio:10}]},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
     {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
     {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.4', ratio:0, kwPct:0, blogUrlProduct:true, blogSplit:1},
@@ -1297,7 +1305,7 @@ window.toggleProdPanel = function(e) {
 
   // 상품 유형 설정은 전 계정 공용 1벌(hi/products)
   async function loadProdSettings() {
-    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,deductOnly:p.deductOnly,classifyOnly:p.classifyOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {})}]));
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,deductOnly:p.deductOnly,classifyOnly:p.classifyOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {}), ...(FIXED_PROD_IDS.has(p.id) ? {name:p.name} : {})}]));
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     // 최초 로드와 실시간 구독 콜백이 공유하는 처리 로직 — 원본 데이터를 받아 prods/prodGroups를 갱신
@@ -1427,7 +1435,7 @@ window.toggleProdPanel = function(e) {
       const p = prods.find(x => x.id === s.id); if(!p) return;
       p.active = s.active;
       if(s.ratio  !== undefined) p.ratio  = s.ratio;
-      if(s.name)                 p.name   = s.name;
+      if(s.name && !FIXED_PROD_IDS.has(p.id)) p.name = s.name;  // 고정 상품 이름은 코드값
       if(s.ver    !== undefined && !VER_LOCKED_IDS.has(p.id)) p.ver = s.ver;
       if(s.kwPct  !== undefined) p.kwPct  = s.kwPct;
       if(s.fixedPct !== undefined) p.fixedPct = s.fixedPct;
@@ -1563,12 +1571,25 @@ window.toggleProdPanel = function(e) {
           <span class="ri-name" style="color:${p.color}">${p.deductOnly ? '차감' : '유입플'} 비율</span>
           <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 10}" id="pm-fixedpct" oninput="updateProdModalNotes()" />
           <span style="font-size:12px;color:var(--text2);">%</span>
-        </div>`
+        </div>${p.classifyOnly ? vendorEditorHtml(yupflVendors()) : ''}`
       : makeGrid(actives, 'ratio', 'pm-ratio-');
 
     updateProdModalNotes();
     document.getElementById('prod-modal-bg').classList.add('show');
   };
+  // 유입플 상품 모달의 업체별 비율 편집(이름·비율, 비율끼리 나눔 — 합이 10일 필요 없음)
+  const vendorRowHtml = v => `<div class="pm-vendor" style="display:flex;gap:6px;align-items:center;margin-top:6px;">
+        <input class="pm-v-name" type="text" value="${escProd(v.name)}" placeholder="업체명" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
+        <input class="pm-v-ratio" type="number" min="0" step="any" value="${v.ratio}" style="width:56px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:center;font-family:inherit;">
+        <button type="button" onclick="this.parentElement.remove()" style="border:none;background:transparent;color:var(--danger);cursor:pointer;">✕</button></div>`;
+  window.addVendorRow = () => document.getElementById('pm-vendors').insertAdjacentHTML('beforeend', vendorRowHtml({ name: '', ratio: 0 }));
+  function vendorEditorHtml(vs) {
+    return `<div style="grid-column:1/-1;margin-top:10px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);">유입플 업체 비율 <span style="font-weight:400;color:var(--muted);">(승인 때 유입플 몫을 이 비율로 나눔)</span></div>
+        <div id="pm-vendors">${vs.map(vendorRowHtml).join('')}</div>
+        <button type="button" onclick="addVendorRow()" style="margin-top:6px;border:1px dashed var(--border);background:transparent;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2);font-family:inherit;">+ 업체 추가</button>
+      </div>`;
+  }
   // 일반 상품 키워드/일목표 배분 입력칸 합계 — updateProdModalNotes/saveProdModal 공용
   function sumProdModalInputs(actives, prefix) {
     return Math.round(actives.reduce((s,q) => {
@@ -1654,6 +1675,13 @@ window.toggleProdPanel = function(e) {
         });
       }
     } else if (p.deductOnly || p.classifyOnly) {
+      if (p.classifyOnly) {
+        const vs = [...document.querySelectorAll('#pm-vendors .pm-vendor')].map(r => ({
+          name: r.querySelector('.pm-v-name').value.trim(), ratio: parseFloat(r.querySelector('.pm-v-ratio').value) || 0 })).filter(v => v.name);
+        if (!vs.some(v => v.ratio > 0)) { alert('유입플 업체를 1곳 이상, 비율 0보다 크게 입력해 주세요.'); return; }
+        if (new Set(vs.map(v => v.name)).size !== vs.length) { alert('유입플 업체 이름이 겹칩니다.'); return; }
+        p.vendors = vs;
+      }
       const fixedPctEl = document.getElementById('pm-fixedpct');
       if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) {
         alert(`${p.deductOnly ? '차감' : '유입플'} 비율은 100%를 초과할 수 없습니다.`);
@@ -1706,7 +1734,7 @@ window.toggleProdPanel = function(e) {
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
     // 가이드_접수로 승인하면 가이드 풀스텍 상품을 풀스텍 배지(fullstackType)로 같이 기록 — 시트 분류와 같은 값
     const rule = guideModeOn && !slot.changeTo ? guideRuleFor(slot) : null;
-    return { yupflTarget: target, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice,
+    return { yupflTarget: target, yupflByVendor: vendorSplit(target), yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice,
       ...(rule && rule.full.length ? { fullstackType: fullstackOf(rule) } : {}) };
   }
 
@@ -3134,8 +3162,10 @@ window.toggleProdPanel = function(e) {
         const ded = s.deductTarget ? Math.round(s.deductTarget / (s.days || 1)) : 0;
         const yup = s.yupflTarget || 0;
         const reward = Math.max(0, (s.dailyTarget || 0) - yup - ded);
+        // 유입플 열 = 풀스텍 몫만(풀스텍 자동 접수 매크로가 이 수량으로 접수) — 업체 분할 전 캠페인은 유입플 전체
+        const fsYup = s.yupflByVendor ? (s.yupflByVendor['풀스텍'] || 0) : yup;
         return [s.agencyId || '', s.storeName || '', s.mid || '', s.rankKeyword || '', cat, rule ? rule.range : '',
-          reward, ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''), yup, ...fullNames.map(n => rule ? pct(rule.full, n) : ''),
+          reward, ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''), fsYup, ...fullNames.map(n => rule ? pct(rule.full, n) : ''),
           s.days || '', s.startDate || ''];
       });
       const XLSX = window.XLSX;

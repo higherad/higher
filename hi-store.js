@@ -544,7 +544,9 @@ const HI = {
     if (!yup || !s.dailyTarget) return '';
     const ded = Math.round((s.deductTarget || 0) / (s.days || 1));
     const normal = Math.max(0, s.dailyTarget - yup - ded);
-    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">일반 ${normal.toLocaleString()} · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}</span>${ded ? ` · 차감 ${ded.toLocaleString()}` : ''}</div>`;
+    const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
+    const vendTxt = vend.length > 1 ? `(${vend.map(([k, n]) => `${k} ${n.toLocaleString()}`).join('·')})` : '';
+    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">일반 ${normal.toLocaleString()} · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}${vendTxt}</span>${ded ? ` · 차감 ${ded.toLocaleString()}` : ''}</div>`;
   },
   // 자동 종료 대상 — 종료일 지난 승인 건, 강제종료일 다음 날부터의 강제종료 건(higherad-auto _expire_live와 같은 규칙)
   shouldExpire(s, today) {
