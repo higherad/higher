@@ -589,7 +589,7 @@
     ],
     '진행현황.html': [[['replace', '변경 요청', 'openTypeChangeModal()', { title: '체크한 캠페인에 타입 변경 요청' }]], [['trophy', '순위표', 'downloadRankTable()', { id: 'rank-table-btn' }]], [['trash-2', '휴지통', 'openTrashView()']]],
     '지출관리.html': [[['settings-2', '원가 설정', 'openCostModal()']], [['download', '엑셀 다운로드', 'exportCostExcel()']]],
-    '회원관리.html': [[['refresh-cw', '단가 불러오기', 'refreshYupflVendorList()', { title: '가이드 시트 탭 이름으로 리워드·유입플 업체 항목만 불러옴(설정된 단가는 그대로)' }], ['user-plus', '회원 추가', 'openUserModal(null)']]],
+    '회원관리.html': [[['refresh-cw', '단가 불러오기', 'refreshYupflVendorList(this)', { title: '가이드 시트 탭 이름으로 리워드·유입플 업체 항목만 불러옴(설정된 단가는 그대로)' }], ['user-plus', '회원 추가', 'openUserModal(null)']]],
     '공지사항.html': [[['square-pen', '공지 작성', 'openNoticeModal(null)']]],
   };
   function renderPageActions(page) {
@@ -601,11 +601,16 @@
   }
 
   // 회원관리 '단가 불러오기' — 가이드 시트 탭 이름으로 리워드·유입플 업체 항목만 갱신(hi/guide_items), 설정된 단가·원가는 안 건드림
-  window.refreshYupflVendorList = async function() {
+  window.refreshYupflVendorList = async function(btn) {
+    const label = btn?.querySelector('span');
+    if (btn?.disabled) return;
+    // 불러오는 동안 글자만 '불러오는 중..'으로 — 버튼 폭은 원래 크기로 고정
+    if (btn) { btn.style.width = btn.offsetWidth + 'px'; btn.style.justifyContent = 'center'; btn.disabled = true; label.textContent = '불러오는 중..'; }
     try {
       const { rewards, vendors } = await HI.refreshGuideItems();
       alert(`항목을 불러왔습니다.\n리워드: ${rewards.join(', ')}\n유입플: ${vendors.join(', ')}`);
     } catch (e) { alert('가이드 시트를 불러오지 못했습니다: ' + e.message); }
+    finally { if (btn) { btn.disabled = false; label.textContent = '단가 불러오기'; btn.style.width = btn.style.justifyContent = ''; } }
   };
 
   window.loadPage = async function(page, navEl, afterLoad) {
