@@ -255,8 +255,7 @@
   };
 
   const escHtml = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // 리워드 단가 목록 [{name, price}] — 첫 줄 '리워드' = 정산 계산 단가(unitPrice), 그 아래 가이드 리워드 탭 상품 줄은 저장만
-  // ponytail: 상품별 리워드 단가는 저장만(정산 수량이 리워드 합계뿐) — 상품별 계산은 상품별 수량 저장 후 추가
+  // 리워드 단가 목록 [{name, price}] — 첫 줄(가이드 '리워드' 탭) = 정산 계산 단가(unitPrice)
   const rewardPricesOf = u => u.rewardPrices?.length ? u.rewardPrices : [{ name: '리워드', price: u.unitPrice || 0 }];
   // 단가 한 줄 — 항목명 고정(가이드 시트), 금액만 입력
   const ypRowHtml = (n, v = '', grp = 'yupfl', base = false) => `<div class="um-price-row" data-grp="${grp}"${base ? ' data-base="1"' : ''} style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
@@ -317,11 +316,12 @@
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('user-save-btn').onclick = () => saveUser(key);
-    // 항목 = 가이드 시트(리워드 탭 상품·유입플 업체 탭) — 상단 '단가 불러오기'로 갱신
+    // 항목 = 가이드 시트 탭 이름(리워드 탭·유입플 업체 탭) — 상단 '단가 불러오기'로 갱신
     HI.getGuideItems().catch(() => ({ rewards: [], vendors: [] })).then(items => {
       const rEl = document.getElementById('um-reward-prices'), el = document.getElementById('um-yupfl-prices');
       if (!rEl || !el) return;
-      rEl.insertAdjacentHTML('beforeend', itemRowsHtml(items.rewards, Object.fromEntries(rewardPricesOf(u).slice(1).map(r => [r.name, r.price])), 'reward'));
+      rEl.querySelector('.um-p-name').value = items.rewards[0] || '리워드';
+      rEl.insertAdjacentHTML('beforeend', itemRowsHtml(items.rewards.slice(1), Object.fromEntries(rewardPricesOf(u).slice(1).map(r => [r.name, r.price])), 'reward'));
       el.innerHTML = itemRowsHtml(items.vendors, u.yupflPrices || {}, 'yupfl');
       el.dataset.loaded = '1';
     });
@@ -375,8 +375,8 @@
     if (!document.getElementById('um-yupfl-prices')?.dataset.loaded) return alert('단가 항목을 불러오는 중입니다. 잠시 후 다시 저장해 주세요.');
     const base = Number(document.querySelector('.um-price-row[data-base] .um-p-price').value) || 0;
     if (!(base > 0)) return alert('리워드 단가를 입력해 주세요.');
-    // 리워드 = [기본 '리워드' 줄, 금액 넣은 상품 줄…], 유입플 = {업체: 단가} — 비운 칸은 미설정
-    const yupflPrices = {}, rewardPrices = [{ name: '리워드', price: base }];
+    // 리워드 = [첫 줄(계산 단가), 그 밖 리워드 탭 줄…], 유입플 = {업체: 단가} — 비운 칸은 미설정
+    const yupflPrices = {}, rewardPrices = [{ name: document.querySelector('.um-price-row[data-base] .um-p-name').value, price: base }];
     for (const r of document.querySelectorAll('.um-price-row:not([data-base])')) {
       const n = r.querySelector('.um-p-name').value, v = Number(r.querySelector('.um-p-price').value) || 0;
       if (!(v > 0)) continue;

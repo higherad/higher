@@ -239,8 +239,8 @@
   window.openCostMonthPopup = () => openPeriodPopup('월별 지출 내역', '전체 기간 · 월별 합산', '월', aggregate(allRows, t => t.slice(0, 7)));
   window.openCostDayPopup = () => openPeriodPopup(`${curYM.slice(0, 4)}년 ${Number(curYM.slice(5))}월 일자별 지출`, `${curYM} · 일자별 합산`, '날짜', aggregate(allRows, t => t.slice(0, 7) === curYM ? t.slice(0, 10) : null));
 
-  // ── 원가 설정 — 항목은 가이드 시트(리워드 탭 상품·유입플 업체 탭, 회전 아이콘으로 갱신), 금액만 입력(전 직원 공용 hi/costs) ──
-  // 리워드 맨 위 '리워드' 줄 = 계산에 쓰는 원가(costs.reward[0]), 상품 줄은 저장만(상품별 계산은 추후)
+  // ── 원가 설정 — 항목은 가이드 시트 탭 이름(리워드 탭·유입플 업체 탭, 회전 아이콘으로 갱신), 금액만 입력(전 직원 공용 hi/costs) ──
+  // 리워드 맨 위 줄 = 계산에 쓰는 원가(costs.reward[0])
   window.openCostModal = async function() {
     let items;
     try { items = await HI.getGuideItems(); } catch (e) { return alert('가이드 항목을 불러오지 못했습니다: ' + e.message); }
@@ -251,11 +251,11 @@
     // 목록 + 목록에서 빠졌지만 금액이 남은 항목. 다시 그릴 때 입력 중인 값 유지
     const rowsOf = (list, cur) => [...new Set([...list, ...Object.keys(cur)])].map(n => row(n, cur[n] || '')).join('');
     const curOf = grp => Object.fromEntries([...ov.querySelectorAll(`.cost-rows[data-grp="${grp}"] .cost-row:not([data-base])`)].map(r => [r.querySelector('.c-name').value, r.querySelector('.c-price').value]));
-    const rewardRowsHtml = cur => row('리워드', rewardList[0]?.price || '', true) + rowsOf(items.rewards, cur);
+    const rewardRowsHtml = cur => row(items.rewards[0] || '리워드', rewardList[0]?.price || '', true) + rowsOf(items.rewards.slice(1), cur);
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
     ov.innerHTML = `<div class="total-popup-box" style="width:auto;max-width:96vw">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="sp-title">원가 설정</div><button type="button" class="yp-refresh" title="가이드 시트에서 리워드 상품·유입플 업체 항목만 다시 불러오기(입력한 원가는 그대로)" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:30px;height:30px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text2)"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i></button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="sp-title">원가 설정</div><button type="button" class="yp-refresh" title="가이드 시트 탭 이름으로 리워드·유입플 업체 항목만 다시 불러오기(입력한 원가는 그대로)" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:30px;height:30px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text2)"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i></button></div>
       <div class="sp-section">리워드</div>
       <div class="cost-rows" data-grp="reward">${rewardRowsHtml(Object.fromEntries(rewardList.slice(1).map(r => [r.name, r.price])))}</div>
       <div class="sp-section">유입플</div>
@@ -274,8 +274,9 @@
     // 바깥 클릭으로는 안 닫힘(입력 중 실수로 닫히지 않게) — 취소·저장으로만
     ov.querySelector('#cost-cancel').onclick = () => ov.remove();
     ov.querySelector('#cost-save').onclick = async () => {
-      // 리워드 = [기본 '리워드' 줄, 금액 넣은 상품 줄…], 유입플 = {업체: 원가} — 비운 칸은 미설정
-      const next = { reward: [{ name: '리워드', price: Number(ov.querySelector('[data-base] .c-price').value) || 0 }], yupfl: {} };
+      // 리워드 = [첫 줄(계산 원가), 그 밖 리워드 탭 줄…], 유입플 = {업체: 원가} — 비운 칸은 미설정
+      const baseRow = ov.querySelector('[data-base]');
+      const next = { reward: [{ name: baseRow.querySelector('.c-name').value, price: Number(baseRow.querySelector('.c-price').value) || 0 }], yupfl: {} };
       for (const r of ov.querySelectorAll('.cost-rows .cost-row:not([data-base])')) {
         const n = r.querySelector('.c-name').value, v = Number(r.querySelector('.c-price').value) || 0;
         if (!(v > 0)) continue;

@@ -91,7 +91,7 @@ const P = {
   bizfitCharge:   `${ROOT}/bizfit_charge`,
   versionCheck:   `${ROOT}/version_check_account`,
   costs:          `${ROOT}/costs`,              // 지출관리 원가 {reward:[{name, price}](계산은 첫 줄), yupfl:{업체명: 원}} — 전 직원 공용
-  guideItems:     `${ROOT}/guide_items`,        // 단가·원가 항목 {rewards: 리워드 탭 상품명, vendors: 리워드 외 탭 이름} — 불러오기 누를 때만 갱신
+  guideItems:     `${ROOT}/guide_items`,        // 단가·원가 항목 = 가이드 시트 탭 이름 {rewards: '리워드' 탭, vendors: 그 외 탭} — 불러오기 누를 때만 갱신
   costSnapshots:  `${ROOT}/cost_snapshots`,     // 지출관리 지난 날짜 묶음 금액 고정(키 = settleGroupKey, 1회 저장 후 안 바뀜)
 };
 
@@ -913,11 +913,8 @@ const HI = {
   },
   async refreshGuideItems() {
     const { sheets } = await HI.getGuideSheet();
-    const rewardTab = (sheets || []).find(t => String(t.title || '').includes('리워드'));
-    // 리워드 탭: 2행 헤더의 '상품' 칸마다 3행부터 상품명
-    const vals = rewardTab?.values || [], cols = (vals[1] || []).map((h, i) => String(h).replace(/\s+/g, '') === '상품' ? i : -1).filter(i => i >= 0);
-    const rewards = [...new Set(vals.slice(2).flatMap(r => cols.map(c => String(r[c] ?? '').replace(/\s+/g, ' ').trim())).filter(Boolean))];
-    const vendors = (sheets || []).map(t => String(t.title || '').trim()).filter(t => t && !t.includes('리워드'));
+    const titles = (sheets || []).map(t => String(t.title || '').trim()).filter(Boolean);
+    const rewards = titles.filter(t => t.includes('리워드')), vendors = titles.filter(t => !t.includes('리워드'));
     const items = { rewards, vendors };
     await set(ref(db, P.guideItems), items);
     return items;
