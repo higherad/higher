@@ -254,6 +254,16 @@
   };
 
   const escHtml = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // 유입플 업체별 단가 한 줄(업체명 + 단가 + 삭제) — 지출관리 원가 설정과 같은 방식
+  const ypRowHtml = (n = '', v = '') => `<div class="um-yp-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <input class="um-yp-name" list="um-yp-names" value="${escHtml(n)}" placeholder="유입플 업체명" style="flex:1;min-width:0">
+      <input class="um-yp-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:120px;text-align:right">
+      <button type="button" onclick="this.parentElement.remove()" title="삭제" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px">✕</button></div>`;
+  window.addYupflPriceRow = () => {
+    const el = document.getElementById('um-yupfl-prices');
+    el.insertAdjacentHTML('beforeend', ypRowHtml());
+    el.lastElementChild.querySelector('.um-yp-name').focus();
+  };
   window.openUserModal = function(key) {
     const u = key ? (allUsers.find(x => x._key === key) || {}) : {};
     const isEdit = !!key;
@@ -279,8 +289,10 @@
             <div class="hint-text">정산 자동 계산에 사용됩니다</div>
           </div>
         </div>
-        <div class="modal-field"><label>유입플 업체별 단가 (원)</label><div id="um-yupfl-prices" class="modal-row" style="flex-wrap:wrap;margin-bottom:0"><span style="color:var(--muted);font-size:12px">불러오는 중...</span></div>
-          <div class="hint-text">업체 목록은 접수관리 상품 유형 설정 '유입플' — 비워 두면 정산관리에 '단가 설정 필요'</div></div>
+        <div class="modal-field"><label>유입플 업체별 단가 (원)</label>
+          <div id="um-yupfl-prices">${Object.entries(u.yupflPrices || {}).map(([n, v]) => ypRowHtml(n, v)).join('')}</div>
+          <button type="button" class="um-yp-add" onclick="addYupflPriceRow()" style="border:1px dashed var(--border);background:transparent;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--text2);font-family:inherit;">+ 유입플 추가</button>
+          <datalist id="um-yp-names"></datalist></div>
         <div class="modal-field"><label>메모</label><input id="um-memo" value="${u.memo||''}"></div>
         <div class="charge-sect">
           <div class="charge-sect-title">충전 계정 정보</div>
@@ -296,16 +308,12 @@
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('user-save-btn').onclick = () => saveUser(key);
-    // 유입플 업체 = 상품 유형 설정 '유입플'의 업체 목록 + 이 회원에 이미 저장된 업체
+    // 업체명 자동완성 = 상품 유형 설정 '유입플' 업체 목록(미설정이면 기본 풀스택)
     HI.getProdsOnce().catch(() => null).then(prods => {
-      const el = document.getElementById('um-yupfl-prices');
-      if (!el) return;
-      const vp = u.yupflPrices || {};
+      const dl = document.getElementById('um-yp-names');
+      if (!dl) return;
       const vl = Object.values(prods || {}).find(p => p && p.classifyOnly)?.vendors;
-      const vendors = (vl?.length ? vl : [{ name: '풀스택' }]).map(v => v.name);  // 업체 미설정이면 기본 풀스택(접수관리와 같은 기본값)
-      const names = [...new Set([...vendors, ...Object.keys(vp)])];
-      el.innerHTML = names.length ? names.map(n => `<div class="modal-field" style="flex:1 1 120px;margin-bottom:6px"><label style="font-weight:500">${escHtml(n)}</label><input type="number" class="um-yp" data-vendor="${escHtml(n)}" value="${vp[n] || ''}" placeholder="미설정"></div>`).join('')
-        : '<span style="color:var(--muted);font-size:12px">등록된 유입플 업체 없음</span>';
+      dl.innerHTML = (vl?.length ? vl : [{ name: '풀스택' }]).map(v => `<option value="${escHtml(v.name)}">`).join('');
     });
     if(isEdit){
       (async function(){
@@ -353,12 +361,21 @@
     const password = document.getElementById('um-password').value.trim();
     if (!username) return alert('아이디를 입력하세요.');
     const agencyVal = document.getElementById('um-agency').value.trim();
+    const yupflPrices = {};
+    for (const r of document.querySelectorAll('.um-yp-row')) {
+      const n = r.querySelector('.um-yp-name').value.trim(), v = Number(r.querySelector('.um-yp-price').value) || 0;
+      if (!n && !v) continue;
+      if (!n || !(v > 0)) return alert('유입플 업체명과 0보다 큰 단가를 함께 입력해 주세요.');
+      if (/[.#$\[\]\/]/.test(n)) return alert(`업체명에 . # $ [ ] / 는 쓸 수 없습니다: ${n}`);
+      if (yupflPrices[n] != null) return alert(`같은 업체가 두 번 있습니다: ${n}`);
+      yupflPrices[n] = v;
+    }
     const data = {
       username,
       agency:    agencyVal,
       agencyId:  agencyVal,
       unitPrice: Number(document.getElementById('um-price').value)||0,
-      yupflPrices: Object.fromEntries([...document.querySelectorAll('.um-yp')].map(i => [i.dataset.vendor, Number(i.value)||0]).filter(([, v]) => v > 0)),
+      yupflPrices,
       memo:      document.getElementById('um-memo').value.trim(),
       approved:  true,
     };
