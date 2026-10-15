@@ -506,6 +506,7 @@ const HI = {
       startDate: data.startDate || '', endDate: data.endDate || '',
       storeName: data.storeName || '', rankKeyword: data.rankKeyword || '', url: data.url || '', mid: data.mid || '',
       memo: data.memo || '',
+      ...(data.yupflRatio ? { yupflRatio: data.yupflRatio } : {}),  // 엑셀 비고 리워드:유입플 비율(접수관리 parseRatioNote)
       days: Number(data.days) || 0, dailyTarget: Number(data.dailyTarget) || 0,
       unitPrice,
       searchKwCount: kwCount(data.searchKeyword), yupflKwCount: kwCount(data.yupflKeyword),

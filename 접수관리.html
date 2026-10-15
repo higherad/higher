@@ -562,29 +562,35 @@ window.toggleProdPanel = function(e) {
   const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
   // 풀스텍 = 시트 분류 때 가이드로 정해진 풀스텍(유입플) 상품(fullstackType) — 등급 매칭엔 안 씀
   const fullstackLabels = s => Array.isArray(s?.fullstackType) ? s.fullstackType : (s?.fullstackType ? Object.values(s.fullstackType) : []);
-  // 엑셀 비고의 리워드:유입플 비율 — '리워드'(전부 리워드)·'유입플'(전부 유입플)·'1:9'~'9:1'(앞이 리워드, 합 10). 그 밖은 null
-  function parseRatioNote(t) {
+  // 엑셀 비고 — '리워드'(전부 리워드)·유입플 업체명(예 '풀스택': 전부 그 업체 유입플)·'50:50'(리워드%:유입플%, 합 100). 그 밖은 null
+  function parseRatioNote(t, vendors = []) {
     t = String(t || '').replace(/\s+/g, '');
-    const m = t.match(/^([1-9])[:：]([1-9])$/);
-    if (m) return +m[1] + +m[2] === 10 ? { reward: +m[1], yupfl: +m[2] } : null;
-    if (t === '리워드') return { reward: 1, yupfl: 0 };
-    if (t === '유입플') return { reward: 0, yupfl: 1 };
+    const m = t.match(/^(\d{1,2})[:：](\d{1,2})$/);
+    if (m) return +m[1] > 0 && +m[2] > 0 && +m[1] + +m[2] === 100 ? { reward: +m[1], yupfl: +m[2] } : null;
+    if (t === '리워드') return { reward: 100, yupfl: 0 };
+    if (vendors.includes(t)) return { reward: 0, yupfl: 100, vendor: t };
     return null;
   }
-  const ratioLabel = ({ reward, yupfl }) => !yupfl ? '리워드' : !reward ? '유입플' : `${reward}:${yupfl}`;
+  const ratioLabel = ({ reward, yupfl, vendor }) => vendor || (!yupfl ? '리워드' : `${reward}:${yupfl}`);
   const ratioBadgeHtml = r => `<span title="리워드:유입플 (엑셀 비고)" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${ratioLabel(r)}</span>`;
-  // 유입플 업체 = 승인 때 유입플 몫을 '유입플' 상품 설정의 업체 비율로 나눈 값(yupflByVendor {업체명: 일 수량}) — 업체명 = 가이드 시트 탭 이름
-  const vendorLabels = s => Object.keys(s?.yupflByVendor || {}).filter(k => s.yupflByVendor[k] > 0);
+  // 유입플 업체 = 승인 때 유입플 몫을 '유입플' 상품 설정의 업체 비율로 나눈 값(yupflByVendor {업체명: 일 수량}) — 업체명 = 가이드 시트 탭 이름.
+  // 비고가 업체명이면 그 업체에 전부
   const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스택', ratio: 100 }]; };
-  function vendorSplit(target) {
+  function vendorSplit(target, slot) {
+    if (slot?.yupflRatio?.vendor) return target > 0 ? { [slot.yupflRatio.vendor]: target } : {};
     const vs = yupflVendors().filter(v => v.name && v.ratio > 0);
     const a = lrm(vs.map(v => ({ id: v.name, ratio: v.ratio })), target);
     return Object.fromEntries(Object.entries(a).filter(([, n]) => n > 0));
   }
+  // 유입플 상품 배지 — 업체별 색(풀스택 청록·제이엔 주황·그 밖 보라). vendorProducts {업체: [상품]} 없는 옛 캠페인은 fullstackType(풀스택)
+  const VENDOR_BADGE = { 풀스택: 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4', 제이엔: 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa' };
+  const OTHER_VENDOR_BADGE = 'background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe';
+  const vendorProductsOf = s => s?.vendorProducts ? Object.entries(s.vendorProducts).map(([v, l]) => [v, Array.isArray(l) ? l : Object.values(l)]) : fullstackLabels(s).length ? [['풀스택', fullstackLabels(s)]] : [];
+  const yupflProductLabels = s => vendorProductsOf(s).flatMap(([, l]) => l);
   function typeBadgesHtml(s) {
     const badge = (l, style) => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;${style}">${escProd(l)}</span>`;
-    const html = [...vendorLabels(s).map(l => badge(l, 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa')),...typeLabels(s).map(l => badge(l, 'background:#f1f5f9;color:#334155;border:1px solid #e2e8f0')),
-      ...fullstackLabels(s).map(l => badge(l, 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4'))];
+    const html = [...typeLabels(s).map(l => badge(l, 'background:#f1f5f9;color:#334155;border:1px solid #e2e8f0')),
+      ...vendorProductsOf(s).flatMap(([v, l]) => l.map(n => badge(n, VENDOR_BADGE[v] || OTHER_VENDOR_BADGE)))];
     if (!html.length) return '<span style="color:#cbd5e1">-</span>';
     return `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html.join('')}</div>`;
   }
@@ -602,7 +608,7 @@ window.toggleProdPanel = function(e) {
     const currentVal = sel.value;
     // 리워드·유입플 묶음마다 '전체' 항목 + 개별 상품
     const labels = new Set();
-    slots.forEach(s => { if (s.status !== 'deleted') [...typeLabels(s), ...fullstackLabels(s), ...vendorLabels(s)].forEach(l => labels.add(l)); });
+    slots.forEach(s => { if (s.status !== 'deleted') [...typeLabels(s), ...yupflProductLabels(s)].forEach(l => labels.add(l)); });
     const group = (title, value, list) => list.length
       ? `<optgroup label="${title}"><option value="${value}">${title} 전체</option>${list.sort().map(l => `<option value="${escProd(l)}">${escProd(l)}</option>`).join('')}</optgroup>` : '';
     sel.innerHTML = '<option value="">전체 등급</option>'
@@ -615,7 +621,7 @@ window.toggleProdPanel = function(e) {
   const GRADE_REWARD = '__reward', GRADE_YUPFL = '__yupfl';
   const isRewardLabel = l => prods.some(p => p.name === l);
   function matchGrade(s, g) {
-    const labels = [...typeLabels(s), ...fullstackLabels(s), ...vendorLabels(s)];
+    const labels = [...typeLabels(s), ...yupflProductLabels(s)];
     if (g === GRADE_REWARD) return labels.some(isRewardLabel);
     if (g === GRADE_YUPFL) return labels.some(l => !isRewardLabel(l));
     return labels.includes(g);
@@ -845,7 +851,7 @@ window.toggleProdPanel = function(e) {
     let guideErr = null;
     if (!guideRules.length) { try { await loadGuide(); } catch (e) { guideErr = e; } }
     const rule = !guideErr && targetSlot && !targetSlot.changeTo ? guideRuleFor(targetSlot) : null;
-    if (rule && rule.full.length && extra.yupflTarget > 0 && !extra.fullstackType) extra.fullstackType = fullstackOf(rule);
+    if (rule && extra.yupflByVendor && !extra.vendorProducts) Object.assign(extra, vendorProductFields(rule, extra.yupflByVendor));
     if (rule && rule.reward.length && !typeLabels(targetSlot).length) extra.campaignType = rule.reward.map(g => g.name);
     await HI.approve(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
@@ -872,7 +878,7 @@ window.toggleProdPanel = function(e) {
   // ── 접수 처리 ─────────────────────────────────────────────
   // 승인 건을 대기·접수로 되돌리면 승인 때 붙인 배지·유입플 분류를 지움 — 다시 승인하면 그때 값으로 새로 계산(캐시 차감은 수동 처리)
   const unapprovePatch = key => allSlots.find(x => x._key === key)?.status === 'active'
-    ? { campaignType: null, fullstackType: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null } : {};
+    ? { campaignType: null, fullstackType: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null } : {};
   window.acceptOne = async function(key) {
     const patch = { status: 'accepted', ...unapprovePatch(key) };
     await HI.updateCampaign(key, patch);
@@ -1733,12 +1739,20 @@ window.toggleProdPanel = function(e) {
     const target = allocRowsForSlot(slot).alloc[yupfl.id] || 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
     if (target <= 0) return {};
     // 유입플 금액 = 업체별 수량 × 그 대행사의 업체 단가(정산관리와 같은 HI.slotBill, 단가 없으면 0)
-    const yupflByVendor = vendorSplit(target);
+    const yupflByVendor = vendorSplit(target, slot);
     const bill = HI.slotBill({ ...slot, yupflByVendor }, userById.get(slot.userId));
-    // 가이드_접수로 승인하면 가이드 풀스텍 상품을 풀스텍 배지(fullstackType)로 같이 기록 — 시트 분류와 같은 값
+    // 가이드_접수로 승인하면 수량이 있는 업체의 가이드 상품을 배지(vendorProducts)로 같이 기록
     const rule = guideModeOn && !slot.changeTo ? guideRuleFor(slot) : null;
-    return { yupflTarget: target, yupflByVendor, yupflAmount: slot.isRequeue ? 0 : bill.yupfl,
-      ...(rule && rule.full.length ? { fullstackType: fullstackOf(rule) } : {}) };
+    return { yupflTarget: target, yupflByVendor, yupflAmount: slot.isRequeue ? 0 : bill.yupfl, ...(rule ? vendorProductFields(rule, yupflByVendor) : {}) };
+  }
+  // 수량 있는 업체마다 가이드 그 업체 탭 상품(짧은 이름) — vendorProducts {업체: [상품]}, 풀스택은 fullstackType에도(시트 분류 엑셀·풀스택 매크로)
+  function vendorProductFields(rule, byVendor) {
+    const vp = {};
+    Object.entries(byVendor || {}).forEach(([v, n]) => {
+      const list = rule.vendors?.[v] || [];
+      if (n > 0 && list.length) vp[v] = [...list].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name));
+    });
+    return Object.keys(vp).length ? { vendorProducts: vp, ...(vp['풀스택'] ? { fullstackType: vp['풀스택'] } : {}) } : {};
   }
 
   // 승인·예약 때 캠페인에 고정하는 배분 값 전부(차감·유입플)
@@ -2690,7 +2704,9 @@ window.toggleProdPanel = function(e) {
 
   function rexProcessExcel(overlay, file) {
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = async e => {
+      // 비고 업체명 판정용 유입플 업체 목록(가이드 시트 탭 이름, 저장값)
+      const vendors = await HI.getGuideItems().then(x => x.vendors).catch(() => ['풀스택']);
       try {
         const uploadTodayStr = rexFmt(new Date());
         const wb = XLSX.read(e.target.result, { type:'array', cellDates:false });
@@ -2742,11 +2758,11 @@ window.toggleProdPanel = function(e) {
           if (startDate && days !== null && !isNaN(days) && days > 0) {
             const endD = new Date(startDate); endD.setDate(endD.getDate()+days-1); endDate = rexFmt(endD);
           }
-          // 엑셀이 '6:4'를 시간(06:04 = 하루의 비율 숫자)으로 바꿔 저장한 경우 시:분으로 되돌림
+          // 엑셀이 '50:50'을 시간(50시간 50분 = 일 단위 소수)으로 바꿔 저장한 경우 시:분으로 되돌림
           const noteRaw      = noteCol >= 0 ? r[noteCol] : '';
-          const noteMin      = typeof noteRaw === 'number' && noteRaw > 0 && noteRaw < 1 ? Math.round(noteRaw * 1440) : null;
+          const noteMin      = typeof noteRaw === 'number' && noteRaw > 0 && !Number.isInteger(noteRaw) ? Math.round(noteRaw * 1440) : null;
           const note         = noteMin != null ? `${Math.floor(noteMin / 60)}:${noteMin % 60}` : String(noteRaw ?? '').trim();
-          const yupflRatio   = parseRatioNote(note);
+          const yupflRatio   = parseRatioNote(note, vendors);
           const errors = [];
           const urlMid = url ? rexExtractMid(url) : null;
           if (!storeName)       errors.push('업체명 누락');
@@ -2757,7 +2773,7 @@ window.toggleProdPanel = function(e) {
           if (!startDate)       errors.push('시작일 형식 오류');
           else if (startDate < uploadTodayStr) errors.push('오늘 이전 시작일');
           if (!mid)             errors.push('MID 누락');
-          if (note && !yupflRatio) errors.push('비고는 리워드/유입플/1:9~9:1만');
+          if (note && !yupflRatio) errors.push(`비고는 리워드/${vendors.join('/')}/비율(예 50:50)만`);
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
           return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, valid: errors.length===0, error: errors.join(' / ') };
@@ -2838,8 +2854,8 @@ window.toggleProdPanel = function(e) {
     const wb = XLSX.utils.book_new();
     const todayStr = rexFmt(new Date());
     const ws = XLSX.utils.aoa_to_sheet([
-      ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고(리워드/유입플/1:9~9:1, 선택)'],
-      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,'6:4'],
+      ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고(리워드/풀스택/50:50, 선택)'],
+      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,'50:50'],
     ]);
     ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws, '접수');
