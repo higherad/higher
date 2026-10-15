@@ -1280,10 +1280,10 @@ window.toggleProdPanel = function(e) {
     {id:'p6',     name:'X6',    color:'#84cc16', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p7',     name:'X7',    color:'#ec4899', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
-    {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
     // 유입플(id yupflc): 차감 뒤 남은 일 목표에서 이 비율만큼 유입플로 떼어 분류만 함(비즈핏 등록·유입플 접수 없음).
     // 승인 때 yupflTarget·yupflAmount로 고정(캐시 차감·메모는 YUPFL_CASH_DEDUCT로 켜고 끔). 캠페인 dailyTarget은 그대로
     {id:'yupflc', name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false, vendors:[{name:'풀스택', ratio:100}]},
+    {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
     {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
     {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.4', ratio:0, kwPct:0, blogUrlProduct:true, blogSplit:1},
@@ -1326,7 +1326,7 @@ window.toggleProdPanel = function(e) {
       const loadedIds = new Set(prods.map(p => p.id));
       DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
       // 고정 그룹(차감/찰리/델타/네이비) 노출 순서는 저장된 순서와 무관하게 항상
-      // DEFAULT_PRODS 기준(차감→찰리→델타→네이비)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
+      // DEFAULT_PRODS 기준(유입플→차감→찰리→델타→네이비)을 따르도록 정렬 — 일반 상품(p1~p8) 순서는 건드리지 않음
       const fixedRank = new Map(DEFAULT_PRODS.filter(dp => FIXED_PROD_IDS.has(dp.id)).map((dp, i) => [dp.id, i]));
       const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
       let fi = 0;
