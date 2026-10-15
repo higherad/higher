@@ -1874,7 +1874,7 @@ window.toggleProdPanel = function(e) {
   // ── 가이드_접수 프리셋 ──────────────────────────────────────────
   // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
   // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 원래 방식(등급 매칭/상품 설정)으로.
-  let guideModeOn = false, guideRules = [], guideCats = [];
+  let guideModeOn = false, guideRules = [], guideCats = [], guideRatio = null;
   // 풀스텍 상품 순서(기본 → 둘러보고 나감 → 카톡 길찾기 → 카톡 공유, 그 밖은 뒤)와 배지용 짧은 이름 — 시트 분류·가이드_접수 공용
   const FULL_ORDER = ['기본', '둘러보고', '길찾기', '공유'];
   const fullRank = n => { const i = FULL_ORDER.findIndex(k => n.includes(k)); return i < 0 ? FULL_ORDER.length : i; };
@@ -1896,19 +1896,67 @@ window.toggleProdPanel = function(e) {
     const yupfl = prods.find(p => p.classifyOnly);
     const fullSum = rule.full.reduce((a, g) => a + g.ratio, 0);
     if (yupfl && fullSum > 0) out.push({ ...yupfl, fixedAlloc: false, ratio: fullSum, kwPct: 0 });
+    return guideRatio ? applyGuideRatio(out, guideRatio) : out;
+  }
+  // 공용 리워드:유입플 비율로 두 묶음 합계를 다시 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
+  function applyGuideRatio(items, { reward, yupfl }) {
+    const isY = p => p.classifyOnly;
+    const rSum = items.filter(p => !isY(p)).reduce((a, p) => a + p.ratio, 0);
+    let out = items.filter(p => isY(p) || reward > 0)
+      .map(p => isY(p) ? { ...p, ratio: yupfl } : { ...p, ratio: p.ratio / rSum * reward, kwPct: p.ratio / rSum * reward });
+    const y = prods.find(p => p.classifyOnly);
+    if (yupfl > 0 && y && !out.some(isY)) out.push({ ...y, fixedAlloc: false, ratio: yupfl, kwPct: 0 });
+    if (!(yupfl > 0)) out = out.filter(p => !isY(p));
     return out;
   }
   async function loadGuide() {
-    const [{ values }, cats] = await Promise.all([HI.getGuideSheet(), HI.getKwCategories()]);
+    const [{ values }, cats, ratio] = await Promise.all([HI.getGuideSheet(), HI.getKwCategories(), HI.getGuideRatio()]);
     guideRules = parseGuide(values || []);
     guideCats = cats;
+    guideRatio = ratio;
   }
   window.toggleGuidePreset = async function() {
     if (guideModeOn) { guideModeOn = false; renderPS(); return; }
     try { await loadGuide(); } catch (e) { alert('가이드를 불러오지 못했습니다: ' + e.message); return; }
+    const r = await askGuideRatio(guideRatio || { reward: 5, yupfl: 5 });
+    if (!r) return;
+    if (!guideRatio || r.reward !== guideRatio.reward || r.yupfl !== guideRatio.yupfl) {
+      try { await HI.saveGuideRatio(r); } catch (e) { alert('비율을 저장하지 못했습니다: ' + e.message); return; }
+    }
+    guideRatio = r;
     if (activeProdGroupId) deactivateProdGroup();
     guideModeOn = true; renderPS();
   };
+  // 리워드:유입플 비율 입력 팝업 — 저장값은 전 직원 공용(목록 승인 버튼도 이 비율)
+  function askGuideRatio(cur) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      const inp = (id, v) => `<input type="number" id="${id}" value="${v}" min="0" step="1" style="width:70px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:6px;font-size:14px;font-family:inherit;">`;
+      overlay.innerHTML = `
+        <div class="modal-box" style="width:min(96vw,340px);">
+          <div class="modal-title">가이드_접수 비율</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;margin:6px 0 4px;">
+            리워드 ${inp('gr-reward', cur.reward)} : ${inp('gr-yupfl', cur.yupfl)} 유입플
+          </div>
+          <div style="font-size:11px;color:var(--muted);text-align:center;">전 직원 공용 · 상품끼리 비율은 가이드 그대로</div>
+          <div class="modal-footer">
+            <button class="btn-cancel" id="gr-cancel">취소</button>
+            <button class="btn-save" id="gr-ok">적용</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = v => { overlay.remove(); resolve(v); };
+      overlay.querySelector('#gr-cancel').onclick = () => done(null);
+      overlay.querySelector('#gr-ok').onclick = () => {
+        const reward = Number(overlay.querySelector('#gr-reward').value), yupfl = Number(overlay.querySelector('#gr-yupfl').value);
+        if (!Number.isInteger(reward) || !Number.isInteger(yupfl) || reward < 0 || yupfl < 0 || reward + yupfl === 0) {
+          alert('0 이상 정수로 입력해 주세요(둘 다 0은 안 됨).'); return;
+        }
+        done({ reward, yupfl });
+      };
+    });
+  }
 
   // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
   // 같은 MID의 진행 중 캠페인에 저장된 상품(gradeLabelsOf)이 있으면 상품 유형 설정 ratio 무시하고 그 상품(들)로만 접수.
