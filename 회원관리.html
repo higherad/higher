@@ -260,10 +260,20 @@
   // ponytail: 리워드 여러 줄은 저장만, 계산은 첫 줄(정산 수량이 리워드 합계뿐) — 상품별 계산은 상품별 수량 저장 후 추가
   const rewardPricesOf = u => u.rewardPrices?.length ? u.rewardPrices : [{ name: '리워드', price: u.unitPrice || 0 }];
   // 단가 한 줄(이름 + 단가 + 삭제) — 지출관리 원가 설정과 같은 방식
+  // 유입플 줄은 업체명 고정(가이드 시트 탭 이름) — 금액만 입력, 삭제 없음
   const ypRowHtml = (n = '', v = '', grp = 'yupfl') => `<div class="um-price-row" data-grp="${grp}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <input class="um-p-name" value="${escHtml(n)}" placeholder="${grp === 'yupfl' ? '유입플 업체명' : '리워드 이름'}" style="width:110px">
+      <input class="um-p-name" value="${escHtml(n)}" placeholder="리워드 이름" style="width:110px"${grp === 'yupfl' ? ' disabled' : ''}>
       <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:80px;text-align:right">
-      <button type="button" onclick="this.parentElement.remove()" title="삭제" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px">✕</button></div>`;
+      ${grp === 'yupfl' ? '<span style="width:22px"></span>' : '<button type="button" onclick="this.parentElement.remove()" title="삭제" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px">✕</button>'}</div>`;
+  // 유입플 = 가이드 시트 업체 목록 + 목록에서 빠졌지만 단가가 남은 업체
+  const yupflRowsHtml = (list, cur) => [...new Set([...list, ...Object.keys(cur)])].map(n => ypRowHtml(n, cur[n] || '')).join('');
+  const curYupflPrices = () => Object.fromEntries([...document.querySelectorAll('#um-yupfl-prices .um-price-row')].map(r => [r.querySelector('.um-p-name').value, r.querySelector('.um-p-price').value]));
+  window.refreshUserYupflVendors = async () => {
+    let list;
+    try { list = await HI.refreshYupflVendors(); } catch (e) { return alert('가이드 시트를 불러오지 못했습니다: ' + e.message); }
+    const el = document.getElementById('um-yupfl-prices');
+    if (el) el.innerHTML = yupflRowsHtml(list, curYupflPrices());
+  };
   window.addPriceRow = grp => {
     const el = document.getElementById(grp === 'reward' ? 'um-reward-prices' : 'um-yupfl-prices');
     el.insertAdjacentHTML('beforeend', ypRowHtml('', '', grp));
@@ -297,7 +307,7 @@
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal-box">
-        <div class="modal-title">${isEdit?'회원 정보 수정':'회원 추가'}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px"><div class="modal-title" style="margin-bottom:0">${isEdit?'회원 정보 수정':'회원 추가'}</div><button type="button" class="yp-refresh" onclick="refreshUserYupflVendors()" title="가이드 시트 탭에서 유입플 업체 목록 다시 불러오기" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:30px;height:30px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text2)"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i></button></div>
         <div class="modal-row modal-row-3">
           <div class="modal-field"><label>아이디 *</label><input id="um-username" value="${u.username||''}" ${isEdit?'readonly':''}></div>
           <div class="modal-field"><label>비밀번호 *</label><div class="pw-input-wrap"><input id="um-password" type="password" value="${u.password||''}" placeholder="${isEdit?'변경 시 입력':''}"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
@@ -307,8 +317,7 @@
           <div id="um-reward-prices">${rewardPricesOf(u).map(r => ypRowHtml(r.name, r.price, 'reward')).join('')}</div>
           <button type="button" class="um-row-add" onclick="addPriceRow('reward')">+ 리워드 추가</button></div>
         <div class="modal-field"><label>유입플 업체별 단가 (원)</label>
-          <div id="um-yupfl-prices">${Object.entries(u.yupflPrices || {}).map(([n, v]) => ypRowHtml(n, v)).join('')}</div>
-          <button type="button" class="um-row-add" onclick="addPriceRow('yupfl')">+ 유입플 추가</button></div>
+          <div id="um-yupfl-prices"><span style="color:var(--muted);font-size:12px">불러오는 중...</span></div></div>
         <div class="modal-field"><label>메모</label><input id="um-memo" value="${u.memo||''}"></div>
         <div class="charge-sect">
           <div class="charge-sect-title">충전 계정 정보</div>
@@ -324,6 +333,11 @@
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('user-save-btn').onclick = () => saveUser(key);
+    if (window.lucide) lucide.createIcons();
+    HI.getYupflVendors().catch(() => []).then(list => {
+      const el = document.getElementById('um-yupfl-prices');
+      if (el) { el.innerHTML = yupflRowsHtml(list, u.yupflPrices || {}); el.dataset.loaded = '1'; }
+    });
     if(isEdit){
       (async function(){
         try{
@@ -370,10 +384,12 @@
     const password = document.getElementById('um-password').value.trim();
     if (!username) return alert('아이디를 입력하세요.');
     const agencyVal = document.getElementById('um-agency').value.trim();
+    // 업체 목록이 뜨기 전에 저장하면 기존 유입플 단가가 비워짐 — 다 뜬 뒤에만
+    if (!document.getElementById('um-yupfl-prices')?.dataset.loaded) return alert('유입플 업체 목록을 불러오는 중입니다. 잠시 후 다시 저장해 주세요.');
     const yupflPrices = {}, rewardPrices = [];
     for (const r of document.querySelectorAll('.um-price-row')) {
       const n = r.querySelector('.um-p-name').value.trim(), v = Number(r.querySelector('.um-p-price').value) || 0;
-      if (!n && !v) continue;
+      if (!v && (r.dataset.grp === 'yupfl' || !n)) continue;  // 유입플은 비워 두면 미설정
       if (!n || !(v > 0)) return alert('이름과 0보다 큰 단가를 함께 입력해 주세요.');
       if (/[.#$\[\]\/]/.test(n)) return alert(`이름에 . # $ [ ] / 는 쓸 수 없습니다: ${n}`);
       if (r.dataset.grp === 'reward') {

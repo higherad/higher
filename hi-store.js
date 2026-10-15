@@ -91,6 +91,7 @@ const P = {
   bizfitCharge:   `${ROOT}/bizfit_charge`,
   versionCheck:   `${ROOT}/version_check_account`,
   costs:          `${ROOT}/costs`,              // 지출관리 원가 {reward:[{name, price}](계산은 첫 줄), yupfl:{업체명: 원}} — 전 직원 공용
+  yupflVendors:   `${ROOT}/yupfl_vendors`,      // 유입플 업체 목록 = 가이드 시트 탭 이름(리워드 탭 제외) — 회전 아이콘 누를 때만 갱신
   costSnapshots:  `${ROOT}/cost_snapshots`,     // 지출관리 지난 날짜 묶음 금액 고정(키 = settleGroupKey, 1회 저장 후 안 바뀜)
 };
 
@@ -905,6 +906,17 @@ const HI = {
     return { rewardQty, reward, yupfl, total: reward + Object.values(yupfl).reduce((a, v) => a + v, 0), deduct: s.deductAmount || 0, missing };
   },
   async getCosts() { return (await get(ref(db, P.costs))).val() || { reward: [], yupfl: {} }; },
+  // 유입플 업체 목록 — 저장값(없으면 처음 한 번만 시트에서 읽어 저장). refreshYupflVendors = 시트 다시 읽기(회전 아이콘)
+  async getYupflVendors() {
+    const v = (await get(ref(db, P.yupflVendors))).val();
+    return v ? Object.values(v) : HI.refreshYupflVendors();
+  },
+  async refreshYupflVendors() {
+    const { sheets } = await HI.getGuideSheet();
+    const names = (sheets || []).map(t => String(t.title || '').trim()).filter(t => t && !t.includes('리워드'));
+    await set(ref(db, P.yupflVendors), names);
+    return names;
+  },
   async getCostSnapshots() { return (await get(ref(db, P.costSnapshots))).val() || {}; },
   // 없는 키만 저장(이미 고정된 묶음은 절대 덮지 않음 — 캐시 말고 DB에서 키마다 확인)
   async freezeCostSnapshots(map) {
