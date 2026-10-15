@@ -760,7 +760,7 @@ const HI = {
     return (await get(query(ref(db, `${P.ranks}/${safeKey(mid)}`), orderByKey(), limitToLast(1)))).val();
   },
   async getPipelineAllDone() { return (await get(ref(db, `${P.pipeline}/allDone`))).val(); },
-  // 구글시트 '접수 가이드'의 가이드 탭 원본 값(higherad-auto /guide-sheet, 직원만)
+  // 구글시트 '접수 가이드' 전 탭 원본 값 {sheets:[{title, values}]}(higherad-auto /guide-sheet, 직원만)
   getGuideSheet() { return callServer('/guide-sheet'); },
   kwCategoryOf,
   async getKwCategories() { return Object.values((await get(ref(db, P.kwCategories))).val() || {}); },

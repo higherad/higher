@@ -576,9 +576,9 @@ window.toggleProdPanel = function(e) {
   }
   const ratioLabel = ({ reward, yupfl }) => !yupfl ? '리워드' : !reward ? '유입플' : `${reward}:${yupfl}`;
   const ratioBadgeHtml = r => `<span title="리워드:유입플 (엑셀 비고)" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${ratioLabel(r)}</span>`;
-  // 유입플 업체 = 승인 때 유입플 몫을 '유입플' 상품 설정의 업체 비율로 나눈 값(yupflByVendor {업체명: 일 수량})
+  // 유입플 업체 = 승인 때 유입플 몫을 '유입플' 상품 설정의 업체 비율로 나눈 값(yupflByVendor {업체명: 일 수량}) — 업체명 = 가이드 시트 탭 이름
   const vendorLabels = s => Object.keys(s?.yupflByVendor || {}).filter(k => s.yupflByVendor[k] > 0);
-  const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스텍', ratio: 10 }]; };
+  const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스택', ratio: 10 }]; };
   function vendorSplit(target) {
     const vs = yupflVendors().filter(v => v.name && v.ratio > 0);
     const a = lrm(vs.map(v => ({ id: v.name, ratio: v.ratio })), target);
@@ -1279,7 +1279,7 @@ window.toggleProdPanel = function(e) {
     {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
     // 유입플(id yupflc): 차감 뒤 남은 일 목표에서 이 비율만큼 유입플로 떼어 분류만 함(비즈핏 등록·유입플 접수 없음).
     // 승인 때 yupflTarget·yupflAmount로 고정(캐시 차감·메모는 YUPFL_CASH_DEDUCT로 켜고 끔). 캠페인 dailyTarget은 그대로
-    {id:'yupflc', name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false, vendors:[{name:'풀스텍', ratio:10}]},
+    {id:'yupflc', name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false, vendors:[{name:'풀스택', ratio:10}]},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
     {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
     {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.4', ratio:0, kwPct:0, blogUrlProduct:true, blogSplit:1},
@@ -1932,13 +1932,12 @@ window.toggleProdPanel = function(e) {
       return known ? { ...known, ratio: g.ratio, kwPct: g.ratio }
         : { id: `grade_${g.name}`, name: g.name, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: g.ratio, kwPct: g.ratio, daysMultiplied: false };
     });
-    // 유입플 분류 = 가이드 풀스텍 상품 비율 합 — 리워드 상품과 같은 줄에서 비율대로 나눔(설정의 고정 %는 안 씀)
+    // 리워드:유입플 = 엑셀 비고 비율, 없으면 '유입플' 상품 설정 %(꺼져 있으면 0) — 리워드 상품끼리는 가이드 비율
     const yupfl = prods.find(p => p.classifyOnly);
-    const fullSum = rule.full.reduce((a, g) => a + g.ratio, 0);
-    if (yupfl && fullSum > 0) out.push({ ...yupfl, fixedAlloc: false, ratio: fullSum, kwPct: 0 });
-    return r.yupflRatio ? applyGuideRatio(out, r.yupflRatio) : out;
+    const pct = yupfl?.active ? (yupfl.fixedPct ?? 0) : 0;
+    return applyGuideRatio(out, r.yupflRatio || { reward: 100 - pct, yupfl: pct });
   }
-  // 엑셀 비고 비율로 리워드·유입플 두 묶음 합계를 다시 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
+  // 리워드·유입플 두 묶음 합계를 주어진 비율로 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
   function applyGuideRatio(items, { reward, yupfl }) {
     const isY = p => p.classifyOnly;
     const rSum = items.filter(p => !isY(p)).reduce((a, p) => a + p.ratio, 0);
@@ -1950,9 +1949,9 @@ window.toggleProdPanel = function(e) {
     return out;
   }
   async function loadGuide() {
-    const [{ values }, cats] = await Promise.all([HI.getGuideSheet(), HI.getKwCategories()]);
-    guideRules = parseGuide(values || []);
-    guideTimes = parseGuideTimes(values || []);
+    const [{ sheets }, cats] = await Promise.all([HI.getGuideSheet(), HI.getKwCategories()]);
+    guideRules = parseGuide(sheets || []);
+    guideTimes = parseGuideTimes(sheets || []);
     guideCats = cats;
   }
   window.toggleGuidePreset = async function() {
@@ -3079,35 +3078,47 @@ window.toggleProdPanel = function(e) {
     }
   }
 
-  // ── 시트 분류: 구글시트 '접수 가이드'의 가이드 탭(분류 × 일 목표 구간 → 상품별 비율)으로 캠페인마다 설정할 상품·% 엑셀
-  // 가이드 탭: 1행에서 '리워드'가 들어간 칸부터 리워드 상품, 그 앞(C열~)은 풀스텍 상품 · A열 구분은 병합이라 위 값을 이어 씀
-  function parseGuide(values) {
-    const rewardCol = (values[0] || []).findIndex(v => String(v).includes('리워드'));
-    if (rewardCol < 0) throw new Error("가이드 탭 1행에서 리워드 가이드 시작 칸을 찾지 못했습니다.");
-    const pairs = (row, from, to) => {
+  // ── 시트 분류: 구글시트 '접수 가이드'(탭 = 리워드 + 유입플 업체별, 분류 × 일 목표 구간 → 상품별 비율)로 캠페인마다 설정할 상품·% 엑셀
+  // 탭마다 2행 헤더('총 타수'·'상품'·'비율' 쌍), 3행부터 데이터 · A열 구분은 병합이라 위 값을 이어 씀
+  // → [{cat, range, min, max, reward:[{name,ratio}], vendors:{탭이름:[...]}, full: 풀스택 탭 상품}]
+  function parseGuide(sheets) {
+    const rewardTab = sheets.find(t => t.title.includes('리워드'));
+    if (!rewardTab) throw new Error("가이드 시트에서 '리워드' 탭을 찾지 못했습니다.");
+    const tabs = [rewardTab, ...sheets.filter(t => t !== rewardTab)].map(t => {
+      const v = t.values || [], h = (v[1] || []).map(x => String(x).replace(/\s+/g, ''));
+      return { title: t.title.trim(), v, rangeCol: h.indexOf('총타수'), prodCol: h.indexOf('상품') };
+    });
+    const ranged = tabs.find(t => t.rangeCol >= 0);
+    if (!ranged) throw new Error("가이드 시트에서 '총 타수' 열이 있는 탭을 찾지 못했습니다.");
+    const pairs = row => {
       const out = [];
-      for (let c = from; c + 1 < to; c += 2) {
+      for (let c = 0; c + 1 < row.length; c += 2) {
         const name = String(row[c] ?? '').replace(/\s+/g, ' ').trim();
         const ratio = Number(row[c + 1]) || 0;
         if (name && ratio > 0) out.push({ name, ratio });
       }
       return out;
     };
+    // ponytail: 탭끼리 같은 행 = 같은 분류·구간(리워드 탭엔 총 타수 열이 없어 행 위치로 맞춤) — 탭마다 행 순서가 달라지면 분류·구간 키로 매칭
+    const of = (t, i) => t.prodCol < 0 ? [] : pairs((t.v[i] || []).slice(t.prodCol));
     const rules = [];
     let cat = '';
-    values.slice(2).forEach(row => {
+    ranged.v.forEach((row, i) => {
+      if (i < 2) return;
       if (String(row[0] ?? '').trim()) cat = String(row[0]).trim();
-      const range = String(row[1] ?? '').trim();
+      const range = String(row[ranged.rangeCol] ?? '').trim();
       const nums = (range.match(/\d+/g) || []).map(Number);
       if (!cat || !nums.length) return;
+      const vendors = Object.fromEntries(tabs.slice(1).map(t => [t.title, of(t, i)]));
       rules.push({ cat, range, min: nums[0], max: range.includes('이상') || nums.length < 2 ? Infinity : nums[1],
-        full: pairs(row, 2, rewardCol), reward: pairs(row, rewardCol, Math.max(row.length, rewardCol + 6)) });
+        reward: of(tabs[0], i), vendors, full: vendors['풀스택'] || [] });
     });
     return rules;
   }
-  // 가이드 1행 '리워드 가이드' 칸의 시간 분배(예: '시간 분배: 11:00(40%) / 17:30(60%)') → [{time:'11:00', pct:40}, ...]
-  function parseGuideTimes(values) {
-    const cell = String((values[0] || []).find(v => String(v).includes('리워드')) || '');
+  // 리워드 탭 1행의 시간 분배(예: '시간 분배: 11:00(40%) / 17:30(60%)') → [{time:'11:00', pct:40}, ...]
+  function parseGuideTimes(sheets) {
+    const tab = sheets.find(t => t.title.includes('리워드'));
+    const cell = String(((tab?.values || [])[0] || []).find(v => String(v).includes('시간')) || '');
     return [...cell.matchAll(/(\d{1,2}):(\d{2})\s*\(\s*(\d+)\s*%\s*\)/g)].map(m => ({ time: `${m[1].padStart(2, '0')}:${m[2]}`, pct: +m[3] }));
   }
   // 구간 사이 값(예: 10~99와 101 이상 사이의 100)은 바로 위 구간, 가장 낮은 구간보다 작으면 첫 구간
@@ -3133,14 +3144,14 @@ window.toggleProdPanel = function(e) {
     const original = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '다운로드 중...'; }
     try {
-      const [{ values }] = await Promise.all([HI.getGuideSheet(), window.XLSX ? null : new Promise((resolve, reject) => {
+      const [{ sheets }] = await Promise.all([HI.getGuideSheet(), window.XLSX ? null : new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
         s.onload = resolve;
         s.onerror = () => reject(new Error('엑셀 라이브러리를 불러오지 못했습니다.'));
         document.head.appendChild(s);
       })]);
-      const rules = parseGuide(values || []);
+      const rules = parseGuide(sheets || []);
       // 분류가 빈 캠페인(접수 뒤 키워드를 추가한 경우 등)은 지금 분류 설정으로 채워서 같이 저장
       const cats = await HI.getKwCategories();
       const fullNames = [...new Set(rules.flatMap(r => r.full.map(p => p.name)))].sort((a, b) => fullRank(a) - fullRank(b));
@@ -3163,18 +3174,21 @@ window.toggleProdPanel = function(e) {
         const yup = s.yupflTarget || 0;
         const reward = Math.max(0, (s.dailyTarget || 0) - yup - ded);
         // 유입플 열 = 풀스텍 몫만(풀스텍 자동 접수 매크로가 이 수량으로 접수) — 업체 분할 전 캠페인은 유입플 전체
-        const fsYup = s.yupflByVendor ? (s.yupflByVendor['풀스텍'] || 0) : yup;
+        const fsYup = s.yupflByVendor ? (s.yupflByVendor['풀스택'] || 0) : yup;
         return [s.agencyId || '', s.storeName || '', s.mid || '', s.rankKeyword || '', cat, rule ? rule.range : '',
           reward, ...rewardNames.map(n => rule ? pct(rule.reward, n) : ''), fsYup, ...fullNames.map(n => rule ? pct(rule.full, n) : ''),
           s.days || '', s.startDate || ''];
       });
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
-      // 가이드 시트는 구글시트 내용 그대로(비율만 %로)
-      const guideAoa = (values || []).map((r, ri) => r.map((v, ci) => ri >= 2 && ci >= 3 && ci % 2 === 1 && typeof v === 'number' ? `${Math.round(v * 100)}%` : v));
-      const gws = XLSX.utils.aoa_to_sheet(guideAoa);
-      gws['!cols'] = [{wch:8}, {wch:10}, ...Array.from({ length: 12 }, (_, i) => ({ wch: i % 2 ? 6 : 26 }))];
-      XLSX.utils.book_append_sheet(wb, gws, '가이드');
+      // 가이드 탭은 구글시트 내용 그대로(비율 칸만 %로)
+      (sheets || []).forEach(t => {
+        const v = t.values || [], pc = (v[1] || []).findIndex(x => String(x).replace(/\s+/g, '') === '상품');
+        const aoa = v.map((r, ri) => r.map((x, ci) => ri >= 2 && pc >= 0 && ci > pc && (ci - pc) % 2 === 1 && typeof x === 'number' ? `${Math.round(x * 100)}%` : x));
+        const gws = XLSX.utils.aoa_to_sheet(aoa);
+        gws['!cols'] = Array.from({ length: 14 }, (_, i) => ({ wch: i < pc ? 10 : (i - pc) % 2 ? 6 : 26 }));
+        XLSX.utils.book_append_sheet(wb, gws, `가이드_${t.title}`.slice(0, 31));
+      });
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
       ws['!cols'] = header.map((h, i) => ({ wch: i < 6 ? [14, 22, 12, 14, 6, 9][i] : 10 }));
       XLSX.utils.book_append_sheet(wb, ws, '분류');
