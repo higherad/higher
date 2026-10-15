@@ -187,7 +187,7 @@
     if (!list.length) { body.innerHTML = `<tr><td colspan="${8 + vendors.length}" style="padding:40px;color:var(--muted)">데이터가 없습니다.</td></tr>`; document.getElementById('cost-pg').innerHTML = ''; return; }
     body.innerHTML = list.map(r => {
       return `<tr>
-        <td style="color:var(--text2);font-size:11px">${esc(r.t)}${r.frozen ? ' <span title="금액 고정" style="color:var(--muted)">🔒</span>' : ''}</td>
+        <td style="color:var(--text2);font-size:11px">${esc(r.t)}</td>
         <td style="font-weight:700">${esc(r.agency)}</td>
         <td>${r.count}건</td>
         <td><strong>${(r.tgt || 0).toLocaleString()}</strong></td>
