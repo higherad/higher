@@ -256,6 +256,7 @@
     renderUsers(false);
   };
 
+  const escHtml = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   window.openUserModal = function(key) {
     const u = key ? (allUsers.find(x => x._key === key) || {}) : {};
     const isEdit = !!key;
@@ -276,11 +277,13 @@
             <input id="um-agency" value="${currentAgency}" placeholder="업체명을 입력하세요">
           </div>
           <div class="modal-field">
-            <label>단가 (원) *</label>
+            <label>리워드 단가 (원) *</label>
             <input type="number" id="um-price" value="${u.unitPrice||0}">
             <div class="hint-text">정산 자동 계산에 사용됩니다</div>
           </div>
         </div>
+        <div class="modal-field"><label>유입플 업체별 단가 (원)</label><div id="um-yupfl-prices" class="modal-row" style="flex-wrap:wrap;margin-bottom:0"><span style="color:var(--muted);font-size:12px">불러오는 중...</span></div>
+          <div class="hint-text">업체 목록은 접수관리 상품 유형 설정 '유입플' — 비워 두면 정산관리에 '단가 설정 필요'</div></div>
         <div class="modal-field"><label>메모</label><input id="um-memo" value="${u.memo||''}"></div>
         <div class="charge-sect">
           <div class="charge-sect-title">충전 계정 정보</div>
@@ -296,6 +299,16 @@
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('user-save-btn').onclick = () => saveUser(key);
+    // 유입플 업체 = 상품 유형 설정 '유입플'의 업체 목록 + 이 회원에 이미 저장된 업체
+    HI.getProdsOnce().catch(() => null).then(prods => {
+      const el = document.getElementById('um-yupfl-prices');
+      if (!el) return;
+      const vp = u.yupflPrices || {};
+      const vendors = (Object.values(prods || {}).find(p => p && p.classifyOnly)?.vendors || []).map(v => v.name);
+      const names = [...new Set([...vendors, ...Object.keys(vp)])];
+      el.innerHTML = names.length ? names.map(n => `<div class="modal-field" style="flex:1 1 120px;margin-bottom:6px"><label style="font-weight:500">${escHtml(n)}</label><input type="number" class="um-yp" data-vendor="${escHtml(n)}" value="${vp[n] || ''}" placeholder="미설정"></div>`).join('')
+        : '<span style="color:var(--muted);font-size:12px">등록된 유입플 업체 없음</span>';
+    });
     if(isEdit){
       (async function(){
         try{
@@ -347,6 +360,7 @@
       agency:    agencyVal,
       agencyId:  agencyVal,
       unitPrice: Number(document.getElementById('um-price').value)||0,
+      yupflPrices: Object.fromEntries([...document.querySelectorAll('.um-yp')].map(i => [i.dataset.vendor, Number(i.value)||0]).filter(([, v]) => v > 0)),
       memo:      document.getElementById('um-memo').value.trim(),
       approved:  true,
     };
@@ -399,9 +413,10 @@
     const pending = mySlots.filter(s => s.status === 'pending');
     const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0), 0);
 
-    // 정산 금액은 회원관리 단가(u.unitPrice)로 계산, 대상은 정산관리와 같은 기준(HI.isBillable — 재접수·휴지통 제외)
+    // 정산 금액은 회원관리 단가(리워드 u.unitPrice·유입플 업체 u.yupflPrices, HI.slotBill)로 계산, 대상은 정산관리와 같은 기준(HI.isBillable — 재접수·휴지통 제외)
     const billable = mySlots.filter(HI.isBillable);
-    const totalAmt = billable.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0)*unitPrice, 0);
+    const amtOf = s => HI.slotBill({ ...s, unitPrice: 0 }, u).amount;
+    const totalAmt = billable.reduce((a,s) => a+amtOf(s), 0);
     const totalVat = Math.round(totalAmt * 1.1);
 
     // 월별 정산 현황
@@ -412,7 +427,7 @@
       if (!byMonth[m]) byMonth[m] = { count:0, target:0, amt:0 };
       byMonth[m].count++;
       byMonth[m].target += (s.dailyTarget||0)*(s.days||0);
-      byMonth[m].amt    += (s.dailyTarget||0)*(s.days||0)*unitPrice;
+      byMonth[m].amt    += amtOf(s);
     });
     const mRows = Object.keys(byMonth).sort().reverse().map(m => {
       const mv = byMonth[m];

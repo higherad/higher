@@ -786,6 +786,7 @@ const HI = {
       agency: data.agency || '', agencyId: data.agency || '',
       role: 'member',
       unitPrice: Number(data.unitPrice) || 0,
+      ...(data.yupflPrices && Object.keys(data.yupflPrices).length ? { yupflPrices: data.yupflPrices } : {}),  // 유입플 업체별 단가
       memo: data.memo || '',
       createdAt: nowIso().slice(0, 10),
       approved: data.approved ?? false,
@@ -867,6 +868,19 @@ const HI = {
     if (slot.isRequeue) return false; // 재접수는 기존 배분을 이어받을 뿐 새 결제 건이 아님
     return BILLABLE_STATUSES.has(slot.status);
   },
+  // 캠페인 정산 금액 = (전체 − 유입플) 수량 × 리워드 단가 + 업체별 유입플 수량 × 그 대행사의 업체 단가(user.yupflPrices).
+  // 업체별 수량(yupflByVendor)이 없는 캠페인(업체 분류 전 승인·미승인)은 전체 × 리워드 단가, 유입플 금액은 승인 때 값.
+  // missing = 단가 없는 업체(금액 0으로 계산). 정산관리·자동 정산 도장·회원관리·텔레그램 봇(settlement.py)·회원 화면(higherad-auto) 같은 규칙
+  slotBill(s, user) {
+    const price = Number(s.unitPrice) > 0 ? Number(s.unitPrice) : (user?.unitPrice || 0);
+    const days = s.days || 0, total = (s.dailyTarget || 0) * days;
+    const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
+    if (!vend.length) return { amount: total * price, yupfl: s.yupflAmount || 0, missing: [] };
+    const vp = user?.yupflPrices || {};
+    const yupfl = vend.reduce((a, [v, n]) => a + n * days * (Number(vp[v]) || 0), 0);
+    const yupQty = vend.reduce((a, [, n]) => a + n, 0) * days;
+    return { amount: (total - yupQty) * price + yupfl, yupfl, missing: vend.filter(([v]) => !(Number(vp[v]) > 0)).map(([v]) => v) };
+  },
   getPaidSet() { return once(paidCache); },
   onPaidSetChange(cb) { return paidCache(cb); },
   setPaid(key, val) { return val ? set(ref(db, `${P.paid}/${key}`), true) : remove(ref(db, `${P.paid}/${key}`)); },
@@ -940,14 +954,16 @@ const HI = {
         snap = { ...cur };
       } else {
         const refund = refunds[HI.refundGroupKey(first)] || 0;
-        const amt = group.reduce((a, s) => a + (s.dailyTarget || 0) * (s.days || 0) * price(s), 0);
+        const userOf = s => users.find(u => u.username === s.userId);
+        if (group.some(s => HI.slotBill(s, userOf(s)).missing.length)) continue; // 유입플 업체 단가 미설정 — 정산관리에서 설정 후 고정
+        const amt = group.reduce((a, s) => a + HI.slotBill(s, userOf(s)).amount, 0);
         snap = {
           timeKey: minuteKey(first.createdAt), agencyId: first.agencyId || '-', userId: first.userId || '-',
           slotCount: group.length, totalTarget: group.reduce((a, s) => a + (s.dailyTarget || 0) * (s.days || 0), 0),
           amount: amt - refund, refund, unitPrice: price(first),
           deductAmt: group.reduce((a, s) => a + (s.deductAmount || 0), 0),
           deductTgt: group.reduce((a, s) => a + (s.deductTarget || 0), 0),
-          yupflAmt: group.reduce((a, s) => a + (s.yupflAmount || 0), 0),
+          yupflAmt: group.reduce((a, s) => a + HI.slotBill(s, userOf(s)).yupfl, 0),
         };
       }
       if (!snap.chargeConfirmedByName) {

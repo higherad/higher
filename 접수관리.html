@@ -482,12 +482,13 @@ window.toggleProdPanel = function(e) {
   }
   let _slotsLoaded = false;
   let _detailOpen  = false;
-  const userPriceMap = new Map(); // userId -> 단가(원/개), 차감·유입플 분류 금액 계산용
+  const userPriceMap = new Map(); // userId -> 단가(원/개), 차감 금액 계산용
+  const userById = new Map();     // userId -> 회원 레코드(유입플 업체 단가 yupflPrices — HI.slotBill)
   const userBizfitUidMap = new Map(); // userId -> 비즈핏 파트너 어드민 uid(이메일), 승인 시 캐시 자동차감용
   // settleBizfitCash 등이 이 promise를 await해 로드 전 "매핑 없음" 오판을 방지
   // bizfitUid는 별도 필드 대신 bizfit_charge(BizFit 로그인 id)를 그대로 씀
   const userBizfitUidReady = HI.getUsers().then(async users => {
-    users.forEach(u => userPriceMap.set(u.username, u.unitPrice || 0));
+    users.forEach(u => { userPriceMap.set(u.username, u.unitPrice || 0); userById.set(u.username, u); });
     try {
       const charge = await HI.getBizfitCharges();
       users.forEach(u => {
@@ -841,6 +842,7 @@ window.toggleProdPanel = function(e) {
   // btn 즉시 disable로 이중 차감 방지, settleBizfitCash await로 차감 끝나기 전 화면 닫힘(요청 취소) 방지
   window.approveOne = async function(key, btn) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
+    await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const targetSlot = allSlots.find(s => s._key === key);
     // 유입플 몫은 지금 상품 유형 설정 선택값(비고 비율 우선)으로 나눔. 배지는 가이드_접수 토글과 무관하게 가이드에서 — 유입플 몫이 있으면 풀스텍 배지, 캠페인타입이 비었으면 가이드 리워드 상품
     const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
@@ -1734,10 +1736,12 @@ window.toggleProdPanel = function(e) {
     if (!yupfl) return {};
     const target = allocRowsForSlot(slot).alloc[yupfl.id] || 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
     if (target <= 0) return {};
-    const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
+    // 유입플 금액 = 업체별 수량 × 그 대행사의 업체 단가(정산관리와 같은 HI.slotBill, 단가 없으면 0)
+    const yupflByVendor = vendorSplit(target);
+    const bill = HI.slotBill({ ...slot, yupflByVendor }, userById.get(slot.userId));
     // 가이드_접수로 승인하면 가이드 풀스텍 상품을 풀스텍 배지(fullstackType)로 같이 기록 — 시트 분류와 같은 값
     const rule = guideModeOn && !slot.changeTo ? guideRuleFor(slot) : null;
-    return { yupflTarget: target, yupflByVendor: vendorSplit(target), yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice,
+    return { yupflTarget: target, yupflByVendor, yupflAmount: slot.isRequeue ? 0 : bill.yupfl,
       ...(rule && rule.full.length ? { fullstackType: fullstackOf(rule) } : {}) };
   }
 
@@ -1847,6 +1851,7 @@ window.toggleProdPanel = function(e) {
   // 멀티레그 게이트 완료/단일완료/팝업 자동승인 전부 이 함수로 승인 처리 후 필요에 따라 차감 실행 또는 팝업 배너로 미룸
   async function approveReadySlots(keys, slotMap) {
     if (!keys.length) return [];
+    await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
     await Promise.all(keys.map(k => HI.approve(k, fieldsByKey.get(k))));
     keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });

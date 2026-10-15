@@ -121,7 +121,7 @@
       <tr>
         <th><input type="checkbox" id="settle-chk-all" title="전체선택" onchange="toggleAllSettle(this)"></th>
         <th>접수일시</th><th>대행사</th><th>단가(원)</th><th>캠페인 수</th>
-        <th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th id="th-yupfl" style="color:#a78bfa">유입플 금액</th><th id="th-deducttgt" style="color:var(--text2)">전체 목표 차감</th><th id="th-deduct" style="color:#f87171">차감 금액</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
+        <th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>리워드</th><th style="color:#a78bfa">유입플</th><th style="color:#f87171">차감</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="settle-body">
@@ -217,7 +217,10 @@
   const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // onclick 홑따옴표 JS 문자열용 — encodeURIComponent는 '를 안 건드려 값에 '가 있으면 문자열 탈출 가능, %27로 추가 치환해 막음
   const encAttr = v => encodeURIComponent(v).replace(/'/g,'%27');
-  function slotAmount(s){return (s.dailyTarget||0)*(s.days||0)*getSlotPrice(s);}
+  const userOf = s => allUsers.find(u => u.username === s.userId);
+  function slotAmount(s){return HI.slotBill(s, userOf(s)).amount;}
+  function slotYup(s){return HI.slotBill(s, userOf(s)).yupfl;}
+  const groupMissing = slots => [...new Set(slots.flatMap(s => HI.slotBill(s, userOf(s)).missing))];
 
   // 분 단위 키
   function getMinuteKey(isoStr){
@@ -252,8 +255,8 @@
     const amt = g.slots.reduce((a,s)=>a+slotAmount(s),0);
     const ded = g.slots.reduce((a,s)=>a+(s.deductAmount||0),0);
     const dtg = g.slots.reduce((a,s)=>a+(s.deductTarget||0),0);
-    const yup = g.slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
-    return {p, pDisplay, tot, amt, ded, dtg, yup};
+    const yup = g.slots.reduce((a,s)=>a+slotYup(s),0);
+    return {p, pDisplay, tot, amt, ded, dtg, yup, missing: groupMissing(g.slots)};
   }
 
   // 분 단위 + 대행사 + 유저ID 그룹핑
@@ -565,7 +568,7 @@
     // 전체 재조회(23.8MB)가 반복됨. 나중에 단가가 생겨 금액이 0이 아니게 되면 그때 대상에 들어와 고정됨
     const findNewGroups = (slots) => pastGroups(slots)
       .filter(g => !snapshotMap[`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`])
-      .filter(g => calcGroup(g).amt);
+      .filter(g => calcGroup(g).amt && !calcGroup(g).missing.length); // 유입플 업체 단가 미설정이면 설정될 때까지 고정 안 함
     const findStaleDeductGroups = (slots) => pastGroups(slots).filter(g => {
       const snap = snapshotMap[`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`];
       if (!snap) return false;
@@ -623,7 +626,7 @@
       const groupDate=g.timeKey.slice(0,10);
       // 과거 날짜는 스냅샷, 오늘은 실시간
       const useSnap = groupDate < todayStr && savedSnap;
-      const {p, pDisplay, tot, amt, ded, dtg, yup} = useSnap ? {
+      const {p, pDisplay, tot, amt, ded, yup, missing = []} = useSnap ? {
         p: savedSnap.unitPrice||getSlotPrice(g.slots[0]),
         pDisplay: (savedSnap.unitPrice||getSlotPrice(g.slots[0])).toLocaleString(),
         tot: savedSnap.totalTarget||0,
@@ -658,14 +661,14 @@
         <td><input type="checkbox" class="settle-chk" data-snapkey="${snapKey}" ${selectedSnapKeys.has(snapKey)?'checked':''} onchange="onSettleChkChange(this)"></td>
         <td style="color:var(--text2);font-size:11px">${fmtDatetime(repTime)}</td>
         <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${escProd(g.agencyId)}</span></td>
-        <td style="color:var(--text2)">${pDisplay}원</td>
+        <td><span class="agency-link" style="color:var(--text2)" title="리워드·유입플 업체별 단가" onclick="openPricePopup(decodeURIComponent('${eu}'))">${pDisplay}원</span></td>
         <td>${useSnap ? (savedSnap.slotCount||g.slots.length) : g.slots.length}건</td>
         <td><strong>${tot.toLocaleString()}</strong></td>
         <td style="font-weight:700;color:var(--accent)">${netAmt.toLocaleString()}원</td>
-        ${SHOW_DEDUCT?`<td style="color:#7c3aed">${yup>0?yup.toLocaleString()+'원':'-'}</td>`:''}
-        ${SHOW_DEDUCT?`<td style="color:var(--text2)">${dtg>0?dtg.toLocaleString():'-'}</td>`:''}
-        ${SHOW_DEDUCT?`<td style="color:var(--danger)">${ded>0?ded.toLocaleString()+'원':'-'}</td>`:''}
         <td style="font-weight:700;color:var(--info)">${netVat.toLocaleString()}원</td>
+        <td>${(amt-yup-ded)>0?(amt-yup-ded).toLocaleString()+'원':'-'}</td>
+        <td style="color:#7c3aed">${missing.length?`<span style="color:var(--danger);font-weight:700" title="${escProd(missing.join(', '))}">단가 설정 필요</span>`:yup>0?yup.toLocaleString()+'원':'-'}</td>
+        <td style="color:var(--danger)">${ded>0?ded.toLocaleString()+'원':'-'}</td>
         <td style="color:var(--danger);font-weight:700">${refund>0?refund.toLocaleString()+'원':'-'}</td>
         <td>${badge}</td>
         <td>${chargeStaffCell}</td>
@@ -937,7 +940,7 @@
         const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
         const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
         const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
-        const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
+        const yup=slots.reduce((a,s)=>a+slotYup(s),0);
         const refund=getRefund(timeKey,agencyId,userId);
         const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),memo:val};
         await dispatchSaveSnapshot(snapKey,userId,newSnap,true);
@@ -998,7 +1001,7 @@
     const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
     const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
     const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
-    const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
+    const yup=slots.reduce((a,s)=>a+slotYup(s),0);
     const refund=getRefund(timeKey,agencyId,userId);
     const newSnap={timeKey,agencyId,userId,slotCount:slots.length,totalTarget:tot,amount:amt-refund,refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:getSlotPrice(slots[0])};
     snapshotMap[snapKey]=newSnap;
@@ -1135,7 +1138,7 @@
       const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
       const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
       const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
-      const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
+      const yup=slots.reduce((a,s)=>a+slotYup(s),0);
       const refund=getRefund(timeKey,agencyId,userId);
       // 기존 스냅샷 보존(충전 담당자 등) 후 입금 필드만 덮어쓰기
       const existing=snapshotMap[snapKey]||{};
@@ -1161,6 +1164,25 @@
     renderSettle(false);
   };
 
+  // 단가 클릭 — 그 대행사의 리워드 단가 + 유입플 업체별 단가(설정은 회원관리)
+  window.openPricePopup=async function(userId){
+    const u=allUsers.find(x=>x.username===userId)||{};
+    const prods=await HI.getProdsOnce().catch(()=>null);
+    const vendors=(Object.values(prods||{}).find(p=>p&&p.classifyOnly)?.vendors||[]).map(v=>v.name);
+    const vp=u.yupflPrices||{};
+    const names=[...new Set([...vendors,...Object.keys(vp)])];
+    const row=(k,v)=>`<tr><td style="padding:6px 10px;color:var(--text2)">${escProd(k)}</td><td style="padding:6px 10px;text-align:right;font-weight:700">${v>0?Number(v).toLocaleString()+'원':'<span style="color:var(--danger)">단가 설정 필요</span>'}</td></tr>`;
+    const ov=document.createElement('div');
+    ov.className='sp-overlay';
+    ov.innerHTML=`<div class="total-popup-box" style="width:min(96vw,340px)">
+      <div class="sp-title">${escProd(u.agency||u.agencyId||userId)} 단가</div>
+      <div class="sp-sub">단가 변경은 회원관리에서</div>
+      <table class="sp-tbl"><tbody>${row('리워드',u.unitPrice)}${names.map(n=>row(`유입플 · ${n}`,vp[n])).join('')}</tbody></table>
+      <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
+    </div>`;
+    ov.onclick=e=>{if(e.target===ov)ov.remove();};
+    document.body.appendChild(ov);
+  };
   window.openAgencyPopup=function(agencyId,userId){
 
     const byMonth={}, byDay={};
@@ -1214,7 +1236,7 @@
         const ref = getRefund(t, agencyId, userId);
         const ded = grpSlots.reduce((a,s)=>a+(s.deductAmount||0),0);
         const dtg = grpSlots.reduce((a,s)=>a+(s.deductTarget||0),0);
-        const yup = grpSlots.reduce((a,s)=>a+(s.yupflAmount||0),0);
+        const yup = grpSlots.reduce((a,s)=>a+slotYup(s),0);
         const net = amt - ref;
         totA += net; totTgt += tgt; totalRefund += ref; totalDeduct += ded; totalYup += yup;
         byMonth[month].count += grpSlots.length; byMonth[month].tgt += tgt; byMonth[month].net += net; byMonth[month].ded += ded; byMonth[month].dtg += dtg; byMonth[month].yup += yup;
@@ -1301,7 +1323,7 @@
     function buildAndDownload(){
       const XLSX=window.XLSX;
       const wb=XLSX.utils.book_new();
-      const header=['접수일시','대행사','단가(원)','캠페인 수','전체 목표 합산','정산 금액(VAT 별도)',...(SHOW_DEDUCT?['유입플 금액','전체 목표 차감','차감 금액']:[]),'입금액(VAT 포함)','환불 금액','정산상태'];
+      const header=['접수일시','대행사','단가(원)','캠페인 수','전체 목표 합산','정산 금액(VAT 별도)','입금액(VAT 포함)','리워드','유입플','차감','환불 금액','정산상태'];
       const dataRows=rows.map(g=>{
         const safe=s=>s.replace(/[.#$[\]/]/g,'_');
         const snapKey=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
@@ -1314,14 +1336,13 @@
         const netAmt=grossAmt-refund;
         const p=useSnap?(savedSnap.unitPrice||getSlotPrice(g.slots[0])):getSlotPrice(g.slots[0]);
         const ded=useSnap?(savedSnap.deductAmt||0):g.slots.reduce((ac,s)=>ac+(s.deductAmount||0),0);
-        const dtg=useSnap?(savedSnap.deductTgt||0):g.slots.reduce((ac,s)=>ac+(s.deductTarget||0),0);
-        const yup=useSnap?(savedSnap.yupflAmt||0):g.slots.reduce((ac,s)=>ac+(s.yupflAmount||0),0);
+        const yup=useSnap?(savedSnap.yupflAmt||0):g.slots.reduce((ac,s)=>ac+slotYup(s),0);
         const pc=g.slots.filter(s=>paidSet.has(s._key)).length;
         const status=pc===g.slots.length?'정산완료':'미정산';
-        return [g.timeKey,g.agencyId,p,g.slots.length,tot,netAmt,...(SHOW_DEDUCT?[yup,dtg,ded]:[]),Math.round(netAmt*1.1),refund,status];
+        return [g.timeKey,g.agencyId,p,g.slots.length,tot,netAmt,Math.round(netAmt*1.1),grossAmt-yup-ded,yup,ded,refund,status];
       });
       const ws=XLSX.utils.aoa_to_sheet([header,...dataRows]);
-      ws['!cols']=[{wch:18},{wch:16},{wch:12},{wch:10},{wch:14},{wch:20},...(SHOW_DEDUCT?[{wch:16},{wch:14},{wch:16}]:[]),{wch:20},{wch:12},{wch:10}];
+      ws['!cols']=[{wch:18},{wch:16},{wch:12},{wch:10},{wch:14},{wch:20},{wch:20},{wch:14},{wch:14},{wch:14},{wch:12},{wch:10}];
       XLSX.utils.book_append_sheet(wb,ws,'정산');
       const today=new Date();
       const dateStr=`${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
@@ -1362,7 +1383,7 @@
       const amt=slots.reduce((a,s)=>a+slotAmount(s),0);
       const ded=slots.reduce((a,s)=>a+(s.deductAmount||0),0);
       const dtg=slots.reduce((a,s)=>a+(s.deductTarget||0),0);
-      const yup=slots.reduce((a,s)=>a+(s.yupflAmount||0),0);
+      const yup=slots.reduce((a,s)=>a+slotYup(s),0);
       const refund=getRefund(timeKey,agencyId,userId);
       const existing=snapshotMap[snapKey]||{};
       const newSnap={...existing,slotCount:slots.length,totalTarget:tot,amount:amt-refund,deductAmt:ded,deductTgt:dtg,yupflAmt:yup,unitPrice:getSlotPrice(slots[0]),refund,agencyId,userId,timeKey,
