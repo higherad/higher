@@ -251,7 +251,7 @@
     ov.innerHTML = `<div class="total-popup-box" style="width:min(96vw,480px)">
       <div class="sp-title">원가 설정</div>
       <div class="sp-section">리워드</div>
-      <div class="cost-row"><input class="c-name" value="리워드 (전 상품 공통)" disabled><input class="c-price" id="cost-reward" type="number" min="0" value="${Number(costs.reward) || ''}" placeholder="원가(원)"><span style="width:22px"></span></div>
+      <div class="cost-row"><input class="c-name" value="리워드" disabled><input class="c-price" id="cost-reward" type="number" min="0" value="${Number(costs.reward) || ''}" placeholder="원가(원)"><span style="width:22px"></span></div>
       <div class="sp-section">유입플</div>
       <div class="cost-rows">${Object.entries(costs.yupfl || {}).map(([n, v]) => row(n, v)).join('')}</div>
       <button type="button" class="cost-add">+ 유입플 추가</button>
