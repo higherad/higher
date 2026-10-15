@@ -261,8 +261,8 @@
   const rewardPricesOf = u => u.rewardPrices?.length ? u.rewardPrices : [{ name: '리워드', price: u.unitPrice || 0 }];
   // 단가 한 줄(이름 + 단가 + 삭제) — 지출관리 원가 설정과 같은 방식
   const ypRowHtml = (n = '', v = '', grp = 'yupfl') => `<div class="um-price-row" data-grp="${grp}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <input class="um-p-name"${grp === 'yupfl' ? ' list="um-yp-names"' : ''} value="${escHtml(n)}" placeholder="${grp === 'yupfl' ? '유입플 업체명' : '리워드 이름'}" style="width:160px">
-      <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:120px;text-align:right">
+      <input class="um-p-name"${grp === 'yupfl' ? ' list="um-yp-names"' : ''} value="${escHtml(n)}" placeholder="${grp === 'yupfl' ? '유입플 업체명' : '리워드 이름'}" style="width:110px">
+      <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:80px;text-align:right">
       <button type="button" onclick="this.parentElement.remove()" title="삭제" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px">✕</button></div>`;
   window.addPriceRow = grp => {
     const el = document.getElementById(grp === 'reward' ? 'um-reward-prices' : 'um-yupfl-prices');
