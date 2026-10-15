@@ -261,7 +261,7 @@
   const rewardPricesOf = u => u.rewardPrices?.length ? u.rewardPrices : [{ name: '리워드', price: u.unitPrice || 0 }];
   // 단가 한 줄(이름 + 단가 + 삭제) — 지출관리 원가 설정과 같은 방식
   const ypRowHtml = (n = '', v = '', grp = 'yupfl') => `<div class="um-price-row" data-grp="${grp}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <input class="um-p-name"${grp === 'yupfl' ? ' list="um-yp-names"' : ''} value="${escHtml(n)}" placeholder="${grp === 'yupfl' ? '유입플 업체명' : '리워드 이름'}" style="width:110px">
+      <input class="um-p-name" value="${escHtml(n)}" placeholder="${grp === 'yupfl' ? '유입플 업체명' : '리워드 이름'}" style="width:110px">
       <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:80px;text-align:right">
       <button type="button" onclick="this.parentElement.remove()" title="삭제" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px">✕</button></div>`;
   window.addPriceRow = grp => {
@@ -308,8 +308,7 @@
           <button type="button" class="um-row-add" onclick="addPriceRow('reward')">+ 리워드 추가</button></div>
         <div class="modal-field"><label>유입플 업체별 단가 (원)</label>
           <div id="um-yupfl-prices">${Object.entries(u.yupflPrices || {}).map(([n, v]) => ypRowHtml(n, v)).join('')}</div>
-          <button type="button" class="um-row-add" onclick="addPriceRow('yupfl')">+ 유입플 추가</button>
-          <datalist id="um-yp-names"></datalist></div>
+          <button type="button" class="um-row-add" onclick="addPriceRow('yupfl')">+ 유입플 추가</button></div>
         <div class="modal-field"><label>메모</label><input id="um-memo" value="${u.memo||''}"></div>
         <div class="charge-sect">
           <div class="charge-sect-title">충전 계정 정보</div>
@@ -325,13 +324,6 @@
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('user-save-btn').onclick = () => saveUser(key);
-    // 업체명 자동완성 = 상품 유형 설정 '유입플' 업체 목록(미설정이면 기본 풀스택)
-    HI.getProdsOnce().catch(() => null).then(prods => {
-      const dl = document.getElementById('um-yp-names');
-      if (!dl) return;
-      const vl = Object.values(prods || {}).find(p => p && p.classifyOnly)?.vendors;
-      dl.innerHTML = (vl?.length ? vl : [{ name: '풀스택' }]).map(v => `<option value="${escHtml(v.name)}">`).join('');
-    });
     if(isEdit){
       (async function(){
         try{
