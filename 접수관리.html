@@ -823,7 +823,12 @@ window.toggleProdPanel = function(e) {
   window.approveOne = async function(key, btn) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     const targetSlot = allSlots.find(s => s._key === key);
-    const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
+    // 행 승인은 가이드_접수 토글과 무관하게 항상 가이드로 유입플 분류·풀스텍 배지, 캠페인타입이 비었으면 가이드 리워드 상품으로 채움
+    let guideErr = null;
+    try { await loadGuide(); } catch (e) { guideErr = e; }
+    const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot, !guideErr) };
+    const rule = !guideErr && targetSlot && !targetSlot.changeTo ? guideRuleFor(targetSlot) : null;
+    if (rule && rule.reward.length && !typeLabels(targetSlot).length) extra.campaignType = rule.reward.map(g => g.name);
     await HI.approve(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
     await autoRegisterAdlog([targetSlot]);
@@ -831,6 +836,7 @@ window.toggleProdPanel = function(e) {
     const ok = await settleBizfitCash(targetSlot, extra);
     // 이 버튼엔 팝업이 없어 배너를 못 띄우니, 실패했을 때만 alert로 알림(성공/스킵은 조용히 넘어감)
     if (!ok) alert('접수는 승인됐지만 비즈핏 캐시차감에 실패했습니다.\n네트워크/세션 문제일 수 있으니 잠시 후 다시 승인해보거나 개발자에게 알려주세요.');
+    if (guideErr) alert('가이드를 불러오지 못해 상품 유형 설정 비율로 승인했습니다: ' + guideErr.message);
     closeOverlayAndRefresh();
   };
 
@@ -1674,15 +1680,15 @@ window.toggleProdPanel = function(e) {
 
 
   // 승인 시점 유입플 분류 몫(일 목표)·금액을 캠페인에 고정 — 정산관리 유입플 금액 열·캐시 차감에 씀(allocRowsForSlot 배분 그대로)
-  function yupflFieldsFor(slot) {
+  function yupflFieldsFor(slot, useGuide = guideModeOn) {
     if (!slot) return {};
     const yupfl = prods.find(p => p.classifyOnly);
     if (!yupfl) return {};
-    const target = allocRowsForSlot(slot).alloc[yupfl.id] || 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
+    const target = allocRowsForSlot(slot, useGuide).alloc[yupfl.id] || 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
     if (target <= 0) return {};
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
     // 가이드_접수로 승인하면 가이드 풀스텍 상품을 풀스텍 배지(fullstackType)로 같이 기록 — 시트 분류와 같은 값
-    const rule = guideModeOn && !slot.changeTo ? guideRuleFor(slot) : null;
+    const rule = useGuide && !slot.changeTo ? guideRuleFor(slot) : null;
     return { yupflTarget: target, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice,
       ...(rule && rule.full.length ? { fullstackType: fullstackOf(rule) } : {}) };
   }
@@ -1887,13 +1893,14 @@ window.toggleProdPanel = function(e) {
     if (yupfl && fullSum > 0) out.push({ ...yupfl, fixedAlloc: false, ratio: fullSum, kwPct: 0 });
     return out;
   }
+  async function loadGuide() {
+    const [{ values }, cats] = await Promise.all([HI.getGuideSheet(), HI.getKwCategories()]);
+    guideRules = parseGuide(values || []);
+    guideCats = cats;
+  }
   window.toggleGuidePreset = async function() {
     if (guideModeOn) { guideModeOn = false; renderPS(); return; }
-    try {
-      const [{ values }, cats] = await Promise.all([HI.getGuideSheet(), HI.getKwCategories()]);
-      guideRules = parseGuide(values || []);
-      guideCats = cats;
-    } catch (e) { alert('가이드를 불러오지 못했습니다: ' + e.message); return; }
+    try { await loadGuide(); } catch (e) { alert('가이드를 불러오지 못했습니다: ' + e.message); return; }
     if (activeProdGroupId) deactivateProdGroup();
     guideModeOn = true; renderPS();
   };
@@ -2042,11 +2049,11 @@ window.toggleProdPanel = function(e) {
 
   // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 매칭된 등급 있으면 고정 항목은 그대로
   // 두고 나머지만 균등분배, 없으면 기존 ratio 배분. 재접수는 변경 요청 상품(changeTo)이 있으면 그 상품, 없으면 매칭 안 함.
-  function allocRowsForSlot(r) {
+  function allocRowsForSlot(r, useGuide = guideModeOn) {
     const AP = ap();
     // 변경 요청으로 생긴 재접수(changeTo)는 요청한 상품으로, 그 외 재접수는 매칭 안 함
     const changeTo = (r.changeTo || '').split('/').map(x => x.trim()).filter(Boolean);
-    const guideProds = guideModeOn && !changeTo.length ? guideProdsFor(r) : [];
+    const guideProds = useGuide && !changeTo.length ? guideProdsFor(r) : [];
     const gradeProds = guideProds.length ? guideProds
       : !gradeMatchOn ? []
       : changeTo.length ? gradeProdsFromLabels(changeTo)
