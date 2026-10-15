@@ -358,6 +358,7 @@
   const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
   function typeCellHtml(s) {
+    if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음)
     const live = TYPE_LIVE.includes(s.status);
     const change = live ? (s.changeRequest?.to || s.changeTo || '') : '';
     const html = [

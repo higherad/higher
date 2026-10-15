@@ -358,7 +358,7 @@ async function adjustCostSnapshot(key, slot, lostDays, lostSlots = 0) {
 }
 
 // 예약 대기분 취소 후 남는 일수·종료일 — 남은 항목이 있는 날짜는 유지, 대기분만 있다 전부 취소된 날짜만 뺌.
-// 완료 항목은 서버가 2일 뒤 지우므로 화면에 남은 완료분으로 세면 일수가 줄어 정산 금액이 적게 잡힘.
+// 완료 항목은 서버가 2일 뒤 지우므로 화면에 남은 완료분으로 세면 안 됨. endScheduled는 종료일만 씀(일수는 최초 접수 그대로)
 export function remainingAfterCancel(slot, canceledDates, keptDates) {
   const keep = new Set(keptDates.filter(Boolean));
   const cut = new Set(canceledDates.filter(d => d && !keep.has(d)));
@@ -606,11 +606,10 @@ const HI = {
   async endScheduled(key, canceledDates, keptDates, pre = null) {
     const cur = pre || await readCampaign(key);
     if (!cur) return null;
-    const fields = remainingAfterCancel(cur.data, canceledDates, keptDates);
-    await writeCampaign(key, { ...fields, status: 'expired' }, cur);
-    await adjustSettleSnapshot(cur.data, Math.max(0, (Number(cur.data.days) || 0) - fields.days));
-    await adjustCostSnapshot(key, cur.data, Math.max(0, (Number(cur.data.days) || 0) - fields.days));
-    return fields;
+    // 종료일만 바꿈 — 일수·정산·지출 금액은 최초 접수 그대로(2026-10-15 사용자 결정: 취소해도 접수한 일수로 정산)
+    const { endDate } = remainingAfterCancel(cur.data, canceledDates, keptDates);
+    await writeCampaign(key, { endDate, status: 'expired' }, cur);
+    return { endDate };
   },
 
   // 비즈핏 강제종료 성공 후 같은 MID의 진행 중(승인) 캠페인 처리 — 상태 force_stopped + 원래 종료일·강제종료일 기록

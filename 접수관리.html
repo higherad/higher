@@ -590,6 +590,7 @@ window.toggleProdPanel = function(e) {
   const vendorProductsOf = s => s?.vendorProducts ? Object.entries(s.vendorProducts).map(([v, l]) => [v, Array.isArray(l) ? l : Object.values(l)]) : fullstackLabels(s).length ? [['풀스택', fullstackLabels(s)]] : [];
   const yupflProductLabels = s => vendorProductsOf(s).flatMap(([, l]) => l);
   function typeBadgesHtml(s) {
+    if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음 — 엑셀·필터·등급 매칭용)
     const badge = (l, style) => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;${style}">${escProd(l)}</span>`;
     const html = [...typeLabels(s).map(l => badge(l, 'background:#f1f5f9;color:#334155;border:1px solid #e2e8f0')),
       ...vendorProductsOf(s).flatMap(([v, l]) => l.map(n => badge(n, VENDOR_BADGE[v] || OTHER_VENDOR_BADGE)))];
@@ -5601,7 +5602,7 @@ window.toggleProdPanel = function(e) {
       await HI.updateSchedule(patch);
       targets.forEach(e => { delete _ssEntries[e._key]; });
 
-      // 캠페인 종료 + 일수·종료일 재계산(HI.endScheduled 참고 — 고정된 정산 금액도 같이 줄임)
+      // 캠페인 종료 + 종료일만 재계산(HI.endScheduled — 일수·정산 금액은 최초 접수 그대로)
       const dateOf = e => (e.payload?.rowData||[])[0]?.예약일;
       const kept = Object.values(_ssEntries).filter(e => e.slotKey === slotKey).map(dateOf);
       const fields = await HI.endScheduled(slotKey, targets.map(dateOf), kept, pre);
