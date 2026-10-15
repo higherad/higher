@@ -307,8 +307,8 @@
     if (!rows.length) return alert('다운로드할 데이터가 없습니다.');
     if (!window.XLSX) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('엑셀 라이브러리를 불러오지 못했습니다.')); document.head.appendChild(s); }).catch(e => alert(e.message));
     if (!window.XLSX) return;
-    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '지출 합계(VAT 포함)', '차감(수입)', '원가 설정 필요'];
-    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.reward, ...vendors.map(v => r.yupfl?.[v] || 0), r.total, Math.round(r.total * 1.1), r.deduct || 0, r.missing.join(', ')]);
+    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '지출 합계(VAT 포함)', '차감(수입)'];
+    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.reward, ...vendors.map(v => r.yupfl?.[v] || 0), r.total, Math.round(r.total * 1.1), r.deduct || 0]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), '지출');
     XLSX.writeFile(wb, `지출내역_${todayStr.replace(/-/g, '')}.xlsx`);
