@@ -578,7 +578,7 @@ window.toggleProdPanel = function(e) {
   const ratioBadgeHtml = r => `<span title="리워드:유입플 (엑셀 비고)" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${ratioLabel(r)}</span>`;
   // 유입플 업체 = 승인 때 유입플 몫을 '유입플' 상품 설정의 업체 비율로 나눈 값(yupflByVendor {업체명: 일 수량}) — 업체명 = 가이드 시트 탭 이름
   const vendorLabels = s => Object.keys(s?.yupflByVendor || {}).filter(k => s.yupflByVendor[k] > 0);
-  const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스택', ratio: 10 }]; };
+  const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스택', ratio: 100 }]; };
   function vendorSplit(target) {
     const vs = yupflVendors().filter(v => v.name && v.ratio > 0);
     const a = lrm(vs.map(v => ({ id: v.name, ratio: v.ratio })), target);
@@ -1279,7 +1279,7 @@ window.toggleProdPanel = function(e) {
     {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
     // 유입플(id yupflc): 차감 뒤 남은 일 목표에서 이 비율만큼 유입플로 떼어 분류만 함(비즈핏 등록·유입플 접수 없음).
     // 승인 때 yupflTarget·yupflAmount로 고정(캐시 차감·메모는 YUPFL_CASH_DEDUCT로 켜고 끔). 캠페인 dailyTarget은 그대로
-    {id:'yupflc', name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false, vendors:[{name:'풀스택', ratio:10}]},
+    {id:'yupflc', name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false, vendors:[{name:'풀스택', ratio:100}]},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
     {id:'delta',  name:'델타',  color:'#22c55e', active:false, ver:'ver.4.1/3.3', ratio:0, kwPct:0, daysMultiplied:true, blogUrlProduct:true, blogSplit:1},
     {id:'navy',   name:'네이비', color:'#1e3a8a', active:false, ver:'ver.5.0/3.4', ratio:0, kwPct:0, blogUrlProduct:true, blogSplit:1},
@@ -1561,7 +1561,8 @@ window.toggleProdPanel = function(e) {
           <div class="ratio-item">
             <div class="ri-dot" style="background:${q.color}"></div>
             <span class="ri-name" style="color:${q.color}">${q.name}</span>
-            <input type="number" step="any" min="0" max="10" value="${q[field] ?? 0}" id="${prefix}${q.id}" oninput="updateProdModalNotes()" />
+            <input type="number" step="1" min="0" max="100" value="${Math.round((q[field] ?? 0) * 10)}" id="${prefix}${q.id}" oninput="updateProdModalNotes()" />
+            <span style="font-size:12px;color:var(--text2);">%</span>
           </div>`).join('');
 
     if (!isFixed) document.getElementById('pm-kw-grid').innerHTML = makeGrid(actives, 'kwPct', 'pm-kwpct-');
@@ -1577,15 +1578,15 @@ window.toggleProdPanel = function(e) {
     updateProdModalNotes();
     document.getElementById('prod-modal-bg').classList.add('show');
   };
-  // 유입플 상품 모달의 업체별 비율 편집(이름·비율, 비율끼리 나눔 — 합이 10일 필요 없음)
+  // 유입플 상품 모달의 업체별 비율 편집(이름·%, 합계 100)
   const vendorRowHtml = v => `<div class="pm-vendor" style="display:flex;gap:6px;align-items:center;margin-top:6px;">
         <input class="pm-v-name" type="text" value="${escProd(v.name)}" placeholder="업체명" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;">
-        <input class="pm-v-ratio" type="number" min="0" step="any" value="${v.ratio}" style="width:56px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:center;font-family:inherit;">
+        <input class="pm-v-ratio" type="number" min="0" max="100" step="1" value="${v.ratio}" style="width:56px;padding:5px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:center;font-family:inherit;"><span style="font-size:12px;color:var(--text2);">%</span>
         <button type="button" onclick="this.parentElement.remove()" style="border:none;background:transparent;color:var(--danger);cursor:pointer;">✕</button></div>`;
   window.addVendorRow = () => document.getElementById('pm-vendors').insertAdjacentHTML('beforeend', vendorRowHtml({ name: '', ratio: 0 }));
   function vendorEditorHtml(vs) {
     return `<div style="grid-column:1/-1;margin-top:10px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text2);">유입플 업체 비율 <span style="font-weight:400;color:var(--muted);">(승인 때 유입플 몫을 이 비율로 나눔)</span></div>
+        <div style="font-size:12px;font-weight:600;color:var(--text2);">유입플 업체 비율 <span style="font-weight:400;color:var(--muted);">(승인 때 유입플 몫을 이 %로 나눔, 합계 100%)</span></div>
         <div id="pm-vendors">${vs.map(vendorRowHtml).join('')}</div>
         <button type="button" onclick="addVendorRow()" style="margin-top:6px;border:1px dashed var(--border);background:transparent;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2);font-family:inherit;">+ 업체 추가</button>
       </div>`;
@@ -1621,8 +1622,8 @@ window.toggleProdPanel = function(e) {
     const kwR = sumProdModalInputs(actives, 'pm-kwpct-'), ratR = sumProdModalInputs(actives, 'pm-ratio-');
     const kwNote = document.getElementById('pm-kw-note');
     const ratNote = document.getElementById('pm-ratio-note');
-    if(kwNote)  { kwNote.textContent=`합계: ${kwR}`;   kwNote.className='ratio-note '+(kwR===10||kwR===0?'ok':'ng'); }
-    if(ratNote) { ratNote.textContent=`합계: ${ratR}`; ratNote.className='ratio-note '+(ratR===10?'ok':'ng'); }
+    if(kwNote)  { kwNote.textContent=`합계: ${kwR}%`;   kwNote.className='ratio-note '+(kwR===100||kwR===0?'ok':'ng'); }
+    if(ratNote) { ratNote.textContent=`합계: ${ratR}%`; ratNote.className='ratio-note '+(ratR===100?'ok':'ng'); }
   };
   window.closeProdModal = function() {
     document.getElementById('prod-modal-bg').classList.remove('show');
@@ -1666,19 +1667,21 @@ window.toggleProdPanel = function(e) {
       const actives = ap().filter(q => !q.fixedAlloc);
       if(actives.length) {
         const kwR = sumProdModalInputs(actives, 'pm-kwpct-'), ratR = sumProdModalInputs(actives, 'pm-ratio-');
-        if(kwR!==10 && kwR!==0){ alert(`키워드 배분 합계는 10 또는 모두 0이어야 합니다. (현재: ${kwR})`); return; }
-        if(ratR!==10){ alert(`일 목표 배분 합계는 10이어야 합니다. (현재: ${ratR})`); return; }
+        if(kwR!==100 && kwR!==0){ alert(`키워드 배분 합계는 100% 또는 모두 0이어야 합니다. (현재: ${kwR}%)`); return; }
+        if(ratR!==100){ alert(`일 목표 배분 합계는 100%여야 합니다. (현재: ${ratR}%)`); return; }
+        // 화면은 %, 저장값은 합 10 기준(배분 계산·자동 재배분이 이 기준)
         actives.forEach(q => {
           const kwEl=document.getElementById(`pm-kwpct-${q.id}`), ratEl=document.getElementById(`pm-ratio-${q.id}`);
-          if(kwEl)  q.kwPct = Math.round((parseFloat(kwEl.value) ||0)*10)/10;
-          if(ratEl) q.ratio = Math.round((parseFloat(ratEl.value)||0)*10)/10;
+          if(kwEl)  q.kwPct = Math.round(parseFloat(kwEl.value) ||0)/10;
+          if(ratEl) q.ratio = Math.round(parseFloat(ratEl.value)||0)/10;
         });
       }
     } else if (p.deductOnly || p.classifyOnly) {
       if (p.classifyOnly) {
         const vs = [...document.querySelectorAll('#pm-vendors .pm-vendor')].map(r => ({
           name: r.querySelector('.pm-v-name').value.trim(), ratio: parseFloat(r.querySelector('.pm-v-ratio').value) || 0 })).filter(v => v.name);
-        if (!vs.some(v => v.ratio > 0)) { alert('유입플 업체를 1곳 이상, 비율 0보다 크게 입력해 주세요.'); return; }
+        const vSum = vs.reduce((a, v) => a + v.ratio, 0);
+        if (vSum !== 100) { alert(`유입플 업체 비율 합계는 100%여야 합니다. (현재: ${vSum}%)`); return; }
         if (new Set(vs.map(v => v.name)).size !== vs.length) { alert('유입플 업체 이름이 겹칩니다.'); return; }
         p.vendors = vs;
       }
