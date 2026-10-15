@@ -1886,7 +1886,7 @@ window.toggleProdPanel = function(e) {
   // ── 가이드_접수 프리셋 ──────────────────────────────────────────
   // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
   // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 원래 방식(등급 매칭/상품 설정)으로.
-  let guideModeOn = false, guideRules = [], guideCats = [];
+  let guideModeOn = false, guideRules = [], guideCats = [], guideTimes = [];
   // 풀스텍 상품 순서(기본 → 둘러보고 나감 → 카톡 길찾기 → 카톡 공유, 그 밖은 뒤)와 배지용 짧은 이름 — 시트 분류·가이드_접수 공용
   const FULL_ORDER = ['기본', '둘러보고', '길찾기', '공유'];
   const fullRank = n => { const i = FULL_ORDER.findIndex(k => n.includes(k)); return i < 0 ? FULL_ORDER.length : i; };
@@ -1924,6 +1924,7 @@ window.toggleProdPanel = function(e) {
   async function loadGuide() {
     const [{ values }, cats] = await Promise.all([HI.getGuideSheet(), HI.getKwCategories()]);
     guideRules = parseGuide(values || []);
+    guideTimes = parseGuideTimes(values || []);
     guideCats = cats;
   }
   window.toggleGuidePreset = async function() {
@@ -3076,6 +3077,11 @@ window.toggleProdPanel = function(e) {
     });
     return rules;
   }
+  // 가이드 1행 '리워드 가이드' 칸의 시간 분배(예: '시간 분배: 11:00(40%) / 17:30(60%)') → [{time:'11:00', pct:40}, ...]
+  function parseGuideTimes(values) {
+    const cell = String((values[0] || []).find(v => String(v).includes('리워드')) || '');
+    return [...cell.matchAll(/(\d{1,2}):(\d{2})\s*\(\s*(\d+)\s*%\s*\)/g)].map(m => ({ time: `${m[1].padStart(2, '0')}:${m[2]}`, pct: +m[3] }));
+  }
   // 구간 사이 값(예: 10~99와 101 이상 사이의 100)은 바로 위 구간, 가장 낮은 구간보다 작으면 첫 구간
   function pickGuideRule(rules, cat, target) {
     const list = rules.filter(r => r.cat === cat).sort((a, b) => a.min - b.min);
@@ -3433,7 +3439,8 @@ window.toggleProdPanel = function(e) {
     gradeMatchOn = true;
     adlogAutoOn = true;
     scheduleConfig = null;
-    scheduleDraftRows = [{ time: '10:00', pct: 100 }];
+    // 가이드_접수면 시간 분할 편집기 기본값 = 가이드 시간 분배
+    scheduleDraftRows = guideModeOn && guideTimes.length ? guideTimes.map(t => ({ ...t })) : [{ time: '10:00', pct: 100 }];
     scheduleKwSplit = false;
     scheduleKwSplitDraft = { on:false };
     return renderSubmitModal(target);
