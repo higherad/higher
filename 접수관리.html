@@ -852,9 +852,13 @@ window.toggleProdPanel = function(e) {
   }; */
 
   // ── 접수 처리 ─────────────────────────────────────────────
+  // 승인 건을 대기·접수로 되돌리면 승인 때 붙인 배지·유입플 분류를 지움 — 다시 승인하면 그때 값으로 새로 계산(캐시 차감은 수동 처리)
+  const unapprovePatch = key => allSlots.find(x => x._key === key)?.status === 'active'
+    ? { campaignType: null, fullstackType: null, yupflTarget: null, yupflAmount: null } : {};
   window.acceptOne = async function(key) {
-    await HI.updateCampaign(key, { status: 'accepted' });
-    updateLocalSlot(key, { status: 'accepted' });
+    const patch = { status: 'accepted', ...unapprovePatch(key) };
+    await HI.updateCampaign(key, patch);
+    updateLocalSlot(key, patch);
     closeOverlayAndRefresh();
   };
 
@@ -924,8 +928,9 @@ window.toggleProdPanel = function(e) {
   window.changeStatusTo = async function(key, newStatus) {
     const labelMap = { pending: '대기', accepted: '접수', active: '승인' };
     if (!confirm(`상태를 "${labelMap[newStatus]}"(으)로 변경하시겠습니까?`)) return;
-    await HI.updateCampaign(key, { status: newStatus });
-    updateLocalSlot(key, { status: newStatus });
+    const patch = { status: newStatus, ...(newStatus !== 'active' ? unapprovePatch(key) : {}) };
+    await HI.updateCampaign(key, patch);
+    updateLocalSlot(key, patch);
     closeOverlayAndRefresh();
     if (newStatus === 'active') await autoStampSettlement([allSlots.find(x => x._key === key)]);
   };
