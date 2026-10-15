@@ -90,7 +90,6 @@ const P = {
   detailLocks:    `${ROOT}/detail_locks`,
   bizfitCharge:   `${ROOT}/bizfit_charge`,
   versionCheck:   `${ROOT}/version_check_account`,
-  guideRatio:     `${ROOT}/guide_ratio`,    // 가이드_접수 리워드:유입플 비율 {reward, yupfl} — 전 직원 공용
 };
 
 const CLOSED_STATUSES   = new Set(['expired', 'deleted']);
@@ -764,8 +763,6 @@ const HI = {
   kwCategoryOf,
   async getKwCategories() { return Object.values((await get(ref(db, P.kwCategories))).val() || {}); },
   saveKwCategories(list) { return set(ref(db, P.kwCategories), list); },
-  async getGuideRatio() { return (await get(ref(db, P.guideRatio))).val(); },
-  saveGuideRatio(r) { return set(ref(db, P.guideRatio), r); },
   async getAdClassify() { return (await get(ref(db, P.adClassify))).val() || { groups: null, result: null }; },
   saveAdClassifyGroups(groups) { return set(ref(db, `${P.adClassify}/groups`), groups); },
   async getAdClassifyDaily() { return (await get(ref(db, `${P.adClassify}/daily`))).val() || {}; },
