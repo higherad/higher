@@ -118,6 +118,17 @@ function minuteKey(iso) {
   return `${ymd(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 // 정산 묶음 = 접수 분 단위 시각(브라우저 KST) + 대행사 + 유저
+// [[이름, 비율], ...]을 total에 최대 잔여 방식으로 나눔 → {이름: 수량>0}
+function lrmSplit(items, total) {
+  const w = items.reduce((a, [, r]) => a + r, 0);
+  if (!w || !(total > 0)) return {};
+  const exact = items.map(([, r]) => total * r / w), out = exact.map(Math.floor);
+  let left = total - out.reduce((a, v) => a + v, 0);
+  exact.map((v, i) => [v - out[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left-- > 0) out[i]++; });
+  const res = {};
+  items.forEach(([n], i) => { if (out[i] > 0) res[n] = (res[n] || 0) + out[i]; });
+  return res;
+}
 function groupKeyParts(slot) {
   return [minuteKey(slot.createdAt), slot.agencyId || '-', slot.userId || '-'];
 }
@@ -883,9 +894,25 @@ const HI = {
     const yupQty = vend.reduce((a, [, n]) => a + n, 0) * days;
     return { amount: (total - yupQty) * price + yupfl, yupfl, missing: vend.filter(([v]) => !(Number(vp[v]) > 0)).map(([v]) => v) };
   },
+  // 상품별 수량이 아직 없는 캠페인(승인 전·이전 승인 건)의 예정 배분 — 접수관리 배분과 같은 순서의 근사:
+  // 차감(저장값 또는 설정 %) → 유입플(저장값, 없으면 비고 비율·유입플 설정 %, 업체는 설정 %) → 나머지 리워드(캠페인타입 균등, 없으면 켜진 일반 상품 비율)
+  estimateAlloc(s, prods = []) {
+    const daily = s.dailyTarget || 0, days = s.days || 1;
+    const on = p => p && p.active;
+    const dp = prods.find(p => p?.deductOnly), yp = prods.find(p => p?.classifyOnly);
+    const ded = s.deductTarget != null ? Math.round(s.deductTarget / days) : on(dp) ? Math.round(daily * (dp.fixedPct || 0) / 100) : 0;
+    const pct = s.yupflRatio ? s.yupflRatio.yupfl / (s.yupflRatio.reward + s.yupflRatio.yupfl) * 100 : on(yp) ? (yp.fixedPct || 0) : 0;
+    const yup = s.yupflTarget != null ? s.yupflTarget : Math.round(Math.max(0, daily - ded) * pct / 100);
+    const vendors = (yp?.vendors?.length ? yp.vendors : [{ name: '풀스택', ratio: 100 }]).map(v => [v.name, v.ratio]);
+    const types = Array.isArray(s.campaignType) ? s.campaignType : Object.values(s.campaignType || {});
+    const rewardSplit = types.length ? types.map(n => [n, 1])
+      : prods.filter(p => on(p) && !p.fixedAlloc && p.ratio > 0).map(p => [p.name, p.ratio]);
+    return { rewardByProd: lrmSplit(rewardSplit, Math.max(0, daily - ded - yup)), yupflByVendor: s.yupflByVendor || lrmSplit(vendors, yup) };
+  },
   // 캠페인 지출(원가) — 승인 때 고정한 리워드 상품별(rewardByProd)·유입플 업체별(yupflByVendor) 일 수량 × 일수 × 원가(hi/costs).
-  // 분류 전(rewardByProd 없음 = 미승인·이전 승인 건)은 classified:false, 원가 없는 상품·업체는 0 + missing
-  slotCost(s, costs) {
+  // 상품별 수량 없는 캠페인은 estimateAlloc(prods)로 예정 금액(estimated:true). 원가 없는 상품·업체는 0 + missing
+  slotCost(s, costs, prods) {
+    if (!s.rewardByProd) return { ...HI.slotCost({ ...s, ...HI.estimateAlloc(s, prods) }, costs), estimated: true };
     const days = s.days || 0, rc = costs?.reward || {}, yc = costs?.yupfl || {}, missing = [];
     const sum = (byName, table) => Object.entries(byName || {}).reduce((a, [k, n]) => {
       if (!(n > 0)) return a;
@@ -895,7 +922,7 @@ const HI = {
     const reward = sum(s.rewardByProd, rc);
     const yupfl = Object.fromEntries(Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0).map(([v, n]) => [v, sum({ [v]: n }, yc)]));
     const total = reward + Object.values(yupfl).reduce((a, v) => a + v, 0);
-    return { classified: !!s.rewardByProd, reward, yupfl, total, missing };
+    return { estimated: false, reward, yupfl, total, missing };
   },
   async getCosts() { return (await get(ref(db, P.costs))).val() || { reward: {}, yupfl: {} }; },
   async getCostSnapshots() { return (await get(ref(db, P.costSnapshots))).val() || {}; },

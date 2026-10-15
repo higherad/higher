@@ -194,8 +194,14 @@ assert.equal(HI.slotBill({ dailyTarget: 10, days: 1, unitPrice: 50, yupflByVendo
 // 지출: 리워드 상품별·유입플 업체별 수량 × 일수 × 원가, 원가 없으면 0 + missing
 const costs = { reward: { 블랙: 10, 올리브: 12 }, yupfl: { 풀스택: 8 } };
 assert.deepEqual(HI.slotCost({ days: 2, rewardByProd: { 블랙: 30, 올리브: 30 }, yupflByVendor: { 풀스택: 28, 제이엔: 12 } }, costs),
-  { classified: true, reward: 30 * 2 * 10 + 30 * 2 * 12, yupfl: { 풀스택: 28 * 2 * 8, 제이엔: 0 }, total: 1320 + 448, missing: ['제이엔'] });
-assert.equal(HI.slotCost({ days: 2, dailyTarget: 100 }, costs).classified, false, '승인 전·이전 건은 분류 전');
+  { estimated: false, reward: 30 * 2 * 10 + 30 * 2 * 12, yupfl: { 풀스택: 28 * 2 * 8, 제이엔: 0 }, total: 1320 + 448, missing: ['제이엔'] });
+// 승인 전: 차감 10% → 유입플 50%(풀스택) → 리워드 블랙:올리브 5:5 = 차감 10 · 유입플 45 · 블랙 23 · 올리브 22
+const prodsEst = [{ name: '블랙', active: true, ratio: 5 }, { name: '올리브', active: true, ratio: 5 },
+  { name: '차감', deductOnly: true, fixedAlloc: true, active: true, fixedPct: 10 }, { name: '유입플', classifyOnly: true, fixedAlloc: true, active: true, fixedPct: 50, vendors: [{ name: '풀스택', ratio: 100 }] }];
+assert.deepEqual(HI.estimateAlloc({ dailyTarget: 100, days: 1 }, prodsEst), { rewardByProd: { 블랙: 23, 올리브: 22 }, yupflByVendor: { 풀스택: 45 } });
+assert.equal(HI.slotCost({ dailyTarget: 100, days: 1 }, costs, prodsEst).estimated, true);
+// 이전 승인(캠페인타입 있음, 유입플 저장값): 리워드는 캠페인타입 균등
+assert.deepEqual(HI.estimateAlloc({ dailyTarget: 100, days: 2, deductTarget: 20, yupflTarget: 40, campaignType: ['블랙', '카키'] }, prodsEst).rewardByProd, { 블랙: 25, 카키: 25 });
 
 // 지출 고정은 없는 키만 — 이미 고정된 묶음은 덮지 않음
 assert.equal(await HI.freezeCostSnapshots({ g1: { total: 100 } }), 1);

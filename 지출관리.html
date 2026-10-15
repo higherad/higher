@@ -1,9 +1,14 @@
 <div id="cost-page">
 <style>
-  #cost-page .summary-grid { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
-  #cost-page .sum-card { flex:1 1 150px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
+  /* 카드·팝업은 정산관리와 같은 모양(sum-card·sp-*) */
+  #cost-page .summary-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:16px; }
+  #cost-page .sum-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
   #cost-page .sum-card .sc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
-  #cost-page .sum-card .sc-value { font-size:20px; font-weight:800; line-height:1; }
+  #cost-page .sum-card .sc-value { font-size:24px; font-weight:800; line-height:1; }
+  #cost-page .sum-card .sc-sub { font-size:11px; color:var(--muted); }
+  #cost-page .sum-card.clickable { cursor:pointer; }
+  #cost-page .sum-card.clickable:hover { border-color:#cbd5e1; background:#f8fafc; }
+  #cost-page .sum-card.clickable .sc-label::after { content:' ↗'; font-size:10px; opacity:.6; }
   #cost-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
   #cost-page input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
   #cost-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
@@ -12,20 +17,37 @@
   #cost-page tbody td { padding:10px 7px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #cost-page tbody tr:hover { background:#f8fafc; }
   #cost-page .action-btn { padding:6px 14px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
-  #cost-page .need { color:var(--danger); font-weight:700; }
-  #cost-page .pagination { display:flex; justify-content:center; gap:4px; margin-top:14px; }
-  #cost-page .pg-btn { min-width:30px; padding:5px 8px; border:1px solid var(--border); background:#fff; border-radius:6px; font-size:12px; cursor:pointer; }
-  #cost-page .pg-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-  .cost-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:flex; align-items:center; justify-content:center; padding:20px; }
-  .cost-box { background:#fff; border-radius:16px; width:min(96vw,520px); max-height:85vh; overflow-y:auto; padding:24px 28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
-  .cost-box h3 { font-size:17px; margin:0 0 4px; }
-  .cost-box .sub { font-size:12px; color:var(--muted); margin-bottom:14px; }
-  .cost-box .sect { font-size:12px; font-weight:700; color:var(--text2); margin:14px 0 6px; }
-  .cost-box .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; }
-  .cost-box label { display:block; font-size:12px; color:var(--text2); margin-bottom:3px; }
-  .cost-box input { width:100%; box-sizing:border-box; padding:7px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; }
-  .cost-box .footer { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
-  .cost-box .footer button { padding:8px 18px; border-radius:7px; font-size:13px; cursor:pointer; font-family:inherit; }
+  .cost-need { color:var(--danger); font-weight:700; }
+  .cost-pagination { display:flex;justify-content:center;gap:5px;margin-top:16px; }
+  .cost-pagination .pg-btn { width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center; }
+  .cost-pagination .pg-btn.active { background:var(--info);color:#fff;border-color:var(--info); }
+  .sp-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px; }
+  .total-popup-box { background:#fff;border-radius:16px;width:660px;max-height:85vh;overflow-y:auto;overscroll-behavior:contain;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  .sp-title { font-size:17px;font-weight:800;margin-bottom:2px; }
+  .sp-sub { font-size:12px;color:var(--muted);margin-bottom:16px; }
+  .sp-cards { display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px; }
+  .sp-card { background:#f8fafc;border-radius:10px;padding:14px 16px;position:relative;overflow:hidden;text-align:center; }
+  .sp-card::after { content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--border); }
+  .sp-card.c-red::after   { background:var(--danger); }
+  .sp-card.c-blue::after  { background:var(--info); }
+  .sp-card.c-purple::after { background:#7c3aed; }
+  .sp-card-label { font-size:11px;color:var(--text2);font-weight:600;margin-bottom:8px; }
+  .sp-card-value { font-size:20px;font-weight:800;line-height:1; }
+  .sp-section { font-size:13px;font-weight:700;margin-bottom:8px;margin-top:16px;color:var(--text); }
+  .sp-tbl { width:100%;border-collapse:collapse;font-size:12px; }
+  .sp-tbl th { background:#1e293b;color:#fff;padding:8px 8px;font-weight:500;text-align:center;white-space:nowrap; }
+  .sp-tbl td { padding:8px 8px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2);white-space:nowrap; }
+  .sp-tbl tr:last-child td { border-bottom:none; }
+  .sp-footer { display:flex;justify-content:flex-end;gap:10px;margin-top:20px; }
+  .btn-close-sp { padding:9px 24px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit; }
+  .cost-row { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
+  .cost-row input { padding:7px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box; }
+  .cost-row .c-name { flex:1; min-width:0; }
+  .cost-row .c-price { width:110px; text-align:right; }
+  .cost-row .c-del { border:none; background:transparent; color:var(--danger); cursor:pointer; font-size:14px; }
+  .cost-add { border:1px dashed var(--border); background:transparent; border-radius:7px; padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text2); font-family:inherit; }
+  .btn-save-sp { padding:9px 24px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit; }
+  @media (max-width: 900px) { #cost-page .summary-grid { grid-template-columns:repeat(2,1fr); } .sp-cards { grid-template-columns:1fr; } }
 </style>
 
 <div class="summary-grid" id="cost-summary"></div>
@@ -47,7 +69,7 @@
     <tbody id="cost-body"><tr><td colspan="8" style="padding:40px;color:var(--muted)">불러오는 중...</td></tr></tbody>
   </table>
 </div>
-<div class="pagination" id="cost-pg"></div>
+<div class="cost-pagination" id="cost-pg"></div>
 </div>
 
 <script>
@@ -56,15 +78,17 @@
   // 원가 = 승인 때 고정한 리워드 상품별·유입플 업체별 일 수량 × 일수 × 원가(HI.slotCost). 보기 전용(지급 처리 없음)
   // 회계 기록이라 묶음 금액은 한 번 고정(hi/cost_snapshots) 후 안 바뀜 — 고정 전 묶음만 현재 원가로 실시간.
   // 고정 시점: 페이지 열 때(지난 날짜) + 원가 저장 직전(오늘 것까지 옛 원가로). 원가 미설정·승인 전 건이 남은 묶음은 고정 보류
-  const PER = 50;
-  let slots = [], costs = { reward: {}, yupfl: {} }, snaps = {}, prods = [], page = 1, rows = [], vendors = [];
+  const PER = 50, POP_PER = 12;
+  let slots = [], costs = { reward: {}, yupfl: {} }, snaps = {}, prods = [], page = 1, rows = [], allRows = [], vendors = [];
   const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const won = n => `${Math.round(n).toLocaleString()}원`;
   const pad = n => String(n).padStart(2, '0');
   const ymdOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const minuteKey = iso => { if (!iso) return 'unknown'; const d = new Date(iso); return `${ymdOf(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-  const todayStr = ymdOf(new Date());
+  const todayStr = ymdOf(new Date()), curYM = todayStr.slice(0, 7);
+  const yupSum = r => Object.values(r.yupfl || {}).reduce((a, v) => a + v, 0);
 
+  // 원가 설정 이름 후보(입력 자동완성) — 상품 유형 설정·승인 기록·저장된 원가
   function namesFromData() {
     const reward = new Set(prods.filter(p => p && !p.deductOnly && !p.classifyOnly).map(p => p.name));
     const yup = new Set((prods.find(p => p && p.classifyOnly)?.vendors || []).map(v => v.name));
@@ -75,7 +99,7 @@
     return { reward: [...reward], yupfl: [...yup] };
   }
 
-  // 전체 묶음 — 현재 원가로 계산(live). 고정된 묶음은 고정값으로 바꿔 끼움
+  // 전체 묶음 — 현재 원가로 계산(live)
   function liveGroups(withCosts) {
     const map = new Map();
     slots.filter(HI.isBillable).forEach(s => {
@@ -84,12 +108,12 @@
       map.get(k).slots.push(s);
     });
     return [...map.values()].map(g => {
-      const r = { key: g.key, t: g.t, agency: g.agency, count: g.slots.length, tgt: 0, reward: 0, yupfl: {}, total: 0, missing: [], unclassified: 0,
+      const r = { key: g.key, t: g.t, agency: g.agency, count: g.slots.length, tgt: 0, reward: 0, yupfl: {}, total: 0, missing: [], estimated: 0,
         open: g.slots.some(s => s.status === 'pending' || s.status === 'accepted') };
       g.slots.forEach(s => {
         r.tgt += (s.dailyTarget || 0) * (s.days || 0);
-        const c = HI.slotCost(s, withCosts);
-        if (!c.classified) { r.unclassified++; return; }
+        const c = HI.slotCost(s, withCosts, prods);
+        if (c.estimated) r.estimated++;
         r.reward += c.reward; r.total += c.total;
         Object.entries(c.yupfl).forEach(([v, a]) => { r.yupfl[v] = (r.yupfl[v] || 0) + a; });
         r.missing.push(...c.missing);
@@ -98,11 +122,11 @@
       return r;
     });
   }
-  // 오늘 이전(beforeSave면 5분 이전 접수까지) + 승인 전 건 없음 + 원가 다 있음 + 분류된 건 있음 → 고정 대상
+  // 오늘 이전(beforeSave면 5분 이전 접수까지) + 승인 전 건 없음 + 원가 다 있음 → 고정 대상(이전 승인 건의 예정 금액도 그대로 고정)
   async function freezePast(withCosts, beforeSave = false) {
     const map = {}, cut = beforeSave ? minuteKey(new Date(Date.now() - 5 * 60000).toISOString()) : todayStr;
     liveGroups(withCosts).forEach(r => {
-      if (snaps[r.key] || r.t >= cut || r.open || r.missing.length || r.unclassified === r.count) return; // 전부 분류 전(이전 승인)은 고정할 금액 없음
+      if (snaps[r.key] || r.t >= cut || r.open || r.missing.length) return;
       const { key, missing, open, ...rec } = r;
       map[key] = { ...rec, frozenAt: new Date().toISOString(), frozenBy: HI.getCurrentUser()?.username || '-' };
     });
@@ -110,44 +134,64 @@
     await HI.freezeCostSnapshots(map);
     snaps = await HI.getCostSnapshots();
   }
-  function groupRows() {
-    const from = document.getElementById('cf-from').value, to = document.getElementById('cf-to').value;
-    const kw = (document.getElementById('cf-kw').value || '').trim().toLowerCase();
-    const live = new Map(liveGroups(costs).map(r => [r.key, r]));
-    // 고정된 묶음은 캠페인이 휴지통으로 가도 장부에 남음
-    Object.entries(snaps).forEach(([k, sn]) => live.set(k, { ...sn, key: k, missing: [], frozen: true }));
-    return [...live.values()].filter(r => {
-      const d = r.t.slice(0, 10);
-      return !((from && d < from) || (to && d > to)) && (!kw || (r.agency || '').toLowerCase().includes(kw));
-    }).sort((a, b) => b.t.localeCompare(a.t));
+  // 고정 묶음은 고정값으로(캠페인이 휴지통으로 가도 장부에 남음), 나머지는 live
+  function buildAllRows() {
+    const m = new Map(liveGroups(costs).map(r => [r.key, r]));
+    Object.entries(snaps).forEach(([k, sn]) => m.set(k, { ...sn, key: k, missing: [], frozen: true }));
+    return [...m.values()].sort((a, b) => b.t.localeCompare(a.t));
+  }
+
+  // 기간별 합계 — keyOf(묶음 접수일시) 기준으로 묶음 합산
+  function aggregate(list, keyOf) {
+    const out = {};
+    list.forEach(r => {
+      const k = keyOf(r.t);
+      if (!k) return;
+      const a = out[k] ||= { count: 0, tgt: 0, reward: 0, yupfl: 0, total: 0 };
+      a.count += r.count || 0; a.tgt += r.tgt || 0; a.reward += r.reward || 0; a.yupfl += yupSum(r); a.total += r.total || 0;
+    });
+    return out;
+  }
+
+  function renderSummary() {
+    const all = aggregate(allRows, () => 'all').all || { count: 0, total: 0 };
+    const month = aggregate(allRows, t => t.slice(0, 7) === curYM ? 'm' : null).m || { count: 0, total: 0, reward: 0, yupfl: 0 };
+    const today = aggregate(allRows, t => t.slice(0, 10) === todayStr ? 'd' : null).d || { count: 0, total: 0 };
+    const unit = '<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span>';
+    const card = (cls, onclick, label, v, color, sub) => `<div class="sum-card${onclick ? ' clickable' : ''}"${onclick ? ` onclick="${onclick}"` : ''}>
+        <div class="sc-label">${label}</div><div class="sc-value" style="color:${color}">${Math.round(v).toLocaleString()}${unit}</div><div class="sc-sub">${sub}</div></div>`;
+    document.getElementById('cost-summary').innerHTML =
+      card('', 'openCostYearPopup()', '총 지출액(VAT 별도)', all.total, 'var(--danger)', `${all.count}건 전체`)
+      + card('', 'openCostMonthPopup()', `당월 지출액 (${Number(curYM.slice(5))}월)`, month.total, 'var(--danger)', `${month.count}건`)
+      + card('', 'openCostDayPopup()', `당일 지출액 (${todayStr})`, today.total, 'var(--info)', `${today.count}건`)
+      + card('', '', '당월 리워드', month.reward, 'var(--text)', '리워드 상품 원가')
+      + card('', '', '당월 유입플', month.yupfl, '#7c3aed', '유입플 업체 원가');
   }
 
   window.renderCost = function(keepPage) {
     if (!document.getElementById('cost-page')) return;
     if (!keepPage) page = 1;
-    rows = groupRows();
+    allRows = buildAllRows();
+    renderSummary();
+    const from = document.getElementById('cf-from').value, to = document.getElementById('cf-to').value;
+    const kw = (document.getElementById('cf-kw').value || '').trim().toLowerCase();
+    rows = allRows.filter(r => { const d = r.t.slice(0, 10); return !((from && d < from) || (to && d > to)) && (!kw || (r.agency || '').toLowerCase().includes(kw)); });
     vendors = namesFromData().yupfl;
-    // 요약 카드 — 조회 기간 합계
-    const sum = rows.reduce((a, r) => { a.total += r.total; a.reward += r.reward; vendors.forEach(v => { a.y[v] = (a.y[v] || 0) + (r.yupfl[v] || 0); }); return a; }, { total: 0, reward: 0, y: {} });
-    const card = (label, v, color) => `<div class="sum-card"><div class="sc-label">${esc(label)}</div><div class="sc-value" style="color:${color}">${won(v)}</div></div>`;
-    document.getElementById('cost-summary').innerHTML = card('지출 합계(VAT 별도)', sum.total, 'var(--danger)')
-      + card('리워드', sum.reward, 'var(--text)') + vendors.map(v => card(`유입플 · ${v}`, sum.y[v] || 0, '#7c3aed')).join('');
-    document.getElementById('cost-head').innerHTML = `<tr><th>접수일시</th><th>대행사</th><th>캠페인 수</th><th>전체 목표 합산</th><th>리워드</th>${vendors.map(v => `<th style="color:#c4b5fd">${esc(v)}</th>`).join('')}<th>지출 합계(VAT 별도)</th></tr>`;
+    document.getElementById('cost-head').innerHTML = `<tr><th>접수일시</th><th>대행사</th><th>캠페인 수</th><th>전체 목표 합산</th><th>리워드</th>${vendors.map(v => `<th style="color:#c4b5fd">${esc(v)}</th>`).join('')}<th>지출 합계(VAT 별도)</th><th>지출 합계(VAT 포함)</th></tr>`;
     const body = document.getElementById('cost-body');
-    const cols = 6 + vendors.length;
     const list = rows.slice((page - 1) * PER, page * PER);
-    if (!list.length) { body.innerHTML = `<tr><td colspan="${cols}" style="padding:40px;color:var(--muted)">데이터가 없습니다.</td></tr>`; document.getElementById('cost-pg').innerHTML = ''; return; }
+    if (!list.length) { body.innerHTML = `<tr><td colspan="${7 + vendors.length}" style="padding:40px;color:var(--muted)">데이터가 없습니다.</td></tr>`; document.getElementById('cost-pg').innerHTML = ''; return; }
     body.innerHTML = list.map(r => {
       const rewardMissing = r.missing.filter(n => !vendors.includes(n));
-      const total = r.total > 0 || !r.unclassified ? `<strong style="color:var(--danger)">${won(r.total)}</strong>` : '-';
       return `<tr>
-        <td style="color:var(--text2);font-size:11px">${esc(r.t)}${r.frozen ? ' <span title="지난 날짜 — 금액 고정" style="color:var(--muted)">🔒</span>' : ''}</td>
+        <td style="color:var(--text2);font-size:11px">${esc(r.t)}${r.frozen ? ' <span title="금액 고정" style="color:var(--muted)">🔒</span>' : ''}</td>
         <td style="font-weight:700">${esc(r.agency)}</td>
         <td>${r.count}건</td>
         <td><strong>${(r.tgt || 0).toLocaleString()}</strong></td>
-        <td>${rewardMissing.length ? `<span class="need" title="${esc(rewardMissing.join(', '))}">원가 설정 필요</span>` : r.reward ? won(r.reward) : '-'}</td>
-        ${vendors.map(v => `<td style="color:#7c3aed">${r.missing.includes(v) ? '<span class="need">원가 설정 필요</span>' : r.yupfl?.[v] ? won(r.yupfl[v]) : '-'}</td>`).join('')}
-        <td>${total}${r.unclassified ? `<div style="font-size:10px;color:var(--muted)">승인 전·분류 전 ${r.unclassified}건 제외</div>` : ''}</td>
+        <td>${rewardMissing.length ? `<span class="cost-need" title="${esc(rewardMissing.join(', '))}">원가 설정 필요</span>` : r.reward ? won(r.reward) : '-'}</td>
+        ${vendors.map(v => `<td style="color:#7c3aed">${r.missing.includes(v) ? '<span class="cost-need">원가 설정 필요</span>' : r.yupfl?.[v] ? won(r.yupfl[v]) : '-'}</td>`).join('')}
+        <td><strong style="color:var(--danger)">${won(r.total)}</strong>${r.estimated ? `<div style="font-size:10px;color:#b45309" title="승인 전이거나 상품별 수량 기록 전 승인 건 — 상품 유형 설정 비율로 계산한 예정 금액">예정 ${r.estimated}건 포함</div>` : ''}</td>
+        <td style="font-weight:700;color:var(--info)">${won(Math.round(r.total * 1.1))}</td>
       </tr>`;
     }).join('');
     const pages = Math.ceil(rows.length / PER) || 1;
@@ -155,25 +199,83 @@
   };
   window.goCostPage = n => { page = n; renderCost(true); };
 
-  // 원가 설정 — 리워드 상품별·유입플 업체별(전 직원 공용 hi/costs)
-  window.openCostModal = function() {
-    const names = namesFromData();
-    const field = (grp, n) => `<div><label>${esc(n)}</label><input type="number" min="0" class="cost-in" data-grp="${grp}" data-name="${esc(n)}" value="${(costs[grp] || {})[n] || ''}" placeholder="미설정"></div>`;
+  // ── 카드 팝업(정산관리 팝업과 같은 디자인) ── keyLabel = 첫 열 이름, data = {키: 합계}
+  function openPeriodPopup(title, sub, keyLabel, data) {
+    const keys = Object.keys(data).sort().reverse();
+    const sum = keys.reduce((a, k) => { a.total += data[k].total; a.reward += data[k].reward; a.yupfl += data[k].yupfl; return a; }, { total: 0, reward: 0, yupfl: 0 });
     const ov = document.createElement('div');
-    ov.className = 'cost-overlay';
-    ov.innerHTML = `<div class="cost-box">
-      <h3>원가 설정</h3>
-      <div class="sub">개당 원가(원, VAT 별도) · 전 직원 공용 · 비워 두면 '원가 설정 필요'</div>
-      <div class="sect">리워드 상품</div><div class="grid">${names.reward.map(n => field('reward', n)).join('') || '<span style="color:var(--muted);font-size:12px">상품 없음</span>'}</div>
-      <div class="sect">유입플 업체</div><div class="grid">${names.yupfl.map(n => field('yupfl', n)).join('') || '<span style="color:var(--muted);font-size:12px">업체 없음</span>'}</div>
-      <div class="footer"><button style="border:1px solid var(--border);background:#fff" id="cost-cancel">취소</button><button style="border:none;background:var(--accent);color:#fff;font-weight:600" id="cost-save">저장</button></div>
+    ov.className = 'sp-overlay';
+    ov.innerHTML = `<div class="total-popup-box" style="width:800px">
+      <div class="sp-title">${title}</div>
+      <div class="sp-sub">${sub}</div>
+      <div class="sp-cards">
+        <div class="sp-card c-red"><div class="sp-card-label">지출 합계(VAT 별도)</div><div class="sp-card-value" style="color:var(--danger)">${won(sum.total)}</div></div>
+        <div class="sp-card c-blue"><div class="sp-card-label">리워드</div><div class="sp-card-value" style="color:var(--info)">${won(sum.reward)}</div></div>
+        <div class="sp-card c-purple"><div class="sp-card-label">유입플</div><div class="sp-card-value" style="color:#7c3aed">${won(sum.yupfl)}</div></div>
+      </div>
+      <div class="sp-section">${keyLabel}별 합산</div>
+      <table class="sp-tbl">
+        <thead><tr><th>${keyLabel}</th><th>캠페인 수</th><th>전체 목표 합산</th><th>리워드</th><th>유입플</th><th>지출 합계(VAT 별도)</th><th>지출 합계(VAT 포함)</th></tr></thead>
+        <tbody class="pp-body"></tbody>
+      </table>
+      <div class="cost-pagination pp-pg" style="margin-top:12px;"></div>
+      <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
     </div>`;
     document.body.appendChild(ov);
+    ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+    let cur = 1;
+    const draw = () => {
+      const pages = Math.ceil(keys.length / POP_PER) || 1;
+      const slice = keys.slice((cur - 1) * POP_PER, cur * POP_PER);
+      ov.querySelector('.pp-body').innerHTML = slice.length ? slice.map(k => { const v = data[k]; return `<tr><td style="font-weight:600">${k}</td><td>${v.count}건</td><td>${v.tgt.toLocaleString()}</td><td>${won(v.reward)}</td><td style="color:#7c3aed">${won(v.yupfl)}</td><td style="font-weight:700;color:var(--danger)">${won(v.total)}</td><td style="font-weight:700;color:var(--info)">${won(Math.round(v.total * 1.1))}</td></tr>`; }).join('')
+        : '<tr><td colspan="7" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>';
+      ov.querySelector('.pp-pg').innerHTML = pages < 2 ? '' : Array.from({ length: pages }, (_, i) => `<button class="pg-btn${i + 1 === cur ? ' active' : ''}" data-pg="${i + 1}">${i + 1}</button>`).join('');
+    };
+    ov.querySelector('.pp-pg').addEventListener('click', e => { const b = e.target.closest('[data-pg]'); if (b) { cur = +b.dataset.pg; draw(); } });
+    draw();
+  }
+  window.openCostYearPopup = () => openPeriodPopup('연도별 지출 현황', '전체 기간 · 연도별 합산', '연도', aggregate(allRows, t => t.slice(0, 4)));
+  window.openCostMonthPopup = () => openPeriodPopup('월별 지출 내역', '전체 기간 · 월별 합산', '월', aggregate(allRows, t => t.slice(0, 7)));
+  window.openCostDayPopup = () => openPeriodPopup(`${curYM.slice(0, 4)}년 ${Number(curYM.slice(5))}월 일자별 지출`, `${curYM} · 일자별 합산`, '날짜', aggregate(allRows, t => t.slice(0, 7) === curYM ? t.slice(0, 10) : null));
+
+  // ── 원가 설정 — 리워드·유입플 각각 '추가'로 이름+원가 행(전 직원 공용 hi/costs) ──
+  window.openCostModal = function() {
+    const names = namesFromData();
+    const row = (grp, n = '', v = '') => `<div class="cost-row" data-grp="${grp}">
+        <input class="c-name" list="cost-names-${grp}" value="${esc(n)}" placeholder="${grp === 'reward' ? '리워드 상품명' : '유입플 업체명'}">
+        <input class="c-price" type="number" min="0" value="${v}" placeholder="원가(원)">
+        <button type="button" class="c-del" title="삭제">✕</button></div>`;
+    const section = (grp, title) => `<div class="sp-section">${title}</div>
+      <div class="cost-rows" data-grp="${grp}">${Object.entries(costs[grp] || {}).map(([n, v]) => row(grp, n, v)).join('')}</div>
+      <button type="button" class="cost-add" data-grp="${grp}">+ ${title} 추가</button>
+      <datalist id="cost-names-${grp}">${names[grp].map(n => `<option value="${esc(n)}">`).join('')}</datalist>`;
+    const ov = document.createElement('div');
+    ov.className = 'sp-overlay';
+    ov.innerHTML = `<div class="total-popup-box" style="width:min(96vw,480px)">
+      <div class="sp-title">원가 설정</div>
+      <div class="sp-sub">개당 원가(원, VAT 별도) · 전 직원 공용 · 없는 상품·업체는 '원가 설정 필요' · 이미 고정(🔒)된 금액은 안 바뀜</div>
+      ${section('reward', '리워드')}
+      ${section('yupfl', '유입플')}
+      <div class="sp-footer"><button class="btn-close-sp" id="cost-cancel">취소</button><button class="btn-save-sp" id="cost-save">저장</button></div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e => {
+      if (e.target === ov) return ov.remove();
+      const add = e.target.closest('.cost-add');
+      if (add) { ov.querySelector(`.cost-rows[data-grp="${add.dataset.grp}"]`).insertAdjacentHTML('beforeend', row(add.dataset.grp)); ov.querySelector(`.cost-rows[data-grp="${add.dataset.grp}"] .cost-row:last-child .c-name`).focus(); }
+      if (e.target.closest('.c-del')) e.target.closest('.cost-row').remove();
+    });
     ov.querySelector('#cost-cancel').onclick = () => ov.remove();
-    ov.onclick = e => { if (e.target === ov) ov.remove(); };
     ov.querySelector('#cost-save').onclick = async () => {
       const next = { reward: {}, yupfl: {} };
-      ov.querySelectorAll('.cost-in').forEach(i => { const v = Number(i.value) || 0; if (v > 0) next[i.dataset.grp][i.dataset.name] = v; });
+      for (const r of ov.querySelectorAll('.cost-row')) {
+        const n = r.querySelector('.c-name').value.trim(), v = Number(r.querySelector('.c-price').value) || 0;
+        if (!n && !v) continue;
+        if (!n || !(v > 0)) return alert('이름과 0보다 큰 원가를 함께 입력해 주세요.');
+        if (/[.#$\[\]\/]/.test(n)) return alert(`이름에 . # $ [ ] / 는 쓸 수 없습니다: ${n}`);
+        if (next[r.dataset.grp][n] != null) return alert(`같은 이름이 두 번 있습니다: ${n}`);
+        next[r.dataset.grp][n] = v;
+      }
       try {
         await freezePast(costs, true); // 바꾸기 전 원가로 오늘 들어온 묶음까지 먼저 고정(5분 이내 접수는 같은 분 일괄 접수가 덜 들어왔을 수 있어 제외)
         await HI.saveCosts(next);
@@ -186,12 +288,11 @@
     if (!rows.length) return alert('다운로드할 데이터가 없습니다.');
     if (!window.XLSX) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('엑셀 라이브러리를 불러오지 못했습니다.')); document.head.appendChild(s); }).catch(e => alert(e.message));
     if (!window.XLSX) return;
-    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '원가 설정 필요', '분류 전 건수'];
-    const header2 = [...header, '고정'];
-    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.reward, ...vendors.map(v => r.yupfl?.[v] || 0), r.total, r.missing.join(', '), r.unclassified, r.frozen ? 'O' : '']);
+    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '지출 합계(VAT 포함)', '원가 설정 필요', '예정 건수', '고정'];
+    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.reward, ...vendors.map(v => r.yupfl?.[v] || 0), r.total, Math.round(r.total * 1.1), r.missing.join(', '), r.estimated || 0, r.frozen ? 'O' : '']);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header2, ...data]), '지출');
-    XLSX.writeFile(wb, `지출내역_${ymdOf(new Date()).replace(/-/g, '')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), '지출');
+    XLSX.writeFile(wb, `지출내역_${todayStr.replace(/-/g, '')}.xlsx`);
   };
 
   (async function init() {
@@ -201,7 +302,7 @@
     }
     const now = new Date();
     document.getElementById('cf-from').value = ymdOf(new Date(now.getFullYear(), now.getMonth(), 1));
-    document.getElementById('cf-to').value = ymdOf(now);
+    document.getElementById('cf-to').value = todayStr;
     try {
       let p;
       [slots, costs, snaps, p] = await Promise.all([HI.getAll(), HI.getCosts(), HI.getCostSnapshots(), HI.getProdsOnce()]);
