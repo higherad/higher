@@ -202,6 +202,12 @@ assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 2, deductTarget: 20, dedu
 assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 1, yupflTarget: 40 }, costs).yupfl, { 풀스택: 320 }, '업체 분류 전 유입플은 풀스택');
 assert.deepEqual(HI.slotCost({ dailyTarget: 10, days: 1 }, {}).missing, ['리워드']);
 assert.equal(HI.slotCost({ dailyTarget: 10, days: 1 }, { reward: [{ name: '리워드', price: 7 }, { name: '블랙', price: 99 }] }).reward, 70, '리워드 원가는 첫 줄');
+assert.deepEqual(HI.yupflDaily([
+  { status: 'active', startDate: '2026-10-15', endDate: '2026-10-21', yupflByVendor: { 풀스택: 100, 제이엔: 20 } },
+  { status: 'split', startDate: '2026-10-10', endDate: '2026-10-15', yupflTarget: 30 },
+  { status: 'active', startDate: '2026-10-16', endDate: '2026-10-22', yupflByVendor: { 풀스택: 999 } },
+  { status: 'force_stopped', startDate: '2026-10-10', endDate: '2026-10-20', yupflByVendor: { 풀스택: 999 } },
+], '2026-10-15'), { 풀스택: 130, 제이엔: 20 }, '그날 진행 중인 캠페인만 업체별 합산');
 
 // 지출 고정은 없는 키만 — 이미 고정된 묶음은 덮지 않음
 assert.equal(await HI.freezeCostSnapshots({ g1: { total: 100 } }), 1);

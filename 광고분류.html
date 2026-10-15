@@ -252,6 +252,15 @@
     return{groupSums,total,ts:new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})};
   }
 
+  /* ── '유입플' 구분 = 접수관리 진행 중 캠페인의 업체별(풀스택·제이엔 등) 유입플 일 수량, NP트래픽 칸에 담음(비즈핏엔 없는 물량) ── */
+  function injectYupfl(result, byVendor){
+    const stores=Object.entries(byVendor).map(([v,n])=>({name:v,raw:v,ns:0,np:n,nps:0,na:0,vm:0,kko:0,sum:n}));
+    result.groupSums=result.groupSums.filter(g=>g.name!=='유입플');
+    if(stores.length) result.groupSums.push({name:'유입플',stores,gSum:stores.reduce((a,s)=>a+s.sum,0)});
+    result.total=computeTotal(result.groupSums);
+    return result;
+  }
+
   /* ── 실시간 조회 (BizFit 즉석 조회 — 조회 시 ad_classify/realtime에 덮어쓰기 저장) ── */
   async function loadCachedRealtime(){
     if(window._acRealtimeResult) return window._acRealtimeResult;
@@ -262,7 +271,7 @@
   function showRealtimePrompt(){
     document.getElementById('ac-result-area').innerHTML=`
       <div class="ac-no-result">
-        조회 버튼을 눌러 지금 이 순간의 BizFit 데이터를 가져옵니다.
+        조회 버튼을 눌러 지금 이 순간의 BizFit·유입플 데이터를 가져옵니다.
         <div style="margin-top:16px;display:flex;justify-content:center">
           <button class="ac-run-btn" style="width:auto;padding:12px 28px" onclick="loadRealtime()">실시간 조회</button>
         </div>
@@ -283,7 +292,8 @@
         storeN:norm(String(r[2]||'').split(',').pop()),
         typeN:normT(r[9]),goal:Number(r[15])||0
       })).filter(r=>r.storeN);
-      const result=classify(acData);
+      const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'});
+      const result=injectYupfl(classify(acData),HI.yupflDaily(await HI.getLive(),today));
       window._acRealtimeResult=result;
       fbSaveRealtime(result);
       if(!window._acDailyAll){
@@ -335,7 +345,7 @@
     }
   }
 
-  // 과거 날짜 레코드의 '유입플' 그룹 합계(유입플 사이트 종료 전 기록) — NP트래픽 값에 섞여 저장돼 있어 분리해 표시
+  // 날짜 레코드의 '유입플' 그룹 합계 — NP트래픽 값에 섞여 저장돼 있어 분리해 표시
   function getYoupflSum(day){
     if(!day||!day.groupSums) return 0;
     const yg=day.groupSums.find(g=>g.name==='유입플');

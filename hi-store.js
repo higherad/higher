@@ -138,6 +138,8 @@ function splitKw(patch) {
   if (Object.keys(kw).length) rest.kwUpdatedAt = nowIso();
   return { kw, rest };
 }
+// 캠페인의 업체별 유입플 일 수량 [[업체, 수량]] — 업체 분류 전 승인 건(yupflByVendor 없음)은 yupflTarget 전부 풀스택
+const vendorQty = s => (s.yupflByVendor ? Object.entries(s.yupflByVendor) : s.yupflTarget ? [['풀스택', s.yupflTarget]] : []).filter(([, n]) => n > 0);
 function withoutNulls(o) {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined));
 }
@@ -923,17 +925,25 @@ const HI = {
     const yupQty = vend.reduce((a, [, n]) => a + n, 0) * days;
     return { amount: (total - yupQty) * price + yupfl, yupfl, missing: vend.filter(([v]) => !(Number(vp[v]) > 0)).map(([v]) => v), byVendor };
   },
+  // 그날(YYYY-MM-DD) 진행 중(active·split, 시작일~종료일) 캠페인의 업체별 유입플 일 수량 — 광고분류 '유입플' 구분.
+  // bizfit-jobs BizFit_Traffic_auto.py yupfl_daily_by_vendor와 같은 규칙
+  yupflDaily(campaigns, day) {
+    const out = {};
+    campaigns.filter(c => ['active', 'split'].includes(c.status) && (c.startDate || '') <= day && day <= (c.endDate || ''))
+      .forEach(c => vendorQty(c).forEach(([v, n]) => { out[v] = (out[v] || 0) + n; }));
+    return out;
+  },
   // 캠페인 지출(원가) — 정산관리와 같은 수량: 리워드 = 전체 − 유입플 − 차감 수량 × 리워드 원가(costs.reward 1개),
   // 유입플 = 업체별 수량(yupflByVendor, 업체 분류 전 승인 건은 yupflTarget 전부 풀스택) × 업체 원가. 차감 = 정산 차감 금액(수입).
   // 원가 없는 항목은 0 + missing
   slotCost(s, costs) {
     const days = s.days || 0, missing = [];
-    const vend = s.yupflByVendor ? Object.entries(s.yupflByVendor) : s.yupflTarget ? [['풀스택', s.yupflTarget]] : [];
+    const vend = vendorQty(s);
     // ponytail: 리워드 원가는 여러 줄 저장하지만 계산은 첫 줄 하나(정산 수량이 리워드 합계뿐) — 상품별 계산은 상품별 수량 저장 후 추가
     const yc = costs?.yupfl || {}, rc = Array.isArray(costs?.reward) ? Number(costs.reward[0]?.price) || 0 : Number(costs?.reward) || 0;
     const yupfl = {};
     let yupQty = 0;
-    vend.filter(([, n]) => n > 0).forEach(([v, n]) => {
+    vend.forEach(([v, n]) => {
       yupQty += n * days;
       if (!(Number(yc[v]) > 0)) missing.push(v);
       yupfl[v] = n * days * (Number(yc[v]) || 0);
