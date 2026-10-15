@@ -515,6 +515,7 @@ const HI = {
       if (!unitPrice) unitPrice = u?.unitPrice || 0;
       if (!userId) userId = u?.username || '';
     }
+    const category = kwCategoryOf(data.rankKeyword, (await get(ref(db, P.kwCategories))).val());
     const rec = {
       status: data.isRequeue ? 'requeue' : 'pending',
       ...(data.isRequeue ? { isRequeue: true } : {}),
@@ -526,6 +527,7 @@ const HI = {
       storeName: data.storeName || '', rankKeyword: data.rankKeyword || '', url: data.url || '', mid: data.mid || '',
       memo: data.memo || '',
       ...(data.yupflRatio ? { yupflRatio: data.yupflRatio } : {}),  // 엑셀 비고 리워드:유입플 비율(접수관리 parseRatioNote)
+      ...(category ? { category } : {}),  // 순위키워드 분류 — 대기부터 표시(이후 설정이 바뀌어도 유지)
       days: Number(data.days) || 0, dailyTarget: Number(data.dailyTarget) || 0,
       unitPrice,
       searchKwCount: kwCount(data.searchKeyword), yupflKwCount: kwCount(data.yupflKeyword),

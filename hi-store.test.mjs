@@ -170,16 +170,20 @@ assert.equal(HI.dailySplitHtml({ dailyTarget: 100, days: 3 }), '', '승인 전(�
 const splitHtml = HI.dailySplitHtml({ dailyTarget: 100, days: 3, yupflTarget: 35, deductTarget: 90 });
 assert.ok(splitHtml.includes('일반 35') && splitHtml.includes('유입플 35') && splitHtml.includes('차감 30'), splitHtml);
 
-// ── 순위키워드 분류: 접수·승인 때 1회 저장, 이후 설정이 바뀌어도 유지 ──
+// ── 순위키워드 분류: 만들 때(대기부터) 저장, 없으면 접수·승인 때 1회, 이후 설정이 바뀌어도 유지 ──
 const cats = [{ name: '맛집', keywords: ['맛집', '식당'] }, { name: '병원', keywords: ['피부과'] }];
 assert.equal(kwCategoryOf('강남 맛집', cats), '맛집', '공백 무시 포함');
 assert.equal(kwCategoryOf('강남피부과', cats), '병원');
 assert.equal(kwCategoryOf('강남카페', cats), '', '해당 없음');
 tree.hi.kw_categories = cats;
 const k1 = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '222', rankKeyword: '역삼 식당', days: 1, dailyTarget: 1 });
-assert.equal(tree.hi.campaigns.live[k1._key].category, undefined, '대기 상태엔 없음');
-await HI.updateCampaign(k1._key, { status: 'accepted' });
-assert.equal(tree.hi.campaigns.live[k1._key].category, '맛집', '접수 때 저장');
+assert.equal(tree.hi.campaigns.live[k1._key].category, '맛집', '만들 때(대기) 저장');
+tree.hi.kw_categories = null;
+const k0 = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '223', rankKeyword: '역삼 식당', days: 1, dailyTarget: 1 });
+assert.equal(tree.hi.campaigns.live[k0._key].category, undefined, '분류 설정 없으면 비움');
+tree.hi.kw_categories = cats;
+await HI.updateCampaign(k0._key, { status: 'accepted' });
+assert.equal(tree.hi.campaigns.live[k0._key].category, '맛집', '비어 있으면 접수 때 저장');
 tree.hi.kw_categories = [{ name: '기타', keywords: ['식당'] }];
 await HI.updateCampaign(k1._key, { status: 'active' });
 assert.equal(tree.hi.campaigns.live[k1._key].category, '맛집', '이미 있으면 안 바꿈');
