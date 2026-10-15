@@ -501,12 +501,15 @@ window.toggleProdPanel = function(e) {
     active:   '<span class="status-badge s-active">승인</span>',
     expired:  '<span class="status-badge s-expired">종료</span>',
     split:    '<span class="status-badge s-pending" style="background:#fef3c7;color:#b45309;">분할</span>',
-    requeue:  '<span class="status-badge s-pending" style="background:#ede9fe;color:#6d28d9;">재접수</span>',
+    requeue:  '<span class="status-badge s-pending" title="강제종료 후 남은 기간 재접수 — 정산 제외">재접수 | 대기</span>',
     force_stopped: '<span class="status-badge s-expired" style="background:#fee2e2;color:#b91c1c;">강제종료</span>',
   };
-  // 재접수 캠페인이 접수·승인으로 넘어간 뒤에도 재접수 건임을 표시
-  const requeueTag = s => s.isRequeue && s.status !== 'requeue'
-    ? ' <span style="font-size:10px;font-weight:700;color:#6d28d9;" title="강제종료 후 남은 기간 재접수 — 정산 제외">재접수</span>' : '';
+  // 상태 배지 — 재접수 캠페인은 옛 김프로처럼 한 배지에 '재접수 | 상태'(색은 그 상태 색)
+  const statusBadge = s => {
+    const html = stMap[s.status] || s.status;
+    return s.isRequeue && s.status !== 'requeue' && stMap[s.status]
+      ? html.replace('<span ', '<span title="강제종료 후 남은 기간 재접수 — 정산 제외" ').replace(/>([^<]+)<\/span>$/, '>재접수 | $1</span>') : html;
+  };
 
   const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const sanitizeFbKey = s => s.replace(/[.#$[\]/]/g, '_');
@@ -764,7 +767,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
           <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}${HI.dailySplitHtml(s)}</td>
-          <td>${stMap[s.status]||s.status}${requeueTag(s)}${s.status==='force_stopped' && s.forceStoppedAt ? `<div style="font-size:10px;color:var(--muted);">${s.forceStoppedAt.slice(5)} 강제종료 · 다음 날 종료</div>` : ''}${s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : ''}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
+          <td>${statusBadge(s)}${s.status==='force_stopped' && s.forceStoppedAt ? `<div style="font-size:10px;color:var(--muted);">${s.forceStoppedAt.slice(5)} 강제종료 · 다음 날 종료</div>` : ''}${s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : ''}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
               <button class="action-btn" style="background:#f1f5f9;color:var(--text2);" onclick="viewDetail('${s._key}')">상세</button>

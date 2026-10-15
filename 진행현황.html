@@ -125,7 +125,7 @@
     split:   '<span class="status-badge s-split">분할</span>',
     force_stopped: '<span class="status-badge s-force">강제종료</span>',
     paused:  '<span class="status-badge s-paused">임시중단</span>',
-    requeue: '<span class="status-badge s-wait">재접수 대기</span>',
+    requeue: '<span class="status-badge s-wait">재접수 | 대기</span>',
     pending: '<span class="status-badge s-wait">대기</span>',
     accepted:'<span class="status-badge s-wait">접수</span>',
   };
@@ -138,9 +138,10 @@
   function isReserved(s, todayStr) { return s.status === 'active' && s.startDate > todayStr; }
   // 진행중 계열 — 승인(active) + 예약 등록 중(split, 매일 등록이 나가는 중). D-Day·종료 예정 요약·종료임박 필터 공통
   function isRunning(s) { return s.status === 'active' || s.status === 'split'; }
+  // 재접수 캠페인은 옛 김프로처럼 한 배지에 '재접수 | 상태'(색은 그 상태 색)
   function statusBadge(s, todayStr) {
-    if (isReserved(s, todayStr)) return '<span class="status-badge s-reserved">예약</span>';
-    return stLabel[s.status] || s.status;
+    const html = isReserved(s, todayStr) ? '<span class="status-badge s-reserved">예약</span>' : (stLabel[s.status] || s.status);
+    return s.isRequeue && s.status !== 'requeue' && html.startsWith('<span') ? html.replace(/>([^<]+)<\/span>$/, '>재접수 | $1</span>') : html;
   }
 
   // ── 종료예정(D-Day) 계산 — 종료예정.html에서 흡수 ─────────────
