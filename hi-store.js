@@ -880,11 +880,13 @@ const HI = {
     const price = Number(s.unitPrice) > 0 ? Number(s.unitPrice) : (user?.unitPrice || 0);
     const days = s.days || 0, total = (s.dailyTarget || 0) * days;
     const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
-    if (!vend.length) return { amount: total * price, yupfl: s.yupflAmount || 0, missing: [] };
+    // byVendor = 업체별 유입플 금액(정산관리 유입플 칸 팝업) — 업체 분류 전 승인 건은 '업체 분류 전' 한 줄
+    if (!vend.length) return { amount: total * price, yupfl: s.yupflAmount || 0, missing: [], byVendor: s.yupflAmount ? { '업체 분류 전': s.yupflAmount } : {} };
     const vp = user?.yupflPrices || {};
-    const yupfl = vend.reduce((a, [v, n]) => a + n * days * (Number(vp[v]) || 0), 0);
+    const byVendor = Object.fromEntries(vend.map(([v, n]) => [v, n * days * (Number(vp[v]) || 0)]));
+    const yupfl = Object.values(byVendor).reduce((a, x) => a + x, 0);
     const yupQty = vend.reduce((a, [, n]) => a + n, 0) * days;
-    return { amount: (total - yupQty) * price + yupfl, yupfl, missing: vend.filter(([v]) => !(Number(vp[v]) > 0)).map(([v]) => v) };
+    return { amount: (total - yupQty) * price + yupfl, yupfl, missing: vend.filter(([v]) => !(Number(vp[v]) > 0)).map(([v]) => v), byVendor };
   },
   // 캠페인 지출(원가) — 정산관리와 같은 수량: 리워드 = 전체 − 유입플 − 차감 수량 × 리워드 원가(costs.reward 1개),
   // 유입플 = 업체별 수량(yupflByVendor, 업체 분류 전 승인 건은 yupflTarget 전부 풀스택) × 업체 원가. 차감 = 정산 차감 금액(수입).

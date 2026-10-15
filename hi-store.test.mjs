@@ -186,9 +186,9 @@ assert.equal(tree.hi.campaigns.live[k1._key].category, '맛집', '이미 있으�
 
 // 정산 금액: 업체 분류 전은 전체 × 리워드 단가, 분류 후엔 유입플 몫만 업체 단가(없으면 0 + missing)
 const u1 = { unitPrice: 30, yupflPrices: { 풀스택: 20 } };
-assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflAmount: 5 }, u1), { amount: 6000, yupfl: 5, missing: [] });
+assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflAmount: 5 }, u1), { amount: 6000, yupfl: 5, missing: [], byVendor: { '업체 분류 전': 5 } });
 assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflByVendor: { 풀스택: 28, 제이엔: 12 } }, u1),
-  { amount: 60 * 2 * 30 + 28 * 2 * 20, yupfl: 28 * 2 * 20, missing: ['제이엔'] });
+  { amount: 60 * 2 * 30 + 28 * 2 * 20, yupfl: 28 * 2 * 20, missing: ['제이엔'], byVendor: { 풀스택: 28 * 2 * 20, 제이엔: 0 } });
 assert.equal(HI.slotBill({ dailyTarget: 10, days: 1, unitPrice: 50, yupflByVendor: { 풀스택: 4 } }, u1).amount, 6 * 50 + 4 * 20, '캠페인 고정 단가 우선');
 
 // 지출: 리워드 = 전체 − 유입플 − 차감 수량 × 리워드 원가, 유입플 업체별 × 업체 원가(없으면 0 + missing), 차감 = 정산 차감 금액

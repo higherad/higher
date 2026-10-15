@@ -667,7 +667,7 @@
         <td style="font-weight:700;color:var(--accent)">${netAmt.toLocaleString()}원</td>
         <td style="font-weight:700;color:var(--info)">${netVat.toLocaleString()}원</td>
         <td style="color:#0284c7">${(amt-yup-ded)>0?(amt-yup-ded).toLocaleString()+'원':'-'}</td>
-        <td style="color:#7c3aed">${missing.length?`<span style="color:var(--danger);font-weight:700" title="${escProd(missing.join(', '))}">단가 설정 필요</span>`:yup>0?yup.toLocaleString()+'원':'-'}</td>
+        <td style="color:#7c3aed">${missing.length?`<span style="color:var(--danger);font-weight:700;cursor:pointer" title="${escProd(missing.join(', '))}" onclick="openYupflPopup(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">단가 설정 필요</span>`:yup>0?`<span class="agency-link" style="color:#7c3aed" title="업체별 금액" onclick="openYupflPopup(decodeURIComponent('${et}'),decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${yup.toLocaleString()}원</span>`:'-'}</td>
         <td style="color:var(--danger)">${ded>0?ded.toLocaleString()+'원':'-'}</td>
         <td style="color:var(--danger);font-weight:700">${refund>0?refund.toLocaleString()+'원':'-'}</td>
         <td>${badge}</td>
@@ -1165,6 +1165,30 @@
   };
 
   // 단가 클릭 — 그 대행사의 리워드 단가 + 유입플 업체별 단가(설정은 회원관리)
+  // 유입플 금액 클릭 — 그 묶음의 업체별 유입플 금액(HI.slotBill byVendor). 지난 날짜 고정 금액과 다르면 고정 금액도 같이 표시
+  window.openYupflPopup=function(timeKey,agencyId,userId){
+    const g=groupByTimeAgency(allSlots.filter(isBillableSlot)).find(x=>x.timeKey===timeKey&&x.agencyId===agencyId&&x.userId===userId);
+    if(!g) return;
+    const by={},miss=new Set();
+    g.slots.forEach(s=>{const b=HI.slotBill(s,userOf(s));Object.entries(b.byVendor).forEach(([v,a])=>{by[v]=(by[v]||0)+a;});b.missing.forEach(m=>miss.add(m));});
+    const sum=Object.values(by).reduce((a,v)=>a+v,0);
+    const safe=s=>s.replace(/[.#$[\]/]/g,'_');
+    const snap=snapshotMap[`${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`];
+    const frozen=timeKey.slice(0,10)<todayStr&&snap&&(snap.yupflAmt||0)!==sum?snap.yupflAmt||0:null;
+    const row=(k,v,need)=>`<tr><td style="text-align:left">${escProd(k)}</td><td style="text-align:right;font-weight:700;color:var(--text)">${need?'<span style="color:var(--danger)">단가 설정 필요</span>':v.toLocaleString()+'원'}</td></tr>`;
+    const ov=document.createElement('div');
+    ov.className='sp-overlay';
+    ov.innerHTML=`<div class="total-popup-box" style="width:auto;min-width:300px;max-width:96vw">
+      <div class="sp-title">유입플 금액</div>
+      <div class="sp-sub">${escProd(agencyId)} · ${escProd(timeKey)}</div>
+      <table class="sp-tbl"><tbody>${Object.keys(by).length?Object.entries(by).map(([v,a])=>row(v,a,miss.has(v))).join(''):'<tr><td colspan="2" style="color:var(--muted)">유입플 없음</td></tr>'}
+        <tr><td style="text-align:left;font-weight:700;color:var(--text)">합계</td><td style="text-align:right;font-weight:800;color:#7c3aed">${sum.toLocaleString()}원</td></tr></tbody></table>
+      ${frozen!=null?`<div style="font-size:11px;color:var(--muted);margin-top:8px">정산 고정 금액: ${frozen.toLocaleString()}원</div>`:''}
+      <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
+    </div>`;
+    ov.onclick=e=>{if(e.target===ov)ov.remove();};
+    document.body.appendChild(ov);
+  };
   window.openPricePopup=async function(userId){
     const u=allUsers.find(x=>x.username===userId)||{};
     const prods=await HI.getProdsOnce().catch(()=>null);
