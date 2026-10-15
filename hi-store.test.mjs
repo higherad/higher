@@ -197,4 +197,9 @@ assert.deepEqual(HI.slotCost({ days: 2, rewardByProd: { 블랙: 30, 올리브: 3
   { classified: true, reward: 30 * 2 * 10 + 30 * 2 * 12, yupfl: { 풀스택: 28 * 2 * 8, 제이엔: 0 }, total: 1320 + 448, missing: ['제이엔'] });
 assert.equal(HI.slotCost({ days: 2, dailyTarget: 100 }, costs).classified, false, '승인 전·이전 건은 분류 전');
 
+// 지출 고정은 없는 키만 — 이미 고정된 묶음은 덮지 않음
+assert.equal(await HI.freezeCostSnapshots({ g1: { total: 100 } }), 1);
+assert.equal(await HI.freezeCostSnapshots({ g1: { total: 999 }, g2: { total: 5 } }), 1);
+assert.equal(tree.hi.cost_snapshots.g1.total, 100, '고정 금액 유지');
+
 console.log('hi-store 자가검사 통과');

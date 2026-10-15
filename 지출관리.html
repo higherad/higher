@@ -54,14 +54,16 @@
 (function(){
   // 지출관리 — 정산관리와 같은 묶음(접수일시(분) × 대행사 × 유저)·같은 대상(HI.isBillable), 금액만 원가(hi/costs) 기준.
   // 원가 = 승인 때 고정한 리워드 상품별·유입플 업체별 일 수량 × 일수 × 원가(HI.slotCost). 보기 전용(지급 처리 없음)
-  // ponytail: 원가는 현재 값 하나로 계산(기간별 원가 이력 없음) — 원가가 바뀌면 지난 건도 새 원가로 보임. 이력 필요하면 날짜별 원가 표 추가
+  // 회계 기록이라 묶음 금액은 한 번 고정(hi/cost_snapshots) 후 안 바뀜 — 고정 전 묶음만 현재 원가로 실시간.
+  // 고정 시점: 페이지 열 때(지난 날짜) + 원가 저장 직전(오늘 것까지 옛 원가로). 원가 미설정·승인 전 건이 남은 묶음은 고정 보류
   const PER = 50;
-  let slots = [], costs = { reward: {}, yupfl: {} }, prods = [], page = 1, rows = [], vendors = [];
+  let slots = [], costs = { reward: {}, yupfl: {} }, snaps = {}, prods = [], page = 1, rows = [], vendors = [];
   const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const won = n => `${Math.round(n).toLocaleString()}원`;
   const pad = n => String(n).padStart(2, '0');
   const ymdOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const minuteKey = iso => { if (!iso) return 'unknown'; const d = new Date(iso); return `${ymdOf(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const todayStr = ymdOf(new Date());
 
   function namesFromData() {
     const reward = new Set(prods.filter(p => p && !p.deductOnly && !p.classifyOnly).map(p => p.name));
@@ -69,33 +71,55 @@
     slots.forEach(s => { Object.keys(s.rewardByProd || {}).forEach(n => reward.add(n)); Object.keys(s.yupflByVendor || {}).forEach(n => yup.add(n)); });
     Object.keys(costs.reward || {}).forEach(n => reward.add(n));
     Object.keys(costs.yupfl || {}).forEach(n => yup.add(n));
+    Object.values(snaps).forEach(sn => Object.keys(sn.yupfl || {}).forEach(n => yup.add(n)));
     return { reward: [...reward], yupfl: [...yup] };
   }
 
-  function groupRows() {
-    const from = document.getElementById('cf-from').value, to = document.getElementById('cf-to').value;
-    const kw = (document.getElementById('cf-kw').value || '').trim().toLowerCase();
+  // 전체 묶음 — 현재 원가로 계산(live). 고정된 묶음은 고정값으로 바꿔 끼움
+  function liveGroups(withCosts) {
     const map = new Map();
     slots.filter(HI.isBillable).forEach(s => {
-      const t = minuteKey(s.createdAt), d = t.slice(0, 10);
-      if ((from && d < from) || (to && d > to)) return;
-      if (kw && !(s.agencyId || '').toLowerCase().includes(kw)) return;
-      const k = `${t}||${s.agencyId || '-'}||${s.userId || '-'}`;
-      if (!map.has(k)) map.set(k, { t, agency: s.agencyId || '-', slots: [] });
+      const k = HI.settleGroupKey(s);
+      if (!map.has(k)) map.set(k, { key: k, t: minuteKey(s.createdAt), agency: s.agencyId || '-', slots: [] });
       map.get(k).slots.push(s);
     });
-    return [...map.values()].sort((a, b) => b.t.localeCompare(a.t)).map(g => {
-      const r = { ...g, tgt: 0, reward: 0, yupfl: {}, total: 0, missing: new Set(), unclassified: 0 };
+    return [...map.values()].map(g => {
+      const r = { key: g.key, t: g.t, agency: g.agency, count: g.slots.length, tgt: 0, reward: 0, yupfl: {}, total: 0, missing: [], unclassified: 0,
+        open: g.slots.some(s => s.status === 'pending' || s.status === 'accepted') };
       g.slots.forEach(s => {
         r.tgt += (s.dailyTarget || 0) * (s.days || 0);
-        const c = HI.slotCost(s, costs);
+        const c = HI.slotCost(s, withCosts);
         if (!c.classified) { r.unclassified++; return; }
         r.reward += c.reward; r.total += c.total;
         Object.entries(c.yupfl).forEach(([v, a]) => { r.yupfl[v] = (r.yupfl[v] || 0) + a; });
-        c.missing.forEach(m => r.missing.add(m));
+        r.missing.push(...c.missing);
       });
+      r.missing = [...new Set(r.missing)];
       return r;
     });
+  }
+  // 오늘 이전(beforeSave면 5분 이전 접수까지) + 승인 전 건 없음 + 원가 다 있음 + 분류된 건 있음 → 고정 대상
+  async function freezePast(withCosts, beforeSave = false) {
+    const map = {}, cut = beforeSave ? minuteKey(new Date(Date.now() - 5 * 60000).toISOString()) : todayStr;
+    liveGroups(withCosts).forEach(r => {
+      if (snaps[r.key] || r.t >= cut || r.open || r.missing.length || r.unclassified === r.count) return; // 전부 분류 전(이전 승인)은 고정할 금액 없음
+      const { key, missing, open, ...rec } = r;
+      map[key] = { ...rec, frozenAt: new Date().toISOString(), frozenBy: HI.getCurrentUser()?.username || '-' };
+    });
+    if (!Object.keys(map).length) return;
+    await HI.freezeCostSnapshots(map);
+    snaps = await HI.getCostSnapshots();
+  }
+  function groupRows() {
+    const from = document.getElementById('cf-from').value, to = document.getElementById('cf-to').value;
+    const kw = (document.getElementById('cf-kw').value || '').trim().toLowerCase();
+    const live = new Map(liveGroups(costs).map(r => [r.key, r]));
+    // 고정된 묶음은 캠페인이 휴지통으로 가도 장부에 남음
+    Object.entries(snaps).forEach(([k, sn]) => live.set(k, { ...sn, key: k, missing: [], frozen: true }));
+    return [...live.values()].filter(r => {
+      const d = r.t.slice(0, 10);
+      return !((from && d < from) || (to && d > to)) && (!kw || (r.agency || '').toLowerCase().includes(kw));
+    }).sort((a, b) => b.t.localeCompare(a.t));
   }
 
   window.renderCost = function(keepPage) {
@@ -114,16 +138,15 @@
     const list = rows.slice((page - 1) * PER, page * PER);
     if (!list.length) { body.innerHTML = `<tr><td colspan="${cols}" style="padding:40px;color:var(--muted)">데이터가 없습니다.</td></tr>`; document.getElementById('cost-pg').innerHTML = ''; return; }
     body.innerHTML = list.map(r => {
-      const need = names => names.some(n => r.missing.has(n));
-      const rewardNames = [...new Set(r.slots.flatMap(s => Object.keys(s.rewardByProd || {})))];
+      const rewardMissing = r.missing.filter(n => !vendors.includes(n));
       const total = r.total > 0 || !r.unclassified ? `<strong style="color:var(--danger)">${won(r.total)}</strong>` : '-';
       return `<tr>
-        <td style="color:var(--text2);font-size:11px">${esc(r.t)}</td>
+        <td style="color:var(--text2);font-size:11px">${esc(r.t)}${r.frozen ? ' <span title="지난 날짜 — 금액 고정" style="color:var(--muted)">🔒</span>' : ''}</td>
         <td style="font-weight:700">${esc(r.agency)}</td>
-        <td>${r.slots.length}건</td>
-        <td><strong>${r.tgt.toLocaleString()}</strong></td>
-        <td>${need(rewardNames) ? `<span class="need" title="${esc(rewardNames.filter(n => r.missing.has(n)).join(', '))}">원가 설정 필요</span>` : r.reward ? won(r.reward) : '-'}</td>
-        ${vendors.map(v => `<td style="color:#7c3aed">${r.missing.has(v) ? '<span class="need">원가 설정 필요</span>' : r.yupfl[v] ? won(r.yupfl[v]) : '-'}</td>`).join('')}
+        <td>${r.count}건</td>
+        <td><strong>${(r.tgt || 0).toLocaleString()}</strong></td>
+        <td>${rewardMissing.length ? `<span class="need" title="${esc(rewardMissing.join(', '))}">원가 설정 필요</span>` : r.reward ? won(r.reward) : '-'}</td>
+        ${vendors.map(v => `<td style="color:#7c3aed">${r.missing.includes(v) ? '<span class="need">원가 설정 필요</span>' : r.yupfl?.[v] ? won(r.yupfl[v]) : '-'}</td>`).join('')}
         <td>${total}${r.unclassified ? `<div style="font-size:10px;color:var(--muted)">승인 전·분류 전 ${r.unclassified}건 제외</div>` : ''}</td>
       </tr>`;
     }).join('');
@@ -151,7 +174,10 @@
     ov.querySelector('#cost-save').onclick = async () => {
       const next = { reward: {}, yupfl: {} };
       ov.querySelectorAll('.cost-in').forEach(i => { const v = Number(i.value) || 0; if (v > 0) next[i.dataset.grp][i.dataset.name] = v; });
-      try { await HI.saveCosts(next); } catch (e) { alert('원가를 저장하지 못했습니다: ' + e.message); return; }
+      try {
+        await freezePast(costs, true); // 바꾸기 전 원가로 오늘 들어온 묶음까지 먼저 고정(5분 이내 접수는 같은 분 일괄 접수가 덜 들어왔을 수 있어 제외)
+        await HI.saveCosts(next);
+      } catch (e) { alert('원가를 저장하지 못했습니다: ' + e.message); return; }
       costs = next; ov.remove(); renderCost(true);
     };
   };
@@ -161,9 +187,10 @@
     if (!window.XLSX) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('엑셀 라이브러리를 불러오지 못했습니다.')); document.head.appendChild(s); }).catch(e => alert(e.message));
     if (!window.XLSX) return;
     const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '원가 설정 필요', '분류 전 건수'];
-    const data = rows.map(r => [r.t, r.agency, r.slots.length, r.tgt, r.reward, ...vendors.map(v => r.yupfl[v] || 0), r.total, [...r.missing].join(', '), r.unclassified]);
+    const header2 = [...header, '고정'];
+    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.reward, ...vendors.map(v => r.yupfl?.[v] || 0), r.total, r.missing.join(', '), r.unclassified, r.frozen ? 'O' : '']);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), '지출');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header2, ...data]), '지출');
     XLSX.writeFile(wb, `지출내역_${ymdOf(new Date()).replace(/-/g, '')}.xlsx`);
   };
 
@@ -177,8 +204,10 @@
     document.getElementById('cf-to').value = ymdOf(now);
     try {
       let p;
-      [slots, costs, p] = await Promise.all([HI.getAll(), HI.getCosts(), HI.getProdsOnce()]);
+      [slots, costs, snaps, p] = await Promise.all([HI.getAll(), HI.getCosts(), HI.getCostSnapshots(), HI.getProdsOnce()]);
       prods = Object.values(p || {}).filter(Boolean);
+      if (!document.getElementById('cost-page')) return;
+      await freezePast(costs);
     } catch (e) {
       if (!document.getElementById('cost-page')) return;
       document.getElementById('cost-body').innerHTML = `<tr><td colspan="8" style="padding:40px;color:var(--danger)">지출 데이터를 불러오지 못했습니다. 새로고침해 주세요.</td></tr>`;

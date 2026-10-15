@@ -91,6 +91,7 @@ const P = {
   bizfitCharge:   `${ROOT}/bizfit_charge`,
   versionCheck:   `${ROOT}/version_check_account`,
   costs:          `${ROOT}/costs`,              // 지출관리 원가 {reward:{상품명: 원}, yupfl:{업체명: 원}} — 전 직원 공용
+  costSnapshots:  `${ROOT}/cost_snapshots`,     // 지출관리 지난 날짜 묶음 금액 고정(키 = settleGroupKey, 1회 저장 후 안 바뀜)
 };
 
 const CLOSED_STATUSES   = new Set(['expired', 'deleted']);
@@ -897,6 +898,15 @@ const HI = {
     return { classified: !!s.rewardByProd, reward, yupfl, total, missing };
   },
   async getCosts() { return (await get(ref(db, P.costs))).val() || { reward: {}, yupfl: {} }; },
+  async getCostSnapshots() { return (await get(ref(db, P.costSnapshots))).val() || {}; },
+  // 없는 키만 저장(이미 고정된 묶음은 절대 덮지 않음 — 캐시 말고 DB에서 키마다 확인)
+  async freezeCostSnapshots(map) {
+    const keys = Object.keys(map);
+    const exists = await Promise.all(keys.map(k => get(ref(db, `${P.costSnapshots}/${k}`)).then(s => s.exists())));
+    const updates = Object.fromEntries(keys.filter((_, i) => !exists[i]).map(k => [`${P.costSnapshots}/${k}`, map[k]]));
+    if (Object.keys(updates).length) await update(ref(db), updates);
+    return Object.keys(updates).length;
+  },
   saveCosts(c) { return set(ref(db, P.costs), c); },
   getPaidSet() { return once(paidCache); },
   onPaidSetChange(cb) { return paidCache(cb); },
