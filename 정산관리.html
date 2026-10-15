@@ -661,7 +661,7 @@
         <td><input type="checkbox" class="settle-chk" data-snapkey="${snapKey}" ${selectedSnapKeys.has(snapKey)?'checked':''} onchange="onSettleChkChange(this)"></td>
         <td style="color:var(--text2);font-size:11px">${fmtDatetime(repTime)}</td>
         <td><span class="agency-link" onclick="openAgencyPopup(decodeURIComponent('${ea}'),decodeURIComponent('${eu}'))">${escProd(g.agencyId)}</span></td>
-        <td><span class="agency-link" style="color:var(--text2)" title="리워드·유입플 업체별 단가" onclick="openPricePopup(decodeURIComponent('${eu}'))">${pDisplay}원</span></td>
+        <td><button class="action-btn" style="background:#eff6ff;color:#1d4ed8" title="리워드·유입플 업체별 단가" onclick="openPricePopup(decodeURIComponent('${eu}'))">보기</button></td>
         <td>${useSnap ? (savedSnap.slotCount||g.slots.length) : g.slots.length}건</td>
         <td><strong>${tot.toLocaleString()}</strong></td>
         <td style="font-weight:700;color:var(--accent)">${netAmt.toLocaleString()}원</td>

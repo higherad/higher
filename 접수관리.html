@@ -3381,7 +3381,9 @@ window.toggleProdPanel = function(e) {
     const hasCharlie = ap().some(p => p.id === 'charlie');
     const hasDelta   = ap().some(p => p.id === 'delta');
     const hasNavy    = ap().some(p => p.id === 'navy');
-    if (!hasNormal && !hasCharlie && !hasDelta && !hasNavy) {
+    // 상품 1개 이상 켜기는 비고가 '리워드'·비율(리워드 몫 있음)인 캠페인이 섞였을 때만 — 업체명(전부 유입플)·비고 없음은 확인 안 함
+    const needsReward = target.some(s => s.yupflRatio && s.yupflRatio.reward > 0);
+    if (needsReward && !hasNormal && !hasCharlie && !hasDelta && !hasNavy) {
       alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
     }
