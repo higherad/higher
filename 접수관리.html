@@ -1939,9 +1939,9 @@ window.toggleProdPanel = function(e) {
       return known ? { ...known, ratio: g.ratio, kwPct: g.ratio }
         : { id: `grade_${g.name}`, name: g.name, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: g.ratio, kwPct: g.ratio, daysMultiplied: false };
     });
-    // 리워드:유입플 = 엑셀 비고 비율, 없으면 '유입플' 상품 설정 %(꺼져 있으면 기본 5:5) — 리워드 상품끼리는 가이드 비율
+    // 리워드:유입플 = 엑셀 비고 비율, 없으면 '유입플' 상품 설정 %(꺼져 있으면 0) — 리워드 상품끼리는 가이드 비율
     const yupfl = prods.find(p => p.classifyOnly);
-    const pct = yupfl?.active ? (yupfl.fixedPct ?? 50) : 50;
+    const pct = yupfl?.active ? (yupfl.fixedPct ?? 0) : 0;
     return applyGuideRatio(out, r.yupflRatio || { reward: 100 - pct, yupfl: pct });
   }
   // 리워드·유입플 두 묶음 합계를 주어진 비율로 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
