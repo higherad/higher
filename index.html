@@ -700,7 +700,7 @@
       if (nameEl)   nameEl.textContent   = cur.name || cur.username;
       if (roleEl)   roleEl.textContent   = cur.role === 'admin' ? 'Super Admin' : '담당자';
       if (avatarEl) avatarEl.textContent = (cur.name || cur.username).charAt(0).toUpperCase();
-      if (cur.role === 'admin') document.getElementById('nav-cost').style.display = ''; // 지출관리는 admin만
+      if (HI.canSeeCost(cur)) document.getElementById('nav-cost').style.display = '';
     }
     // 테스트 데이터(hi_test 등)에 붙어 있으면 눈에 띄게 표시 — 외부 서버 호출은 hi-store가 막음
     if (HI.ROOT !== 'hi') {

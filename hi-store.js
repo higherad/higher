@@ -382,6 +382,8 @@ const HI = {
   getCurrentUser() {
     return JSON.parse(sessionStorage.getItem('ha_current_user') || 'null');
   },
+  // 지출관리(원가·지출) 메뉴·페이지를 볼 수 있는 계정 — admin + 지정한 직원(higherad1 주병주)
+  canSeeCost(u = HI.getCurrentUser()) { return u?.role === 'admin' || u?.username === 'higherad1'; },
   async login(username, password) {
     try {
       const cred = await signInWithEmailAndPassword(auth, `${username}@higherad.app`, password);
