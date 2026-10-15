@@ -588,7 +588,7 @@
       [['download', '엑셀 다운로드', 'exportSettleExcel()']],
     ],
     '진행현황.html': [[['replace', '변경 요청', 'openTypeChangeModal()', { title: '체크한 캠페인에 타입 변경 요청' }]], [['trophy', '순위표', 'downloadRankTable()', { id: 'rank-table-btn' }]], [['trash-2', '휴지통', 'openTrashView()']]],
-    '지출관리.html': [[['refresh-cw', '원가 불러오기', 'refreshYupflVendorList()', { title: '가이드 시트 탭에서 유입플 업체 항목만 불러옴(설정된 원가는 그대로)' }], ['settings-2', '원가 설정', 'openCostModal()']], [['download', '엑셀 다운로드', 'exportCostExcel()']]],
+    '지출관리.html': [[['settings-2', '원가 설정', 'openCostModal()']], [['download', '엑셀 다운로드', 'exportCostExcel()']]],
     '회원관리.html': [[['refresh-cw', '단가 불러오기', 'refreshYupflVendorList()', { title: '가이드 시트 탭에서 유입플 업체 항목만 불러옴(설정된 단가는 그대로)' }], ['user-plus', '회원 추가', 'openUserModal(null)']]],
     '공지사항.html': [[['square-pen', '공지 작성', 'openNoticeModal(null)']]],
   };
@@ -600,7 +600,7 @@
     if (window.lucide) lucide.createIcons();
   }
 
-  // 회원관리 '단가 불러오기'·지출관리 '원가 불러오기' — 가이드 시트 탭 이름으로 유입플 업체 항목만 갱신(hi/yupfl_vendors), 설정된 단가·원가는 안 건드림
+  // 회원관리 '단가 불러오기' — 가이드 시트 탭 이름으로 유입플 업체 항목만 갱신(hi/yupfl_vendors), 설정된 단가·원가는 안 건드림
   window.refreshYupflVendorList = async function() {
     try {
       const names = await HI.refreshYupflVendors();

@@ -263,7 +263,7 @@
   // 유입플 줄은 업체명 고정(가이드 시트 탭 이름) — 금액만 입력, 삭제 없음
   const ypRowHtml = (n = '', v = '', grp = 'yupfl') => `<div class="um-price-row" data-grp="${grp}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
       <input class="um-p-name" value="${escHtml(n)}" placeholder="리워드 이름" style="width:110px"${grp === 'yupfl' ? ' disabled' : ''}>
-      <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:80px;text-align:right">
+      <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:80px;text-align:center">
       ${grp === 'yupfl' ? '<span style="width:22px"></span>' : '<button type="button" onclick="this.parentElement.remove()" title="삭제" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px">✕</button>'}</div>`;
   // 유입플 = 업체 목록(상단 '단가 불러오기'로 갱신) + 목록에서 빠졌지만 단가가 남은 업체
   const yupflRowsHtml = (list, cur) => [...new Set([...list, ...Object.keys(cur)])].map(n => ypRowHtml(n, cur[n] || '')).join('');
