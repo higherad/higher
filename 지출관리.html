@@ -168,6 +168,10 @@
   };
 
   (async function init() {
+    if (HI.getCurrentUser()?.role !== 'admin') {  // 메뉴는 admin에게만 보임 — 주소로 직접 열어도 막음
+      document.getElementById('cost-page').innerHTML = '<div style="padding:80px;text-align:center;color:var(--text2)">admin 계정만 볼 수 있습니다.</div>';
+      return;
+    }
     const now = new Date();
     document.getElementById('cf-from').value = ymdOf(new Date(now.getFullYear(), now.getMonth(), 1));
     document.getElementById('cf-to').value = ymdOf(now);
