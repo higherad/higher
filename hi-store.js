@@ -90,6 +90,7 @@ const P = {
   detailLocks:    `${ROOT}/detail_locks`,
   bizfitCharge:   `${ROOT}/bizfit_charge`,
   versionCheck:   `${ROOT}/version_check_account`,
+  costs:          `${ROOT}/costs`,              // 지출관리 원가 {reward:{상품명: 원}, yupfl:{업체명: 원}} — 전 직원 공용
 };
 
 const CLOSED_STATUSES   = new Set(['expired', 'deleted']);
@@ -881,6 +882,22 @@ const HI = {
     const yupQty = vend.reduce((a, [, n]) => a + n, 0) * days;
     return { amount: (total - yupQty) * price + yupfl, yupfl, missing: vend.filter(([v]) => !(Number(vp[v]) > 0)).map(([v]) => v) };
   },
+  // 캠페인 지출(원가) — 승인 때 고정한 리워드 상품별(rewardByProd)·유입플 업체별(yupflByVendor) 일 수량 × 일수 × 원가(hi/costs).
+  // 분류 전(rewardByProd 없음 = 미승인·이전 승인 건)은 classified:false, 원가 없는 상품·업체는 0 + missing
+  slotCost(s, costs) {
+    const days = s.days || 0, rc = costs?.reward || {}, yc = costs?.yupfl || {}, missing = [];
+    const sum = (byName, table) => Object.entries(byName || {}).reduce((a, [k, n]) => {
+      if (!(n > 0)) return a;
+      if (!(Number(table[k]) > 0)) missing.push(k);
+      return a + n * days * (Number(table[k]) || 0);
+    }, 0);
+    const reward = sum(s.rewardByProd, rc);
+    const yupfl = Object.fromEntries(Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0).map(([v, n]) => [v, sum({ [v]: n }, yc)]));
+    const total = reward + Object.values(yupfl).reduce((a, v) => a + v, 0);
+    return { classified: !!s.rewardByProd, reward, yupfl, total, missing };
+  },
+  async getCosts() { return (await get(ref(db, P.costs))).val() || { reward: {}, yupfl: {} }; },
+  saveCosts(c) { return set(ref(db, P.costs), c); },
   getPaidSet() { return once(paidCache); },
   onPaidSetChange(cb) { return paidCache(cb); },
   setPaid(key, val) { return val ? set(ref(db, `${P.paid}/${key}`), true) : remove(ref(db, `${P.paid}/${key}`)); },

@@ -191,4 +191,10 @@ assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflByVendor: { 풀�
   { amount: 60 * 2 * 30 + 28 * 2 * 20, yupfl: 28 * 2 * 20, missing: ['제이엔'] });
 assert.equal(HI.slotBill({ dailyTarget: 10, days: 1, unitPrice: 50, yupflByVendor: { 풀스택: 4 } }, u1).amount, 6 * 50 + 4 * 20, '캠페인 고정 단가 우선');
 
+// 지출: 리워드 상품별·유입플 업체별 수량 × 일수 × 원가, 원가 없으면 0 + missing
+const costs = { reward: { 블랙: 10, 올리브: 12 }, yupfl: { 풀스택: 8 } };
+assert.deepEqual(HI.slotCost({ days: 2, rewardByProd: { 블랙: 30, 올리브: 30 }, yupflByVendor: { 풀스택: 28, 제이엔: 12 } }, costs),
+  { classified: true, reward: 30 * 2 * 10 + 30 * 2 * 12, yupfl: { 풀스택: 28 * 2 * 8, 제이엔: 0 }, total: 1320 + 448, missing: ['제이엔'] });
+assert.equal(HI.slotCost({ days: 2, dailyTarget: 100 }, costs).classified, false, '승인 전·이전 건은 분류 전');
+
 console.log('hi-store 자가검사 통과');

@@ -1,0 +1,186 @@
+<div id="cost-page">
+<style>
+  #cost-page .summary-grid { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+  #cost-page .sum-card { flex:1 1 150px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
+  #cost-page .sum-card .sc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
+  #cost-page .sum-card .sc-value { font-size:20px; font-weight:800; line-height:1; }
+  #cost-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  #cost-page input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
+  #cost-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
+  #cost-page table { width:100%; border-collapse:collapse; font-size:12px; }
+  #cost-page thead th { background:#1e293b; color:#fff; padding:11px 7px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; font-size:11px; }
+  #cost-page tbody td { padding:10px 7px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+  #cost-page tbody tr:hover { background:#f8fafc; }
+  #cost-page .action-btn { padding:6px 14px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+  #cost-page .need { color:var(--danger); font-weight:700; }
+  #cost-page .pagination { display:flex; justify-content:center; gap:4px; margin-top:14px; }
+  #cost-page .pg-btn { min-width:30px; padding:5px 8px; border:1px solid var(--border); background:#fff; border-radius:6px; font-size:12px; cursor:pointer; }
+  #cost-page .pg-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .cost-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .cost-box { background:#fff; border-radius:16px; width:min(96vw,520px); max-height:85vh; overflow-y:auto; padding:24px 28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  .cost-box h3 { font-size:17px; margin:0 0 4px; }
+  .cost-box .sub { font-size:12px; color:var(--muted); margin-bottom:14px; }
+  .cost-box .sect { font-size:12px; font-weight:700; color:var(--text2); margin:14px 0 6px; }
+  .cost-box .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; }
+  .cost-box label { display:block; font-size:12px; color:var(--text2); margin-bottom:3px; }
+  .cost-box input { width:100%; box-sizing:border-box; padding:7px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; }
+  .cost-box .footer { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+  .cost-box .footer button { padding:8px 18px; border-radius:7px; font-size:13px; cursor:pointer; font-family:inherit; }
+</style>
+
+<div class="summary-grid" id="cost-summary"></div>
+
+<div class="filter-bar">
+  <i data-lucide="calendar" style="width:15px;height:15px;color:var(--text2);"></i>
+  <input type="date" id="cf-from" onchange="renderCost()" style="width:130px;">
+  <span style="color:var(--text2);font-size:12px;">~</span>
+  <input type="date" id="cf-to" onchange="renderCost()" style="width:130px;">
+  <div style="margin-left:auto;display:flex;gap:6px;">
+    <input type="text" id="cf-kw" placeholder="대행사 검색" style="width:180px;" onkeydown="if(event.key==='Enter') renderCost()">
+    <button class="action-btn" style="background:#475569;color:#fff;" onclick="renderCost()">검색</button>
+  </div>
+</div>
+
+<div class="tbl-wrap">
+  <table>
+    <thead id="cost-head"></thead>
+    <tbody id="cost-body"><tr><td colspan="8" style="padding:40px;color:var(--muted)">불러오는 중...</td></tr></tbody>
+  </table>
+</div>
+<div class="pagination" id="cost-pg"></div>
+</div>
+
+<script>
+(function(){
+  // 지출관리 — 정산관리와 같은 묶음(접수일시(분) × 대행사 × 유저)·같은 대상(HI.isBillable), 금액만 원가(hi/costs) 기준.
+  // 원가 = 승인 때 고정한 리워드 상품별·유입플 업체별 일 수량 × 일수 × 원가(HI.slotCost). 보기 전용(지급 처리 없음)
+  // ponytail: 원가는 현재 값 하나로 계산(기간별 원가 이력 없음) — 원가가 바뀌면 지난 건도 새 원가로 보임. 이력 필요하면 날짜별 원가 표 추가
+  const PER = 50;
+  let slots = [], costs = { reward: {}, yupfl: {} }, prods = [], page = 1, rows = [], vendors = [];
+  const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const won = n => `${Math.round(n).toLocaleString()}원`;
+  const pad = n => String(n).padStart(2, '0');
+  const ymdOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const minuteKey = iso => { if (!iso) return 'unknown'; const d = new Date(iso); return `${ymdOf(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+  function namesFromData() {
+    const reward = new Set(prods.filter(p => p && !p.deductOnly && !p.classifyOnly).map(p => p.name));
+    const yup = new Set((prods.find(p => p && p.classifyOnly)?.vendors || []).map(v => v.name));
+    slots.forEach(s => { Object.keys(s.rewardByProd || {}).forEach(n => reward.add(n)); Object.keys(s.yupflByVendor || {}).forEach(n => yup.add(n)); });
+    Object.keys(costs.reward || {}).forEach(n => reward.add(n));
+    Object.keys(costs.yupfl || {}).forEach(n => yup.add(n));
+    return { reward: [...reward], yupfl: [...yup] };
+  }
+
+  function groupRows() {
+    const from = document.getElementById('cf-from').value, to = document.getElementById('cf-to').value;
+    const kw = (document.getElementById('cf-kw').value || '').trim().toLowerCase();
+    const map = new Map();
+    slots.filter(HI.isBillable).forEach(s => {
+      const t = minuteKey(s.createdAt), d = t.slice(0, 10);
+      if ((from && d < from) || (to && d > to)) return;
+      if (kw && !(s.agencyId || '').toLowerCase().includes(kw)) return;
+      const k = `${t}||${s.agencyId || '-'}||${s.userId || '-'}`;
+      if (!map.has(k)) map.set(k, { t, agency: s.agencyId || '-', slots: [] });
+      map.get(k).slots.push(s);
+    });
+    return [...map.values()].sort((a, b) => b.t.localeCompare(a.t)).map(g => {
+      const r = { ...g, tgt: 0, reward: 0, yupfl: {}, total: 0, missing: new Set(), unclassified: 0 };
+      g.slots.forEach(s => {
+        r.tgt += (s.dailyTarget || 0) * (s.days || 0);
+        const c = HI.slotCost(s, costs);
+        if (!c.classified) { r.unclassified++; return; }
+        r.reward += c.reward; r.total += c.total;
+        Object.entries(c.yupfl).forEach(([v, a]) => { r.yupfl[v] = (r.yupfl[v] || 0) + a; });
+        c.missing.forEach(m => r.missing.add(m));
+      });
+      return r;
+    });
+  }
+
+  window.renderCost = function(keepPage) {
+    if (!document.getElementById('cost-page')) return;
+    if (!keepPage) page = 1;
+    rows = groupRows();
+    vendors = namesFromData().yupfl;
+    // 요약 카드 — 조회 기간 합계
+    const sum = rows.reduce((a, r) => { a.total += r.total; a.reward += r.reward; vendors.forEach(v => { a.y[v] = (a.y[v] || 0) + (r.yupfl[v] || 0); }); return a; }, { total: 0, reward: 0, y: {} });
+    const card = (label, v, color) => `<div class="sum-card"><div class="sc-label">${esc(label)}</div><div class="sc-value" style="color:${color}">${won(v)}</div></div>`;
+    document.getElementById('cost-summary').innerHTML = card('지출 합계(VAT 별도)', sum.total, 'var(--danger)')
+      + card('리워드', sum.reward, 'var(--text)') + vendors.map(v => card(`유입플 · ${v}`, sum.y[v] || 0, '#7c3aed')).join('');
+    document.getElementById('cost-head').innerHTML = `<tr><th>접수일시</th><th>대행사</th><th>캠페인 수</th><th>전체 목표 합산</th><th>리워드</th>${vendors.map(v => `<th style="color:#c4b5fd">${esc(v)}</th>`).join('')}<th>지출 합계(VAT 별도)</th></tr>`;
+    const body = document.getElementById('cost-body');
+    const cols = 6 + vendors.length;
+    const list = rows.slice((page - 1) * PER, page * PER);
+    if (!list.length) { body.innerHTML = `<tr><td colspan="${cols}" style="padding:40px;color:var(--muted)">데이터가 없습니다.</td></tr>`; document.getElementById('cost-pg').innerHTML = ''; return; }
+    body.innerHTML = list.map(r => {
+      const need = names => names.some(n => r.missing.has(n));
+      const rewardNames = [...new Set(r.slots.flatMap(s => Object.keys(s.rewardByProd || {})))];
+      const total = r.total > 0 || !r.unclassified ? `<strong style="color:var(--danger)">${won(r.total)}</strong>` : '-';
+      return `<tr>
+        <td style="color:var(--text2);font-size:11px">${esc(r.t)}</td>
+        <td style="font-weight:700">${esc(r.agency)}</td>
+        <td>${r.slots.length}건</td>
+        <td><strong>${r.tgt.toLocaleString()}</strong></td>
+        <td>${need(rewardNames) ? `<span class="need" title="${esc(rewardNames.filter(n => r.missing.has(n)).join(', '))}">원가 설정 필요</span>` : r.reward ? won(r.reward) : '-'}</td>
+        ${vendors.map(v => `<td style="color:#7c3aed">${r.missing.has(v) ? '<span class="need">원가 설정 필요</span>' : r.yupfl[v] ? won(r.yupfl[v]) : '-'}</td>`).join('')}
+        <td>${total}${r.unclassified ? `<div style="font-size:10px;color:var(--muted)">승인 전·분류 전 ${r.unclassified}건 제외</div>` : ''}</td>
+      </tr>`;
+    }).join('');
+    const pages = Math.ceil(rows.length / PER) || 1;
+    document.getElementById('cost-pg').innerHTML = pages < 2 ? '' : Array.from({ length: pages }, (_, i) => `<button class="pg-btn${i + 1 === page ? ' active' : ''}" onclick="goCostPage(${i + 1})">${i + 1}</button>`).join('');
+  };
+  window.goCostPage = n => { page = n; renderCost(true); };
+
+  // 원가 설정 — 리워드 상품별·유입플 업체별(전 직원 공용 hi/costs)
+  window.openCostModal = function() {
+    const names = namesFromData();
+    const field = (grp, n) => `<div><label>${esc(n)}</label><input type="number" min="0" class="cost-in" data-grp="${grp}" data-name="${esc(n)}" value="${(costs[grp] || {})[n] || ''}" placeholder="미설정"></div>`;
+    const ov = document.createElement('div');
+    ov.className = 'cost-overlay';
+    ov.innerHTML = `<div class="cost-box">
+      <h3>원가 설정</h3>
+      <div class="sub">개당 원가(원, VAT 별도) · 전 직원 공용 · 비워 두면 '원가 설정 필요'</div>
+      <div class="sect">리워드 상품</div><div class="grid">${names.reward.map(n => field('reward', n)).join('') || '<span style="color:var(--muted);font-size:12px">상품 없음</span>'}</div>
+      <div class="sect">유입플 업체</div><div class="grid">${names.yupfl.map(n => field('yupfl', n)).join('') || '<span style="color:var(--muted);font-size:12px">업체 없음</span>'}</div>
+      <div class="footer"><button style="border:1px solid var(--border);background:#fff" id="cost-cancel">취소</button><button style="border:none;background:var(--accent);color:#fff;font-weight:600" id="cost-save">저장</button></div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#cost-cancel').onclick = () => ov.remove();
+    ov.onclick = e => { if (e.target === ov) ov.remove(); };
+    ov.querySelector('#cost-save').onclick = async () => {
+      const next = { reward: {}, yupfl: {} };
+      ov.querySelectorAll('.cost-in').forEach(i => { const v = Number(i.value) || 0; if (v > 0) next[i.dataset.grp][i.dataset.name] = v; });
+      try { await HI.saveCosts(next); } catch (e) { alert('원가를 저장하지 못했습니다: ' + e.message); return; }
+      costs = next; ov.remove(); renderCost(true);
+    };
+  };
+
+  window.exportCostExcel = async function() {
+    if (!rows.length) return alert('다운로드할 데이터가 없습니다.');
+    if (!window.XLSX) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('엑셀 라이브러리를 불러오지 못했습니다.')); document.head.appendChild(s); }).catch(e => alert(e.message));
+    if (!window.XLSX) return;
+    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '원가 설정 필요', '분류 전 건수'];
+    const data = rows.map(r => [r.t, r.agency, r.slots.length, r.tgt, r.reward, ...vendors.map(v => r.yupfl[v] || 0), r.total, [...r.missing].join(', '), r.unclassified]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), '지출');
+    XLSX.writeFile(wb, `지출내역_${ymdOf(new Date()).replace(/-/g, '')}.xlsx`);
+  };
+
+  (async function init() {
+    const now = new Date();
+    document.getElementById('cf-from').value = ymdOf(new Date(now.getFullYear(), now.getMonth(), 1));
+    document.getElementById('cf-to').value = ymdOf(now);
+    try {
+      let p;
+      [slots, costs, p] = await Promise.all([HI.getAll(), HI.getCosts(), HI.getProdsOnce()]);
+      prods = Object.values(p || {}).filter(Boolean);
+    } catch (e) {
+      if (!document.getElementById('cost-page')) return;
+      document.getElementById('cost-body').innerHTML = `<tr><td colspan="8" style="padding:40px;color:var(--danger)">지출 데이터를 불러오지 못했습니다. 새로고침해 주세요.</td></tr>`;
+      return;
+    }
+    renderCost();
+  })();
+})();
+</script>

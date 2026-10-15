@@ -845,7 +845,7 @@ window.toggleProdPanel = function(e) {
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const targetSlot = allSlots.find(s => s._key === key);
     // 유입플 몫은 지금 상품 유형 설정 선택값(비고 비율 우선)으로 나눔. 배지는 가이드_접수 토글과 무관하게 가이드에서 — 유입플 몫이 있으면 풀스텍 배지, 캠페인타입이 비었으면 가이드 리워드 상품
-    const extra = { ...deductFieldsFor(targetSlot), ...yupflFieldsFor(targetSlot) };
+    const extra = allocFieldsFor(targetSlot);
     let guideErr = null;
     if (!guideRules.length) { try { await loadGuide(); } catch (e) { guideErr = e; } }
     const rule = !guideErr && targetSlot && !targetSlot.changeTo ? guideRuleFor(targetSlot) : null;
@@ -876,7 +876,7 @@ window.toggleProdPanel = function(e) {
   // ── 접수 처리 ─────────────────────────────────────────────
   // 승인 건을 대기·접수로 되돌리면 승인 때 붙인 배지·유입플 분류를 지움 — 다시 승인하면 그때 값으로 새로 계산(캐시 차감은 수동 처리)
   const unapprovePatch = key => allSlots.find(x => x._key === key)?.status === 'active'
-    ? { campaignType: null, fullstackType: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null } : {};
+    ? { campaignType: null, fullstackType: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, rewardByProd: null } : {};
   window.acceptOne = async function(key) {
     const patch = { status: 'accepted', ...unapprovePatch(key) };
     await HI.updateCampaign(key, patch);
@@ -1745,6 +1745,17 @@ window.toggleProdPanel = function(e) {
       ...(rule && rule.full.length ? { fullstackType: fullstackOf(rule) } : {}) };
   }
 
+  // 승인 때 리워드 상품별 일 수량(rewardByProd {상품명: 일 수량}) 고정 — 지출관리 리워드 원가 계산용(접수 배분과 같은 allocRowsForSlot)
+  function rewardFieldsFor(slot) {
+    if (!slot) return {};
+    const { alloc, prods: list } = allocRowsForSlot(slot);
+    const byProd = {};
+    list.filter(p => !p.deductOnly && !p.classifyOnly && alloc[p.id] > 0).forEach(p => { byProd[p.name] = (byProd[p.name] || 0) + alloc[p.id]; });
+    return { rewardByProd: byProd };
+  }
+  // 승인·예약 때 캠페인에 고정하는 배분 값 전부(차감·유입플·리워드 상품별)
+  const allocFieldsFor = s => ({ ...deductFieldsFor(s), ...yupflFieldsFor(s), ...rewardFieldsFor(s) });
+
   // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐
   // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용)
   // 유입플 분류 몫의 비즈핏 캐시 차감·"[환불] 유입플 금액" 메모 — 지금은 꺼 둠(차감 상품 몫만 차감·메모).
@@ -1852,7 +1863,7 @@ window.toggleProdPanel = function(e) {
   async function approveReadySlots(keys, slotMap) {
     if (!keys.length) return [];
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
-    const fieldsByKey = new Map(keys.map(k => [k, { ...deductFieldsFor(slotMap.get(k)), ...yupflFieldsFor(slotMap.get(k)) }]));
+    const fieldsByKey = new Map(keys.map(k => [k, allocFieldsFor(slotMap.get(k))]));
     await Promise.all(keys.map(k => HI.approve(k, fieldsByKey.get(k))));
     keys.forEach(k => { const s = slotMap.get(k); if (s) s.status = 'active'; });
     if (adlogAutoOn) await autoRegisterAdlog(keys.map(k => slotMap.get(k)));
@@ -2071,7 +2082,7 @@ window.toggleProdPanel = function(e) {
       const s = allSlots.find(x => x._key === slotKey);
       slotsByKey.set(slotKey, s);
       const preStatus = s && s.status !== 'split' ? s.status : (s?.preScheduleStatus || 'pending');
-      const fields = s ? { ...deductFieldsFor(s), ...yupflFieldsFor(s) } : {};
+      const fields = s ? allocFieldsFor(s) : {};
       fieldsByKey.set(slotKey, fields);
       await HI.setScheduleBatch(slotKey, { total: slotKeyCounts.get(slotKey), batchGroupId });
       await HI.updateCampaign(slotKey, { status: 'split', preScheduleStatus: preStatus, ...fields });
