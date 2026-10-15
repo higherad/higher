@@ -45,6 +45,10 @@
   .cost-row input { padding:7px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box; }
   .cost-row .c-name { width:110px; }
   .cost-row .c-price { width:80px; text-align:center; }
+  /* 원가 설정 회전 아이콘 — 불러오는 동안 돌고, 끝나면 잠깐 초록 테두리 */
+  @keyframes yp-spin { to { transform:rotate(360deg); } }
+  .yp-refresh.spinning svg { animation:yp-spin .8s linear infinite; }
+  .yp-refresh.done { border-color:#059669 !important; color:#059669 !important; }
   .btn-save-sp { padding:9px 24px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit; }
   @media (max-width: 900px) { #cost-page .summary-grid { grid-template-columns:repeat(2,1fr); } .sp-cards { grid-template-columns:1fr; } }
 </style>
@@ -264,9 +268,15 @@
     </div>`;
     document.body.appendChild(ov);
     if (window.lucide) lucide.createIcons();
-    ov.querySelector('.yp-refresh').onclick = async () => {
+    ov.querySelector('.yp-refresh').onclick = async e => {
+      const btn = e.currentTarget;
+      if (btn.disabled) return;
       const base = ov.querySelector('.cost-rows[data-grp="reward"] [data-base] .c-price').value, cr = curOf('reward'), cy = curOf('yupfl');
-      try { items = await HI.refreshGuideItems(); } catch (e) { return alert('가이드 시트를 불러오지 못했습니다: ' + e.message); }
+      btn.disabled = true; btn.classList.remove('done'); btn.classList.add('spinning'); btn.style.cursor = 'wait';
+      try { items = await HI.refreshGuideItems(); }
+      catch (err) { return alert('가이드 시트를 불러오지 못했습니다: ' + err.message); }
+      finally { btn.disabled = false; btn.classList.remove('spinning'); btn.style.cursor = 'pointer'; }
+      btn.classList.add('done'); setTimeout(() => btn.classList.remove('done'), 1500);
       ov.querySelector('.cost-rows[data-grp="reward"]').innerHTML = rewardRowsHtml(cr);
       ov.querySelector('.cost-rows[data-grp="reward"] [data-base] .c-price').value = base;
       ov.querySelector('.cost-rows[data-grp="yupfl"]').innerHTML = rowsOf(items.vendors, cy);
