@@ -249,14 +249,13 @@
         <input class="c-name" value="${esc(n)}" placeholder="리워드 이름"${grp === 'yupfl' ? ' disabled' : ''}>
         <input class="c-price" type="number" min="0" value="${v}" placeholder="원가(원)">
         ${grp === 'yupfl' ? '<span style="width:22px"></span>' : '<button type="button" class="c-del" title="삭제">✕</button>'}</div>`;
-    // 유입플 = 가이드 시트 업체 목록 + 목록에서 빠졌지만 원가가 남은 업체. 입력 중인 값은 다시 그릴 때 유지
+    // 유입플 = 업체 목록(상단 '원가 불러오기'로 갱신) + 목록에서 빠졌지만 원가가 남은 업체
     const yupflRows = (list, cur) => [...new Set([...list, ...Object.keys(cur)])].map(n => row('yupfl', n, cur[n] || '')).join('');
-    const curYupfl = () => Object.fromEntries([...ov.querySelectorAll('.cost-rows[data-grp="yupfl"] .cost-row')].map(r => [r.querySelector('.c-name').value, r.querySelector('.c-price').value]));
     const rewardRows = Array.isArray(costs.reward) ? costs.reward : Number(costs.reward) > 0 ? [{ name: '리워드', price: costs.reward }] : [];
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
     ov.innerHTML = `<div class="total-popup-box" style="width:auto;max-width:96vw">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="sp-title">원가 설정</div><button type="button" class="yp-refresh" title="가이드 시트 탭에서 유입플 업체 목록 다시 불러오기" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:30px;height:30px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text2)"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i></button></div>
+      <div class="sp-title">원가 설정</div>
       <div class="sp-section">리워드</div>
       <div class="cost-rows" data-grp="reward">${rewardRows.map(r => row('reward', r.name, r.price)).join('')}</div>
       <button type="button" class="cost-add" data-grp="reward">+ 리워드 추가</button>
@@ -265,11 +264,6 @@
       <div class="sp-footer"><button class="btn-close-sp" id="cost-cancel">취소</button><button class="btn-save-sp" id="cost-save">저장</button></div>
     </div>`;
     document.body.appendChild(ov);
-    if (window.lucide) lucide.createIcons();
-    ov.querySelector('.yp-refresh').onclick = async () => {
-      try { vendorList = await HI.refreshYupflVendors(); } catch (e) { return alert('가이드 시트를 불러오지 못했습니다: ' + e.message); }
-      ov.querySelector('.cost-rows[data-grp="yupfl"]').innerHTML = yupflRows(vendorList, curYupfl());
-    };
     ov.addEventListener('click', e => {  // 바깥 클릭으로는 안 닫힘(입력 중 실수로 닫히지 않게) — 취소·저장으로만
       const add = e.target.closest('.cost-add');
       if (add) { const box = ov.querySelector(`.cost-rows[data-grp="${add.dataset.grp}"]`); box.insertAdjacentHTML('beforeend', row(add.dataset.grp)); box.lastElementChild.querySelector('.c-name').focus(); }

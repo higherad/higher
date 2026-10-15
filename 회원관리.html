@@ -265,15 +265,8 @@
       <input class="um-p-name" value="${escHtml(n)}" placeholder="리워드 이름" style="width:110px"${grp === 'yupfl' ? ' disabled' : ''}>
       <input class="um-p-price" type="number" min="0" value="${v}" placeholder="단가(원)" style="width:80px;text-align:right">
       ${grp === 'yupfl' ? '<span style="width:22px"></span>' : '<button type="button" onclick="this.parentElement.remove()" title="삭제" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:14px">✕</button>'}</div>`;
-  // 유입플 = 가이드 시트 업체 목록 + 목록에서 빠졌지만 단가가 남은 업체
+  // 유입플 = 업체 목록(상단 '단가 불러오기'로 갱신) + 목록에서 빠졌지만 단가가 남은 업체
   const yupflRowsHtml = (list, cur) => [...new Set([...list, ...Object.keys(cur)])].map(n => ypRowHtml(n, cur[n] || '')).join('');
-  const curYupflPrices = () => Object.fromEntries([...document.querySelectorAll('#um-yupfl-prices .um-price-row')].map(r => [r.querySelector('.um-p-name').value, r.querySelector('.um-p-price').value]));
-  window.refreshUserYupflVendors = async () => {
-    let list;
-    try { list = await HI.refreshYupflVendors(); } catch (e) { return alert('가이드 시트를 불러오지 못했습니다: ' + e.message); }
-    const el = document.getElementById('um-yupfl-prices');
-    if (el) el.innerHTML = yupflRowsHtml(list, curYupflPrices());
-  };
   window.addPriceRow = grp => {
     const el = document.getElementById(grp === 'reward' ? 'um-reward-prices' : 'um-yupfl-prices');
     el.insertAdjacentHTML('beforeend', ypRowHtml('', '', grp));
@@ -307,7 +300,7 @@
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal-box">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px"><div class="modal-title" style="margin-bottom:0">${isEdit?'회원 정보 수정':'회원 추가'}</div><button type="button" class="yp-refresh" onclick="refreshUserYupflVendors()" title="가이드 시트 탭에서 유입플 업체 목록 다시 불러오기" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:30px;height:30px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text2)"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i></button></div>
+        <div class="modal-title">${isEdit?'회원 정보 수정':'회원 추가'}</div>
         <div class="modal-row modal-row-3">
           <div class="modal-field"><label>아이디 *</label><input id="um-username" value="${u.username||''}" ${isEdit?'readonly':''}></div>
           <div class="modal-field"><label>비밀번호 *</label><div class="pw-input-wrap"><input id="um-password" type="password" value="${u.password||''}" placeholder="${isEdit?'변경 시 입력':''}"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
@@ -333,7 +326,6 @@
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('user-save-btn').onclick = () => saveUser(key);
-    if (window.lucide) lucide.createIcons();
     HI.getYupflVendors().catch(() => []).then(list => {
       const el = document.getElementById('um-yupfl-prices');
       if (el) { el.innerHTML = yupflRowsHtml(list, u.yupflPrices || {}); el.dataset.loaded = '1'; }
