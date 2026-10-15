@@ -114,9 +114,12 @@
     return [...map.values()].map(g => {
       const r = { key: g.key, t: g.t, agency: g.agency, count: g.slots.length, tgt: 0, reward: 0, yupfl: {}, total: 0, deduct: 0, missing: [],
         open: g.slots.some(s => s.status === 'pending' || s.status === 'accepted'), paid: g.slots.every(s => paidSet.has(s._key)) };
+      r.slots = {};  // 캠페인별 몫 — 고정 후 휴지통 이동·복구 때 그만큼 빼고 더함(hi-store adjustCostSnapshot)
       g.slots.forEach(s => {
-        r.tgt += (s.dailyTarget || 0) * (s.days || 0);
+        const tgt = (s.dailyTarget || 0) * (s.days || 0);
+        r.tgt += tgt;
         const c = HI.slotCost(s, withCosts);
+        r.slots[s._key] = { tgt, reward: c.reward, total: c.total, deduct: c.deduct, yupfl: c.yupfl };
         r.reward += c.reward; r.total += c.total; r.deduct += c.deduct;
         Object.entries(c.yupfl).forEach(([v, a]) => { r.yupfl[v] = (r.yupfl[v] || 0) + a; });
         r.missing.push(...c.missing);
@@ -137,11 +140,11 @@
     await HI.freezeCostSnapshots(map);
     snaps = await HI.getCostSnapshots();
   }
-  // 정산완료 묶음만. 고정 묶음은 고정값으로 — 캠페인이 휴지통으로 가도 남고, 정산완료를 풀면 숨김(다시 완료하면 같은 고정값)
+  // 정산완료 묶음만. 고정 묶음은 고정값으로 — 휴지통 이동·복구는 고정값에 반영(다 빠지면 숨김), 정산완료를 풀면 숨김(다시 완료하면 같은 고정값)
   function buildAllRows() {
     const live = new Map(liveGroups(costs).map(r => [r.key, r]));
     const m = new Map([...live].filter(([, r]) => r.paid));
-    Object.entries(snaps).forEach(([k, sn]) => { if (!live.has(k) || live.get(k).paid) m.set(k, { ...sn, key: k, missing: [], frozen: true }); });
+    Object.entries(snaps).forEach(([k, sn]) => { if (sn.count > 0 && (!live.has(k) || live.get(k).paid)) m.set(k, { ...sn, key: k, missing: [], frozen: true }); });
     return [...m.values()].sort((a, b) => b.t.localeCompare(a.t));
   }
 
@@ -304,8 +307,8 @@
     if (!rows.length) return alert('다운로드할 데이터가 없습니다.');
     if (!window.XLSX) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('엑셀 라이브러리를 불러오지 못했습니다.')); document.head.appendChild(s); }).catch(e => alert(e.message));
     if (!window.XLSX) return;
-    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '지출 합계(VAT 포함)', '차감(수입)', '원가 설정 필요', '고정'];
-    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.reward, ...vendors.map(v => r.yupfl?.[v] || 0), r.total, Math.round(r.total * 1.1), r.deduct || 0, r.missing.join(', '), r.frozen ? 'O' : '']);
+    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '지출 합계(VAT 포함)', '차감(수입)', '원가 설정 필요'];
+    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.reward, ...vendors.map(v => r.yupfl?.[v] || 0), r.total, Math.round(r.total * 1.1), r.deduct || 0, r.missing.join(', ')]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), '지출');
     XLSX.writeFile(wb, `지출내역_${todayStr.replace(/-/g, '')}.xlsx`);

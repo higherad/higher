@@ -204,4 +204,19 @@ assert.equal(await HI.freezeCostSnapshots({ g1: { total: 100 } }), 1);
 assert.equal(await HI.freezeCostSnapshots({ g1: { total: 999 }, g2: { total: 5 } }), 1);
 assert.equal(tree.hi.cost_snapshots.g1.total, 100, '고정 금액 유지');
 
+// 지출 고정 금액: 휴지통 이동 시 그 캠페인 몫(고정 때 저장한 slots[key])만큼 빼고, 복구하면 되돌림
+{
+  tree.hi.campaigns = { live: {}, closed: {} };
+  const cA = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: 'm', dailyTarget: 10, days: 2, createdAt: '2026-10-01T01:00:00.000Z' });
+  const gk = HI.settleGroupKey(tree.hi.campaigns.live[cA._key]);
+  await HI.updateCampaign(cA._key, { status: 'active' });
+  tree.hi.cost_snapshots = { [gk]: { count: 2, tgt: 40, reward: 300, total: 500, deduct: 0, yupfl: { 풀스택: 200 },
+    slots: { [cA._key]: { tgt: 20, reward: 100, total: 150, deduct: 0, yupfl: { 풀스택: 50 } } } } };
+  await HI.trash(cA._key);
+  assert.deepEqual({ ...tree.hi.cost_snapshots[gk], slots: undefined }, { count: 1, tgt: 20, reward: 200, total: 350, deduct: 0, yupfl: { 풀스택: 150 }, slots: undefined });
+  await HI.restore(cA._key);
+  assert.equal(tree.hi.cost_snapshots[gk].total, 500, '복구하면 되돌림');
+  assert.equal(tree.hi.cost_snapshots[gk].count, 2);
+}
+
 console.log('hi-store 자가검사 통과');

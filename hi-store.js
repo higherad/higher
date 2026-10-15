@@ -338,6 +338,25 @@ async function adjustSettleSnapshot(slot, lostDays, lostSlots = 0) {
   });
 }
 
+// 지출관리 고정 금액도 같은 예외 — 캠페인 몫(고정 때 저장한 slots[key], 없으면 현재 원가로 계산) × 줄어든 일수 비율만큼 빼고(음수면 더함).
+// 묶음의 캠페인이 다 빠지면 count 0 → 지출관리에서 숨김
+async function adjustCostSnapshot(key, slot, lostDays, lostSlots = 0) {
+  if (!lostDays || !slot.createdAt) return;
+  const path = `${P.costSnapshots}/${HI.settleGroupKey(slot)}`;
+  if (!(await get(ref(db, path))).exists()) return;
+  const costs = (await get(ref(db, P.costs))).val() || {};
+  await runTransaction(ref(db, path), cur => {
+    if (!cur) return cur;
+    const base = cur.slots?.[key] || { ...HI.slotCost(slot, costs), tgt: (Number(slot.dailyTarget) || 0) * (Number(slot.days) || 0) };
+    const r = lostDays / (Number(slot.days) || lostDays);
+    const sub = (a, b) => Math.round((a || 0) - (b || 0) * r);
+    const yupfl = { ...(cur.yupfl || {}) };
+    Object.entries(base.yupfl || {}).forEach(([v, a]) => { yupfl[v] = sub(yupfl[v], a); });
+    return { ...cur, tgt: sub(cur.tgt, base.tgt), reward: sub(cur.reward, base.reward), total: sub(cur.total, base.total),
+      deduct: sub(cur.deduct, base.deduct), yupfl, count: Math.max(0, (cur.count || 0) - lostSlots) };
+  });
+}
+
 // 예약 대기분 취소 후 남는 일수·종료일 — 남은 항목이 있는 날짜는 유지, 대기분만 있다 전부 취소된 날짜만 뺌.
 // 완료 항목은 서버가 2일 뒤 지우므로 화면에 남은 완료분으로 세면 일수가 줄어 정산 금액이 적게 잡힘.
 export function remainingAfterCancel(slot, canceledDates, keptDates) {
@@ -525,14 +544,20 @@ const HI = {
     const cur = await readCampaign(key);
     if (!cur || cur.data.status === 'deleted') return;
     await writeCampaign(key, { status: 'deleted', deletedAt: nowIso(), originalStatus: cur.data.status || 'pending' }, cur);
-    if (HI.isBillable(cur.data)) await adjustSettleSnapshot(cur.data, Number(cur.data.days) || 0, 1);
+    if (HI.isBillable(cur.data)) {
+      await adjustSettleSnapshot(cur.data, Number(cur.data.days) || 0, 1);
+      await adjustCostSnapshot(key, cur.data, Number(cur.data.days) || 0, 1);
+    }
   },
   async restore(key) {
     const cur = await readCampaign(key);
     if (!cur || cur.data.status !== 'deleted') return;
     const restored = { ...cur.data, status: cur.data.originalStatus || 'pending' };
     await writeCampaign(key, { status: restored.status, deletedAt: null, originalStatus: null }, cur);
-    if (HI.isBillable(restored)) await adjustSettleSnapshot(restored, -(Number(restored.days) || 0), -1);
+    if (HI.isBillable(restored)) {
+      await adjustSettleSnapshot(restored, -(Number(restored.days) || 0), -1);
+      await adjustCostSnapshot(key, restored, -(Number(restored.days) || 0), -1);
+    }
   },
   // 영구삭제 — 캠페인·키워드·입금표시를 한 번에
   async permanentDelete(key) {
@@ -578,6 +603,7 @@ const HI = {
     const fields = remainingAfterCancel(cur.data, canceledDates, keptDates);
     await writeCampaign(key, { ...fields, status: 'expired' }, cur);
     await adjustSettleSnapshot(cur.data, Math.max(0, (Number(cur.data.days) || 0) - fields.days));
+    await adjustCostSnapshot(key, cur.data, Math.max(0, (Number(cur.data.days) || 0) - fields.days));
     return fields;
   },
 
