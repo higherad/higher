@@ -855,7 +855,9 @@ window.toggleProdPanel = function(e) {
     if (!guideRules.length) { try { await loadGuide(); } catch (e) { guideErr = e; } }
     const rule = !guideErr && targetSlot && !targetSlot.changeTo ? guideRuleFor(targetSlot) : null;
     if (rule && extra.yupflByVendor && !extra.vendorProducts) Object.assign(extra, vendorProductFields(rule, extra.yupflByVendor));
-    if (rule && rule.reward.length && !typeLabels(targetSlot).length) extra.campaignType = rule.reward.map(g => g.name);
+    // 리워드 몫(일 목표 − 유입플 − 차감)이 남을 때만 — 전부 유입플이면 리워드 배지 없음
+    const rewardLeft = targetSlot && (targetSlot.dailyTarget || 0) - (extra.yupflTarget || 0) - (extra.deductTarget || 0) / (targetSlot.days || 1) > 0;
+    if (rule && rule.reward.length && rewardLeft && !typeLabels(targetSlot).length) extra.campaignType = rule.reward.map(g => g.name);
     await HI.approve(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
     await autoRegisterAdlog([targetSlot]);
