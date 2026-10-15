@@ -2858,7 +2858,7 @@ window.toggleProdPanel = function(e) {
     const todayStr = rexFmt(new Date());
     const ws = XLSX.utils.aoa_to_sheet([
       ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고'],
-      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,'50:50'],
+      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,''],
     ]);
     ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:10}];
     XLSX.utils.book_append_sheet(wb, ws, '접수');
