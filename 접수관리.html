@@ -1806,6 +1806,10 @@ window.toggleProdPanel = function(e) {
   // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용)
   // 승인·예약·재시도 모두 유입플 금액(유입플 수량 × 일수 × 리워드 단가, 승인 때 고정한 yupflAmount)을 차감 몫과 합쳐 차감하고
   // 충전 메모 '[환불] 차감 : N원 / 유입플 : M원'에도 남김 — 비즈핏엔 리워드 몫만 등록돼 남는 유입플 몫 캐시를 빼 잔액을 맞춤
+  let lastDeductError = ''; // 마지막 차감 실패 사유(비즈핏 응답) — 재시도 배너·버튼이 보여 줌
+  // '캐시를 확인' = 대행사 비즈핏 보유 캐시 부족 → 충전 후 재시도
+  const deductFailMsg = () => `캐시 차감 재시도 실패\n${lastDeductError}`
+    + (/캐시를 확인/.test(lastDeductError) ? '\n\n대행사 비즈핏 보유 캐시가 부족합니다. 충전 후 다시 재시도해 주세요.' : '');
   async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount, force = false) {
     const targets = slots.filter(s => s && !s.bizfitDeducted);
     if (!targets.length) return true;
@@ -1836,6 +1840,7 @@ window.toggleProdPanel = function(e) {
       await Promise.all(targets.map(s => HI.updateCampaign(s._key, { bizfitDeductAttempted: true })));
       targets.forEach(s => updateLocalSlot(s._key, { bizfitDeductAttempted: true }));
       await HI.releaseBizfitDeduct(keys); // 확실한 실패 — 재시도 가능하게 선점 해제
+      lastDeductError = (res && res.message) || '차감 실패';
       console.error('비즈핏 캐시 차감 실패:', targets.map(s => s._key), bizfitUid, amount, res && res.message);
       return false;
     } catch (e) {
@@ -1876,8 +1881,9 @@ window.toggleProdPanel = function(e) {
       return;
     }
     if (fresh.bizfitDeducted) { updateLocalSlot(key, { bizfitDeducted: true }); renderReceipts(false); return; }
-    await settleBizfitCash(slot, { deductAmount: slot.deductAmount || 0, yupflAmount: slot.yupflAmount || 0 }, true);
+    const ok = await settleBizfitCash(slot, { deductAmount: slot.deductAmount || 0, yupflAmount: slot.yupflAmount || 0 }, true);
     renderReceipts(false);
+    if (!ok) alert(deductFailMsg());
   };
 
   // 슬롯별 차감 필드를 bizfitUid별로 묶어 반환(조회 전용) — approveReadySlots/initScheduledBatches 공용.
@@ -3897,6 +3903,8 @@ window.toggleProdPanel = function(e) {
           if (!ok) overlay._deductFailures.push(g);
         }
         overlay._renderDeductFailures();
+        // 실패해도 배너만 남으면 눌러도 변화가 없어 보임 — 사유를 알림으로('캐시를 확인' = 대행사 비즈핏 보유 캐시 부족 → 충전 후 재시도)
+        if (overlay._deductFailures.length) alert(deductFailMsg());
       };
     };
 
