@@ -897,7 +897,6 @@ window.toggleProdPanel = function(e) {
   // 상세 팝업의 키워드·블로그URL 입력칸 값이 바뀐 경우에만 저장 — acceptFromDetail/closeDetailModal 공용
   async function saveDetailFields(key) {
     const s0 = allSlots.find(x => x._key === key);
-    if (s0?.status === 'split' || s0?.status === 'active') return; // 분할 진행 중/승인 후 — 모달 필드가 disabled라 값은 안 바뀌지만, 저장 자체도 막아둠
     // 기본 필드(대행사/플레이스명/순위키워드/URL/MID/일목표/일수/단가/기간/메모) — 김프로 상세보기와 동일하게 편집 가능
     const readField = (id, num) => {
       const el = document.getElementById(id);
@@ -1004,9 +1003,8 @@ window.toggleProdPanel = function(e) {
     const navyProd   = prods.find(p => p.id === 'navy');
     const deltaShown = !!deltaProd?.active;
     const navyShown  = !!navyProd?.active;
-    const isSplit = s.status === 'split';
-    const isLocked = isSplit || s.status === 'active'; // 승인(active) 이후엔 데이터 오염 방지 위해 상세 수정 막음
-    const dis = isLocked ? 'disabled' : '';
+    // 분할·승인 건도 수정 가능 — 이미 등록·예약된 비즈핏 쪽은 안 바뀌므로 경고만
+    const editWarn = s.status === 'split' ? '⏰ 분할 예약 진행 중 — 수정 시 주의해주세요.' : s.status === 'active' ? '승인된 캠페인 — 수정 시 주의해주세요.' : '';
 
     overlay.innerHTML = `
       <div class="modal-box">
@@ -1014,10 +1012,8 @@ window.toggleProdPanel = function(e) {
         <div class="modal-row" style="margin-bottom:14px;">
           <div>
             <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">상태</div>
-            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
-              <span>${stMap[s.status]||s.status}</span>
-              ${isSplit ? '<span style="font-size:11px;color:#b45309;">⏰ 시간대 분할 예약 진행 중에는 수정할 수 없습니다.</span>' : (s.status==='active' ? '<span style="font-size:11px;color:#b45309;">승인된 캠페인은 상세 정보를 수정할 수 없습니다.</span>' : '')}
-            </div>
+            <div>${stMap[s.status]||s.status}</div>
+            ${editWarn ? `<div style="font-size:11px;color:var(--danger);font-weight:600;margin-top:4px;">${editWarn}</div>` : ''}
           </div>
           <div>
             <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">등급</div>
@@ -1025,40 +1021,40 @@ window.toggleProdPanel = function(e) {
           </div>
         </div>
         <div class="modal-row">
-          <div class="modal-field"><label>대행사</label><input id="d-agencyId" value="${escProd(s.agencyId)}" ${dis}></div>
-          <div class="modal-field"><label>순위키워드</label><input id="d-rankKeyword" value="${escProd(s.rankKeyword)}" ${dis}></div>
+          <div class="modal-field"><label>대행사</label><input id="d-agencyId" value="${escProd(s.agencyId)}"></div>
+          <div class="modal-field"><label>순위키워드</label><input id="d-rankKeyword" value="${escProd(s.rankKeyword)}"></div>
         </div>
-        <div class="modal-field"><label>플레이스명</label><input id="d-storeName" value="${escProd(s.storeName)}" ${dis}></div>
+        <div class="modal-field"><label>플레이스명</label><input id="d-storeName" value="${escProd(s.storeName)}"></div>
         <div class="modal-row">
-          <div class="modal-field"><label>URL</label><input id="d-url" value="${escProd(s.url||'')}" ${dis}></div>
-          <div class="modal-field"><label>MID</label><input id="d-mid" value="${escProd(s.mid||'')}" ${dis}></div>
-        </div>
-        <div class="modal-row">
-          <div class="modal-field"><label>일 목표</label><input type="number" id="d-dailyTarget" value="${escProd(s.dailyTarget||0)}" ${dis}></div>
-          <div class="modal-field"><label>일 수</label><input type="number" id="d-days" value="${escProd(s.days||0)}" ${dis}></div>
+          <div class="modal-field"><label>URL</label><input id="d-url" value="${escProd(s.url||'')}"></div>
+          <div class="modal-field"><label>MID</label><input id="d-mid" value="${escProd(s.mid||'')}"></div>
         </div>
         <div class="modal-row">
-          <div class="modal-field"><label>시작일</label><input type="date" id="d-startDate" value="${escProd(s.startDate)}" ${dis}></div>
-          <div class="modal-field"><label>종료일</label><input type="date" id="d-endDate" value="${escProd(s.endDate)}" ${dis}></div>
+          <div class="modal-field"><label>일 목표</label><input type="number" id="d-dailyTarget" value="${escProd(s.dailyTarget||0)}"></div>
+          <div class="modal-field"><label>일 수</label><input type="number" id="d-days" value="${escProd(s.days||0)}"></div>
         </div>
         <div class="modal-row">
-          <div class="modal-field"><label>메모</label><textarea id="d-memo" rows="1" style="min-height:34px;" ${dis}>${escProd(s.memo||'')}</textarea></div>
-          <div class="modal-field"><label>애드로그</label><input id="d-adlogMemo" value="${escProd(s.adlogMemo ?? defaultAdlogMemo(s))}" ${dis}></div>
+          <div class="modal-field"><label>시작일</label><input type="date" id="d-startDate" value="${escProd(s.startDate)}"></div>
+          <div class="modal-field"><label>종료일</label><input type="date" id="d-endDate" value="${escProd(s.endDate)}"></div>
+        </div>
+        <div class="modal-row">
+          <div class="modal-field"><label>메모</label><textarea id="d-memo" rows="1" style="min-height:34px;">${escProd(s.memo||'')}</textarea></div>
+          <div class="modal-field"><label>애드로그</label><input id="d-adlogMemo" value="${escProd(s.adlogMemo ?? defaultAdlogMemo(s))}"></div>
         </div>
         <div class="modal-field">
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
             ${s.mid ? `<button type="button" onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button>` : ''}
           </label>
-          <input type="text" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)" ${dis} style="margin-top:5px;">
+          <input type="text" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)" style="margin-top:5px;">
           <div id="mid-history-area" style="display:none;margin-top:8px;"></div>
         </div>
         ${(deltaShown || navyShown) ? `
         <div class="modal-field">
           <label style="display:flex;align-items:center;gap:6px;">블로그 URL <span id="delta-url-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.deltaBlogUrl||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></label>
           <div style="display:flex;gap:6px;align-items:center;margin-top:5px;">
-            <input type="text" id="detail-delta-url-input" value="${escProd(s.deltaBlogUrl||'')}" placeholder="블로그 URL을 ,로 구분해 입력해주세요" oninput="updateDetailKwBadge(this,'delta-url-count-badge')" style="flex:1;" ${dis}>
-            <button type="button" onclick="applyDeltaBlogUrls('${key}')" id="delta-url-apply-btn" ${dis} style="flex-shrink:0;font-size:11px;padding:6px 10px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;font-family:inherit;">적용</button>
+            <input type="text" id="detail-delta-url-input" value="${escProd(s.deltaBlogUrl||'')}" placeholder="블로그 URL을 ,로 구분해 입력해주세요" oninput="updateDetailKwBadge(this,'delta-url-count-badge')" style="flex:1;">
+            <button type="button" onclick="applyDeltaBlogUrls('${key}')" id="delta-url-apply-btn" style="flex-shrink:0;font-size:11px;padding:6px 10px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;font-family:inherit;">적용</button>
           </div>
         </div>` : ''}
         <div class="modal-footer">
