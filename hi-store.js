@@ -675,6 +675,11 @@ const HI = {
       return false;
     });
   },
+  // 이 탭이 잡은 등록 선점 풀기 — 처리가 끝나 완료 기록(접수 기록 등)이 남은 뒤라 다른 창이 다시 보내도 건너뜀. 다른 탭 선점은 안 건드림
+  async releaseRegisterRows(keys, leg) {
+    await authReady;
+    await Promise.all(keys.map(k => runTransaction(ref(db, `${P.claims}/register/${k}/${leg}`), cur => (cur && cur.tab === TAB_ID) ? null : undefined)));
+  },
   // 비즈핏 캐시 차감 선점 — 서버 /bizfit-refund는 받은 요청을 전부 실제 차감. force = 사람이 '재시도'(결과 불명 선점 덮어씀)
   async claimBizfitDeduct(keys, force = false) {
     await authReady;
