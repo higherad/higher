@@ -4467,7 +4467,7 @@ window.toggleProdPanel = function(e) {
     if (label) label.style.color = '#f59e0b';
     alert(['⏰ 분할 예약 설정 완료', '',
       `· 매일 ${scheduleConfig.map(r => `${r.time}(${r.pct}%)`).join(' / ')}`,
-      `· 접수 신청 → 예약 저장${FULLSTACK_ON ? ' (풀스택은 바로 접수)' : ''}`,
+      '· 접수 신청 → 예약 저장',
       ...(scheduleKwSplit ? ['· 키워드도 시간대별로 나눔'] : [])].join('\n'));
   };
 
