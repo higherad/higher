@@ -578,7 +578,7 @@ const HI = {
   ratioBadgeHtml(r) {
     if (!r) return '<span style="color:#cbd5e1">-</span>';
     const label = r.vendor || (!r.yupfl ? '리워드' : `${r.reward}:${r.yupfl}`);
-    return `<span title="리워드:유입플 (엑셀 비고)" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${label}</span>`;
+    return `<span title="리워드:유입플 (${r.auto ? '승인 때 나뉜 일 목표' : '엑셀 비고'})" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${label}</span>`;
   },
   dailySplitHtml(s) {
     if (s.yupflTarget == null || !s.dailyTarget) return '';

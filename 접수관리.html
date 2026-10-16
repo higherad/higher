@@ -575,11 +575,13 @@ window.toggleProdPanel = function(e) {
     if (vendors.includes(t)) return { reward: 0, yupfl: 100, vendor: t };
     return null;
   }
+  // 배분에 쓰는 비율 = 엑셀 비고 배지만 — 승인 때 자동으로 붙인 배지(auto)는 표시용이라 배분에 안 씀
+  const noteRatio = s => s?.yupflRatio?.auto ? null : s?.yupflRatio || null;
   // 유입플 업체 = 승인 때 유입플 몫을 '유입플' 상품 설정의 업체 비율로 나눈 값(yupflByVendor {업체명: 일 수량}) — 업체명 = 가이드 시트 탭 이름.
   // 비고가 업체명이면 그 업체에 전부
   const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스택', ratio: 100 }]; };
   function vendorSplit(target, slot) {
-    if (slot?.yupflRatio?.vendor) return target > 0 ? { [slot.yupflRatio.vendor]: target } : {};
+    if (noteRatio(slot)?.vendor) return target > 0 ? { [slot.yupflRatio.vendor]: target } : {};
     const vs = yupflVendors().filter(v => v.name && v.ratio > 0);
     const a = lrm(vs.map(v => ({ id: v.name, ratio: v.ratio })), target);
     return Object.fromEntries(Object.entries(a).filter(([, n]) => n > 0));
@@ -1762,16 +1764,16 @@ window.toggleProdPanel = function(e) {
 
   // 승인·예약 때 캠페인에 고정하는 배분 값 전부(차감·유입플)
   const allocFieldsFor = s => withAutoRatio(s, { ...deductFieldsFor(s), ...yupflFieldsFor(s) });
-  // 비율 배지(yupflRatio)가 없는 캠페인은 나뉜 일 목표로 배지를 붙임 — 일반만 '리워드', 유입플만 업체명(업체 여럿이면 0:100), 섞이면 일반%:유입플%.
-  // auto 표시 = 승인 취소 때 지우고 다시 승인하면 그때 배분으로 새로 계산(엑셀 비고 배지는 건드리지 않음)
+  // 엑셀 비고 배지가 없는 캠페인은 나뉜 일 목표로 배지를 붙임 — 일반만 '리워드', 유입플만 업체명(여럿이면 '풀스택·제이엔'), 섞이면 일반%:유입플%.
+  // auto = 표시용(배분은 noteRatio로 비고 배지만), 승인·예약 때마다 그때 배분으로 다시 계산, 승인 취소 때 지움
   function withAutoRatio(s, f) {
-    if (!s || s.yupflRatio || f.yupflTarget == null) return f;
+    if (!s || noteRatio(s) || f.yupflTarget == null) return f;
     const yup = f.yupflTarget, normal = Math.max(0, (s.dailyTarget || 0) - yup - Math.round((f.deductTarget || 0) / (s.days || 1)));
     if (!(normal + yup > 0)) return f;
     const vendors = Object.keys(f.yupflByVendor || {});
     const reward = Math.round(normal / (normal + yup) * 100);
     const r = !yup ? { reward: 100, yupfl: 0 }
-      : !normal ? (vendors.length === 1 ? { reward: 0, yupfl: 100, vendor: vendors[0] } : { reward: 0, yupfl: 100 })
+      : !normal ? { reward: 0, yupfl: 100, ...(vendors.length ? { vendor: vendors.join('·') } : {}) }
       : { reward: Math.min(99, Math.max(1, reward)), yupfl: 100 - Math.min(99, Math.max(1, reward)) };
     return { ...f, yupflRatio: { ...r, auto: true } };
   }
@@ -1974,7 +1976,7 @@ window.toggleProdPanel = function(e) {
     // 리워드:유입플 = 엑셀 비고 비율, 없으면 '유입플' 상품 설정 %(꺼져 있으면 0) — 리워드 상품끼리는 가이드 비율
     const yupfl = prods.find(p => p.classifyOnly);
     const pct = yupfl?.active ? (yupfl.fixedPct ?? 0) : 0;
-    return applyGuideRatio(out, r.yupflRatio || { reward: 100 - pct, yupfl: pct });
+    return applyGuideRatio(out, noteRatio(r) || { reward: 100 - pct, yupfl: pct });
   }
   // 리워드·유입플 두 묶음 합계를 주어진 비율로 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
   function applyGuideRatio(items, { reward, yupfl }) {
@@ -2146,7 +2148,7 @@ window.toggleProdPanel = function(e) {
   // 두고 나머지만 균등분배, 없으면 기존 ratio 배분. 재접수는 변경 요청 상품(changeTo)이 있으면 그 상품, 없으면 매칭 안 함.
   function allocRowsForSlot(r) {
     // 엑셀 비고 비율(yupflRatio)이 있으면 유입플 분류 % 대신 그 비율(가이드_접수면 가이드 비율 대신)
-    const R = r.yupflRatio;
+    const R = noteRatio(r);
     const AP = !R ? ap() : (() => {
       const pct = R.yupfl / (R.reward + R.yupfl) * 100, y = prods.find(p => p.classifyOnly);
       const list = ap().map(p => p.classifyOnly ? { ...p, fixedPct: pct } : p);
@@ -3400,7 +3402,7 @@ window.toggleProdPanel = function(e) {
     const hasDelta   = ap().some(p => p.id === 'delta');
     const hasNavy    = ap().some(p => p.id === 'navy');
     // 상품 1개 이상 켜기는 비고가 '리워드'·비율(리워드 몫 있음)인 캠페인이 섞였을 때만 — 업체명(전부 유입플)·비고 없음은 확인 안 함
-    const needsReward = target.some(s => s.yupflRatio && s.yupflRatio.reward > 0);
+    const needsReward = target.some(s => noteRatio(s)?.reward > 0);
     if (needsReward && !hasNormal && !hasCharlie && !hasDelta && !hasNavy) {
       alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
