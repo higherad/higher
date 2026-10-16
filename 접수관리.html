@@ -1810,8 +1810,10 @@ window.toggleProdPanel = function(e) {
   // '캐시를 확인' = 대행사 비즈핏 보유 캐시 부족 → 충전 후 재시도
   const deductFailMsg = () => `캐시 차감 재시도 실패\n${lastDeductError}`
     + (/캐시를 확인/.test(lastDeductError) ? '\n\n대행사 비즈핏 보유 캐시가 부족합니다. 충전 후 다시 재시도해 주세요.' : '');
+  // 이 영업점은 비즈핏 캐시 차감(차감·유입플)·충전 메모를 안 함 — 캐시를 직접 관리(2026-10-16 사용자 요청). 배분 금액 필드는 그대로 저장
+  const NO_CASH_DEDUCT_AGENCIES = new Set(['[단독]오렌지']);
   async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount, force = false) {
-    const targets = slots.filter(s => s && !s.bizfitDeducted);
+    const targets = slots.filter(s => s && !s.bizfitDeducted && !NO_CASH_DEDUCT_AGENCIES.has(s.agencyId));
     if (!targets.length) return true;
     const amount = deductAmount + yupflAmount;
     if (amount <= 0) return true;
@@ -1892,7 +1894,7 @@ window.toggleProdPanel = function(e) {
     await userBizfitUidReady;
     const byUid = new Map();
     for (const s of slots) {
-      if (!s || s.bizfitDeducted) continue;
+      if (!s || s.bizfitDeducted || NO_CASH_DEDUCT_AGENCIES.has(s.agencyId)) continue; // 차감 안 하는 영업점은 배너·차감 묶음에서도 뺌
       const fields = fieldsBySlotKey.get(s._key);
       if (!fields) continue;
       const amount = (fields.deductAmount || 0) + (fields.yupflAmount || 0);
