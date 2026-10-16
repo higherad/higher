@@ -2055,8 +2055,8 @@ window.toggleProdPanel = function(e) {
 
   // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
   // 같은 MID의 진행 중 캠페인에 저장된 상품(gradeLabelsOf)이 있으면 상품 유형 설정 ratio 무시하고 그 상품(들)로만 접수.
-  // 팝업 토글(기본 on) 끄면 상품 유형 설정값 그대로 배분.
-  let gradeMatchOn = true;
+  // 팝업 토글(기본 off) 켜면 그 상품으로, 끄면 상품 유형 설정값 그대로 배분.
+  let gradeMatchOn = false;
 
   // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(approveReadySlots)에서 애드로그 자동등록을 스킵.
   // 행 단위 단건 승인 버튼(approveOne)은 이 토글과 무관하게 항상 자동등록.
@@ -3591,10 +3591,10 @@ window.toggleProdPanel = function(e) {
   // 델타/네이비는 "블로그" 탭 하나(#bsub-apply-btn)를 공유 — 등급 체계가 달라도 UI 버튼은 하나.
   const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn', fullstackKeys: '#fsub-apply-btn' };
 
-  // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 토글을 항상 on으로 초기화 — 토글 버튼 자체의 재오픈은
+  // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 등급 매칭은 끔·애드로그는 켬으로 초기화 — 토글 버튼 자체의 재오픈은
   // 방금 뒤집은 값을 유지해야 하므로 renderSubmitModal()을 직접 호출한다(아래 gmBtn.onclick 참고).
   async function openSubmitModal(target) {
-    gradeMatchOn = true;
+    gradeMatchOn = false;
     adlogAutoOn = true;
     scheduleConfig = null;
     // 가이드_접수면 시간 분할 편집기 기본값 = 가이드 시간 분배
