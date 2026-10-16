@@ -1920,6 +1920,29 @@ window.toggleProdPanel = function(e) {
     return groupFieldsByBizfitUid(keys.map(k => slotMap.get(k)), fieldsByKey);
   }
 
+  // 보류(scheduleHold) 캠페인의 모든 탭이 끝났을 때 — 예약 조각이 다 나갔으면(서버가 남긴 scheduleResult) 승인, 아직이면 '분할',
+  // 전부 실패했으면 보류만 풀고 상태 유지(목록 ⚠️ 예약실패로 확인). 반환: 차감 실패 그룹
+  // ponytail: 마지막 조각 완료와 이 처리 사이(1초 안쪽)가 겹치면 '분할'로 남을 수 있음 — 생기면 서버 완료 처리를 트랜잭션으로
+  async function releaseScheduleHold(keys, slotMap) {
+    const fresh = await Promise.all(keys.map(k => HI.getCampaign(k)));
+    const toActive = [], toSplit = [];
+    await Promise.all(keys.map(async (k, i) => {
+      const c = fresh[i];
+      if (!c?.scheduleHold) return;
+      if (c.scheduleResult === 'active') toActive.push(k);
+      else if (!c.scheduleResult) { toSplit.push(k); return; }
+      await HI.updateCampaign(k, { scheduleHold: null, scheduleResult: null });
+      updateLocalSlot(k, { scheduleHold: null, scheduleResult: null });
+    }));
+    return [...(toActive.length ? await approveSlotsWithBizfit(toActive, slotMap) : []), ...await markScheduledSplit(toSplit)];
+  }
+  // 모든 탭이 끝난 캠페인 — 보류 중인 분할 예약은 releaseScheduleHold, 나머지는 승인+차감
+  async function finishReadySlots(keys, slotMap) {
+    const held = keys.filter(k => slotMap.get(k)?.scheduleHold);
+    const rest = keys.filter(k => !slotMap.get(k)?.scheduleHold);
+    return [...(rest.length ? await approveSlotsWithBizfit(rest, slotMap) : []), ...(held.length ? await releaseScheduleHold(held, slotMap) : [])];
+  }
+
   // 승인+차감 연속 실행 — 멀티레그 게이트/단일완료 3곳에서 공용. 승인·그룹핑은 approveReadySlots에 위임,
   // 차감은 그룹당 한 번만 호출. 실패한 그룹만 반환해 호출부가 팝업 재시도 배너에 넘김.
   async function approveSlotsWithBizfit(keys, slotMap) {
@@ -2122,9 +2145,20 @@ window.toggleProdPanel = function(e) {
   // 슬롯별 예약 조각 개수를 기록(서버가 그룹 완료 판정에 씀). 캐시차감은 그룹 완료를 안 기다리고
   // 예약 시점에 즉시 실행(status는 'split', 원래 상태는 preScheduleStatus 보관 — 'active' 전환은
   // 여전히 서버 디스패처가 실제 등록 완료 후). 반환: 차감 실패 그룹(호출부가 deduct-fail 배너에 반영).
-  async function initScheduledBatches(slotKeyCounts, batchGroupId) {
-    await userBizfitUidReady;
+  // holdKeys = 풀스택 탭이 아직 남은 캠페인 — 예약(조각)은 지금 저장하지만 상태·차감은 보류(scheduleHold),
+  // 풀스택까지 끝나면 releaseScheduleHold가 '분할'(조각이 다 나갔으면 '승인')로 바꾸고 차감
+  async function initScheduledBatches(slotKeyCounts, batchGroupId, holdKeys = new Set()) {
     const slotKeys = [...slotKeyCounts.keys()];
+    await Promise.all(slotKeys.map(slotKey => HI.setScheduleBatch(slotKey, { total: slotKeyCounts.get(slotKey), batchGroupId })));
+    const hold = slotKeys.filter(k => holdKeys.has(k));
+    await Promise.all(hold.map(async k => { await HI.updateCampaign(k, { scheduleHold: true }); updateLocalSlot(k, { scheduleHold: true }); }));
+    return markScheduledSplit(slotKeys.filter(k => !holdKeys.has(k)));
+  }
+
+  // 예약한 캠페인을 '분할'로 바꾸고(원래 상태는 preScheduleStatus) 배분 고정 + 캐시 차감. 반환: 차감 실패 그룹
+  async function markScheduledSplit(slotKeys) {
+    if (!slotKeys.length) return [];
+    await userBizfitUidReady;
     const fieldsByKey = new Map();
     const slotsByKey = new Map(); // 이후 그룹핑에서 같은 slotKey로 allSlots를 다시 스캔하지 않도록 1회만 조회해 공유
 
@@ -2134,9 +2168,9 @@ window.toggleProdPanel = function(e) {
       const preStatus = s && s.status !== 'split' ? s.status : (s?.preScheduleStatus || 'pending');
       const fields = s ? allocFieldsFor(s) : {};
       fieldsByKey.set(slotKey, fields);
-      await HI.setScheduleBatch(slotKey, { total: slotKeyCounts.get(slotKey), batchGroupId });
-      await HI.updateCampaign(slotKey, { status: 'split', preScheduleStatus: preStatus, ...fields });
-      if (s) Object.assign(s, { status: 'split', preScheduleStatus: preStatus, ...fields });
+      const patch = { status: 'split', preScheduleStatus: preStatus, scheduleHold: null, scheduleResult: null, ...fields };
+      await HI.updateCampaign(slotKey, patch);
+      if (s) Object.assign(s, patch);
     }));
 
     // bizfitUid별 그룹핑은 approveReadySlots와 동일 로직 재사용(groupFieldsByBizfitUid) — 대행사별 차감은 서로
@@ -3339,7 +3373,7 @@ window.toggleProdPanel = function(e) {
         rows.push({
           _slotKey:   r._key,
           _doneKey:   prod.name,
-          _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
+          _normalSubmitted: !!r.scheduleHold || !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
           _days:            r.days||0,
           _daysMultiplied:  !!prod.daysMultiplied,
           상품등급명: prod.name,
@@ -3388,7 +3422,7 @@ window.toggleProdPanel = function(e) {
         rows.push({
           _slotKey:   r._key,
           _doneKey:   doneKey,
-          _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(doneKey)),
+          _normalSubmitted: !!r.scheduleHold || !!(r.normalDoneProducts && r.normalDoneProducts.includes(doneKey)),
           _requiresBlogUrl: true,
           _days:            r.days||0,
           _daysMultiplied:  !!prod.daysMultiplied,
@@ -3671,7 +3705,7 @@ window.toggleProdPanel = function(e) {
       }
       if (gate) { gate.fullstackKeys = doneKeys; await gate.tryApprove(); }
       else if (doneKeys.size) {
-        const failed = await approveSlotsWithBizfit([...doneKeys].filter(k => allSlots.find(s => s._key === k)?.status !== 'active'), new Map(allSlots.map(s => [s._key, s])));
+        const failed = await finishReadySlots([...doneKeys].filter(k => allSlots.find(s => s._key === k)?.status !== 'active'), new Map(allSlots.map(s => [s._key, s])));
         if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
       }
       finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okTotal, failTotal);
@@ -4062,6 +4096,8 @@ window.toggleProdPanel = function(e) {
         navyKeys:    navyAlreadyDone.size    ? navyAlreadyDone    : null,
         fullstackKeys: fullstackAlreadyDone.size ? fullstackAlreadyDone : null,
         slotMap: slotMapAll,
+        // 이 캠페인이 풀스택 탭을 아직 기다리는지 — 분할 예약 때 상태 변경을 보류할지 판단
+        fsPending(k) { return !!requiredLegsByKey.get(k)?.has('fullstackKeys') && !(this.fullstackKeys && this.fullstackKeys.has(k)); },
         async tryApprove() {
           // 호출부가 try/catch 없이 await만 하므로, 내부 예외가 밖으로 새면 등록 성공해도
           // 승인/화면갱신이 통째로 스킵됨 — 여기서 막는다.
@@ -4069,7 +4105,7 @@ window.toggleProdPanel = function(e) {
             const keys = readyKeysOf(this);
             // normalDoneProducts는 접수 완료 이력이므로 승인 후에도 계속 보관(삭제하지 않음)
             if (keys.length) {
-              const failed = await approveSlotsWithBizfit(keys, this.slotMap);
+              const failed = await finishReadySlots(keys, this.slotMap);
               if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
             }
             renderReceipts(false);
@@ -4108,7 +4144,9 @@ window.toggleProdPanel = function(e) {
           const btn = overlay.querySelector(LEG_BTN_SEL[leg]);
           if (btn && !btn.disabled) { btn.disabled = true; btn.textContent = '⏳ 처리 중...'; btn.dataset.autoLocking = '1'; }
         });
-        approveReadySlots(initialReady, slotMapAll).then(pending => {
+        const heldReady = initialReady.filter(k => slotMapAll.get(k)?.scheduleHold);
+        Promise.all([approveReadySlots(initialReady.filter(k => !heldReady.includes(k)), slotMapAll),
+          heldReady.length ? releaseScheduleHold(heldReady, slotMapAll) : []]).then(([a, b]) => [...a, ...b]).then(pending => {
           if (pending.length) { overlay._deductFailures.push(...pending); overlay._renderDeductFailures(); }
           renderReceipts(false);
           lockDoneButtons();
@@ -4737,7 +4775,7 @@ window.toggleProdPanel = function(e) {
 
   // submitPlanRows와 같은 검증·등급매칭을 거치되 /register 대신 schedule/dispatch에 저장 —
   // 승인은 서버가 그룹 완료 확인 후 처리, 캐시차감은 예약 시점에 바로 실행.
-  async function submitPlanRowsScheduled(plan, overlay, legKey, adrole, schedule) {
+  async function submitPlanRowsScheduled(plan, overlay, legKey, adrole, schedule, gate = null) {
     const productVer = productVerFor(legKey);
     const batchGroupId = `sch_${genId()}`;
     let scheduledCount = 0, failTotal = 0;
@@ -4806,7 +4844,10 @@ window.toggleProdPanel = function(e) {
       const typeBySlot = new Map();
       dispatchEntries.forEach(e => { if (!typeBySlot.has(e.slotKey)) typeBySlot.set(e.slotKey, new Set()); typeBySlot.get(e.slotKey).add(e.payload.gradeName); });
       await Promise.all([...typeBySlot].map(([k, names]) => addCampaignType(k, [...names]).catch(err => console.error('캠페인타입 저장 실패:', k, err))));
-      const deductFailures = await initScheduledBatches(slotKeyCounts, batchGroupId);
+      const holdKeys = new Set([...slotKeyCounts.keys()].filter(k => gate?.fsPending(k)));
+      const deductFailures = await initScheduledBatches(slotKeyCounts, batchGroupId, holdKeys);
+      // 보류 건은 이 탭은 끝난 것으로 게이트에 기록 — 풀스택이 끝나면 tryApprove가 releaseScheduleHold로 넘김
+      if (gate && holdKeys.size) gate[legKey] = new Set([...(gate[legKey] || []), ...holdKeys]);
       if (deductFailures.length && overlay) {
         overlay._deductFailures.push(...deductFailures);
         overlay._renderDeductFailures();
@@ -5938,7 +5979,7 @@ window.toggleProdPanel = function(e) {
     const { otherBtns } = lockOtherSubmitTabs(overlay, btnPrefix);
 
     if (scheduleConfig && scheduleConfig.length) {
-      const { scheduledCount, failTotal } = await submitPlanRowsScheduled(plan, overlay, legKey, adrole, scheduleConfig);
+      const { scheduledCount, failTotal } = await submitPlanRowsScheduled(plan, overlay, legKey, adrole, scheduleConfig, gate);
       finishScheduleUI(overlay, applyBtn, closeBtn, otherBtns, scheduledCount, failTotal);
       return;
     }
@@ -5961,8 +6002,8 @@ window.toggleProdPanel = function(e) {
 
     if (scheduleConfig && scheduleConfig.length) {
       const [d, n] = await Promise.all([
-        submitPlanRowsScheduled(deltaPlan, overlay, 'deltaKeys', DELTA_ADROLE, scheduleConfig),
-        submitPlanRowsScheduled(navyPlan, overlay, 'navyKeys', null, scheduleConfig),
+        submitPlanRowsScheduled(deltaPlan, overlay, 'deltaKeys', DELTA_ADROLE, scheduleConfig, gate),
+        submitPlanRowsScheduled(navyPlan, overlay, 'navyKeys', null, scheduleConfig, gate),
       ]);
       finishScheduleUI(overlay, applyBtn, closeBtn, otherBtns, d.scheduledCount + n.scheduledCount, d.failTotal + n.failTotal);
       return;
