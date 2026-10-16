@@ -321,6 +321,12 @@
     <button id="start-date-clear-btn" onclick="clearStartDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
+    <select id="filter-split" onchange="renderReceipts()">
+      <option value="">전체 분할</option>
+      <option value="normal">일반</option>
+      <option value="mixed">5:5</option>
+      <option value="yupfl">유입플</option>
+    </select>
     <input type="text" id="receipt-search" placeholder="대행사/ID/플레이스명/MID (콤마 구분)" style="width:240px;" onkeydown="if(event.key==='Enter') renderReceipts()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderReceipts()">검색</button>
     <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetReceipts()">초기화</button>
@@ -632,6 +638,12 @@ window.toggleProdPanel = function(e) {
     return labels.includes(g);
   }
 
+  // 일 목표 분할 종류 — 승인·예약 때 고정한 유입플 몫(yupflTarget) 기준: 일반만 / 섞임 / 유입플만, 안 나뉜 건 ''
+  function splitKindOf(s) {
+    if (s.yupflTarget == null) return '';
+    const yup = s.yupflTarget || 0, normal = (s.dailyTarget || 0) - yup - Math.round((s.deductTarget || 0) / (s.days || 1));
+    return !yup ? 'normal' : normal > 0 ? 'mixed' : 'yupfl';
+  }
   function getFiltered() {
     const status   = document.getElementById('filter-status').value;
     const gradeFilter = document.getElementById('filter-slot-type').value;
@@ -639,6 +651,7 @@ window.toggleProdPanel = function(e) {
       .split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
     const dateFrom    = document.getElementById('filter-date-from').value;
     const startDateFrom = document.getElementById('filter-start-date').value;
+    const splitFilter = document.getElementById('filter-split').value;
     return allSlots.filter(s => {
       if (s.status === 'deleted') return false;
       // 재접수|접수·승인은 재접수 건만, 대기·접수·승인은 재접수 제외(상단 카드와 같은 기준)
@@ -648,6 +661,7 @@ window.toggleProdPanel = function(e) {
       else if (['pending','accepted','active'].includes(status)) { if (s.status !== status || s.isRequeue) return false; }
       else if (status && s.status !== status) return false;
       if (gradeFilter && !matchGrade(s, gradeFilter)) return false;
+      if (splitFilter && splitKindOf(s) !== splitFilter) return false;
       if (kwTerms.length && !kwTerms.some(t => [s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(t)))) return false;
       const slotDate = s.createdAt ? ymd(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
@@ -659,6 +673,7 @@ window.toggleProdPanel = function(e) {
   window.resetReceipts = function() {
     document.getElementById('filter-status').value = '';
     document.getElementById('filter-slot-type').value = '';
+    document.getElementById('filter-split').value = '';
     document.getElementById('filter-date-from').value = '';
     document.getElementById('date-label').textContent = '접수일';
     document.getElementById('date-pick-btn').style.color = 'var(--text2)';
