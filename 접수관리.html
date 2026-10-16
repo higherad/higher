@@ -2218,10 +2218,10 @@ window.toggleProdPanel = function(e) {
     // 변경 요청으로 생긴 재접수(changeTo)는 요청한 상품으로, 그 외 재접수는 매칭 안 함
     const changeTo = (r.changeTo || '').split('/').map(x => x.trim()).filter(Boolean);
     const guideProds = guideModeOn && !changeTo.length ? guideProdsFor(r) : [];
+    // 우선순위: 변경 요청 상품(토글과 무관) > 가이드_접수 > 등급 매칭(토글 켰을 때, 재접수 제외) > 상품 유형 설정
     const gradeProds = guideProds.length ? guideProds
-      : !gradeMatchOn ? []
       : changeTo.length ? gradeProdsFromLabels(changeTo)
-      : !r.isRequeue ? matchedGradeProds(r.mid) : [];
+      : gradeMatchOn && !r.isRequeue ? matchedGradeProds(r.mid) : [];
     if (!gradeProds.length) {
       return { alloc: allocate(AP.slice(), r.dailyTarget||0), prods: AP, gradeProds: null };
     }
