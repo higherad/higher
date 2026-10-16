@@ -591,6 +591,7 @@ window.toggleProdPanel = function(e) {
   const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스택', ratio: 100 }]; };
   function vendorSplit(target, slot) {
     if (noteRatio(slot)?.vendor) return target > 0 ? { [slot.yupflRatio.vendor]: target } : {};
+    if (guideAllocOf(slot)) return target > 0 ? { '풀스택': target } : {}; // 가이드_접수면 유입플 몫은 전부 풀스택(웹 접수 대상)
     const vs = yupflVendors().filter(v => v.name && v.ratio > 0);
     const a = lrm(vs.map(v => ({ id: v.name, ratio: v.ratio })), target);
     return Object.fromEntries(Object.entries(a).filter(([, n]) => n > 0));
@@ -1999,12 +2000,13 @@ window.toggleProdPanel = function(e) {
       return known ? { ...known, ratio: g.ratio, kwPct: g.ratio }
         : { id: `grade_${g.name}`, name: g.name, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: g.ratio, kwPct: g.ratio, daysMultiplied: false };
     });
-    // 리워드:유입플 = 엑셀 비고 비율, 없으면 '유입플' 상품 설정 %(꺼져 있으면 0) — 리워드 상품끼리는 가이드 비율
-    const yupfl = prods.find(p => p.classifyOnly);
-    const pct = yupfl?.active ? (yupfl.fixedPct ?? 0) : 0;
-    return applyGuideRatio(out, noteRatio(r) || { reward: 100 - pct, yupfl: pct });
+    // 리워드:유입플 = 엑셀 비고 비율, 없으면 50:50 고정('유입플' 상품 설정 켜짐·%는 무시) — 리워드 상품끼리는 가이드 비율
+    return applyGuideRatio(out, noteRatio(r) || GUIDE_SPLIT);
   }
   // 리워드·유입플 두 묶음 합계를 주어진 비율로 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
+  const GUIDE_SPLIT = { reward: 50, yupfl: 50 };
+  // 가이드_접수로 나눈 캠페인인지(유입플 몫은 전부 풀스택 — vendorSplit)
+  const guideAllocOf = slot => guideModeOn && !(slot?.changeTo) && guideProdsFor(slot).length > 0;
   function applyGuideRatio(items, { reward, yupfl }) {
     const isY = p => p.classifyOnly;
     const rSum = items.filter(p => !isY(p)).reduce((a, p) => a + p.ratio, 0);
