@@ -4465,7 +4465,10 @@ window.toggleProdPanel = function(e) {
     if (icon) icon.style.background = '#f59e0b';
     const label = document.getElementById('schedule-toggle-label');
     if (label) label.style.color = '#f59e0b';
-    alert(`시간대 분할 예약이 설정되었습니다. 이제 각 탭의 "접수 신청" 버튼을 누르면 즉시 전송 대신 예약 저장됩니다(일수만큼 매일 이 시각에 나눠 접수).${scheduleKwSplit ? ' 키워드도 시간대별로 나눠 배정됩니다.' : ''}`);
+    alert(['⏰ 분할 예약 설정 완료', '',
+      `· 매일 ${scheduleConfig.map(r => `${r.time}(${r.pct}%)`).join(' / ')}`,
+      `· 접수 신청 → 예약 저장${FULLSTACK_ON ? ' (풀스택은 바로 접수)' : ''}`,
+      ...(scheduleKwSplit ? ['· 키워드도 시간대별로 나눔'] : [])].join('\n'));
   };
 
   window.clearScheduleConfig = function() {
