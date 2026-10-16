@@ -1019,7 +1019,7 @@ window.toggleProdPanel = function(e) {
     const deltaShown = !!deltaProd?.active;
     const navyShown  = !!navyProd?.active;
     // 분할·승인 건도 수정 가능 — 이미 등록·예약된 비즈핏 쪽은 안 바뀌므로 경고만
-    const editWarn = s.status === 'split' ? '⏰ 분할 예약 진행 중 — 수정 시 주의해주세요.' : s.status === 'active' ? '승인된 캠페인 — 수정 시 주의해주세요.' : '';
+    const editWarn = s.status === 'split' ? '⏰ 분할 예약 진행 중 — 수정 시 주의해주세요.' : s.status === 'active' ? '✅ 승인된 캠페인 — 수정 시 주의해주세요.' : '';
 
     overlay.innerHTML = `
       <div class="modal-box">
