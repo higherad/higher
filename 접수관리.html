@@ -1770,12 +1770,13 @@ window.toggleProdPanel = function(e) {
     const yupfl = prods.find(p => p.classifyOnly);
     const target = yupfl ? allocRowsForSlot(slot).alloc[yupfl.id] || 0 : 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
     if (target <= 0) return { yupflTarget: 0 };  // 리워드만 — 0도 기록해야 일반·유입플로 나뉜 건(목록 분할 표시·엑셀·시트 분류)
-    // 유입플 금액 = 업체별 수량 × 그 대행사의 업체 단가(정산관리와 같은 HI.slotBill, 단가 없으면 0)
     const yupflByVendor = vendorSplit(target, slot);
-    const bill = HI.slotBill({ ...slot, yupflByVendor }, userById.get(slot.userId));
+    // 유입플 금액(캐시 차감용) = 유입플 수량 × 일수 × 리워드 단가 — 광고주는 전체를 리워드 단가로 충전했고 비즈핏엔 리워드 몫만 등록돼
+    // 유입플 몫만큼 캐시가 남으므로 그만큼 빼서 잔액을 맞춤(업체 실제 단가와 무관). 정산관리 유입플 열은 업체 단가로 따로 계산(HI.slotBill)
+    const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
     // 가이드_접수로 승인하면 수량이 있는 업체의 가이드 상품을 배지(vendorProducts)로 같이 기록
     const rule = guideModeOn && !slot.changeTo ? guideRuleFor(slot) : null;
-    return { yupflTarget: target, yupflByVendor, yupflAmount: slot.isRequeue ? 0 : bill.yupfl, ...(rule ? vendorProductFields(rule, yupflByVendor) : {}) };
+    return { yupflTarget: target, yupflByVendor, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice, ...(rule ? vendorProductFields(rule, yupflByVendor) : {}) };
   }
   // 수량 있는 업체마다 가이드 그 업체 탭 상품(짧은 이름) — vendorProducts {업체: [상품]}, 풀스택은 fullstackType에도(시트 분류 엑셀·풀스택 매크로)
   function vendorProductFields(rule, byVendor) {
@@ -1806,7 +1807,7 @@ window.toggleProdPanel = function(e) {
   // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐
   // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용)
   // 유입플 분류 몫의 비즈핏 캐시 차감·"[환불] 유입플 금액" 메모 — 풀스택 웹 접수(FULLSTACK_ON)와 같이 켜짐.
-  // 켜지면 승인·예약·재시도 모두 유입플 금액(업체별 수량 × 대행사 업체 단가, 승인 때 고정한 yupflAmount)을 차감 몫과 합쳐 차감하고 메모에도 남김
+  // 켜지면 승인·예약·재시도 모두 유입플 금액(유입플 수량 × 일수 × 리워드 단가, 승인 때 고정한 yupflAmount)을 차감 몫과 합쳐 차감하고 메모에도 남김
   const YUPFL_CASH_DEDUCT = FULLSTACK_ON;
   async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount, force = false) {
     if (!YUPFL_CASH_DEDUCT) yupflAmount = 0;
