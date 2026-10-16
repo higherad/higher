@@ -742,14 +742,17 @@ const HI = {
     return sendTelegram(receiptMessage(`📊 <b>새 캠페인 접수 (${label})</b>`, slots));
   },
   // 엑셀 파일 안 같은 캠페인 행 중복 표시 — 텔레그램 봇 엑셀접수와 같은 기준
-  markDuplicateRows(rows) {
-    const seen = new Set();
-    rows.forEach(r => {
-      const k = [r.mid, r.rankKeyword, r.startDate, r.days, r.dailyTarget].join('|');
-      if (seen.has(k)) { r.valid = false; r.error = [r.error, '파일 내 중복 행'].filter(Boolean).join(' / '); }
-      seen.add(k);
+  // 엑셀 접수: 완전히 같은 캠페인 행(MID·순위키워드·시작일·일수·일 목표·비고)은 일 목표를 더해 한 건으로 —
+  // 같은 MID·기간 캠페인이 둘로 나뉘면 풀스택 접수·환불 대상이 겹침. 금액은 두 건일 때와 같음(일 목표 합 × 일수 × 단가). 오류 행은 안 합침
+  mergeDuplicateRows(rows) {
+    const first = new Map();
+    return rows.filter(r => {
+      const k = [r.mid, r.rankKeyword, r.startDate, r.days, r.dailyTarget, r.note || ''].join('|');
+      const f = r.valid && first.get(k);
+      if (f) { f.dailyTarget += r.dailyTarget; f.mergedCount = (f.mergedCount || 1) + 1; return false; }
+      if (r.valid) first.set(k, r);
+      return true;
     });
-    return rows;
   },
 
   // ════════════════════════════════════════════════════════

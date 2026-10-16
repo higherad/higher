@@ -229,4 +229,10 @@ assert.equal(tree.hi.cost_snapshots.g1.total, 100, '고정 금액 유지');
   assert.equal(tree.hi.cost_snapshots[gk].count, 2);
 }
 
+// 엑셀 접수 완전 동일 행 합산
+{
+  const R = (d, note = '', valid = true) => ({ mid: '1', rankKeyword: 'k', startDate: '2026-10-20', days: 7, dailyTarget: d, note, valid });
+  const o = HI.mergeDuplicateRows([R(100), R(100), R(100, '50:50'), R(200), R(100, '', false)]);
+  assert.deepStrictEqual(o.map(r => [r.dailyTarget, r.mergedCount ?? 0]), [[200, 2], [100, 0], [200, 0], [100, 0]]);
+}
 console.log('hi-store 자가검사 통과');
