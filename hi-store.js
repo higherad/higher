@@ -742,53 +742,13 @@ const HI = {
     return sendTelegram(receiptMessage(`📊 <b>새 캠페인 접수 (${label})</b>`, slots));
   },
   // 엑셀 파일 안 같은 캠페인 행 중복 표시 — 텔레그램 봇 엑셀접수와 같은 기준
-  // 엑셀 접수: 같은 업체 행(MID·시작일·일수 같음)은 합침 — 풀스택 주문은 같은 MID·기간에 하나여야 해서(접수·환불 대상이 겹침).
-  // 금액은 따로일 때와 같음(일 목표 합 × 일수 × 단가). 오류 행은 안 합침
-  //  · 비고·순위키워드가 모두 같으면(또는 모두 비고 없음) 일 목표 합 1건(키워드가 다르면 첫 행 키워드)
-  //  · 그 밖엔 행마다 리워드·유입플로 나눠(리워드 = 내림, 나머지 유입플 — 50:50·65 → 32·33)
-  //    리워드는 순위키워드별 1건(비고 '리워드'), 유입플은 업체별 1건(비고 업체명, 키워드 = 그 업체 비고 행 키워드). 비율 행의 유입플은 풀스택 몫
-  //  · 비고 있는 행·없는 행이 섞이면 오류(비고 없는 행은 승인 때 상품 설정·가이드로 비율이 정해져 지금은 모름)
-  mergeDuplicateRows(rows) {
-    const groups = new Map(), order = [];
-    rows.forEach(r => {
-      if (!r.valid) { order.push(r); return; }
-      const k = [r.mid, r.startDate, r.days].join('|');
-      if (!groups.has(k)) { groups.set(k, []); order.push(k); }
-      groups.get(k).push(r);
-    });
-    const fail = (g, msg) => g.map(r => ({ ...r, valid: false, error: [r.error, msg].filter(Boolean).join(' / ') }));
-    const mergeGroup = g => {
-      if (g.length === 1) return g;
-      const n = g.length, sum = g.reduce((a, r) => a + r.dailyTarget, 0);
-      const kws = [...new Set(g.map(r => r.rankKeyword))];
-      const noted = g.filter(r => r.yupflRatio);
-      if (noted.length && noted.length < n) return fail(g, '같은 업체 행에 비고 있는 행·없는 행이 섞임');
-      const sameNote = new Set(g.map(r => JSON.stringify(r.yupflRatio || null))).size === 1;
-      if (!noted.length || (sameNote && kws.length === 1)) {
-        const kwNote = kws.length > 1 ? ` · 순위키워드 '${kws[0]}'만(${kws.slice(1).join(', ')} 제외)` : '';
-        return [{ ...g[0], dailyTarget: sum, mergedLabel: `${n}행 합침${kwNote}` }];
-      }
-      const rewardByKw = new Map(), byVendor = new Map(); // byVendor: 업체 → {d, base(키워드를 가져올 행), byNote}
-      g.forEach(r => {
-        const R = r.yupflRatio, d = r.dailyTarget;
-        const rw = !R.yupfl ? d : R.vendor ? 0 : Math.floor(d * R.reward / (R.reward + R.yupfl));
-        if (rw) rewardByKw.set(r.rankKeyword, (rewardByKw.get(r.rankKeyword) || 0) + rw);
-        if (d - rw > 0) {
-          const v = R.vendor || '풀스택', cur = byVendor.get(v) || { d: 0, base: r, byNote: false };
-          cur.d += d - rw;
-          if (R.vendor && !cur.byNote) Object.assign(cur, { base: r, byNote: true });
-          byVendor.set(v, cur);
-        }
-      });
-      const parts = [
-        ...[...rewardByKw].map(([kw, d]) => ({ ...g.find(r => r.rankKeyword === kw), dailyTarget: d, note: '리워드', yupflRatio: { reward: 100, yupfl: 0 } })),
-        ...[...byVendor].map(([v, o]) => ({ ...o.base, dailyTarget: o.d, note: v, yupflRatio: { reward: 0, yupfl: 100, vendor: v } })),
-      ];
-      const label = `${n}행 합침 → ` + parts.map(p => `${p.note} ${p.dailyTarget}${kws.length > 1 ? `(${p.rankKeyword})` : ''}`).join(' / ');
-      if (parts.some(p => p.dailyTarget < 10)) return fail(g, `합치면 일 목표 10 미만(${label})`);
-      return parts.map(p => ({ ...p, mergedLabel: label }));
-    };
-    return order.flatMap(x => typeof x === 'string' ? mergeGroup(groups.get(x)) : [x]);
+  // 엑셀 접수: 행 그대로 한 행 = 캠페인 1건(같은 업체를 일 목표·비고·키워드 다르게 여러 건 받아도 됨 — 풀스택은 같은 MID·기간
+  // 주문을 여러 건 받고 각자 진행함). 완전히 같은 행(MID·순위키워드·시작일·일수·일 목표·비고)만 sameCount로 표시해 접수 전에 확인받음(붙여넣기 실수 대비)
+  markSameRows(rows) {
+    const count = new Map(), key = r => [r.mid, r.rankKeyword, r.startDate, r.days, r.dailyTarget, r.note || ''].join('|');
+    rows.forEach(r => { if (r.valid) count.set(key(r), (count.get(key(r)) || 0) + 1); });
+    rows.forEach(r => { if (r.valid && count.get(key(r)) > 1) r.sameCount = count.get(key(r)); });
+    return rows;
   },
 
   // ════════════════════════════════════════════════════════
