@@ -3694,6 +3694,8 @@ window.toggleProdPanel = function(e) {
           r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>';
         } else { failTotal++; r._statusTd.innerHTML = `<span style="color:var(--danger);cursor:help" title="${escProd(x.memo || '')}">❌ ${escProd(x.result)}</span>`; }
       }
+      // 애드로그는 풀스택만 끝나도 바로(일반 탭을 기다리느라 상태가 안 바뀌어도) — 이미 등록된 건 건너뜀
+      if (adlogAutoOn) await autoRegisterAdlog(claimed.filter(r => r._fsSubmitted).map(r => r._slot));
       if (gate) { gate.fullstackKeys = doneKeys; await gate.tryApprove(); }
       else if (doneKeys.size) {
         const failed = await finishReadySlots([...doneKeys].filter(k => allSlots.find(s => s._key === k)?.status !== 'active'), new Map(allSlots.map(s => [s._key, s])));
@@ -4745,6 +4747,8 @@ window.toggleProdPanel = function(e) {
         if (s) s.normalDoneProducts = merged;
         await addCampaignType(slotKey, names, s);
       }));
+      // 애드로그는 탭 하나라도 접수되면 바로(다른 탭을 기다리느라 상태가 안 바뀌어도) — 이미 등록된 건 autoRegisterAdlog가 건너뜀
+      if (adlogAutoOn && newlyOkBySlot.size) await autoRegisterAdlog([...newlyOkBySlot.keys()].map(k => slotMap.get(k)));
       // 슬롯 단위 승인 판정 — 이 슬롯에 걸린 모든 상품행이 성공해야 승인 (일부 실패 시 보류)
       await finalizeSlotApprovals();
       if (p.msgEl) {
