@@ -2887,7 +2887,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
         <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio) : '-'}</td>
-        <td>${r.valid ? `<span class="rex-row-status rex-row-ok">정상${r.mergedCount ? ` · ${r.mergedCount}행 합침` : ''}</span>` : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
+        <td>${r.valid ? `<span class="rex-row-status rex-row-ok">정상${r.mergedLabel ? ` · ${escProd(r.mergedLabel)}` : ''}</span>` : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';
     overlay.querySelector('#rex-preview').style.display = 'block';

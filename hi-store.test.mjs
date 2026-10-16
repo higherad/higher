@@ -229,10 +229,17 @@ assert.equal(tree.hi.cost_snapshots.g1.total, 100, '고정 금액 유지');
   assert.equal(tree.hi.cost_snapshots[gk].count, 2);
 }
 
-// 엑셀 접수 완전 동일 행 합산
+// 엑셀 접수 같은 업체 행 합산
 {
-  const R = (d, note = '', valid = true) => ({ mid: '1', rankKeyword: 'k', startDate: '2026-10-20', days: 7, dailyTarget: d, note, valid });
-  const o = HI.mergeDuplicateRows([R(100), R(100), R(100, '50:50'), R(200), R(100, '', false)]);
-  assert.deepStrictEqual(o.map(r => [r.dailyTarget, r.mergedCount ?? 0]), [[200, 2], [100, 0], [200, 0], [100, 0]]);
+  const V = { reward: 0, yupfl: 100, vendor: '풀스택' }, H5 = { reward: 50, yupfl: 50 };
+  const R = (d, ratio = null, valid = true) => ({ mid: '1', rankKeyword: 'k', startDate: '2026-10-20', days: 7, dailyTarget: d, yupflRatio: ratio, note: ratio ? 'x' : '', valid });
+  const sum = rs => rs.map(r => [r.dailyTarget, r.note, r.valid]);
+  assert.deepStrictEqual(sum(HI.mergeDuplicateRows([R(100), R(50)])), [[150, '', true]], '비고 같으면 일 목표 합');
+  assert.deepStrictEqual(sum(HI.mergeDuplicateRows([R(100, V), R(100, H5)])), [[50, '리워드', true], [150, '풀스택', true]], '비고 다르면 리워드·풀스택 2건');
+  assert.deepStrictEqual(sum(HI.mergeDuplicateRows([R(65, H5), R(100, V)])), [[32, '리워드', true], [133, '풀스택', true]], '리워드 내림');
+  assert.ok(HI.mergeDuplicateRows([R(100, H5), R(100)]).every(r => !r.valid), '비고 섞이면 오류');
+  assert.ok(HI.mergeDuplicateRows([R(10, H5), R(100, V)]).every(r => !r.valid), '10 미만이면 오류');
+  assert.deepStrictEqual(sum(HI.mergeDuplicateRows([R(100, H5)])), [[100, 'x', true]], '한 행이면 그대로');
+  assert.equal(HI.mergeDuplicateRows([R(100), R(100, null, false)]).length, 2, '오류 행은 안 합침');
 }
 console.log('hi-store 자가검사 통과');
