@@ -3593,6 +3593,8 @@ window.toggleProdPanel = function(e) {
     });
   }
   const fsVariantText = vs => vs.map(v => `${Object.keys(FS_PRESETS).find(k => FS_PRESETS[k] === v.preset)} ${v.share}%${v.scenario ? '(로그인)' : ''}`).join(' · ');
+  // 일반 탭 검색키워드 칸과 같은 개수 배지 — 마우스를 올리면 키워드 전부
+  const fsKwBadge = kws => `<span title="${escProd(kws.join(', '))}" style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kws.length?'#eff6ff':'#fee2e2'};color:${kws.length?'#1d4ed8':'#dc2626'};border:1px solid ${kws.length?'#bfdbfe':'#fca5a5'};white-space:nowrap;cursor:help">${kws.length}개</span>`;
   const fsReq = r => ({ mid: r.mid, daily: r.daily, days: r.days, start: r.start, variants: r.variants });
 
   // 표 + 미리보기(사이트에 commit:false — 접수 안 됨) + 접수 신청(행마다 1건씩 실제 접수). 같은 MID·기간이 이미 사이트에 있으면 건너뛰고 완료로 침(로컬 매크로로 넣은 것 포함)
@@ -3611,7 +3613,7 @@ window.toggleProdPanel = function(e) {
         <div style="width:100%"><table class="ag-table ag-table-tight" style="table-layout:fixed;width:100%"><thead><tr>
           <th style="width:98px">업체명</th><th style="width:108px">URL</th><th style="width:96px">MID</th><th style="width:84px">순위키워드</th>
           <th style="width:56px;text-align:right">일 건수</th><th style="width:44px;text-align:center">일수</th><th style="width:74px">시작일</th>
-          <th style="width:130px">방식 비율</th><th style="width:130px">미리보기</th><th style="width:76px;text-align:center">상태</th>
+          <th style="width:130px">방식 비율</th><th style="width:56px;text-align:center">키워드</th><th style="width:130px">미리보기</th><th style="width:76px;text-align:center">상태</th>
         </tr></thead><tbody>${rs.map(r => `<tr>
           <td style="${ell}" title="${escProd(r.storeName)}">${escProd(r.storeName)}</td>
           <td style="${ell}" title="${escProd(r.url)}"><a href="${escProd(r.url)}" target="_blank" style="color:var(--info);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escProd(r.url || '-')}</a></td>
@@ -3621,6 +3623,7 @@ window.toggleProdPanel = function(e) {
           <td style="white-space:nowrap;text-align:center" id="fs-days-${r._i}">${r.days}</td>
           <td style="white-space:nowrap" id="fs-start-${r._i}">${escProd(r.start || '-')}</td>
           <td style="${ell};font-size:11px" title="${escProd(fsVariantText(r.variants))}">${escProd(fsVariantText(r.variants)) || '-'}</td>
+          <td style="text-align:center" id="fs-kw-${r._i}">${r._fsSubmitted && r._slot.fullstackOrder?.keywords ? fsKwBadge(r._slot.fullstackOrder.keywords) : '-'}</td>
           <td style="${ell};font-size:11px" id="fs-pre-${r._i}">${r.err ? `<span style="color:var(--danger);">${escProd(r.err)}</span>` : r._fsSubmitted ? '-' : '⏳'}</td>
           <td style="text-align:center;white-space:nowrap" id="fs-st-${r._i}">${r._fsSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : '-'}</td>
         </tr>`).join('')}</tbody></table></div>
@@ -3633,6 +3636,8 @@ window.toggleProdPanel = function(e) {
     const showPlan = (r, x) => {
       const pre = bodyEl.querySelector(`#fs-pre-${r._i}`);
       const color = ['접수 예정', '예약', '접수'].includes(x.result) ? 'var(--accent)' : x.result === '건너뜀' ? '#b45309' : 'var(--danger)';
+      const kwEl = bodyEl.querySelector(`#fs-kw-${r._i}`);
+      if (kwEl && Array.isArray(x.keywords)) kwEl.innerHTML = fsKwBadge(x.keywords);
       if (pre) { pre.innerHTML = `<b style="color:${color}">${escProd(x.result)}</b> ${escProd(x.memo || '')}`; pre.title = `${x.result} ${x.memo || ''}`; }
       if (x.start && x.start !== r.start) { bodyEl.querySelector(`#fs-start-${r._i}`).innerHTML = `${escProd(x.start)}<div style="font-size:10px;color:var(--muted);">원래 ${escProd(r.start)}</div>`; bodyEl.querySelector(`#fs-days-${r._i}`).textContent = x.days; }
     };
@@ -3656,7 +3661,8 @@ window.toggleProdPanel = function(e) {
         showPlan(r, x);
         const done = x.result === '접수' || x.result === '예약' || (x.result === '건너뜀' && /이미 진행/.test(x.memo || ''));
         if (done) {
-          const rec = { result: x.result, memo: x.memo || '', start: x.start || r.start, days: x.days || r.days, daily: r.daily, at: new Date().toISOString() };
+          const rec = { result: x.result, memo: x.memo || '', start: x.start || r.start, days: x.days || r.days, daily: r.daily, at: new Date().toISOString(),
+            ...(x.keywords ? { keywords: x.keywords } : {}) };
           try { await HI.updateCampaign(r._slotKey, { fullstackOrder: rec }); } catch (e) { console.error('풀스택 접수 기록 실패:', r._slotKey, e); }
           r._slot.fullstackOrder = rec; updateLocalSlot(r._slotKey, { fullstackOrder: rec });
           r._fsSubmitted = true; doneKeys.add(r._slotKey); okTotal++;
