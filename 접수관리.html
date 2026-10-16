@@ -1740,9 +1740,8 @@ window.toggleProdPanel = function(e) {
   function yupflFieldsFor(slot) {
     if (!slot) return {};
     const yupfl = prods.find(p => p.classifyOnly);
-    if (!yupfl) return {};
-    const target = allocRowsForSlot(slot).alloc[yupfl.id] || 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
-    if (target <= 0) return {};
+    const target = yupfl ? allocRowsForSlot(slot).alloc[yupfl.id] || 0 : 0;  // 접수 배분과 같은 계산(가이드_접수면 가이드 비율)
+    if (target <= 0) return { yupflTarget: 0 };  // 리워드만 — 0도 기록해야 일반·유입플로 나뉜 건(목록 분할 표시·엑셀·시트 분류)
     // 유입플 금액 = 업체별 수량 × 그 대행사의 업체 단가(정산관리와 같은 HI.slotBill, 단가 없으면 0)
     const yupflByVendor = vendorSplit(target, slot);
     const bill = HI.slotBill({ ...slot, yupflByVendor }, userById.get(slot.userId));
@@ -2240,7 +2239,7 @@ window.toggleProdPanel = function(e) {
       // 일 목표를 하루 몫으로 나눔: 리워드 = 실제 접수한 수량(일반 몫), 유입플·차감 = 승인 때 고정한 값 — 목록의 일반·유입플·차감 줄과 같은 값
       const dedDaily = s => s.deductTarget ? Math.round(s.deductTarget / (s.days || 1)) : '';
       // 유입플·차감으로 나뉘지 않은 건(승인 전 등)은 리워드도 빈칸
-      const rewardDaily = s => (s.yupflTarget || s.deductTarget) ? Math.max(0, (s.dailyTarget||0) - (s.yupflTarget||0) - (Number(dedDaily(s))||0)) : '';
+      const rewardDaily = s => (s.yupflTarget != null || s.deductTarget) ? Math.max(0, (s.dailyTarget||0) - (s.yupflTarget||0) - (Number(dedDaily(s))||0)) : '';
       const header = ['접수일시','대행사','캠페인타입','업체명','URL','MID','순위키워드','분류','일 수','시작일','일 목표','리워드','유입플','차감','상태','검색키워드'];
       const rows = filtered.map(s => [
         s.createdAt ? ymd(new Date(s.createdAt)) : '',
@@ -3161,7 +3160,7 @@ window.toggleProdPanel = function(e) {
     const target = checkedKeys.length ? allSlots.filter(s => checkedKeys.includes(s._key)) : filteredAll;
     if (!target.length) { alert('다운로드할 데이터가 없습니다.'); return; }
     // 승인 때 리워드·유입플·차감으로 나뉜 건만 — 아직 안 나뉜 건이 섞여 있으면 받지 않음
-    const unsplit = target.filter(s => !s.yupflTarget && !s.deductTarget);
+    const unsplit = target.filter(s => s.yupflTarget == null && !s.deductTarget);
     if (unsplit.length) {
       const names = unsplit.slice(0, 5).map(s => `· ${s.storeName || s.mid}`).join('\n') + (unsplit.length > 5 ? `\n외 ${unsplit.length - 5}건` : '');
       alert(`승인 전 캠페인 ${unsplit.length}건이 있어요.\n승인된 캠페인만 체크해 주세요.\n\n${names}`);
