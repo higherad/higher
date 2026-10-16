@@ -1805,9 +1805,9 @@ window.toggleProdPanel = function(e) {
 
   // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐
   // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용)
-  // 유입플 분류 몫의 비즈핏 캐시 차감·"[환불] 유입플 금액" 메모 — 지금은 꺼 둠(차감 상품 몫만 차감·메모).
-  // 다시 쓸 때 true로 바꾸면 승인·예약·재시도 모두 유입플 금액을 합쳐 차감하고 메모에도 남김
-  const YUPFL_CASH_DEDUCT = false;
+  // 유입플 분류 몫의 비즈핏 캐시 차감·"[환불] 유입플 금액" 메모 — 풀스택 웹 접수(FULLSTACK_ON)와 같이 켜짐.
+  // 켜지면 승인·예약·재시도 모두 유입플 금액(업체별 수량 × 대행사 업체 단가, 승인 때 고정한 yupflAmount)을 차감 몫과 합쳐 차감하고 메모에도 남김
+  const YUPFL_CASH_DEDUCT = FULLSTACK_ON;
   async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount, force = false) {
     if (!YUPFL_CASH_DEDUCT) yupflAmount = 0;
     const targets = slots.filter(s => s && !s.bizfitDeducted);
