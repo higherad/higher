@@ -1932,9 +1932,11 @@ window.toggleProdPanel = function(e) {
     return [...(toActive.length ? await approveSlotsWithBizfit(toActive, slotMap) : []), ...await markScheduledSplit(toSplit)];
   }
   // 모든 탭이 끝난 캠페인 — 보류 중인 분할 예약은 releaseScheduleHold, 나머지는 승인+차감
+  // 보류 여부는 DB에서 다시 읽음 — 팝업이 잡아 둔 객체는 그 뒤 붙은 scheduleHold를 못 볼 수 있음(실시간 목록이 객체를 통째로 교체)
   async function finishReadySlots(keys, slotMap) {
-    const held = keys.filter(k => slotMap.get(k)?.scheduleHold);
-    const rest = keys.filter(k => !slotMap.get(k)?.scheduleHold);
+    const fresh = await Promise.all(keys.map(k => HI.getCampaign(k)));
+    const held = keys.filter((k, i) => fresh[i]?.scheduleHold);
+    const rest = keys.filter((k, i) => !fresh[i]?.scheduleHold);
     return [...(rest.length ? await approveSlotsWithBizfit(rest, slotMap) : []), ...(held.length ? await releaseScheduleHold(held, slotMap) : [])];
   }
 
@@ -4135,7 +4137,7 @@ window.toggleProdPanel = function(e) {
           const btn = overlay.querySelector(LEG_BTN_SEL[leg]);
           if (btn && !btn.disabled) { btn.disabled = true; btn.textContent = '⏳ 처리 중...'; btn.dataset.autoLocking = '1'; }
         });
-        const heldReady = initialReady.filter(k => slotMapAll.get(k)?.scheduleHold);
+        const heldReady = initialReady.filter(k => slotMapAll.get(k)?.scheduleHold || allSlots.find(x => x._key === k)?.scheduleHold);
         Promise.all([approveReadySlots(initialReady.filter(k => !heldReady.includes(k)), slotMapAll),
           heldReady.length ? releaseScheduleHold(heldReady, slotMapAll) : []]).then(([a, b]) => [...a, ...b]).then(pending => {
           if (pending.length) { overlay._deductFailures.push(...pending); overlay._renderDeductFailures(); }
