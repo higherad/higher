@@ -3630,6 +3630,10 @@ window.toggleProdPanel = function(e) {
     });
   }
   const fsVariantText = vs => vs.map(v => `${Object.keys(FS_PRESETS).find(k => FS_PRESETS[k] === v.preset)} ${v.share}%${v.scenario ? '(로그인)' : ''}`).join(' · ');
+  // 같은 MID·기간인 다른 캠페인 중 이미 풀스택을 넣은 수 — 서버는 사이트 주문이 이보다 많을 때만 '이미 있음'으로 건너뜀
+  // (같은 업체를 순위키워드별로 여러 캠페인 받는 경우 두 번째도 접수되게). 최신 allSlots 기준(이번 접수 중 앞 행 기록 포함)
+  const fsAllowed = r => allSlots.filter(c => c._key !== r._slotKey && c.mid === r.mid && c.fullstackOrder && c.status !== 'deleted'
+    && (c.startDate === r.start || (c.endDate && c.endDate === r._slot.endDate))).length;
   const fsReq = r => ({ mid: r.mid, daily: r.daily, days: r.days, start: r.start, variants: r.variants });
 
   // 표 + 미리보기(사이트에 commit:false — 접수 안 됨) + 접수 신청(행마다 1건씩 실제 접수). 같은 MID·기간이 이미 사이트에 있으면 건너뛰고 완료로 침(로컬 매크로로 넣은 것 포함)
@@ -3681,7 +3685,7 @@ window.toggleProdPanel = function(e) {
       const doneKeys = new Set(rows.filter(r => r._fsSubmitted).map(r => r._slotKey));
       for (const r of claimed) { // 한 줄씩 — 서버가 줄마다 보내기 직전에 사이트를 다시 확인
         let x;
-        try { x = (await HI.fullstack('order', { rows: [fsReq(r)] })).results[0]; }
+        try { x = (await HI.fullstack('order', { rows: [{ ...fsReq(r), allowed: fsAllowed(r) }] })).results[0]; }
         catch (e) { x = { result: '실패', memo: e.message }; }
         showPlan(r, x);
         const done = x.result === '접수' || x.result === '예약' || (x.result === '건너뜀' && /이미 진행/.test(x.memo || ''));
