@@ -742,8 +742,8 @@ const HI = {
     return sendTelegram(receiptMessage(`📊 <b>새 캠페인 접수 (${label})</b>`, slots));
   },
   // 엑셀 파일 안 같은 캠페인 행 중복 표시 — 텔레그램 봇 엑셀접수와 같은 기준
-  // 엑셀 접수: 같은 업체 행(MID·순위키워드·시작일·일수 같음)은 합침 — 같은 MID·기간 캠페인이 여럿이면 풀스택 접수(같은 기간 이미 진행으로
-  // 건너뜀)·환불 대상이 겹쳐서. 금액은 따로일 때와 같음(일 목표 합 × 일수 × 단가). 오류 행은 안 합침
+  // 엑셀 접수: 같은 업체 행(MID·시작일·일수 같음)은 합침 — 같은 MID·기간 캠페인이 여럿이면 풀스택 접수·환불 대상이 겹쳐서.
+  // 순위키워드가 달라도 묶고 첫 행 순위키워드 하나만 씀. 금액은 따로일 때와 같음(일 목표 합 × 일수 × 단가). 오류 행은 안 합침
   //  · 비고가 모두 같으면 일 목표 합 1건
   //  · 비고가 다르면 행마다 리워드·유입플로 나눠(리워드 = 내림, 나머지 유입플 — 50:50·65 → 32·33) 리워드 1건(비고 '리워드') + 업체별 1건(비고 업체명).
   //    비율 행의 유입플은 풀스택 몫(웹 접수 대상)
@@ -752,7 +752,7 @@ const HI = {
     const groups = new Map(), order = [];
     rows.forEach(r => {
       if (!r.valid) { order.push(r); return; }
-      const k = [r.mid, r.rankKeyword, r.startDate, r.days].join('|');
+      const k = [r.mid, r.startDate, r.days].join('|');
       if (!groups.has(k)) { groups.set(k, []); order.push(k); }
       groups.get(k).push(r);
     });
@@ -760,10 +760,12 @@ const HI = {
     const mergeGroup = g => {
       if (g.length === 1) return g;
       const n = g.length, sum = g.reduce((a, r) => a + r.dailyTarget, 0);
+      const kws = [...new Set(g.map(r => r.rankKeyword))];
+      const kwNote = kws.length > 1 ? ` · 순위키워드 '${kws[0]}'만(${kws.slice(1).join(', ')} 제외)` : '';
       const noted = g.filter(r => r.yupflRatio);
       if (noted.length && noted.length < n) return fail(g, '같은 업체 행에 비고 있는 행·없는 행이 섞임');
       if (new Set(g.map(r => JSON.stringify(r.yupflRatio || null))).size === 1) {
-        return [{ ...g[0], dailyTarget: sum, mergedLabel: `${n}행 합침` }];
+        return [{ ...g[0], dailyTarget: sum, mergedLabel: `${n}행 합침${kwNote}` }];
       }
       let reward = 0;
       const byVendor = {};
@@ -779,7 +781,7 @@ const HI = {
         ...(reward ? [{ dailyTarget: reward, note: '리워드', yupflRatio: { reward: 100, yupfl: 0 } }] : []),
         ...Object.entries(byVendor).filter(([, v]) => v > 0).map(([v, d]) => ({ dailyTarget: d, note: v, yupflRatio: { reward: 0, yupfl: 100, vendor: v } })),
       ];
-      const label = `${n}행 합침 → ` + parts.map(p => `${p.note} ${p.dailyTarget}`).join(' / ');
+      const label = `${n}행 합침 → ` + parts.map(p => `${p.note} ${p.dailyTarget}`).join(' / ') + kwNote;
       if (parts.some(p => p.dailyTarget < 10)) return fail(g, `합치면 일 목표 10 미만(${label})`);
       return parts.map(p => ({ ...g[0], ...p, mergedLabel: label }));
     };

@@ -241,5 +241,7 @@ assert.equal(tree.hi.cost_snapshots.g1.total, 100, '고정 금액 유지');
   assert.ok(HI.mergeDuplicateRows([R(10, H5), R(100, V)]).every(r => !r.valid), '10 미만이면 오류');
   assert.deepStrictEqual(sum(HI.mergeDuplicateRows([R(100, H5)])), [[100, 'x', true]], '한 행이면 그대로');
   assert.equal(HI.mergeDuplicateRows([R(100), R(100, null, false)]).length, 2, '오류 행은 안 합침');
+  const o = HI.mergeDuplicateRows([R(100, H5), { ...R(200, V), rankKeyword: 'k2' }]);
+  assert.deepStrictEqual(o.map(r => [r.dailyTarget, r.note, r.rankKeyword]), [[50, '리워드', 'k'], [250, '풀스택', 'k']], '순위키워드 달라도 합침·첫 행 키워드');
 }
 console.log('hi-store 자가검사 통과');
