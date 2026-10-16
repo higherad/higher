@@ -3668,7 +3668,6 @@ window.toggleProdPanel = function(e) {
       if (x.start && x.start !== r.start) { bodyEl.querySelector(`#fs-start-${r._i}`).innerHTML = `${escProd(x.start)}<div style="font-size:10px;color:var(--muted);">원래 ${escProd(r.start)}</div>`; bodyEl.querySelector(`#fs-days-${r._i}`).textContent = x.days; }
     };
     applyBtn.onclick = async () => {
-      if (!confirm(`풀스택 사이트에 ${pending.length}건을 실제로 접수합니다(후불 과금). 진행할까요?`)) return;
       window.bizfitSubmitting = true;
       applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
       closeBtn.disabled = true;
