@@ -4065,10 +4065,11 @@ window.toggleProdPanel = function(e) {
 
       // 게이트 유무와 상관없이 쓰는 판정 — doneSets를 받아 슬롯이 필요 레그를 전부 채웠는지로 승인 대상을 고름(조회 전용, 실행 안 함)
       const slotMapAll = new Map(allSlots.map(s => [s._key, s]));
+      // 재접수(isRequeue)는 탭 하나만 끝나도 상태 변경(일반 또는 풀스택 중 하나만 다시 넣는 경우가 있어서)
       function readyKeysOf(doneSets) {
         return [...requiredLegsByKey.entries()]
           .filter(([k, req]) => slotMapAll.get(k)?.status !== 'active'
-            && [...req].every(leg => doneSets[leg] && doneSets[leg].has(k)))
+            && [...req][slotMapAll.get(k)?.isRequeue ? 'some' : 'every'](leg => doneSets[leg] && doneSets[leg].has(k)))
           .map(([k]) => k);
       }
 
@@ -4097,7 +4098,7 @@ window.toggleProdPanel = function(e) {
         fullstackKeys: fullstackAlreadyDone.size ? fullstackAlreadyDone : null,
         slotMap: slotMapAll,
         // 이 캠페인이 풀스택 탭을 아직 기다리는지 — 분할 예약 때 상태 변경을 보류할지 판단
-        fsPending(k) { return !!requiredLegsByKey.get(k)?.has('fullstackKeys') && !(this.fullstackKeys && this.fullstackKeys.has(k)); },
+        fsPending(k) { return !slotMapAll.get(k)?.isRequeue && !!requiredLegsByKey.get(k)?.has('fullstackKeys') && !(this.fullstackKeys && this.fullstackKeys.has(k)); },
         async tryApprove() {
           // 호출부가 try/catch 없이 await만 하므로, 내부 예외가 밖으로 새면 등록 성공해도
           // 승인/화면갱신이 통째로 스킵됨 — 여기서 막는다.
