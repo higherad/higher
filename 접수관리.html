@@ -3009,7 +3009,9 @@ window.toggleProdPanel = function(e) {
   // 재접수(isRequeue, 이전 등록분 있다고 봄)는 건너뜀. 승인은 이미 끝난 뒤라 실패해도 로그만 남기고
   // 계속 진행 — 수동 "애드로그" 버튼으로 재시도 가능.
   async function autoRegisterAdlog(slots) {
-    const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && !s.isRequeue && s.rankKeyword && s.mid);
+    // 넘겨받은 객체가 팝업 열 때 잡아 둔 옛 사본일 수 있어(실시간 목록은 객체를 통째로 교체) 최신 목록의 완료 표시도 확인 — 중복 등록 방지
+    const latest = k => allSlots.find(x => x._key === k);
+    const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && !latest(s._key)?.adlogSubmitted && !s.isRequeue && s.rankKeyword && s.mid);
     if (!targets.length) return;
     const rows = buildAdlogRows(targets);
     try {
@@ -3020,7 +3022,8 @@ window.toggleProdPanel = function(e) {
         if (result.success) {
           const keys = chunk.map(r => r._slotKey);
           await Promise.all(keys.map(k => HI.updateCampaign(k, { adlogSubmitted: true })));
-          keys.forEach(k => { const s = allSlots.find(x => x._key === k); if (s) s.adlogSubmitted = true; });
+          keys.forEach(k => { const s = latest(k); if (s) s.adlogSubmitted = true; });
+          targets.forEach(s => { if (keys.includes(s._key)) s.adlogSubmitted = true; });
         } else {
           console.error('애드로그 자동등록 실패:', result.message);
         }
