@@ -3595,7 +3595,7 @@ window.toggleProdPanel = function(e) {
     // 가이드_접수면 시간 분할 편집기 기본값 = 가이드 시간 분배
     scheduleDraftRows = guideModeOn && guideTimes.length ? guideTimes.map(t => ({ ...t })) : [{ time: '10:00', pct: 100 }];
     scheduleKwSplit = false;
-    scheduleKwSplitDraft = { on:false };
+    scheduleKwSplitDraft = { on:true }; // 키워드 분할은 기본 켬(적용 눌러야 반영)
     if (!guideRules.length) { try { await loadGuide(); } catch (e) { console.warn('가이드 불러오기 실패 — 풀스택 탭 비율 없음:', e); } }
     return renderSubmitModal(target);
   }
@@ -4302,7 +4302,7 @@ window.toggleProdPanel = function(e) {
   // (splitRowBySchedule 참고, 필요 그룹 수만큼 자동 역산). scheduleKwSplit=커밋된 값,
   // scheduleKwSplitDraft=편집 중인 체크박스(적용 전)
   let scheduleKwSplit = false;
-  let scheduleKwSplitDraft = { on:false };
+  let scheduleKwSplitDraft = { on:true };
   // 이 설정을 적용하면 총 몇 건으로 나뉘어 접수되는지 미리보기(시간대 수 × 각 행의 일수 합) — 최소수량
   // 미달 조각은 scheduleMinViolations가 applyScheduleConfig에서 이미 막아 항상 100%대로 되므로 정확한 값.
   function scheduleSplitCount() {
