@@ -3587,6 +3587,7 @@ window.toggleProdPanel = function(e) {
       const rule = cat ? pickGuideRule(guideRules, cat, s.dailyTarget || 0) : null;
       const variants = rule ? fullstackVariants(rule) : [];
       return [{ _slotKey: s._key, _slot: s, _fsSubmitted: !!s.fullstackOrder, agencyId: s.agencyId || '', storeName: s.storeName || '', mid: s.mid || '',
+        url: s.url || '', rankKeyword: s.rankKeyword || '',
         daily, days: s.days || 0, start: s.startDate || '', variants,
         err: !rule ? '가이드 분류·구간 없음' : !variants.length ? '가이드 풀스택 비율 없음' : '' }];
     });
@@ -3597,24 +3598,42 @@ window.toggleProdPanel = function(e) {
   // 표 + 미리보기(사이트에 commit:false — 접수 안 됨) + 접수 신청(행마다 1건씩 실제 접수). 같은 MID·기간이 이미 사이트에 있으면 건너뛰고 완료로 침(로컬 매크로로 넣은 것 포함)
   function wireFullstackTab({ rows, bodyEl, subEl, applyBtn, closeBtn, overlay, gate, onDone }) {
     if (!rows.length) { bodyEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">풀스택 몫이 있는 캠페인이 없습니다.</div>'; applyBtn.disabled = true; return; }
-    const th = 'padding:6px;font-size:11px;color:var(--text2);text-align:center;';
-    bodyEl.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse;">
-      <thead><tr style="background:var(--bg);"><th style="${th}">대행사</th><th style="${th}">업체명</th><th style="${th}">MID</th><th style="${th}">일 건수</th><th style="${th}">일수</th><th style="${th}">시작일</th><th style="${th}">방식 비율</th><th style="${th}">미리보기</th><th style="${th}">상태</th></tr></thead>
-      <tbody>${rows.map((r, i) => `<tr style="border-top:1px solid var(--border);">
-        <td style="padding:6px;text-align:center;">${escProd(r.agencyId)}</td><td style="padding:6px;">${escProd(r.storeName)}</td>
-        <td style="padding:6px;text-align:center;">${escProd(r.mid)}</td><td style="padding:6px;text-align:center;font-weight:700;">${r.daily.toLocaleString()}</td>
-        <td style="padding:6px;text-align:center;" id="fs-days-${i}">${r.days}</td><td style="padding:6px;text-align:center;" id="fs-start-${i}">${escProd(r.start || '-')}</td>
-        <td style="padding:6px;font-size:11px;">${escProd(fsVariantText(r.variants)) || '-'}</td>
-        <td style="padding:6px;font-size:11px;" id="fs-pre-${i}">${r.err ? `<span style="color:var(--danger);">${escProd(r.err)}</span>` : r._fsSubmitted ? '-' : '⏳'}</td>
-        <td style="padding:6px;text-align:center;" id="fs-st-${i}">${r._fsSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : '-'}</td></tr>`).join('')}</tbody></table>`;
-    rows.forEach((r, i) => { r._statusTd = bodyEl.querySelector(`#fs-st-${i}`); r._i = i; });
+    // 일반 탭(buildSubmitAgencyBlock)과 같은 대행사별 블록·표
+    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
+    const agencies = [...new Set(rows.map(r => r.agencyId || '(대행사 미지정)'))];
+    rows.forEach((r, i) => { r._i = i; });
+    bodyEl.innerHTML = agencies.map(ag => {
+      const rs = rows.filter(r => (r.agencyId || '(대행사 미지정)') === ag);
+      const errN = rs.filter(r => r.err).length;
+      return `<div class="agency-block">
+        <div class="agency-hd"><div><div class="aname">${escProd(ag)}${errN ? ` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">⚠️ 오류 ${errN}건</span>` : ''}</div>
+          <div class="ameta">총 ${rs.length}건 · 일 건수 합계 ${rs.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}</div></div></div>
+        <div style="width:100%"><table class="ag-table ag-table-tight" style="table-layout:fixed;width:100%"><thead><tr>
+          <th style="width:98px">업체명</th><th style="width:108px">URL</th><th style="width:96px">MID</th><th style="width:84px">순위키워드</th>
+          <th style="width:56px;text-align:right">일 건수</th><th style="width:44px;text-align:center">일수</th><th style="width:74px">시작일</th>
+          <th style="width:130px">방식 비율</th><th style="width:130px">미리보기</th><th style="width:76px;text-align:center">상태</th>
+        </tr></thead><tbody>${rs.map(r => `<tr>
+          <td style="${ell}" title="${escProd(r.storeName)}">${escProd(r.storeName)}</td>
+          <td style="${ell}" title="${escProd(r.url)}"><a href="${escProd(r.url)}" target="_blank" style="color:var(--info);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escProd(r.url || '-')}</a></td>
+          <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.mid)}">${escProd(r.mid || '-')}</td>
+          <td style="${ell}" title="${escProd(r.rankKeyword)}">${escProd(r.rankKeyword || '-')}</td>
+          <td style="text-align:right;white-space:nowrap;font-weight:700">${r.daily.toLocaleString()}</td>
+          <td style="white-space:nowrap;text-align:center" id="fs-days-${r._i}">${r.days}</td>
+          <td style="white-space:nowrap" id="fs-start-${r._i}">${escProd(r.start || '-')}</td>
+          <td style="${ell};font-size:11px" title="${escProd(fsVariantText(r.variants))}">${escProd(fsVariantText(r.variants)) || '-'}</td>
+          <td style="${ell};font-size:11px" id="fs-pre-${r._i}">${r.err ? `<span style="color:var(--danger);">${escProd(r.err)}</span>` : r._fsSubmitted ? '-' : '⏳'}</td>
+          <td style="text-align:center;white-space:nowrap" id="fs-st-${r._i}">${r._fsSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : '-'}</td>
+        </tr>`).join('')}</tbody></table></div>
+        <div class="agency-ft"><div class="totals"></div></div></div>`;
+    }).join('');
+    rows.forEach(r => { r._statusTd = bodyEl.querySelector(`#fs-st-${r._i}`); });
     const pending = rows.filter(r => !r._fsSubmitted && !r.err);
-    subEl.innerHTML = `<span style="color:var(--text2);">풀스택 ${rows.length}건${pending.length < rows.length ? ` (접수할 것 ${pending.length}건)` : ''}</span>`;
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · 풀스택 ${rows.length}건 · 일 건수 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>`;
     if (!pending.length) { if (rows.every(r => r._fsSubmitted)) markApplyBtnDone(applyBtn); else applyBtn.disabled = true; return; }
     const showPlan = (r, x) => {
       const pre = bodyEl.querySelector(`#fs-pre-${r._i}`);
       const color = ['접수 예정', '예약', '접수'].includes(x.result) ? 'var(--accent)' : x.result === '건너뜀' ? '#b45309' : 'var(--danger)';
-      if (pre) pre.innerHTML = `<b style="color:${color}">${escProd(x.result)}</b> ${escProd(x.memo || '')}`;
+      if (pre) { pre.innerHTML = `<b style="color:${color}">${escProd(x.result)}</b> ${escProd(x.memo || '')}`; pre.title = `${x.result} ${x.memo || ''}`; }
       if (x.start && x.start !== r.start) { bodyEl.querySelector(`#fs-start-${r._i}`).innerHTML = `${escProd(x.start)}<div style="font-size:10px;color:var(--muted);">원래 ${escProd(r.start)}</div>`; bodyEl.querySelector(`#fs-days-${r._i}`).textContent = x.days; }
     };
     HI.fullstack('preview', { rows: pending.map(fsReq) })
@@ -4056,19 +4075,18 @@ window.toggleProdPanel = function(e) {
       } : null;
 
       // 서버는 승인 게이트를 모르므로 예약은 레그 2개 이상이 동시에 필요한 슬롯이 섞이면 막음.
-      // 풀스택은 예약 대상이 아니라 풀스택 탭을 먼저 끝내야 예약이 풀림(예약이 끝나면 서버가 바로 승인하므로)
+      // 풀스택은 예약 대상이 아님 — 분할 예약을 켜도 풀스택 탭은 접수 신청 즉시 접수(예약은 일반 등 등록 탭에만)
       const registerLegs = activeLegs.filter(l => l !== 'fullstackKeys');
       const refreshScheduleToggle = () => {
-        const fsPending = data.hasFullstack && !data.fullstackRows.every(r => r._fsSubmitted);
-        const scheduleBlocked = registerLegs.length > 1 || fsPending;
+        const scheduleBlocked = registerLegs.length > 1;
         const scheduleBtn = overlay.querySelector('#schedule-toggle-btn');
         if (!scheduleBtn) return;
         scheduleBtn.disabled = scheduleBlocked;
         scheduleBtn.style.opacity = scheduleBlocked ? '0.4' : '1';
         scheduleBtn.style.cursor = scheduleBlocked ? 'not-allowed' : 'pointer';
-        scheduleBtn.title = registerLegs.length > 1
+        scheduleBtn.title = scheduleBlocked
           ? '일반/찰리/델타/네이비 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다'
-          : fsPending ? '풀스택 탭을 먼저 접수해야 시간대 분할 예약을 쓸 수 있습니다' : '';
+          : '';
         if (scheduleBlocked && scheduleConfig) window.clearScheduleConfig();
       };
       refreshScheduleToggle();
