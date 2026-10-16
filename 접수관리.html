@@ -523,8 +523,6 @@ window.toggleProdPanel = function(e) {
 
   // ── 비즈핏 직접 접수 ─────────────────────────────────────────
   const BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
-  // 풀스택(유입플 업체) 웹 접수·취소 스위치 — true면 접수 확인 팝업 '풀스택' 탭·강제종료 팝업 '취소' 탭·유입플 캐시 차감이 켜짐(서버 higherad-auto /fullstack)
-  const FULLSTACK_ON = true;
   const BIZFIT_DOMAIN = 'http://higherad.co.kr';
   const BIZFIT_TAB    = '99'; // 전체 — 대행사별 단독/랜덤/통합 구분 정보가 없어 기본값 사용
   // 찰리는 NP 위치저장(adrole=100) 메뉴로 접수 — 등급명이 NP트래픽과 겹쳐 자동탐색 불가하므로 강제 지정
@@ -1314,7 +1312,7 @@ window.toggleProdPanel = function(e) {
     {id:'p7',     name:'X7',    color:'#ec4899', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     {id:'p8',     name:'X8',    color:'#eab308', active:false, ver:'ver.5.0/3.2', ratio:0, kwPct:0},
     // 유입플(id yupflc): 차감 뒤 남은 일 목표에서 이 비율만큼 유입플로 떼어 분류만 함(비즈핏 등록·유입플 접수 없음).
-    // 승인 때 yupflTarget·yupflAmount로 고정(캐시 차감·메모는 YUPFL_CASH_DEDUCT로 켜고 끔). 캠페인 dailyTarget은 그대로
+    // 승인 때 yupflTarget·yupflAmount로 고정(유입플 몫도 리워드 단가로 캐시 차감·충전 메모). 캠페인 dailyTarget은 그대로
     {id:'yupflc', name:'유입플', color:'#f59e0b', active:false, ratio:0, kwPct:0, fixedAlloc:true, classifyOnly:true, fixedPct:50, autoBalance:false, vendors:[{name:'풀스택', ratio:100}]},
     {id:'deduct', name:'차감',  color:'#ef4444', active:false, ratio:0, kwPct:0, fixedAlloc:true, deductOnly:true, fixedPct:10, autoBalance:false},
     {id:'charlie',name:'찰리',  color:'#d946ef', active:false, ver:'ver.4.1/3.2', ratio:0, kwPct:0, daysMultiplied:true},
@@ -1806,11 +1804,9 @@ window.toggleProdPanel = function(e) {
 
   // 대행사(bizfitUid)당 여러 슬롯 차감을 합쳐 /bizfit-refund 한 번만 호출 — 슬롯마다 부르면 캐시사용내역이 승인 건수만큼 쪼개짐
   // 미매핑 대행사는 조용히 스킵. 실패해도 승인은 이미 끝났으므로 던지지 않고 boolean 반환(팝업 재시도 배너용)
-  // 유입플 분류 몫의 비즈핏 캐시 차감·"[환불] 유입플 금액" 메모 — 풀스택 웹 접수(FULLSTACK_ON)와 같이 켜짐.
-  // 켜지면 승인·예약·재시도 모두 유입플 금액(유입플 수량 × 일수 × 리워드 단가, 승인 때 고정한 yupflAmount)을 차감 몫과 합쳐 차감하고 메모에도 남김
-  const YUPFL_CASH_DEDUCT = FULLSTACK_ON;
+  // 승인·예약·재시도 모두 유입플 금액(유입플 수량 × 일수 × 리워드 단가, 승인 때 고정한 yupflAmount)을 차감 몫과 합쳐 차감하고
+  // 충전 메모 '[환불] 차감 : N원 / 유입플 : M원'에도 남김 — 비즈핏엔 리워드 몫만 등록돼 남는 유입플 몫 캐시를 빼 잔액을 맞춤
   async function settleBizfitCashBatch(bizfitUid, slots, deductAmount, yupflAmount, force = false) {
-    if (!YUPFL_CASH_DEDUCT) yupflAmount = 0;
     const targets = slots.filter(s => s && !s.bizfitDeducted);
     if (!targets.length) return true;
     const amount = deductAmount + yupflAmount;
@@ -3600,7 +3596,7 @@ window.toggleProdPanel = function(e) {
     scheduleDraftRows = guideModeOn && guideTimes.length ? guideTimes.map(t => ({ ...t })) : [{ time: '10:00', pct: 100 }];
     scheduleKwSplit = false;
     scheduleKwSplitDraft = { on:false };
-    if (FULLSTACK_ON && !guideRules.length) { try { await loadGuide(); } catch (e) { console.warn('가이드 불러오기 실패 — 풀스택 탭 비율 없음:', e); } }
+    if (!guideRules.length) { try { await loadGuide(); } catch (e) { console.warn('가이드 불러오기 실패 — 풀스택 탭 비율 없음:', e); } }
     return renderSubmitModal(target);
   }
 
@@ -3618,7 +3614,6 @@ window.toggleProdPanel = function(e) {
     return mix.map(([preset], i) => ({ key: 'ABCDEFGH'[i], preset, share: shares[i], ...(FS_LOGIN.has(preset) ? { scenario: { login: 'login' } } : {}) }));
   }
   function buildFullstackRows(slots) {
-    if (!FULLSTACK_ON) return [];
     return slots.flatMap(s => {
       const f = s.yupflTarget != null ? s : yupflFieldsFor(s);
       const daily = f.yupflByVendor ? (f.yupflByVendor['풀스택'] || 0) : (f.yupflTarget || 0);
@@ -3866,7 +3861,7 @@ window.toggleProdPanel = function(e) {
       const banner = overlay.querySelector('#deduct-fail-banner');
       const failures = overlay._deductFailures;
       if (!failures.length) { banner.style.display = 'none'; return; }
-      const total = failures.reduce((s, g) => s + g.ded + (YUPFL_CASH_DEDUCT ? g.yup : 0), 0);
+      const total = failures.reduce((s, g) => s + g.ded + g.yup, 0);
       banner.style.display = 'flex';
       banner.innerHTML = `<span style="color:#b91c1c;font-weight:700;font-size:12px;">⚠️ 비즈핏 캐시차감 필요 ${failures.length}건(${total.toLocaleString()}원) — 접수는 완료됨, 재시도 필요</span>
         <button id="deduct-retry-btn" style="background:#b91c1c;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">재시도</button>`;
@@ -6301,10 +6296,10 @@ window.toggleProdPanel = function(e) {
     overlay.id = 'fs-modal';
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,760px);max-height:84vh;overflow-y:auto;">
-        ${FULLSTACK_ON ? `<div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:12px;">
+        <div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:12px;">
           <button type="button" class="submit-tab active" data-fspane="stop">🛑 강제종료</button>
           <button type="button" class="submit-tab" data-fspane="cancel">↩️ 취소</button>
-        </div>` : ''}
+        </div>
         <div id="fs-pane-stop">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
           <div class="modal-title" style="margin-bottom:0;">🛑 강제종료</div>
@@ -6334,14 +6329,12 @@ window.toggleProdPanel = function(e) {
       </div>`;
     document.body.appendChild(overlay);
     const $ = sel => overlay.querySelector(sel);
-    if (FULLSTACK_ON) {
-      initRefundCancelPane($('#fs-pane-cancel'), overlay);
-      overlay.querySelectorAll('[data-fspane]').forEach(b => b.onclick = () => {
-        overlay.querySelectorAll('[data-fspane]').forEach(x => x.classList.toggle('active', x === b));
-        $('#fs-pane-stop').style.display = b.dataset.fspane === 'stop' ? '' : 'none';
-        $('#fs-pane-cancel').style.display = b.dataset.fspane === 'cancel' ? '' : 'none';
-      });
-    }
+    initRefundCancelPane($('#fs-pane-cancel'), overlay);
+    overlay.querySelectorAll('[data-fspane]').forEach(b => b.onclick = () => {
+      overlay.querySelectorAll('[data-fspane]').forEach(x => x.classList.toggle('active', x === b));
+      $('#fs-pane-stop').style.display = b.dataset.fspane === 'stop' ? '' : 'none';
+      $('#fs-pane-cancel').style.display = b.dataset.fspane === 'cancel' ? '' : 'none';
+    });
     const log = msg => { $('#fs-log').innerHTML = `<div>${new Date().toLocaleTimeString('ko-KR',{hour12:false})} ${escProd(msg)}</div>`; }; // 최신 한 줄만(행별 결과는 표 상태 칸에 남음)
     const ST = { ready:'대기', running:'⏳ 진행 중', success:'✅ 완료', fail:'❌ 실패', blocked:'⛔ 예약 진행 중 — 강제종료 불가' };
     function render() {
