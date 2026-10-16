@@ -523,9 +523,8 @@ window.toggleProdPanel = function(e) {
 
   // ── 비즈핏 직접 접수 ─────────────────────────────────────────
   const BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
-  // 풀스택(유입플 업체) 웹 접수·취소 스위치 — true면 접수 확인 팝업 '풀스택' 탭·강제종료 팝업 '취소' 탭이 켜짐(서버 higherad-auto /fullstack).
-  // 끈 동안에도 이 브라우저만 켜서 시험하려면 콘솔에서 localStorage.fullstackTest = '1' 후 새로고침
-  const FULLSTACK_ON = false || (() => { try { return localStorage.getItem('fullstackTest') === '1'; } catch { return false; } })();
+  // 풀스택(유입플 업체) 웹 접수·취소 스위치 — true면 접수 확인 팝업 '풀스택' 탭·강제종료 팝업 '취소' 탭·유입플 캐시 차감이 켜짐(서버 higherad-auto /fullstack)
+  const FULLSTACK_ON = true;
   const BIZFIT_DOMAIN = 'http://higherad.co.kr';
   const BIZFIT_TAB    = '99'; // 전체 — 대행사별 단독/랜덤/통합 구분 정보가 없어 기본값 사용
   // 찰리는 NP 위치저장(adrole=100) 메뉴로 접수 — 등급명이 NP트래픽과 겹쳐 자동탐색 불가하므로 강제 지정
