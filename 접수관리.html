@@ -6193,6 +6193,7 @@ window.toggleProdPanel = function(e) {
       if (!sel.length || !confirm(`선택한 ${sel.length}건을 처리합니다(접수관리·비즈핏 임시중단B·풀스택 취소). 되돌릴 수 없습니다. 진행할까요?`)) return;
       running = true; sel.forEach(x => { x.status = 'running'; }); render();
       const finish = (x, ok, msg = '') => { x.status = ok ? 'success' : 'fail'; x.result = msg; render(); };
+      if (sel.some(x => x.kind === 'sched' && x.expect === 'split')) _ssEntries = scheduleEntriesFrom(await HI.getScheduleDispatchOnce()); // 조회 뒤 서버가 보낸 조각은 빼고 취소
       for (const x of sel.filter(x => x.kind === 'sched')) {
         try {
           const cur = await HI.getCampaign(x.key);
