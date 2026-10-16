@@ -3377,6 +3377,7 @@ window.toggleProdPanel = function(e) {
           _slotKey:   r._key,
           _doneKey:   prod.name,
           _normalSubmitted: !!r.scheduleHold || !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
+          _scheduled:       !!r.scheduleHold,
           _days:            r.days||0,
           _daysMultiplied:  !!prod.daysMultiplied,
           상품등급명: prod.name,
@@ -3426,6 +3427,7 @@ window.toggleProdPanel = function(e) {
           _slotKey:   r._key,
           _doneKey:   doneKey,
           _normalSubmitted: !!r.scheduleHold || !!(r.normalDoneProducts && r.normalDoneProducts.includes(doneKey)),
+          _scheduled:       !!r.scheduleHold,
           _requiresBlogUrl: true,
           _days:            r.days||0,
           _daysMultiplied:  !!prod.daysMultiplied,
@@ -3476,9 +3478,11 @@ window.toggleProdPanel = function(e) {
   };
 
   // "접수 신청" 버튼을 완료 상태로 잠금 — wireSubmitTab/lockDoneButtons 공용
-  function markApplyBtnDone(btn) {
-    btn.disabled = true; btn.textContent = '✅ 전체 완료'; btn.style.background = '#475569'; btn.style.cursor = 'default';
+  function markApplyBtnDone(btn, text = '✅ 전체 완료') {
+    btn.disabled = true; btn.textContent = text; btn.style.background = '#475569'; btn.style.cursor = 'default';
   }
+  // 분할 예약해 둔 행(풀스택 대기로 상태 보류 중 포함) — 다시 열어도 '분할 완료'로 남김
+  const SPLIT_DONE_HTML = '<span style="color:#b45309;font-weight:600;">⏰ 분할 완료</span>';
 
   // 접수 신청 전 사전검사(executeSubmit과 동일 조건) — 오류 있으면 버튼 비활성화. 상태칸은 안 건드림(오류 배지 중복).
   function validateNormalRowsForSubmit(rows) {
@@ -3533,7 +3537,7 @@ window.toggleProdPanel = function(e) {
     const allRows = plan.flatMap(p => p.rows);
     // 이 탭 행이 전부 이미 완료(_normalSubmitted)면 슬롯이 active 아니어도 완료 표시
     if (target.every(s => s.status === 'active') || (allRows.length && allRows.every(r => r._normalSubmitted))) {
-      markApplyBtnDone(applyBtn);
+      markApplyBtnDone(applyBtn, allRows.length && allRows.every(r => r._scheduled) ? '⏰ 분할 완료' : undefined);
       return { anyFail: false };
     }
     const anyFail = validateNormalRowsForSubmit(allRows);
@@ -4112,14 +4116,15 @@ window.toggleProdPanel = function(e) {
       // 풀스택은 예약 대상이 아님 — 분할 예약을 켜도 풀스택 탭은 접수 신청 즉시 접수(예약은 일반 등 등록 탭에만)
       const registerLegs = activeLegs.filter(l => l !== 'fullstackKeys');
       const refreshScheduleToggle = () => {
-        const scheduleBlocked = registerLegs.length > 1;
+        const alreadySplit = target.some(s => s.scheduleHold || s.status === 'split');
+        const scheduleBlocked = registerLegs.length > 1 || alreadySplit;
         const scheduleBtn = overlay.querySelector('#schedule-toggle-btn');
         if (!scheduleBtn) return;
         scheduleBtn.disabled = scheduleBlocked;
         scheduleBtn.style.opacity = scheduleBlocked ? '0.4' : '1';
         scheduleBtn.style.cursor = scheduleBlocked ? 'not-allowed' : 'pointer';
-        scheduleBtn.title = scheduleBlocked
-          ? '일반/찰리/델타/네이비 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다'
+        scheduleBtn.title = alreadySplit ? '이미 분할 예약된 캠페인입니다'
+          : scheduleBlocked ? '일반/찰리/델타/네이비 중 2개 이상이 동시에 필요한 슬롯이 섞여 있어 시간대 분할 예약을 쓸 수 없습니다'
           : '';
         if (scheduleBlocked && scheduleConfig) window.clearScheduleConfig();
       };
@@ -4529,7 +4534,7 @@ window.toggleProdPanel = function(e) {
       const tr = document.createElement('tr');
       const statusTd = document.createElement('td');
       statusTd.style.cssText = 'text-align:center;white-space:nowrap';
-      statusTd.innerHTML = r._normalSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : '-';
+      statusTd.innerHTML = r._scheduled ? SPLIT_DONE_HTML : r._normalSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : '-';
       tr.innerHTML = `
         <td style="${ell};font-weight:700" title="${escProd(r.상품등급명)}">${escProd(r.상품등급명)}</td>
         <td style="${ell}" title="${escProd(r.업체명)}">${escProd(r.업체명)}</td>
@@ -4848,7 +4853,7 @@ window.toggleProdPanel = function(e) {
         overlay._renderDeductFailures();
       }
       await Promise.all(dispatchEntries.map(saveScheduledDispatch));
-      scheduledRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 예약 완료</span>'; });
+      scheduledRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = SPLIT_DONE_HTML; });
       // adlog.kr은 서버가 만든 xlsx를 거부해서(브라우저 SheetJS 파일만 통과) 서버가 나중에 처리하는
       // 예약 완료(active 전환) 시점엔 등록 불가 — 그래서 지금(접수 신청 클릭 시점) 미리 등록해둠.
       if (adlogAutoOn) await autoRegisterAdlog([...slotKeyCounts.keys()].map(k => allSlots.find(s => s._key === k)));
