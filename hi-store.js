@@ -153,7 +153,10 @@ async function callServer(path, body) {
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
     body: JSON.stringify(body || {}),
   });
-  if (!res.ok) throw new Error(`${path} 실패 (${res.status})`);
+  if (!res.ok) {
+    const msg = (await res.json().catch(() => ({}))).error;  // 서버가 준 사유가 있으면 같이(예: 풀스택 로그인 실패)
+    throw new Error(`${path} 실패 (${res.status})${msg ? ` — ${msg}` : ''}`);
+  }
   return res.json().catch(() => ({}));
 }
 async function sendTelegram(message) {
