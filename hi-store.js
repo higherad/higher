@@ -803,6 +803,8 @@ const HI = {
   async getPipelineAllDone() { return (await get(ref(db, `${P.pipeline}/allDone`))).val(); },
   // 구글시트 '접수 가이드' 전 탭 원본 값 {sheets:[{title, values}]}(higherad-auto /guide-sheet, 직원만)
   getGuideSheet() { return callServer('/guide-sheet'); },
+  // 풀스택(유입플 업체) 사이트 중계(higherad-auto /fullstack, 직원만) — action: preview·order·targets·cancel·ping
+  fullstack(action, body = {}) { return callServer('/fullstack', { action, ...body }); },
   kwCategoryOf,
   async getKwCategories() { return Object.values((await get(ref(db, P.kwCategories))).val() || {}); },
   saveKwCategories(list) { return set(ref(db, P.kwCategories), list); },
