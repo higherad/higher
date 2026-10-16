@@ -943,10 +943,21 @@ window.toggleProdPanel = function(e) {
       await HI.updateCampaign(key, { searchKeyword: kw });
       updateLocalSlot(key, { searchKeyword: kw });
     }
+    if (s0.status === 'split') await syncScheduledRows(key, baseUpdates);
     if (deltaUrl !== null && deltaUrl !== (s.deltaBlogUrl||'')) {
       await HI.updateCampaign(key, { deltaBlogUrl: deltaUrl });
       updateLocalSlot(key, { deltaBlogUrl: deltaUrl });
     }
+  }
+
+  // 분할 예약 대기 조각에 상세 수정 반영 — 업체명·MID만(나머지는 예약 때 값 그대로)
+  async function syncScheduledRows(key, updates) {
+    const rowPatch = {};
+    if ('storeName' in updates) rowPatch.업체명 = updates.storeName;
+    if ('mid' in updates) rowPatch.PID번호 = updates.mid;
+    if (!Object.keys(rowPatch).length) return;
+    const pending = Object.entries(await HI.getScheduleDispatchOnce() || {}).filter(([, e]) => e.slotKey === key && !isScheduleDone(e.status));
+    await Promise.all(pending.map(([id]) => HI.updateScheduleDispatch(`${id}/payload/rowData/0`, rowPatch)));
   }
 
   window.acceptFromDetail = async function(key) {
