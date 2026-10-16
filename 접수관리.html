@@ -2177,6 +2177,8 @@ window.toggleProdPanel = function(e) {
       await HI.updateCampaign(slotKey, patch);
       if (s) Object.assign(s, patch);
     }));
+    // 정산 자동 도장 — 풀스택 대기 보류가 풀려 분할로 바뀌는 게 묶음의 마지막 전환일 수 있어서 여기서도 확인(묶음 전부 승인·분할일 때만 찍힘)
+    await autoStampSettlement(slotKeys.map(k => slotsByKey.get(k) && { ...slotsByKey.get(k), ...fieldsByKey.get(k) }));
 
     // bizfitUid별 그룹핑은 approveReadySlots와 동일 로직 재사용(groupFieldsByBizfitUid) — 대행사별 차감은 서로
     // 독립이라 settleBizfitCashBatch가 순차일 이유 없음(approveSlotsWithBizfit과 동일하게 병렬)
