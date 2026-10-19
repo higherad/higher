@@ -1,14 +1,13 @@
 <div id="user-page">
 <style>
   #user-page .action-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; align-items:center; gap:10px; margin-bottom:14px; }
-  #user-page select, #user-page input[type=text] { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
+  #user-page input[type=text] { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
   #user-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:16px; }
   #user-page table { width:100%; border-collapse:collapse; font-size:12px; }
   #user-page thead th { background:#1e293b; color:#fff; padding:12px 10px; font-weight:500; border-right:1px solid #2d3f55; text-align:center; white-space:nowrap; }
   #user-page tbody td { padding:12px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #user-page tbody tr:last-child td { border-bottom:none; }
   #user-page tbody tr:hover { background:#f8fafc; }
-  #user-page tbody tr.row-pending { background:rgba(245,158,11,.03); }
   .req { color:var(--danger); font-size:10px; margin-left:2px; vertical-align:top; }
   .pw-input-wrap { position:relative; }
   .pw-masked { -webkit-text-security:disc; }  /* type=password면 크롬이 로그인으로 보고 저장 팝업을 띄워 text + CSS 가리기 */
@@ -18,13 +17,6 @@
   .action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
   .btn-edit    { background:#eff6ff; color:#1d4ed8; }
   .btn-del     { background:#fef2f2; color:var(--danger); }
-  .btn-approve { background:var(--accent); color:#fff; }
-  .btn-approve:hover { background:var(--accent2); }
-  .btn-add     { background:var(--info); color:#fff; padding:7px 16px; font-size:12px; }
-  .btn-del2    { background:var(--danger); color:#fff; padding:7px 16px; font-size:12px; }
-  .user-status-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
-  .us-active  { background:rgba(16,185,129,.1); color:#059669; }
-  .us-pending { background:rgba(245,158,11,.1); color:#b45309; }
   .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center; }
   .modal-box { background:#fff;border-radius:16px;width:460px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.2); }
   .modal-title { font-size:17px;font-weight:700;margin-bottom:20px; }
@@ -42,7 +34,6 @@
   .pagination { display:flex;justify-content:center;gap:5px;margin-top:16px; }
   .pg-btn { width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center; }
   .pg-btn.active { background:var(--info);color:#fff;border-color:var(--info); }
-  .hint-text { font-size:11px; color:var(--text2); margin-top:4px; }
   .loading-wrap { display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:8px; }
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
@@ -73,7 +64,6 @@
   @media (max-width: 768px) {
     #user-page .action-bar { flex-wrap: wrap; gap: 6px; }
     #user-page .action-bar > * { flex: 1 1 calc(50% - 6px); min-width: 120px; }
-    #user-page .action-bar > div[style*="margin-left:auto"] { flex: 1 1 100%; margin-left: 0 !important; justify-content: flex-start; }
     #user-page .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     #user-page table { min-width: 700px; }
     .modal-box { width: calc(100vw - 32px); padding: 20px; }
@@ -83,14 +73,8 @@
 
 <div class="action-bar">
   <input type="text" id="u-kw" placeholder="아이디/대행사 검색" style="width:200px;" onkeydown="if(event.key==='Enter') renderUsers()">
-  <select id="u-status" onchange="renderUsers()">
-    <option value="">전체</option>
-    <option value="active">승인됨</option>
-    <option value="pending">승인대기</option>
-  </select>
   <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderUsers()">검색</button>
   <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="document.getElementById('u-kw').value='';renderUsers()">초기화</button>
-  <span class="pending-count" id="pending-user-count"></span>
 </div>
 
 <div class="tbl-wrap">
@@ -98,11 +82,11 @@
     <thead>
       <tr>
         <th>번호</th><th>가입일</th><th>최종 접수일</th><th>대행사</th><th>단가(원)</th>
-        <th>아이디</th><th>캠페인 수</th><th>메모</th><th>상태</th><th>액션</th>
+        <th>아이디</th><th>캠페인 수</th><th>메모</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="user-body">
-      <tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>
+      <tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -114,19 +98,15 @@
   const PER = 20;
   let allUsers = [];
   let charges = {};   // 아이디·비밀번호 = BizFit 충전 계정(hi/bizfit_charge/{업체명})
-  const chargeIdOf = u => charges[String(u.agencyId || u.agency || '').replace(/[.#$[\]/]/g, '_')]?.id || '';
+  let _chargesLoaded = false;  // 저장·삭제 후 다시 받음
+  const chargeIdOf = u => HI.chargeOf(charges, u)?.id || '';
   let allSlots = [];
   let _slotsLoaded = false; // 캠페인 전체(종료 포함)는 캠페인 수·최종 접수일 표시용이라 1회 로드 후 재사용
   const userByKey = key => allUsers.find(x => x._key === key);
 
   function getFiltered() {
-    const kw     = (document.getElementById('u-kw').value||'').toLowerCase();
-    const status = document.getElementById('u-status').value;
-    return allUsers.filter(u => {
-      if (status === 'active'  && u.approved === false) return false;
-      if (status === 'pending' && u.approved !== false) return false;
-      return !kw || [chargeIdOf(u),(u.agency||''),(u.agencyId||'')].some(v=>v.toLowerCase().includes(kw));
-    });
+    const kw = (document.getElementById('u-kw').value||'').toLowerCase();
+    return allUsers.filter(u => !kw || [chargeIdOf(u),(u.agency||''),(u.agencyId||'')].some(v=>v.toLowerCase().includes(kw)));
   }
 
   function getUserSlotCount(username) {
@@ -148,10 +128,11 @@
   window.renderUsers = async function(resetPage = true, forceReload = false) {
     if (resetPage) page = 1;
     document.getElementById('user-body').innerHTML =
-      '<tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
-    // 회원 목록은 승인/삭제 직후 정확한 값이 필요해 매번 새로 받음(4.5KB라 저렴) — 슬롯만 캐시
+      '<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+    // 회원 목록은 저장·삭제 직후 정확한 값이 필요해 매번 새로 받음(4.5KB라 저렴) — 슬롯·충전 계정만 캐시
     const usersPromise = HI.getUsers();
-    const chargesPromise = HI.getBizfitCharges().catch(e => { console.error('충전 계정 로드 실패:', e); return {}; });
+    const chargesPromise = _chargesLoaded && !forceReload ? charges
+      : HI.getBizfitCharges().then(c => { _chargesLoaded = true; return c; }).catch(e => { console.error('충전 계정 로드 실패:', e); return {}; });
     if (!_slotsLoaded || forceReload) {
       allSlots = await HI.getAll(); // 진행 중 + 종료 전체
       _slotsLoaded = true;
@@ -159,14 +140,9 @@
     allUsers = [...await usersPromise];
     charges = await chargesPromise;
     if (!document.getElementById('user-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-    // 최신 가입순 — 키가 username이라 저장 순서가 가입순이 아님. 같은 날은 옛 push 키(legacyKey, 시간순), 새 가입(legacyKey 없음)이 위
+    // 최신 등록순(createdAt 날짜) — 같은 날은 옛 push 키(legacyKey, 시간순), legacyKey 없는 건이 위
     const order = u => `${u.createdAt || ''}|${u.legacyKey || '~'}`;
     allUsers.sort((a, b) => order(b).localeCompare(order(a)));
-
-    // 승인 대기 카운트
-    const pendingCount = allUsers.filter(u => u.approved === false).length;
-    const countEl = document.getElementById('pending-user-count');
-    if (countEl) countEl.textContent = pendingCount > 0 ? `승인 대기 ${pendingCount}명` : '';
 
     const all   = getFiltered();
     const start = (page-1)*PER;
@@ -174,14 +150,10 @@
     const body  = document.getElementById('user-body');
 
     if (!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="10">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((u, i) => {
-        const isPending = u.approved === false;
-        const statusBadge = isPending
-          ? '<span class="user-status-badge us-pending">승인대기</span>'
-          : '<span class="user-status-badge us-active">승인됨</span>';
-        return `<tr class="${isPending ? 'row-pending' : ''}">
+        return `<tr>
           <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="color:var(--text2)">${fmtDateOnly(u.createdAt)}</td>
           <td style="color:var(--text2)">${fmtDateOnly(getUserLastReceiptDate(u.username))}</td>
@@ -190,10 +162,8 @@
           <td style="font-weight:700">${escHtml(chargeIdOf(u)) || '-'}</td>
           <td>${getUserSlotCount(u.username)}</td>
           <td style="color:var(--text2);font-size:11px">${u.memo||'-'}</td>
-          <td>${statusBadge}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
-              ${isPending ? `<button class="action-btn btn-approve" onclick="approveUser('${u._key}')">승인</button>` : `<button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="pendingUser('${u._key}')">대기</button>`}
               <button class="action-btn btn-edit" onclick="openUserModal('${u._key}')">수정</button>
               <button class="action-btn btn-del"  onclick="deleteUser('${u._key}')">삭제</button>
             </div>
@@ -224,24 +194,10 @@
     btn.innerHTML = input.classList.toggle('pw-masked') ? EYE_OFF_ICON : EYE_ICON;
   };
 
-  // ── 승인 ─────────────────────────────────────────────────
-  window.approveUser = async function(key) {
-    if (!confirm('이 회원을 승인하시겠습니까?')) return;
-    await HI.updateUser(userByKey(key).username, { approved: true });
-    renderUsers(false);
-  };
-
-  window.pendingUser = async function(key) {
-    if (!confirm('이 회원을 승인 대기 상태로 변경하시겠습니까?')) return;
-    await HI.updateUser(userByKey(key).username, { approved: false });
-    renderUsers(false);
-  };
-
   window.deleteUser = async function(key) {
     if (!confirm('회원을 삭제하시겠습니까?')) return;
-    const u = userByKey(key);
-    await HI.deleteUser(u.username);
-    await HI.removeBizfitCharge(u.agencyId || u.agency || '').catch(e => console.error('충전 계정 삭제 오류:', e));
+    await HI.deleteUser(userByKey(key).username);  // 충전 계정도 같이 삭제
+    _chargesLoaded = false;
     renderUsers(false);
   };
 
@@ -274,9 +230,10 @@
     document.body.appendChild(ov);
   };
   window.openUserModal = function(key) {
-    const u = key ? (allUsers.find(x => x._key === key) || {}) : {};
+    const u = key ? (userByKey(key) || {}) : {};
     const isEdit = !!key;
     const currentAgency = u.agency || u.agencyId || '';
+    const charge = isEdit ? HI.chargeOf(charges, u) : null;  // 충전 계정 = hi/bizfit_charge/{업체명}(접수 승인 시 캐시 차감용)
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -284,8 +241,8 @@
       <div class="modal-box">
         <div class="modal-title">${isEdit?'회원 정보 수정':'회원 추가'}</div>
         <div class="modal-row modal-row-3">
-          <div class="modal-field"><label>아이디<span class="req">*</span></label><input id="cs-id" type="text" placeholder="${isEdit?'불러오는 중...':'BizFit 아이디'}" autocomplete="off" ${isEdit?'':'data-loaded="1"'}></div>
-          <div class="modal-field"><label>비밀번호<span class="req">*</span></label><div class="pw-input-wrap"><input id="cs-pw" type="text" class="pw-masked" placeholder="BizFit 패스워드" autocomplete="off"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
+          <div class="modal-field"><label>아이디<span class="req">*</span></label><input id="cs-id" type="text" value="${escHtml(charge?.id)}" placeholder="BizFit 아이디" autocomplete="off"></div>
+          <div class="modal-field"><label>비밀번호<span class="req">*</span></label><div class="pw-input-wrap"><input id="cs-pw" type="text" class="pw-masked" value="${escHtml(charge?.pw)}" placeholder="BizFit 패스워드" autocomplete="off"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
           <div class="modal-field"><label>업체명 (대행사)<span class="req">*</span></label><input id="um-agency" value="${currentAgency}" placeholder="업체명을 입력하세요"></div>
         </div>
         <div class="modal-field"><label>리워드 단가 (원)<span class="req">*</span></label>
@@ -309,24 +266,12 @@
       el.innerHTML = itemRowsHtml(items.vendors, u.yupflPrices || {}, 'yupfl');
       el.dataset.loaded = '1';
     });
-    // 충전 계정 = hi/bizfit_charge/{업체명}(접수 승인 시 캐시 차감용) — 다 뜬 뒤에만 저장
-    if (isEdit) {
-      const idEl = document.getElementById('cs-id'), pwEl = document.getElementById('cs-pw');
-      HI.getBizfitCharge(currentAgency).then(d => {
-        idEl.value = d?.id || ''; pwEl.value = d?.pw || '';
-        idEl.placeholder = 'BizFit 아이디'; idEl.dataset.loaded = '1';
-      }).catch(() => { idEl.placeholder = '불러오기 실패'; });
-    }
   };
 
   window.saveUser = async function(key) {
-    // 키(username) = 캠페인 userId — 로그인 계정이 없어 새 회원은 자동 생성
-    const username = key ? userByKey(key).username : 'u' + Date.now().toString(36);
     const agencyVal = document.getElementById('um-agency').value.trim();
     if (!agencyVal) return alert('업체명을 입력하세요.');
-    const csIdEl = document.getElementById('cs-id');
-    if (!csIdEl.dataset.loaded) return alert('충전 계정을 불러오는 중입니다. 잠시 후 다시 저장해 주세요.');
-    const bfId = csIdEl.value.trim(), bfPw = document.getElementById('cs-pw').value;
+    const bfId = document.getElementById('cs-id').value.trim(), bfPw = document.getElementById('cs-pw').value;
     if (!bfId || !bfPw) return alert('아이디와 비밀번호를 입력해 주세요.');
     // 항목 목록이 뜨기 전에 저장하면 기존 상품·업체 단가가 비워짐 — 다 뜬 뒤에만
     if (!document.getElementById('um-yupfl-prices')?.dataset.loaded) return alert('단가 항목을 불러오는 중입니다. 잠시 후 다시 저장해 주세요.');
@@ -340,18 +285,16 @@
       if (r.dataset.grp === 'reward') rewardPrices.push({ name: n, price: v }); else yupflPrices[n] = v;
     }
     const data = {
-      username,
       agency:    agencyVal,
       agencyId:  agencyVal,
       unitPrice: rewardPrices[0].price,  // 정산 계산은 첫 리워드 줄
       rewardPrices,
       yupflPrices,
       memo:      document.getElementById('um-memo').value.trim(),
-      approved:  true,
     };
     if (key) {
-      const oldUser    = userByKey(key);
-      const oldAgency  = oldUser ? (oldUser.agencyId || oldUser.agency || '') : '';
+      const { username, agencyId, agency } = userByKey(key);
+      const oldAgency  = agencyId || agency || '';
       const agencyChanged = oldAgency && oldAgency !== agencyVal;
 
       await HI.updateUser(username, data);
@@ -361,18 +304,18 @@
       await Promise.all(userSlots.map(s => HI.updateCampaign(s._key, { agencyId: agencyVal })));
       userSlots.forEach(s => { s.agencyId = agencyVal; });
 
-      // 대행사명 변경 시 정산 스냅샷·환불 키도 이전
+      // 대행사명 변경 시 정산 스냅샷·환불 키·충전 계정도 이전
       if (agencyChanged) {
         try { await HI.renameAgencyKeys(username, oldAgency, agencyVal); }
         catch(e) { console.error('키 이전 오류:', e); alert('정산 스냅샷 키 이전에 실패했습니다. 새로고침 후 다시 저장해 주세요.\n' + e.message); }
       }
-      if (agencyChanged) await HI.removeBizfitCharge(oldAgency).catch(e => console.error('옛 충전 계정 삭제 오류:', e));
     } else {
       try { await HI.addUser(data); }
       catch(e) { return alert(e.message); }
     }
     try { await HI.setBizfitCharge(agencyVal, { id: bfId, pw: bfPw }); }
-    catch(e) { console.error('충전 계정 저장 오류:', e); alert('충전 계정 저장에 실패했습니다.' + String.fromCharCode(10) + e.message); }
+    catch(e) { console.error('충전 계정 저장 오류:', e); alert('충전 계정 저장에 실패했습니다.\n' + e.message); }
+    _chargesLoaded = false;
     document.querySelector('.modal-overlay').remove();
     renderUsers(false);
   };

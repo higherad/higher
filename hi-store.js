@@ -399,13 +399,6 @@ const HI = {
         sessionStorage.setItem('ha_current_user', JSON.stringify(user));
         return { ok: true, user };
       }
-      const member = await get(ref(db, `${P.users}/${safeKey(username)}`));
-      if (member.exists()) {
-        if (member.val().approved === false) return { ok: false, reason: 'pending' };
-        const user = { ...member.val(), _key: member.key, id: cred.user.uid };
-        sessionStorage.setItem('ha_current_user', JSON.stringify(user));
-        return { ok: true, user };
-      }
       await signOut(auth);
       return { ok: false };
     } catch {
@@ -825,36 +818,33 @@ const HI = {
   // 회원 (키 = username)
   // ════════════════════════════════════════════════════════
   getUsers() { return once(usersCache); },
-  onUsersChange(cb) { return usersCache(cb); },
-  async getUser(username) { return (await get(ref(db, `${P.users}/${safeKey(username)}`))).val(); },
   async addUser(data) {
-    const username = data.username || '';
-    if (!username) throw new Error('username 없음');
+    const username = data.username || _push(ref(db, P.users)).key;  // 키 = 캠페인 userId, 로그인 계정이 없어 자동 생성
     const rec = {
       username,
       agency: data.agency || '', agencyId: data.agency || '',
-      role: 'member',
       unitPrice: Number(data.unitPrice) || 0,
       ...(data.yupflPrices && Object.keys(data.yupflPrices).length ? { yupflPrices: data.yupflPrices } : {}),  // 유입플 업체별 단가
       ...(data.rewardPrices?.length ? { rewardPrices: data.rewardPrices } : {}),  // 리워드 단가 목록(첫 줄 = unitPrice)
       memo: data.memo || '',
       createdAt: nowIso().slice(0, 10),
-      approved: data.approved ?? false,
     };
     await authReady;
     const r = await runTransaction(ref(db, `${P.users}/${safeKey(username)}`), cur => cur ? undefined : rec);
-    if (!r.committed) throw new Error('이미 사용 중인 아이디입니다.');
+    if (!r.committed) throw new Error('같은 키의 회원이 이미 있습니다. 다시 시도해 주세요.');
     return { ...rec, _key: safeKey(username) };
   },
   async updateUser(username, patch) {
     await update(ref(db, `${P.users}/${safeKey(username)}`), patch);
   },
   async deleteUser(username) {
-    await remove(ref(db, `${P.users}/${safeKey(username)}`));
+    const u = (await get(ref(db, `${P.users}/${safeKey(username)}`))).val() || {};
+    const agencyKey = safeKey(u.agencyId || u.agency);  // 빈 키면 bizfit_charge 전체가 지워지므로 제외
+    await update(ref(db), { [`${P.users}/${safeKey(username)}`]: null, ...(agencyKey && { [`${P.bizfitCharge}/${agencyKey}`]: null }) });
     // 옛 회원 포털 로그인 계정(Firebase Auth)이 남아 있으면 같이 삭제
     await callServer('/delete-user', { username }).catch(e => console.warn('Firebase Auth 계정 삭제 실패:', e));
   },
-  // 대행사명 변경 시 정산 스냅샷·환불 키 이전(키 = 시각__대행사__유저).
+  // 대행사명 변경 시 정산 스냅샷·환불 키(시각__대행사__유저)·충전 계정(bizfit_charge/{대행사}) 이전.
   // 스냅샷 키는 '/'까지 치환, 환불 키는 '/' 미치환(정산관리 키 생성 규칙과 동일)
   async renameAgencyKeys(username, oldAgency, newAgency) {
     const updates = {};
@@ -869,14 +859,17 @@ const HI = {
         updates[`${path}/${node.key}`] = null;
       });
     }
+    const oldCharge = `${P.bizfitCharge}/${safeKey(oldAgency)}`, newCharge = `${P.bizfitCharge}/${safeKey(newAgency)}`;
+    const charge = oldCharge !== newCharge && (await get(ref(db, oldCharge))).val();
+    if (charge) Object.assign(updates, { [newCharge]: charge, [oldCharge]: null });
     if (Object.keys(updates).length) await update(ref(db), updates);
   },
 
   // ── 비즈핏 계정 (대행사별 충전·접수 계정, 엑셀 버전 조회 계정) ──
   async getBizfitCharges() { return (await get(ref(db, P.bizfitCharge))).val() || {}; },
+  chargeOf(charges, u) { return charges[safeKey(u.agencyId || u.agency)] || null; },  // 회원 → 충전 계정(키 = 대행사명)
   async getBizfitCharge(agencyId) { return (await get(ref(db, `${P.bizfitCharge}/${safeKey(agencyId)}`))).val(); },
   setBizfitCharge(agencyId, acct) { return set(ref(db, `${P.bizfitCharge}/${safeKey(agencyId)}`), acct); },
-  removeBizfitCharge(agencyId) { return remove(ref(db, `${P.bizfitCharge}/${safeKey(agencyId)}`)); },
   async getVersionCheckAccount() { return (await get(ref(db, P.versionCheck))).val(); },
 
   // ════════════════════════════════════════════════════════

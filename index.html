@@ -242,7 +242,7 @@
     <div class="nav-label">Finance & Users</div>
     <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)" title="정산 관리"><i data-lucide="receipt" size="16"></i><span class="nav-text"> 정산 관리</span><span class="badge" id="settle-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-cost"    style="display:none" onclick="loadPage('지출관리.html',this)" title="지출 관리"><i data-lucide="wallet" size="16"></i><span class="nav-text"> 지출 관리</span></div>
-    <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)" title="회원 관리"><i data-lucide="users-round" size="16"></i><span class="nav-text"> 회원 관리</span><span class="badge" id="users-badge" style="display:none">0</span></div>
+    <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)" title="회원 관리"><i data-lucide="users-round" size="16"></i><span class="nav-text"> 회원 관리</span></div>
     <div class="nav-item" id="nav-notice"  onclick="loadPage('공지사항.html',this)" title="공지사항"><i data-lucide="megaphone" size="16"></i><span class="nav-text"> 공지사항</span></div>
     <div class="nav-label">Tools</div>
     <div class="nav-item" id="nav-adclassify" onclick="loadPage('광고분류.html',this)" title="광고 분류"><i data-lucide="tags" size="16"></i><span class="nav-text"> 광고 분류</span></div>
@@ -313,7 +313,7 @@
     const in3 = new Date(); in3.setDate(in3.getDate() + 3);
     const in3Str = localYMD(in3);
 
-    const agencies = allUsers.filter(u => u.approved !== false).length;
+    const agencies = allUsers.length;
     const { activeAgencyIds, activeSlots, totalTarget, expiringSoon, pendingCount, acceptedCount } = allSlots.reduce((acc, sl) => {
       if (isRunningSlot(sl, todayStr)) {
         acc.activeAgencyIds.add(sl.agencyId); acc.activeSlots++; acc.totalTarget += (sl.dailyTarget||0);
@@ -358,7 +358,6 @@
           <button class="quick-btn ghost"   onclick="loadQuickNewReceipts()"><i data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;"></i>&nbsp; 신규 접수 확인하기</button>
           <button class="quick-btn primary" onclick="loadQuickUnpaid()"><i data-lucide="receipt" style="width:15px;height:15px;vertical-align:-2px;"></i>&nbsp; 미정산 내역 확인</button>
           <button class="quick-btn ghost"   onclick="loadQuickExpireSoon()"><i data-lucide="calendar-clock" style="width:15px;height:15px;vertical-align:-2px;"></i>&nbsp; 종료 예정 캠페인 보기</button>
-          <button class="quick-btn ghost"   onclick="loadQuickPendingUsers()"><i data-lucide="user-check" style="width:15px;height:15px;vertical-align:-2px;"></i>&nbsp; 신규 회원 승인하기</button>
         </div>
       </div>`;
     lucide.createIcons();
@@ -560,12 +559,6 @@
       if (el) el.value = '3';
     });
   };
-  window.loadQuickPendingUsers = function() {
-    window.loadPage('회원관리.html', document.getElementById('nav-users'), () => {
-      const el = document.getElementById('u-status');
-      if (el) el.value = 'pending';
-    });
-  };
 
   const PAGE_TITLES = {
     '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
@@ -669,13 +662,6 @@
   HI.subscribeLive(slots => {
     const n = slots.filter(s => s.status === 'pending').length;
     const el = document.getElementById('pending-badge');
-    if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
-  });
-
-  // ── 회원관리 배지 (신규 미승인 회원) ──────────────────────
-  HI.onUsersChange(users => {
-    const n = users.filter(u => u.approved === false || u.approved === undefined).length;
-    const el = document.getElementById('users-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
   });
 

@@ -495,8 +495,8 @@ window.toggleProdPanel = function(e) {
     try {
       const charge = await HI.getBizfitCharges();
       users.forEach(u => {
-        const acct = charge[sanitizeFbKey(u.agencyId||'')];
-        if (acct && acct.id) userBizfitUidMap.set(u.username, acct.id);
+        const acct = HI.chargeOf(charge, u);
+        if (acct?.id) userBizfitUidMap.set(u.username, acct.id);
       });
     } catch (e) { console.error('bizfit_charge 로드 실패:', e); }
     renderReceipts(false); // 매핑 로드 전엔 ⚠️차감재시도 배지를 판단 못 하므로, 로드 완료 시 한 번 다시 그려준다
@@ -2655,7 +2655,6 @@ window.toggleProdPanel = function(e) {
     }
     // 괄호 안 = BizFit 충전 아이디(회원관리 아이디), 없으면 생략
     const chargeIdOf = u => userBizfitUidMap.get(u.username) || '';
-    const idTail = u => chargeIdOf(u) ? `  (${chargeIdOf(u)})` : '';
     function renderBranchList(query) {
       const q = query.trim().toLowerCase();
       const filtered = q
@@ -2666,11 +2665,11 @@ window.toggleProdPanel = function(e) {
       if (!filtered.length) { inner.innerHTML = ''; noRes.style.display = 'block'; return; }
       noRes.style.display = 'none';
       inner.innerHTML = filtered.map(u => {
-        const label = u.agency || u.username;
+        const label = u.agency || u.username, cid = chargeIdOf(u);
         const isSelected = rexSelected && rexSelected.username === u.username;
         return `<div class="rex-branch-option" data-username="${escProd(u.username)}"
                      style="${isSelected?'background:rgba(16,185,129,.08);color:var(--accent);font-weight:700;':''}">
-                  <span>${escProd(label)}${chargeIdOf(u) ? ` <span style="color:var(--muted);font-weight:400;font-size:12px">(${escProd(chargeIdOf(u))})</span>` : ''}</span>
+                  <span>${escProd(label)}${cid ? ` <span style="color:var(--muted);font-weight:400;font-size:12px">(${escProd(cid)})</span>` : ''}</span>
                   ${isSelected ? '<i data-lucide="check" size="13"></i>' : ''}
                 </div>`;
       }).join('');
@@ -2696,7 +2695,7 @@ window.toggleProdPanel = function(e) {
       const infoText = overlay.querySelector('#rex-branch-info-text');
       if (rexSelected) {
         const label = rexSelected.agency || rexSelected.username;
-        searchEl.value = label + idTail(rexSelected);
+        searchEl.value = chargeIdOf(rexSelected) ? `${label}  (${chargeIdOf(rexSelected)})` : label;
         searchEl.style.color = 'var(--text)';
         clearBtn.style.display = 'block';
         infoEl.style.display = 'flex';
