@@ -935,8 +935,7 @@ window.toggleProdPanel = function(e) {
       await HI.updateCampaign(key, baseUpdates);
       updateLocalSlot(key, baseUpdates);
     }
-    const input = document.getElementById('detail-keyword-input');
-    const kw = input ? input.value.trim() : null;
+    const kw = detailKeywords();
     const deltaInput = document.getElementById('detail-delta-url-input');
     const deltaUrl = deltaInput ? deltaInput.value.trim() : null;
     const s = allSlots.find(x => x._key === key);
@@ -962,7 +961,15 @@ window.toggleProdPanel = function(e) {
   }
 
   window.acceptFromDetail = async function(key) {
+    const a = document.getElementById('detail-keyword-input')?.value || '';
+    const b = document.getElementById('detail-keyword-b-input')?.value || '';
     await saveDetailFields(key);
+    const s = allSlots.find(x => x._key === key);
+    if (s?.mid && (a.trim() || b.trim())) {
+      // 시트 기입은 접수와 따로 — 실패해도 접수는 그대로, 알림만
+      HI.savePlaceKeywords({ storeName: s.storeName || '', mid: s.mid, rankKeyword: s.rankKeyword || '', a, b })
+        .catch(e => alert(`플레이스 키워드 시트 기입 실패: ${s.storeName || s.mid}\n${e.message}`));
+    }
     await HI.updateCampaign(key, { status: 'accepted' });
     updateLocalSlot(key, { status: 'accepted' });
     await releaseDetailLock(key);
@@ -1073,7 +1080,8 @@ window.toggleProdPanel = function(e) {
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
             ${s.mid ? `<button type="button" onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button>` : ''}
           </label>
-          <input type="text" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="키워드를 입력해주세요" oninput="updateKwCount(this.value)" style="margin-top:5px;">
+          <input type="text" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="A급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
+          <input type="text" id="detail-keyword-b-input" value="" placeholder="B급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
           <div id="mid-history-area" style="display:none;margin-top:8px;"></div>
         </div>
         ${(deltaShown || navyShown) ? `
@@ -1197,7 +1205,7 @@ window.toggleProdPanel = function(e) {
           const safeKw = kw.replace(/'/g, "\\'");
           return `<div style="display:flex;align-items:center;gap:8px;">
             <div style="flex:1;overflow:hidden;white-space:nowrap;font-size:12px;color:#1d4ed8;font-weight:500;background:#dbeafe;padding:4px 8px;border-radius:5px;user-select:all;">${kw}</div>
-            <button onclick="(function(){var el=document.getElementById('detail-keyword-input');el.value='${safeKw}';updateKwCount(el.value);})()"
+            <button onclick="(function(){var el=document.getElementById('detail-keyword-b-input');el.value='${safeKw}';updateKwCount();})()"
               style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
               적용
             </button>
@@ -1227,7 +1235,7 @@ window.toggleProdPanel = function(e) {
                 <span style="font-size:11px;color:var(--text2);">${dateStr}</span>
                 <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCount}개</span>
               </div>
-              <button onclick="(function(){var el=document.getElementById('detail-keyword-input');el.value='${safeKw}';updateKwCount(el.value);})()"
+              <button onclick="(function(){var el=document.getElementById('detail-keyword-b-input');el.value='${safeKw}';updateKwCount();})()"
                 style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
                 적용
               </button>
@@ -1241,10 +1249,17 @@ window.toggleProdPanel = function(e) {
     area.innerHTML = html;
   };
 
-  window.updateKwCount = function(val) {
-    const count = val.split(',').map(k => k.trim()).filter(k => k.length > 0).length;
+  // 상세 검색키워드 = A급 칸 + B급 칸(A→B 순서, 중복 제거)
+  const kwSplit = s => (s || '').split(',').map(k => k.trim()).filter(k => k.length > 0);
+  function detailKeywords() {
+    const a = document.getElementById('detail-keyword-input'), b = document.getElementById('detail-keyword-b-input');
+    if (!a) return null;
+    if (!b?.value.trim()) return a.value.trim(); // B급이 비면 A급 칸 그대로 — 열고 닫기만 해도 정규화된 값으로 저장돼 이력이 쌓이지 않게
+    return [...new Set([...kwSplit(a.value), ...kwSplit(b?.value)])].join(',');
+  }
+  window.updateKwCount = function() {
     const badge = document.getElementById('kw-count-badge');
-    if (badge) badge.textContent = count + '개';
+    if (badge) badge.textContent = kwSplit(detailKeywords()).length + '개';
   };
   // 블로그URL 칸 옆 개수 배지 갱신 — 입력할 때, 그리고 "적용" 클릭 직후에도 호출됨
   window.updateDetailKwBadge = function(inputEl, badgeId) {
