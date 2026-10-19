@@ -829,10 +829,9 @@ const HI = {
   async getUser(username) { return (await get(ref(db, `${P.users}/${safeKey(username)}`))).val(); },
   async addUser(data) {
     const username = data.username || '';
-    if (!username) throw new Error('아이디를 입력하세요.');
+    if (!username) throw new Error('username 없음');
     const rec = {
       username,
-      password: data.password || '',   // 관리자 확인용 평문 사본
       agency: data.agency || '', agencyId: data.agency || '',
       role: 'member',
       unitPrice: Number(data.unitPrice) || 0,
@@ -845,18 +844,14 @@ const HI = {
     await authReady;
     const r = await runTransaction(ref(db, `${P.users}/${safeKey(username)}`), cur => cur ? undefined : rec);
     if (!r.committed) throw new Error('이미 사용 중인 아이디입니다.');
-    await callServer('/create-user', { username, password: rec.password }).catch(e => console.warn('Firebase Auth 계정 생성 실패:', e));
     return { ...rec, _key: safeKey(username) };
   },
   async updateUser(username, patch) {
-    if (patch.password) {
-      await callServer('/create-user', { username, password: patch.password }).catch(e => console.warn('Firebase Auth 비밀번호 변경 실패:', e));
-    }
     await update(ref(db, `${P.users}/${safeKey(username)}`), patch);
   },
   async deleteUser(username) {
     await remove(ref(db, `${P.users}/${safeKey(username)}`));
-    // Auth 계정도 삭제(재가입 시 "이미 사용 중인 아이디" 방지)
+    // 옛 회원 포털 로그인 계정(Firebase Auth)이 남아 있으면 같이 삭제
     await callServer('/delete-user', { username }).catch(e => console.warn('Firebase Auth 계정 삭제 실패:', e));
   },
   // 대행사명 변경 시 정산 스냅샷·환불 키 이전(키 = 시각__대행사__유저).
