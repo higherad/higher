@@ -2653,10 +2653,13 @@ window.toggleProdPanel = function(e) {
       inputWrap.style.boxShadow   = focused ? '0 0 0 3px rgba(16,185,129,.1)' : 'none';
       chevronEl.style.transform   = focused ? 'rotate(180deg)' : 'rotate(0deg)';
     }
+    // 괄호 안 = BizFit 충전 아이디(회원관리 아이디), 없으면 생략
+    const chargeIdOf = u => userBizfitUidMap.get(u.username) || '';
+    const idTail = u => chargeIdOf(u) ? `  (${chargeIdOf(u)})` : '';
     function renderBranchList(query) {
       const q = query.trim().toLowerCase();
       const filtered = q
-        ? rexUsers.filter(u => rexMatchSearch(u.agency||'', q) || rexMatchSearch(u.username||'', q))
+        ? rexUsers.filter(u => rexMatchSearch(u.agency||'', q) || rexMatchSearch(chargeIdOf(u), q))
         : rexUsers;
       const inner = overlay.querySelector('#rex-branch-list-inner');
       const noRes = overlay.querySelector('#rex-branch-no-result');
@@ -2667,7 +2670,7 @@ window.toggleProdPanel = function(e) {
         const isSelected = rexSelected && rexSelected.username === u.username;
         return `<div class="rex-branch-option" data-username="${escProd(u.username)}"
                      style="${isSelected?'background:rgba(16,185,129,.08);color:var(--accent);font-weight:700;':''}">
-                  <span>${escProd(label)} <span style="color:var(--muted);font-weight:400;font-size:12px">(${escProd(u.username)})</span></span>
+                  <span>${escProd(label)}${chargeIdOf(u) ? ` <span style="color:var(--muted);font-weight:400;font-size:12px">(${escProd(chargeIdOf(u))})</span>` : ''}</span>
                   ${isSelected ? '<i data-lucide="check" size="13"></i>' : ''}
                 </div>`;
       }).join('');
@@ -2693,7 +2696,7 @@ window.toggleProdPanel = function(e) {
       const infoText = overlay.querySelector('#rex-branch-info-text');
       if (rexSelected) {
         const label = rexSelected.agency || rexSelected.username;
-        searchEl.value = `${label}  (${rexSelected.username})`;
+        searchEl.value = label + idTail(rexSelected);
         searchEl.style.color = 'var(--text)';
         clearBtn.style.display = 'block';
         infoEl.style.display = 'flex';
