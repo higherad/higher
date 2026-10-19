@@ -841,8 +841,6 @@ const HI = {
     const u = (await get(ref(db, `${P.users}/${safeKey(username)}`))).val() || {};
     const agencyKey = safeKey(u.agencyId || u.agency);  // 빈 키면 bizfit_charge 전체가 지워지므로 제외
     await update(ref(db), { [`${P.users}/${safeKey(username)}`]: null, ...(agencyKey && { [`${P.bizfitCharge}/${agencyKey}`]: null }) });
-    // 옛 회원 포털 로그인 계정(Firebase Auth)이 남아 있으면 같이 삭제
-    await callServer('/delete-user', { username }).catch(e => console.warn('Firebase Auth 계정 삭제 실패:', e));
   },
   // 대행사명 변경 시 정산 스냅샷·환불 키(시각__대행사__유저)·충전 계정(bizfit_charge/{대행사}) 이전.
   // 스냅샷 키는 '/'까지 치환, 환불 키는 '/' 미치환(정산관리 키 생성 규칙과 동일)
