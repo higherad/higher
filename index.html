@@ -98,15 +98,7 @@
     .stat-card.c-warn  .stat-value { color:var(--warn); }
     .stat-card.c-danger .stat-value{ color:var(--danger); }
 
-    .bottom-grid { display:grid; grid-template-columns:2fr 1fr; gap:20px; }
-    .quick-box { background:var(--sidebar); border-radius:16px; padding:24px; }
-    .quick-title { font-size:15px; font-weight:700; color:#fff; margin-bottom:18px; }
-    .quick-btn { display:block; width:100%; text-align:left; padding:14px 16px; border-radius:10px; border:none; cursor:pointer; font-size:13px; font-weight:500; margin-bottom:10px; transition:.2s; }
-    .quick-btn:last-child { margin-bottom:0; }
-    .quick-btn.ghost   { background:rgba(255,255,255,.07); color:#fff; }
-    .quick-btn.ghost:hover { background:rgba(255,255,255,.12); }
-    .quick-btn.primary { background:var(--accent); color:#fff; }
-    .quick-btn.primary:hover { background:var(--accent2); }
+    .bottom-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
 
     /* 현재 순위 분포 카드 */
     .rd-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 24px; height:100%; }
@@ -324,12 +316,6 @@
         <div id="rd-slot">
           <div class="rd-card"><div class="loading-wrap" style="height:160px"><div class="spinner"></div> 순위 데이터 불러오는 중...</div></div>
         </div>
-        <div class="quick-box">
-          <div class="quick-title">Quick Action</div>
-          <button class="quick-btn ghost"   onclick="loadQuickNewReceipts()"><i data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;"></i>&nbsp; 신규 접수 확인하기</button>
-          <button class="quick-btn primary" onclick="loadQuickUnpaid()"><i data-lucide="receipt" style="width:15px;height:15px;vertical-align:-2px;"></i>&nbsp; 미정산 내역 확인</button>
-          <button class="quick-btn ghost"   onclick="loadQuickExpireSoon()"><i data-lucide="calendar-clock" style="width:15px;height:15px;vertical-align:-2px;"></i>&nbsp; 종료 예정 캠페인 보기</button>
-        </div>
       </div>`;
     lucide.createIcons();
 
@@ -502,34 +488,6 @@
     renderPageActions(null);
     renderDashboard();
     window.scrollTo(0, 0);
-  };
-
-  window.loadQuickNewReceipts = function() {
-    const today = new Date().toISOString().slice(0, 10);
-    window.loadPage('접수관리.html', document.getElementById('nav-pending'), () => {
-      const el = document.getElementById('filter-date-from');
-      if (el) {
-        el.value = today;
-        const lbl = document.getElementById('date-label');
-        const clr = document.getElementById('date-clear-btn');
-        const btn = document.getElementById('date-pick-btn');
-        if (lbl) lbl.textContent = today;
-        if (clr) clr.style.display = 'inline';
-        if (btn) btn.style.color = 'var(--text)';
-      }
-    });
-  };
-  window.loadQuickUnpaid = function() {
-    window.loadPage('정산관리.html', document.getElementById('nav-settle'), () => {
-      const el = document.getElementById('sf-paid');
-      if (el) el.value = 'unpaid';
-    });
-  };
-  window.loadQuickExpireSoon = function() {
-    window.loadPage('진행현황.html', document.getElementById('nav-slots'), () => {
-      const el = document.getElementById('ef-range');
-      if (el) el.value = '3';
-    });
   };
 
   const PAGE_TITLES = {
