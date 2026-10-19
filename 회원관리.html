@@ -11,6 +11,7 @@
   #user-page tbody tr.row-pending { background:rgba(245,158,11,.03); }
   .req { color:var(--danger); font-size:10px; margin-left:2px; vertical-align:top; }
   .pw-input-wrap { position:relative; }
+  .pw-masked { -webkit-text-security:disc; }  /* type=password면 크롬이 로그인으로 보고 저장 팝업을 띄워 text + CSS 가리기 */
   .pw-input-wrap input { padding-right:34px !important; }
   .pw-eye-btn { position:absolute; right:6px; top:50%; transform:translateY(-50%); cursor:pointer; line-height:1; background:none; border:none; padding:4px; color:var(--text2); display:flex; align-items:center; }
   .pw-eye-btn svg { width:16px; height:16px; }
@@ -220,8 +221,7 @@
 
   window.toggleInputPw = function(btn) {
     const input = btn.previousElementSibling;
-    if (input.type === 'password') { input.type = 'text'; btn.innerHTML = EYE_ICON; }
-    else { input.type = 'password'; btn.innerHTML = EYE_OFF_ICON; }
+    btn.innerHTML = input.classList.toggle('pw-masked') ? EYE_OFF_ICON : EYE_ICON;
   };
 
   // ── 승인 ─────────────────────────────────────────────────
@@ -283,7 +283,7 @@
         <div class="modal-title">${isEdit?'회원 정보 수정':'회원 추가'}</div>
         <div class="modal-row modal-row-3">
           <div class="modal-field"><label>아이디</label><input id="cs-id" type="text" placeholder="${isEdit?'불러오는 중...':'BizFit 아이디'}" autocomplete="off" ${isEdit?'':'data-loaded="1"'}></div>
-          <div class="modal-field"><label>비밀번호</label><div class="pw-input-wrap"><input id="cs-pw" type="password" placeholder="BizFit 패스워드" autocomplete="new-password"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
+          <div class="modal-field"><label>비밀번호</label><div class="pw-input-wrap"><input id="cs-pw" type="text" class="pw-masked" placeholder="BizFit 패스워드" autocomplete="off"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
           <div class="modal-field"><label>업체명 (대행사)<span class="req">*</span></label><input id="um-agency" value="${currentAgency}" placeholder="업체명을 입력하세요"></div>
         </div>
         <div class="modal-field"><label>리워드 단가 (원)<span class="req">*</span></label>
