@@ -79,7 +79,6 @@ const P = {
   products:       `${ROOT}/products`,
   users:          `${ROOT}/users`,
   staff:          `${ROOT}/staff`,
-  notices:        `${ROOT}/notices`,
   liveKeywords:   `${ROOT}/live_keywords`,   // MID별 찾기 키워드(bizfit-dandok 매시간 동기화)
   ranks:          `${ROOT}/ranks`,
   adClassify:     `${ROOT}/ad_classify`,
@@ -876,24 +875,6 @@ const HI = {
   async getBizfitCharge(agencyId) { return (await get(ref(db, `${P.bizfitCharge}/${safeKey(agencyId)}`))).val(); },
   setBizfitCharge(agencyId, acct) { return set(ref(db, `${P.bizfitCharge}/${safeKey(agencyId)}`), acct); },
   async getVersionCheckAccount() { return (await get(ref(db, P.versionCheck))).val(); },
-
-  // ════════════════════════════════════════════════════════
-  // 공지사항
-  // ════════════════════════════════════════════════════════
-  async getNotices() {
-    return snapToArray(await get(ref(db, P.notices))).sort((a, b) => new Date(b.date) - new Date(a.date));
-  },
-  async addNotice(data) {
-    const n = {
-      title: data.title || '', content: data.content || '', author: 'admin',
-      date: nowIso().replace('T', ' ').slice(0, 19), pinned: !!data.pinned,
-    };
-    const r = _push(ref(db, P.notices));
-    await set(r, n);
-    return { ...n, _key: r.key };
-  },
-  updateNotice(key, patch) { return update(ref(db, `${P.notices}/${key}`), patch); },
-  deleteNotice(key) { return remove(ref(db, `${P.notices}/${key}`)); },
 
   // ════════════════════════════════════════════════════════
   // 정산

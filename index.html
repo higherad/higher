@@ -98,19 +98,7 @@
     .stat-card.c-warn  .stat-value { color:var(--warn); }
     .stat-card.c-danger .stat-value{ color:var(--danger); }
 
-    .bottom-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
-    .ha-box { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; }
-    .box-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
-    .box-title { font-size:15px; font-weight:700; }
-    .notice-list { list-style:none; margin:0; padding:0; }
-    .notice-item { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px dashed var(--border); }
-    .notice-item:last-child { border:none; padding-bottom:0; }
-    .notice-tag { flex-shrink:0; font-size:10px; padding:2px 7px; border-radius:4px; font-weight:700; }
-    .tag-urgent  { background:rgba(239,68,68,.1); color:var(--danger); }
-    .tag-general { background:var(--bg); color:var(--text2); }
-    .notice-title { flex:1; font-size:13px; color:var(--text); cursor:pointer; }
-    .notice-title:hover { color:var(--accent); }
-    .notice-date { font-size:11px; color:var(--muted); flex-shrink:0; }
+    .bottom-grid { display:grid; grid-template-columns:2fr 1fr; gap:20px; }
     .quick-box { background:var(--sidebar); border-radius:16px; padding:24px; }
     .quick-title { font-size:15px; font-weight:700; color:#fff; margin-bottom:18px; }
     .quick-btn { display:block; width:100%; text-align:left; padding:14px 16px; border-radius:10px; border:none; cursor:pointer; font-size:13px; font-weight:500; margin-bottom:10px; transition:.2s; }
@@ -243,7 +231,6 @@
     <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)" title="정산 관리"><i data-lucide="receipt" size="16"></i><span class="nav-text"> 정산 관리</span><span class="badge" id="settle-badge" style="display:none">0</span></div>
     <div class="nav-item" id="nav-cost"    style="display:none" onclick="loadPage('지출관리.html',this)" title="지출 관리"><i data-lucide="wallet" size="16"></i><span class="nav-text"> 지출 관리</span></div>
     <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)" title="회원 관리"><i data-lucide="users-round" size="16"></i><span class="nav-text"> 회원 관리</span></div>
-    <div class="nav-item" id="nav-notice"  onclick="loadPage('공지사항.html',this)" title="공지사항"><i data-lucide="megaphone" size="16"></i><span class="nav-text"> 공지사항</span></div>
     <div class="nav-label">Tools</div>
     <div class="nav-item" id="nav-adclassify" onclick="loadPage('광고분류.html',this)" title="광고 분류"><i data-lucide="tags" size="16"></i><span class="nav-text"> 광고 분류</span></div>
     <div class="nav-item" id="nav-rank" onclick="loadPage('순위조회.html',this)" title="순위 조회"><i data-lucide="trending-up" size="16"></i><span class="nav-text"> 순위 조회</span></div>
@@ -301,13 +288,11 @@
     area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>';
 
     // 대시보드 수치는 전부 진행 중 캠페인(대기·접수·승인·예약) 기준 — live만 받으면 됨
-    const [allNotices, allUsers, allSlots] = await Promise.all([
-      HI.getNotices(),
+    const [allUsers, allSlots] = await Promise.all([
       HI.getUsers(),
       HI.getLive(),
     ]);
     if (myGen !== navGen) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-    const notices = allNotices.slice(0, 4);
 
     const todayStr = localYMD(new Date());
     const in3 = new Date(); in3.setDate(in3.getDate() + 3);
@@ -338,20 +323,6 @@
       <div class="bottom-grid">
         <div id="rd-slot">
           <div class="rd-card"><div class="loading-wrap" style="height:160px"><div class="spinner"></div> 순위 데이터 불러오는 중...</div></div>
-        </div>
-        <div class="ha-box">
-          <div class="box-header">
-            <span class="box-title">공지사항</span>
-            <i data-lucide="arrow-right" class="rd-header-arrow" onclick="loadPage('공지사항.html',document.getElementById('nav-notice'))" title="공지사항으로 이동"></i>
-          </div>
-          <ul class="notice-list">
-            ${notices.length ? notices.map(n => `
-              <li class="notice-item">
-                <span class="notice-tag ${n.pinned?'tag-urgent':'tag-general'}">${n.pinned?'필독':'일반'}</span>
-                <span class="notice-title" onclick="loadPage('공지사항.html',document.getElementById('nav-notice'))">${n.title}</span>
-                <span class="notice-date">${(n.date||'').slice(5,10)}</span>
-              </li>`).join('') : '<li style="color:var(--muted);font-size:13px;padding:12px 0">공지사항이 없습니다.</li>'}
-          </ul>
         </div>
         <div class="quick-box">
           <div class="quick-title">Quick Action</div>
@@ -563,7 +534,7 @@
   const PAGE_TITLES = {
     '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
     '정산관리.html':'정산 관리', '지출관리.html':'지출 관리',
-    '회원관리.html':'회원 관리', '공지사항.html':'공지사항',
+    '회원관리.html':'회원 관리',
     '광고분류.html':'광고 분류', '순위조회.html':'순위 조회',
   };
 
@@ -583,7 +554,6 @@
     '진행현황.html': [[['replace', '변경 요청', 'openTypeChangeModal()', { title: '체크한 캠페인에 타입 변경 요청' }]], [['trophy', '순위표', 'downloadRankTable()', { id: 'rank-table-btn' }]], [['trash-2', '휴지통', 'openTrashView()']]],
     '지출관리.html': [[['settings-2', '원가 설정', 'openCostModal()']], [['download', '엑셀 다운로드', 'exportCostExcel()']]],
     '회원관리.html': [[['refresh-cw', '단가 불러오기', 'refreshYupflVendorList(this)', { title: '가이드 시트 탭 이름으로 리워드·유입플 업체 항목만 불러옴(설정된 단가는 그대로)' }], ['user-plus', '회원 추가', 'openUserModal(null)']]],
-    '공지사항.html': [[['square-pen', '공지 작성', 'openNoticeModal(null)']]],
   };
   function renderPageActions(page) {
     const el = document.getElementById('page-actions');
