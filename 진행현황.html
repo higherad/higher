@@ -357,13 +357,16 @@
   const TYPE_LIVE = ['active','split','force_stopped'];
   const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
+  // 유입플 상품 = vendorProducts {업체: [상품]}의 상품 전부, 없는 옛 캠페인은 fullstackType
+  const yupflLabels = s => s?.vendorProducts ? Object.values(s.vendorProducts).flatMap(l => Array.isArray(l) ? l : Object.values(l))
+    : Array.isArray(s?.fullstackType) ? s.fullstackType : Object.values(s?.fullstackType || {});
   function typeCellHtml(s) {
     if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음)
     const live = TYPE_LIVE.includes(s.status);
     const change = live ? (s.changeRequest?.to || s.changeTo || '') : '';
     const html = [
       ...typeLabels(s).map(l => `<span class="type-badge">${esc(l)}</span>`),
-      ...(Array.isArray(s.fullstackType) ? s.fullstackType : Object.values(s.fullstackType || {})).map(l => `<span class="type-badge full">${esc(l)}</span>`),
+      ...yupflLabels(s).map(l => `<span class="type-badge full">${esc(l)}</span>`),
       ...(change ? [`<span class="type-badge change">${esc(change)}</span>`] : []),
     ].join('');
     return html ? `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html}</div>` : '<span style="color:#cbd5e1">-</span>';
@@ -454,7 +457,7 @@
         createdDate: s.createdAt ? ymd(new Date(s.createdAt)) : '',
         status: s.status === 'expired' ? 'ended' : (s.status || ''),
         isRequeue: !!s.isRequeue,
-        grade: typeLabels(s).join(', '),
+        grade: [...typeLabels(s), ...yupflLabels(s)].join(', '),
       }));
       const res = await fetch('https://kimpro-premium-938928195180.asia-northeast3.run.app/rank-table', {
         method: 'POST',
