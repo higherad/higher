@@ -1,6 +1,6 @@
 /**
  * HI-STORE.JS — 관리자 사이트 데이터 저장소 (hi/ 구조)
- * 구조 정본: 루트 저장소 work/hi_migration/STRUCTURE.md
+ * 구조 정본: 루트 저장소 memory/reference_hi_structure.md
  *
  * 원칙
  * - 캠페인은 hi/campaigns/live(진행 중) · closed(종료·휴지통) 두 노드. 상태가 경계를 넘으면 이 파일이 원자적으로 옮김
@@ -608,7 +608,7 @@ const HI = {
   async endScheduled(key, canceledDates, keptDates, pre = null) {
     const cur = pre || await readCampaign(key);
     if (!cur) return null;
-    // 종료일만 바꿈 — 일수·정산·지출 금액은 최초 접수 그대로(2026-10-15 사용자 결정: 취소해도 접수한 일수로 정산)
+    // 종료일만 바꿈 — 일수·정산·지출 금액은 최초 접수 그대로(사용자 결정: 취소해도 접수한 일수로 정산)
     const { endDate } = remainingAfterCancel(cur.data, canceledDates, keptDates);
     await writeCampaign(key, { endDate, status: 'expired' }, cur);
     return { endDate };

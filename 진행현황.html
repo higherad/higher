@@ -46,7 +46,6 @@
   .s-expired  { background:#f1f5f9; color:#64748b; }
   .s-split    { background:#fef3c7; color:#b45309; }
   .s-force    { background:rgba(239,68,68,.1); color:#dc2626; }
-  .s-paused   { background:rgba(124,58,237,.1); color:#7c3aed; }
   .s-wait     { background:rgba(59,130,246,.1); color:#1d4ed8; }
   .dday-today  { background:#fef2f2; color:var(--danger); font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
   .dday-urgent { background:#fff7ed; color:#c2410c; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
@@ -124,7 +123,6 @@
     expired: '<span class="status-badge s-expired">종료</span>',
     split:   '<span class="status-badge s-split">분할</span>',
     force_stopped: '<span class="status-badge s-force">강제종료</span>',
-    paused:  '<span class="status-badge s-paused">임시중단</span>',
     requeue: '<span class="status-badge s-wait">재접수 | 대기</span>',
     pending: '<span class="status-badge s-wait">대기</span>',
     accepted:'<span class="status-badge s-wait">접수</span>',
@@ -174,7 +172,7 @@
       else if (status === 'active') { if (s.status !== 'active' || isReserved(s, todayStr)) return false; }
       else if (status) { if (s.status !== status) return false; }
       // 전체: 이미 진행됐거나 끝난 캠페인만(대기/접수/재접수대기는 제외)
-      else { if (!['active','split','expired','force_stopped','paused'].includes(s.status)) return false; }
+      else { if (!['active','split','expired','force_stopped'].includes(s.status)) return false; }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       return true;
     });
