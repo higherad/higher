@@ -499,6 +499,7 @@
   window.loadDashboard = function() {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     document.getElementById('page-heading').textContent = '운영 현황 대시보드';
+    renderPageActions(null);
     renderDashboard();
     window.scrollTo(0, 0);
   };
