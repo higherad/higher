@@ -239,7 +239,9 @@
 
   window.deleteUser = async function(key) {
     if (!confirm('회원을 삭제하시겠습니까?')) return;
-    await HI.deleteUser(userByKey(key).username);
+    const u = userByKey(key);
+    await HI.deleteUser(u.username);
+    await HI.removeBizfitCharge(u.agencyId || u.agency || '').catch(e => console.error('충전 계정 삭제 오류:', e));
     renderUsers(false);
   };
 
@@ -282,8 +284,8 @@
       <div class="modal-box">
         <div class="modal-title">${isEdit?'회원 정보 수정':'회원 추가'}</div>
         <div class="modal-row modal-row-3">
-          <div class="modal-field"><label>아이디</label><input id="cs-id" type="text" placeholder="${isEdit?'불러오는 중...':'BizFit 아이디'}" autocomplete="off" ${isEdit?'':'data-loaded="1"'}></div>
-          <div class="modal-field"><label>비밀번호</label><div class="pw-input-wrap"><input id="cs-pw" type="text" class="pw-masked" placeholder="BizFit 패스워드" autocomplete="off"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
+          <div class="modal-field"><label>아이디<span class="req">*</span></label><input id="cs-id" type="text" placeholder="${isEdit?'불러오는 중...':'BizFit 아이디'}" autocomplete="off" ${isEdit?'':'data-loaded="1"'}></div>
+          <div class="modal-field"><label>비밀번호<span class="req">*</span></label><div class="pw-input-wrap"><input id="cs-pw" type="text" class="pw-masked" placeholder="BizFit 패스워드" autocomplete="off"><button type="button" class="pw-eye-btn" onclick="toggleInputPw(this)">${window.PW_EYE_ICON}</button></div></div>
           <div class="modal-field"><label>업체명 (대행사)<span class="req">*</span></label><input id="um-agency" value="${currentAgency}" placeholder="업체명을 입력하세요"></div>
         </div>
         <div class="modal-field"><label>리워드 단가 (원)<span class="req">*</span></label>
@@ -307,7 +309,7 @@
       el.innerHTML = itemRowsHtml(items.vendors, u.yupflPrices || {}, 'yupfl');
       el.dataset.loaded = '1';
     });
-    // 충전 계정 = hi/bizfit_charge/{업체명}(접수 승인 시 캐시 차감용) — 다 뜬 뒤에만 저장(빈 칸 저장 = 삭제)
+    // 충전 계정 = hi/bizfit_charge/{업체명}(접수 승인 시 캐시 차감용) — 다 뜬 뒤에만 저장
     if (isEdit) {
       const idEl = document.getElementById('cs-id'), pwEl = document.getElementById('cs-pw');
       HI.getBizfitCharge(currentAgency).then(d => {
@@ -325,7 +327,7 @@
     const csIdEl = document.getElementById('cs-id');
     if (!csIdEl.dataset.loaded) return alert('충전 계정을 불러오는 중입니다. 잠시 후 다시 저장해 주세요.');
     const bfId = csIdEl.value.trim(), bfPw = document.getElementById('cs-pw').value;
-    if (!bfId !== !bfPw) return alert('충전 계정 ID와 PW를 모두 입력하거나 모두 비워 주세요.');
+    if (!bfId || !bfPw) return alert('아이디와 비밀번호를 입력해 주세요.');
     // 항목 목록이 뜨기 전에 저장하면 기존 상품·업체 단가가 비워짐 — 다 뜬 뒤에만
     if (!document.getElementById('um-yupfl-prices')?.dataset.loaded) return alert('단가 항목을 불러오는 중입니다. 잠시 후 다시 저장해 주세요.');
     const base = Number(document.querySelector('.um-price-row[data-base] .um-p-price').value) || 0;
@@ -369,7 +371,7 @@
       try { await HI.addUser(data); }
       catch(e) { return alert(e.message); }
     }
-    try { await (bfId ? HI.setBizfitCharge(agencyVal, { id: bfId, pw: bfPw }) : HI.removeBizfitCharge(agencyVal)); }
+    try { await HI.setBizfitCharge(agencyVal, { id: bfId, pw: bfPw }); }
     catch(e) { console.error('충전 계정 저장 오류:', e); alert('충전 계정 저장에 실패했습니다.' + String.fromCharCode(10) + e.message); }
     document.querySelector('.modal-overlay').remove();
     renderUsers(false);
