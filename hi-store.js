@@ -144,7 +144,7 @@ function withoutNulls(o) {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined));
 }
 
-// ── 텔레그램 (/notify — 회원 사이트와 같은 엔드포인트) ────────
+// ── 텔레그램 (/notify) ────────
 async function callServer(path, body) {
   await authReady;
   const idToken = await auth.currentUser.getIdToken();

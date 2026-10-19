@@ -150,7 +150,7 @@
   .submit-tab.active{color:var(--info);border-bottom-color:var(--info);}
   .submit-tab:disabled{opacity:.3;cursor:not-allowed;}
   .stab-warn-ico{color:#dc2626;margin-left:4px;font-size:11px;}
-  /* 엑셀 접수 모달 — higher_user 포털(user-apply.html)과 동일한 디자인 */
+  /* 엑셀 접수 모달 */
   .rex-shell{width:min(96vw,720px);max-height:92vh;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border-radius:24px;padding:24px;box-shadow:0 24px 64px rgba(0,0,0,.3);}
   .rex-close-btn{border:none;background:rgba(255,255,255,.95);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .rex-branch-card{background:#fff;border:2px solid var(--accent);border-radius:16px;padding:24px 28px;margin-bottom:20px;box-shadow:0 4px 16px rgba(16,185,129,.08);}
@@ -2465,7 +2465,7 @@ window.toggleProdPanel = function(e) {
     window.reacceptRunning = false;
   }
 
-  // ── 엑셀 접수 (higher_user 포털 user-apply.html과 동일한 디자인/흐름으로 이식) ──
+  // ── 엑셀 접수 ──
   let rexUsers    = [];
   let rexSelected = null;   // 선택된 영업점(대행사) — 단건/엑셀 공통으로 사용
   let rexRows     = [];

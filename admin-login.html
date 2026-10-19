@@ -125,18 +125,6 @@
     .login-btn:active { transform: scale(.98); }
     .login-btn:disabled { background: #2d3f55; box-shadow: none; cursor: not-allowed; color: var(--muted); }
 
-    .divider {
-      display: flex; align-items: center; gap: 12px;
-      margin: 24px 0 20px; color: rgba(255,255,255,.2); font-size: 12px;
-    }
-    .divider::before, .divider::after {
-      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.08);
-    }
-
-    .user-link { text-align: center; font-size: 12px; color: var(--muted); }
-    .user-link a { color: var(--accent); font-weight: 600; text-decoration: none; }
-    .user-link a:hover { text-decoration: underline; }
-
     .spinner {
       display: inline-block; width: 16px; height: 16px;
       border: 2px solid rgba(255,255,255,.2);
@@ -190,12 +178,6 @@
     <div class="error-msg" id="login-error">아이디 또는 비밀번호가 올바르지 않습니다.</div>
 
     <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
-
-    <div class="divider">또는</div>
-
-    <div class="user-link">
-      <a href="https://hireward.co.kr/">접수 페이지로 이동</a>
-    </div>
   </div>
 </div>
 
