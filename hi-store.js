@@ -99,7 +99,14 @@ const CLOSED_STATUSES   = new Set(['expired', 'deleted']);
 // force_stopped: 강제종료돼도 원 캠페인 금액은 그대로 정산(남은 기간은 정산 제외인 재접수 캠페인으로 이어감)
 const BILLABLE_STATUSES = new Set(['active', 'accepted', 'expired', 'pending', 'split', 'force_stopped']);
 // 캠페인 필드명 → campaign_keywords 필드명 (페이지는 왼쪽 필드명으로 읽고 씀)
-const KW_FIELDS = { searchKeyword: 'search', yupflKeyword: 'yupfl', splitKeywords: 'split' };
+// searchKeywordA·B = 상세 팝업 A급·B급 칸 원문(searchKeyword는 둘을 합친 값 — 배분·등록은 이것만 씀)
+const KW_FIELDS = { searchKeyword: 'search', yupflKeyword: 'yupfl', splitKeywords: 'split', searchKeywordA: 'searchA', searchKeywordB: 'searchB' };
+const HISTORY_KW = new Set(['search', 'yupfl']);
+// campaign_keywords 노드 → 페이지 필드명
+const kwToFields = kw => ({
+  searchKeyword: kw.search || '', yupflKeyword: kw.yupfl || '', splitKeywords: kw.split || null,
+  searchKeywordA: kw.searchA || '', searchKeywordB: kw.searchB || '',
+});
 const KW_HISTORY_MAX = 10;
 const CLAIM_TTL_MS = 10 * 60 * 1000;      // 등록·충전 선점 만료 — 실패 후 다른 직원이 너무 오래 막히지 않게
 const DETAIL_LOCK_TTL_MS = 10 * 60 * 1000;
@@ -319,7 +326,7 @@ async function keywordUpdates(key, kw) {
     if (!(field in kw)) continue;
     const v = kw[field] ?? null;
     out[`${P.keywords}/${key}/${kf}`] = v;
-    if (kf !== 'split' && v && v !== hist[kf]) {
+    if (HISTORY_KW.has(kf) && v && v !== hist[kf]) {
       out[`${P.keywords}/${key}/history/${kf}`] = [...(hist.history?.[kf] || []), { keyword: v, date: nowIso() }].slice(-KW_HISTORY_MAX);
     }
   }
@@ -458,9 +465,7 @@ const HI = {
   // 캠페인 배열에 searchKeyword·yupflKeyword·splitKeywords를 붙여 반환(접수 팝업·상세·등록 직전)
   async withKeywords(campaigns) {
     const kws = await Promise.all(campaigns.map(c => HI.getKeywords(c._key)));
-    return campaigns.map((c, i) => ({
-      ...c, searchKeyword: kws[i].search || '', yupflKeyword: kws[i].yupfl || '', splitKeywords: kws[i].split || null,
-    }));
+    return campaigns.map((c, i) => ({ ...c, ...kwToFields(kws[i]) }));
   },
   // 진행 중 목록 + 키워드(접수관리 전용 — 접수 팝업·배분이 키워드를 계속 읽음). 키워드는 캠페인당 1회 받고,
   // 이후엔 kwUpdatedAt이 바뀐 캠페인만 다시 받음. 받는 중 실패한 캠페인은 키워드 없이 넘기고 다음 변경 때 재시도
@@ -478,7 +483,7 @@ const HI = {
       if (cancelled || my !== seq) return; // 더 최신 목록이 처리 중이면 이번 결과는 버림
       cb(list.map(c => {
         const kw = liveKwCache.get(c._key)?.kw || {};
-        return { ...c, searchKeyword: kw.search || '', yupflKeyword: kw.yupfl || '', splitKeywords: kw.split || null };
+        return { ...c, ...kwToFields(kw) };
       }));
     });
     return () => { cancelled = true; unsub(); };
@@ -487,7 +492,7 @@ const HI = {
   async ensureKeywords(campaigns) {
     const need = campaigns.filter(c => !('searchKeyword' in c));
     const got = await HI.withKeywords(need);
-    need.forEach((c, i) => Object.assign(c, { searchKeyword: got[i].searchKeyword, yupflKeyword: got[i].yupflKeyword, splitKeywords: got[i].splitKeywords }));
+    need.forEach((c, i) => Object.assign(c, got[i]));
     return campaigns;
   },
   // 같은 MID의 키워드 이력(현재값 + 변경 이력, 날짜 내림차순) — 접수 시 "이전 키워드" 제안용

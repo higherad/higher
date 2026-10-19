@@ -936,12 +936,20 @@ window.toggleProdPanel = function(e) {
       updateLocalSlot(key, baseUpdates);
     }
     const kw = detailKeywords();
+    const kwA = document.getElementById('detail-keyword-input')?.value.trim() ?? '';
+    const kwB = document.getElementById('detail-keyword-b-input')?.value.trim() ?? '';
     const deltaInput = document.getElementById('detail-delta-url-input');
     const deltaUrl = deltaInput ? deltaInput.value.trim() : null;
     const s = allSlots.find(x => x._key === key);
-    if (kw !== null && kw !== (s.searchKeyword||'')) {
-      await HI.updateCampaign(key, { searchKeyword: kw });
-      updateLocalSlot(key, { searchKeyword: kw });
+    const kwPatch = {};
+    if (kw !== null && kw !== (s.searchKeyword||'')) kwPatch.searchKeyword = kw;
+    // A급·B급 원문 — B급을 쓴 적 없는 캠페인은 A급 = searchKeyword라 따로 저장 안 함
+    if (kw !== null && (kwB || s.searchKeywordA || s.searchKeywordB) && (kwA !== (s.searchKeywordA||'') || kwB !== (s.searchKeywordB||''))) {
+      Object.assign(kwPatch, { searchKeywordA: kwA || null, searchKeywordB: kwB || null });
+    }
+    if (Object.keys(kwPatch).length) {
+      await HI.updateCampaign(key, kwPatch);
+      updateLocalSlot(key, { ...kwPatch, searchKeywordA: kwPatch.searchKeywordA ?? s.searchKeywordA, searchKeywordB: kwPatch.searchKeywordB ?? s.searchKeywordB });
     }
     if (s0.status === 'split') await syncScheduledRows(key, baseUpdates);
     if (deltaUrl !== null && deltaUrl !== (s.deltaBlogUrl||'')) {
@@ -1007,6 +1015,7 @@ window.toggleProdPanel = function(e) {
     if (!s) return;
     _detailOpen = true;
     try { await HI.ensureKeywords([s]); } catch (e) { _detailOpen = false; alert('키워드를 불러오지 못했습니다. 다시 시도해 주세요.\n' + e.message); return; }
+    const kwAB = detailKwAB(s);
 
     // 캐시에 충돌 기록이 있으면 네트워크 없이 즉시 차단
     const _cached = LOCK_CHECK_CACHE.get(key);
@@ -1080,8 +1089,8 @@ window.toggleProdPanel = function(e) {
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
             ${s.mid ? `<button type="button" onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button>` : ''}
           </label>
-          <input type="text" id="detail-keyword-input" value="${escProd(s.searchKeyword||'')}" placeholder="A급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
-          <input type="text" id="detail-keyword-b-input" value="" placeholder="B급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
+          <input type="text" id="detail-keyword-input" value="${escProd(kwAB.a)}" placeholder="A급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
+          <input type="text" id="detail-keyword-b-input" value="${escProd(kwAB.b)}" placeholder="B급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
           <div id="mid-history-area" style="display:none;margin-top:8px;"></div>
         </div>
         ${(deltaShown || navyShown) ? `
@@ -1251,11 +1260,17 @@ window.toggleProdPanel = function(e) {
 
   // 상세 검색키워드 = A급 칸 + B급 칸(A→B 순서, 중복 제거)
   const kwSplit = s => (s || '').split(',').map(k => k.trim()).filter(k => k.length > 0);
+  const joinAB = (a, b) => (b || '').trim()
+    ? [...new Set([...kwSplit(a), ...kwSplit(b)])].join(',')
+    : (a || '').trim(); // B급이 비면 A급 칸 그대로 — 열고 닫기만 해도 정규화된 값으로 저장돼 이력이 쌓이지 않게
   function detailKeywords() {
     const a = document.getElementById('detail-keyword-input'), b = document.getElementById('detail-keyword-b-input');
-    if (!a) return null;
-    if (!b?.value.trim()) return a.value.trim(); // B급이 비면 A급 칸 그대로 — 열고 닫기만 해도 정규화된 값으로 저장돼 이력이 쌓이지 않게
-    return [...new Set([...kwSplit(a.value), ...kwSplit(b?.value)])].join(',');
+    return a ? joinAB(a.value, b?.value) : null;
+  }
+  // 상세 팝업 A급·B급 칸 초기값 — 저장된 A·B가 지금 searchKeyword와 맞을 때만(재접수 등 다른 경로로 키워드가 바뀌었으면 전부 A급으로)
+  function detailKwAB(s) {
+    const a = s.searchKeywordA || '', b = s.searchKeywordB || '';
+    return (a || b) && joinAB(a, b) === (s.searchKeyword || '') ? { a, b } : { a: s.searchKeyword || '', b: '' };
   }
   window.updateKwCount = function() {
     const badge = document.getElementById('kw-count-badge');
