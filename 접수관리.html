@@ -4853,9 +4853,17 @@ window.toggleProdPanel = function(e) {
       const unmatched = validRows.filter(r => !gradeNames.has(r.상품등급명));
       mark(unmatched, fail('❌ 등급 불일치'));
       failTotal += unmatched.length;
-      scheduledRows.push(...validRows.filter(r => gradeNames.has(r.상품등급명)));
+      // 한 캠페인에서 상품 하나라도 실패하면 그 캠페인은 전부 예약 안 함 — 일부만 예약되면 분할을 지우고 다시 접수해야 함
+      const matched = validRows.filter(r => gradeNames.has(r.상품등급명));
+      const failedSlots = new Set(pendingRows.filter(r => !matched.includes(r)).map(r => r._slotKey));
+      const held = matched.filter(r => failedSlots.has(r._slotKey));
+      mark(held, fail('⛔ 보류', '같은 캠페인의 다른 상품이 실패해 예약하지 않음 — 실패 사유를 고친 뒤 다시 접수'));
+      failTotal += held.length;
+      if (held.length) HI.releaseRegisterRows([...new Set(held.map(r => r._slotKey))], legKey).catch(e => console.warn('선점 해제 실패(10분 뒤 자동 만료):', e));
+      const goRows = matched.filter(r => !failedSlots.has(r._slotKey));
+      scheduledRows.push(...goRows);
 
-      const expanded = validRows.flatMap(r => splitRowBySchedule(r, schedule));
+      const expanded = goRows.flatMap(r => splitRowBySchedule(r, schedule));
       if (!expanded.length) return;
 
       for (const g of gi.gradeGroups) {
