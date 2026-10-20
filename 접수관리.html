@@ -4724,20 +4724,12 @@ window.toggleProdPanel = function(e) {
         return;
       }
 
-      // 한 캠페인에서 상품 하나라도 보내기 전에 실패하면 그 캠페인은 아무 상품도 안 보냄 — 일부만 등록되면 분할을 지우고 다시 접수해야 함
-      const gradeNames = new Set(gi.gradeGroups.map(g => g.gradeName));
-      const matched = validRows.filter(r => gradeNames.has(r.상품등급명));
-      const failedSlots = new Set(pendingRows.filter(r => !matched.includes(r)).map(r => r._slotKey));
-      const held = matched.filter(r => failedSlots.has(r._slotKey));
-      held.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="같은 캠페인의 다른 상품이 실패해 보내지 않음 — 실패 사유를 고친 뒤 다시 접수">⛔ 보류</span>'; });
-      failTotal += held.length;
-      if (held.length) HI.releaseRegisterRows([...new Set(held.map(r => r._slotKey))], legKey).catch(e => console.warn('선점 해제 실패(10분 뒤 자동 만료):', e));
-      const sendRows = matched.filter(r => !failedSlots.has(r._slotKey));
-
-      let agencyFail = held.length;
+      const matchedGrades = new Set();
+      let agencyFail = 0;
       for (const g of gi.gradeGroups) {
-        const grpRows = sendRows.filter(r => r.상품등급명 === g.gradeName);
+        const grpRows = validRows.filter(r => r.상품등급명 === g.gradeName);
         if (!grpRows.length) continue;
+        matchedGrades.add(g.gradeName);
         const payloadRows = grpRows.map(({_slotKey, _statusTd, _kwFail, _normalSubmitted, _doneKey, _requiresBlogUrl, _days, _daysMultiplied, ...rest}) => rest);
         let result;
         try {
@@ -4773,7 +4765,7 @@ window.toggleProdPanel = function(e) {
       // 비즈핏 등급맵과 매칭 안 된 등급명 (유효 행 기준)
       const validGradeNames = new Set(validRows.map(r => r.상품등급명));
       validGradeNames.forEach(name => {
-        if (!gradeNames.has(name)) {
+        if (!matchedGrades.has(name)) {
           const unmatchedRows = validRows.filter(r => r.상품등급명 === name);
           unmatchedRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);">❌ 등급 불일치</span>'; });
           failTotal += unmatchedRows.length;
