@@ -892,12 +892,12 @@ const HI = {
   // 캠페인 정산 금액(amount) = 전체 수량 × 리워드 단가(유입플 몫도 리워드 단가).
   // 정산관리 리워드·유입플 열은 단가 목록 각각으로 나눠 계산 — reward = (전체 − 유입플) 수량 × 리워드 단가,
   // yupfl·byVendor = 업체별 수량 × 그 대행사의 업체 단가(user.yupflPrices, 없으면 0 + missing). 이 둘은 amount에 안 더함.
-  // 업체별 수량(yupflByVendor)이 없는 캠페인(업체 분류 전 승인·미승인)의 유입플은 승인 때 값.
+  // 업체별 수량(yupflByVendor)이 없는 캠페인(업체 분류 전)의 유입플 수량(yupflTarget)은 프리미엄 단가로.
   // 정산관리·자동 정산 도장·회원관리·텔레그램 봇(settlement.py)·회원 화면 같은 amount 규칙
   slotBill(s, user) {
     const price = Number(s.unitPrice) > 0 ? Number(s.unitPrice) : (user?.unitPrice || 0);
     const days = s.days || 0, total = (s.dailyTarget || 0) * days, amount = total * price;
-    const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
+    const vend = (s.yupflByVendor ? Object.entries(s.yupflByVendor) : [['프리미엄', s.yupflTarget]]).filter(([, n]) => n > 0);
     if (!vend.length) {
       const yupfl = s.yupflAmount || 0;
       return { amount, reward: amount - yupfl, yupfl, missing: [], byVendor: yupfl ? { '업체 분류 전': yupfl } : {} };
