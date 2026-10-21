@@ -329,7 +329,7 @@
     const unitPrice  = u.unitPrice || 0;
 
     const mySlots = allSlots.filter(s => s.userId === u.username);
-    const active  = mySlots.filter(s => s.status === 'active');
+    const active  = mySlots.filter(s => s.status === 'active' || s.status === 'split');
     const pending = mySlots.filter(s => s.status === 'pending');
     const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0), 0);
 
