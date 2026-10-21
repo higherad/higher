@@ -448,6 +448,7 @@
       const all = await HI.getAll();
       const midEntries = all.filter(s => s.mid).map(s => ({
         mid: s.mid,
+        storeName: s.storeName || '',
         startDate: s.startDate || '',
         endDate: s.endDate || '',
         dailyTarget: s.dailyTarget || 0,
