@@ -14,6 +14,7 @@
   #cost-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
   #cost-page table { width:100%; border-collapse:collapse; font-size:12px; }
   #cost-page thead th { background:#1e293b; color:#fff; padding:11px 7px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; font-size:11px; }
+  #cost-page thead tr:first-child th[colspan] { border-bottom:1px solid #2d3f55; }
   #cost-page tbody td { padding:10px 7px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #cost-page tbody tr:hover { background:#f8fafc; }
   #cost-page .action-btn { padding:6px 14px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
@@ -153,6 +154,13 @@
       const list = bySlots.get(k) || [];
       r.settle = r.t.slice(0, 10) < todayStr && settleSnaps[k] ? settleSnaps[k].amount || 0
         : list.reduce((a, sl) => a + HI.slotBill(sl, userOf(sl)).amount, 0) - (list[0] ? refunds[HI.refundGroupKey(list[0])] || 0 : 0);
+      // 일 목표(수량) — 돈이 아니라 고정 안 함, 현재 캠페인 기준(휴지통 건은 isBillable에서 빠짐)
+      r.rewardDay = 0; r.yupflDay = {};
+      list.forEach(sl => {
+        const c = HI.slotCost(sl, costs);
+        r.rewardDay += Math.round(c.rewardQty / (sl.days || 1));
+        Object.entries(c.yupflDay).forEach(([v, n]) => { r.yupflDay[v] = (r.yupflDay[v] || 0) + n; });
+      });
     });
     return [...m.values()].sort((a, b) => b.t.localeCompare(a.t));
   }
@@ -191,18 +199,21 @@
     const kw = (document.getElementById('cf-kw').value || '').trim().toLowerCase();
     rows = allRows.filter(r => { const d = r.t.slice(0, 10); return !((from && d < from) || (to && d > to)) && (!kw || (r.agency || '').toLowerCase().includes(kw)); });
     vendors = vendorNames();
-    document.getElementById('cost-head').innerHTML = `<tr><th>접수일시</th><th>대행사</th><th>캠페인 수</th><th>전체 목표 합산</th><th style="color:#7dd3fc">리워드</th>${vendors.map(v => `<th style="color:#c4b5fd">${esc(v)}</th>`).join('')}<th>지출 합계(VAT 별도)</th><th>지출 합계(VAT 포함)</th><th style="color:#6ee7b7">차감(수입)</th></tr>`;
+    const r2 = t => `<th rowspan="2">${t}</th>`, sub = c => `<th style="color:${c}">일 목표</th><th style="color:${c}">금액</th>`;
+    document.getElementById('cost-head').innerHTML = `<tr>${r2('접수일시')}${r2('대행사')}${r2('캠페인 수')}${r2('전체 목표 합산')}<th colspan="2" style="color:#7dd3fc">리워드</th>${vendors.map(v => `<th colspan="2" style="color:#c4b5fd">${esc(v)}</th>`).join('')}${r2('지출 합계(VAT 별도)')}${r2('지출 합계(VAT 포함)')}<th rowspan="2" style="color:#6ee7b7">차감(수입)</th></tr>
+      <tr>${sub('#7dd3fc')}${vendors.map(() => sub('#c4b5fd')).join('')}</tr>`;
     const body = document.getElementById('cost-body');
     const list = rows.slice((page - 1) * PER, page * PER);
-    if (!list.length) { body.innerHTML = `<tr><td colspan="${8 + vendors.length}" style="padding:40px;color:var(--muted)">데이터가 없습니다.</td></tr>`; document.getElementById('cost-pg').innerHTML = ''; return; }
+    if (!list.length) { body.innerHTML = `<tr><td colspan="${9 + vendors.length * 2}" style="padding:40px;color:var(--muted)">데이터가 없습니다.</td></tr>`; document.getElementById('cost-pg').innerHTML = ''; return; }
     body.innerHTML = list.map(r => {
       return `<tr>
         <td style="color:var(--text2);font-size:11px">${esc(r.t)}</td>
         <td style="font-weight:700">${esc(r.agency)}</td>
         <td>${r.count}건</td>
         <td><strong>${(r.tgt || 0).toLocaleString()}</strong></td>
+        <td style="color:#0284c7">${r.rewardDay ? r.rewardDay.toLocaleString() : '-'}</td>
         <td style="color:#0284c7">${r.missing.includes('리워드') ? '<span class="cost-need">원가 설정 필요</span>' : r.reward ? won(r.reward) : '-'}</td>
-        ${vendors.map(v => `<td style="color:#7c3aed">${r.missing.includes(v) ? '<span class="cost-need">원가 설정 필요</span>' : r.yupfl?.[v] ? won(r.yupfl[v]) : '-'}</td>`).join('')}
+        ${vendors.map(v => `<td style="color:#7c3aed">${r.yupflDay?.[v] ? r.yupflDay[v].toLocaleString() : '-'}</td><td style="color:#7c3aed">${r.missing.includes(v) ? '<span class="cost-need">원가 설정 필요</span>' : r.yupfl?.[v] ? won(r.yupfl[v]) : '-'}</td>`).join('')}
         <td><strong style="color:var(--danger)">${won(r.total)}</strong></td>
         <td style="font-weight:700;color:var(--info)">${won(Math.round(r.total * 1.1))}</td>
         <td style="font-weight:700;color:#059669">${r.deduct ? '+' + won(r.deduct) : '-'}</td>
@@ -314,8 +325,8 @@
     if (!rows.length) return alert('다운로드할 데이터가 없습니다.');
     if (!window.XLSX) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('엑셀 라이브러리를 불러오지 못했습니다.')); document.head.appendChild(s); }).catch(e => alert(e.message));
     if (!window.XLSX) return;
-    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드', ...vendors, '지출 합계(VAT 별도)', '지출 합계(VAT 포함)', '차감(수입)'];
-    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.reward, ...vendors.map(v => r.yupfl?.[v] || 0), r.total, Math.round(r.total * 1.1), r.deduct || 0]);
+    const header = ['접수일시', '대행사', '캠페인 수', '전체 목표 합산', '리워드 일 목표', '리워드 금액', ...vendors.flatMap(v => [`${v} 일 목표`, `${v} 금액`]), '지출 합계(VAT 별도)', '지출 합계(VAT 포함)', '차감(수입)'];
+    const data = rows.map(r => [r.t, r.agency, r.count, r.tgt, r.rewardDay || 0, r.reward, ...vendors.flatMap(v => [r.yupflDay?.[v] || 0, r.yupfl?.[v] || 0]), r.total, Math.round(r.total * 1.1), r.deduct || 0]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), '지출');
     XLSX.writeFile(wb, `지출내역_${todayStr.replace(/-/g, '')}.xlsx`);

@@ -932,7 +932,7 @@ const HI = {
     const rewardQty = Math.max(0, (s.dailyTarget || 0) * days - yupQty - (s.deductTarget || 0));
     if (rewardQty > 0 && !rc) missing.push('리워드');
     const reward = rewardQty * rc;
-    return { rewardQty, reward, yupfl, total: reward + Object.values(yupfl).reduce((a, v) => a + v, 0), deduct: s.deductAmount || 0, missing };
+    return { rewardQty, yupflDay: Object.fromEntries(vend), reward, yupfl, total: reward + Object.values(yupfl).reduce((a, v) => a + v, 0), deduct: s.deductAmount || 0, missing };
   },
   async getCosts() { return (await get(ref(db, P.costs))).val() || { reward: [], yupfl: {} }; },
   // 단가·원가 항목 — 저장값(없으면 처음 한 번만 시트에서 읽어 저장). refreshGuideItems = 시트 다시 읽기(불러오기 버튼·회전 아이콘)
