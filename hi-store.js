@@ -791,8 +791,6 @@ const HI = {
   saveProdGroups(groups) { return set(ref(db, `${P.products}/groups`), groups && groups.length ? groups : null); },
   // ver만 단일 필드로 — 배열 전체 PUT은 다른 세션의 설정 변경을 덮음
   setProdVer(index, ver) { return set(ref(db, `${P.products}/prods/${index}/ver`), ver); },
-  // 옛 김프로 상품 설정(읽기 전용) — 전환 때 남아 있던 옛 김프로 예약 항목(schedule/dispatch의 src 'kp')을
-  // 재분할·수정할 때만 씀. 그 항목이 다 끝나면 필요 없음
 
   // ════════════════════════════════════════════════════════
   // 등급·순위·파이프라인·광고분류

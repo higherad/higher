@@ -136,7 +136,7 @@
   function isReserved(s, todayStr) { return s.status === 'active' && s.startDate > todayStr; }
   // 진행중 계열 — 승인(active) + 예약 등록 중(split, 매일 등록이 나가는 중). D-Day·종료 예정 요약·종료임박 필터 공통
   function isRunning(s) { return s.status === 'active' || s.status === 'split'; }
-  // 재접수 캠페인은 옛 김프로처럼 한 배지에 '재접수 | 상태'(색은 그 상태 색)
+  // 재접수 캠페인은 한 배지에 '재접수 | 상태'(색은 그 상태 색)
   function statusBadge(s, todayStr) {
     const html = isReserved(s, todayStr) ? '<span class="status-badge s-reserved">예약</span>' : (stLabel[s.status] || s.status);
     return s.isRequeue && s.status !== 'requeue' && html.startsWith('<span') ? html.replace(/>([^<]+)<\/span>$/, '>재접수 | $1</span>') : html;

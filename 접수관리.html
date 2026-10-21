@@ -221,7 +221,7 @@
 </style>
 
 <style>
-  /* 상단 카드 — 옛 김프로 카드와 같은 모양(가운데 정렬 8칸) */
+  /* 상단 카드 — 가운데 정렬 8칸 */
   #receipt-stat-bar { display:grid; grid-template-columns:repeat(9,1fr); gap:10px; margin-bottom:16px; }
   #receipt-stat-bar .rc-stat { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
   #receipt-stat-bar .rc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
@@ -511,7 +511,7 @@ window.toggleProdPanel = function(e) {
     requeue:  '<span class="status-badge s-pending" title="강제종료 후 남은 기간 재접수 — 정산 제외">재접수 | 대기</span>',
     force_stopped: '<span class="status-badge s-expired" style="background:#fee2e2;color:#b91c1c;">강제종료</span>',
   };
-  // 상태 배지 — 재접수 캠페인은 옛 김프로처럼 한 배지에 '재접수 | 상태'(색은 그 상태 색)
+  // 상태 배지 — 재접수 캠페인은 한 배지에 '재접수 | 상태'(색은 그 상태 색)
   const statusBadge = s => {
     const html = stMap[s.status] || s.status;
     return s.isRequeue && s.status !== 'requeue' && stMap[s.status]
@@ -913,7 +913,7 @@ window.toggleProdPanel = function(e) {
   // 상세 팝업의 키워드·블로그URL 입력칸 값이 바뀐 경우에만 저장 — acceptFromDetail/closeDetailModal 공용
   async function saveDetailFields(key) {
     const s0 = allSlots.find(x => x._key === key);
-    // 기본 필드(대행사/플레이스명/순위키워드/URL/MID/일목표/일수/단가/기간/메모) — 김프로 상세보기와 동일하게 편집 가능
+    // 기본 필드(대행사/플레이스명/순위키워드/URL/MID/일목표/일수/단가/기간/메모) — 편집 가능
     const readField = (id, num) => {
       const el = document.getElementById(id);
       if (!el) return undefined;
@@ -1139,7 +1139,7 @@ window.toggleProdPanel = function(e) {
       return true;
     });
   }
-  // kimpro 쪽 강제종료 시 자동 생성되는 재접수 슬롯은 원본과 키워드가 동일한 채로 createdAt만
+  // 강제종료 후 재접수 슬롯은 원본과 키워드가 동일한 채로 createdAt만
   // 새로 찍히므로, 생성순으로 정렬해 직전 슬롯과 키워드가 같으면 실제 변경이 아니라고 보고 뺀다.
   function dropUnchangedConsecutive(list) {
     const sorted = [...list].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -1177,7 +1177,7 @@ window.toggleProdPanel = function(e) {
     btn.textContent = '닫기';
     area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);"><div class="spinner"></div> 시트에서 키워드 불러오는 중...</div>';
 
-    // 구글 시트 Dashboard에서 실제 키워드 조회 + 자체 DB·kimpro(reception.html) 합친 전체 히스토리 병렬 조회
+    // 구글 시트 Dashboard에서 실제 키워드 조회 + 같은 MID 캠페인 전체의 키워드 히스토리 병렬 조회
     let sheetKeywords, history;
     try {
       [sheetKeywords, history] = await Promise.all([
@@ -2091,9 +2091,9 @@ window.toggleProdPanel = function(e) {
   let adlogAutoOn = true;
 
 
-  // ── 시간대 분할 예약 접수 (kimpro와 동일 구현 + higher 전용 캐시차감 스냅샷) ──
-  // /register 대신 schedule/dispatch에 페이로드만 저장, 서버가 지정 시각에 재생. 다중leg
-  // 슬롯은 서버가 게이트를 모르므로 미지원(gate 있으면 토글 막음).
+  // ── 시간대 분할 예약 접수 (캐시차감은 예약 시점에 클라이언트가) ──
+  // /register 대신 schedule/dispatch에 페이로드만 저장, 서버가 지정 시각에 재생. 풀스택 탭이 남은
+  // 캠페인은 조각만 저장하고 상태·차감은 scheduleHold로 보류(풀스택이 끝나면 releaseScheduleHold).
   let scheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34}, ...]
 
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -4339,7 +4339,7 @@ window.toggleProdPanel = function(e) {
     });
   };
 
-  // ── 시간대 분할 예약 편집기 (접수 확인 모달 상단, kimpro/reception.html과 동일 구현) ────────────
+  // ── 시간대 분할 예약 편집기 (접수 확인 모달 상단) ────────────
   let scheduleDraftRows = [{ time: '10:00', pct: 100 }];
   // 키워드 분할 설정 — 켜져 있으면 검색키워드를 (일수×시간대 수)만큼 나눠 하루씩 다른 그룹 배정
   // (splitRowBySchedule 참고, 필요 그룹 수만큼 자동 역산). scheduleKwSplit=커밋된 값,
@@ -4910,8 +4910,7 @@ window.toggleProdPanel = function(e) {
   }
 
   // ════════════════════════════════════════════════════════
-  // 분할접수 현황 — schedule/dispatch 조회. 서버가 status만 pending→done으로 바꿔 완료
-  // 항목도 계속 남음(수정은 pending만 가능). kimpro와 동일 구현.
+  // 분할접수 현황 — schedule/dispatch 조회. 완료 항목은 서버가 2일 뒤 정리(수정은 pending만 가능).
   // ════════════════════════════════════════════════════════
 
   let _ssEntries = {};   // key -> entry, 등급 변경 시 저장된 계정정보(loginId/pwd) 조회용
