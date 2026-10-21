@@ -109,8 +109,9 @@
     return allUsers.filter(u => !kw || [chargeIdOf(u),(u.agency||''),(u.agencyId||'')].some(v=>v.toLowerCase().includes(kw)));
   }
 
+  // 진행 중 캠페인 수 — 승인 + 예약 분할 진행(split)
   function getUserSlotCount(username) {
-    return allSlots.filter(s => s.userId === username && s.status === 'active').length;
+    return allSlots.filter(s => s.userId === username && (s.status === 'active' || s.status === 'split')).length;
   }
 
   // 최종 접수일 — 휴지통(삭제)으로 간 건 제외하고 가장 최근 createdAt
