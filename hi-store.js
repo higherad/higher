@@ -793,7 +793,6 @@ const HI = {
   setProdVer(index, ver) { return set(ref(db, `${P.products}/prods/${index}/ver`), ver); },
   // 옛 김프로 상품 설정(읽기 전용) — 전환 때 남아 있던 옛 김프로 예약 항목(schedule/dispatch의 src 'kp')을
   // 재분할·수정할 때만 씀. 그 항목이 다 끝나면 필요 없음
-  async getLegacyKpProds() { return (await get(ref(db, `${P.products}_kp_legacy/prods`))).val(); },
 
   // ════════════════════════════════════════════════════════
   // 등급·순위·파이프라인·광고분류

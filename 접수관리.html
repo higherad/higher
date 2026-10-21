@@ -4926,10 +4926,7 @@ window.toggleProdPanel = function(e) {
   // 각 그룹 자신의 상세값으로 함(apply 시점에 새로 읽음). 미리보기 텍스트영역은 안 둠(다 못 보여줘서 의미 없음).
   let _ssBulk = { open:false, loading:false, gradeGroups:null, sel:{}, kwMode:false, timeMode:false, timeRows:[{time:'10:00',pct:100}] };
 
-  // ── 예약 분할 현황 — 한 벌(schedule/dispatch·batches). 옛 김프로 메뉴에서 만든 항목만 src 'kp'(_src)로
-  // 표시돼 재분할·등급 판정 때 옛 김프로 상품 설정을 씀. 저장 경로는 출처와 무관하게 같음
-  function scheduleDispatchSuffix(src) { return 'dispatch'; }
-  function scheduleBatchSuffix(src)    { return 'batches'; }
+  // ── 예약 분할 현황 — schedule/dispatch·batches
   async function batchSnapOf(slotKey) {
     const v = await HI.getScheduleBatch(slotKey);
     return { exists: () => v != null, val: () => v };
@@ -4950,7 +4947,7 @@ window.toggleProdPanel = function(e) {
   // 이 테이블(수백KB~1MB)을 재다운로드함
   function scheduleEntriesFrom(val) {
     const out = {};
-    Object.entries(val || {}).forEach(([k, v]) => { out[k] = { ...v, _key: k, _src: v.src === 'kp' ? 'kp' : 'ha' }; });
+    Object.entries(val || {}).forEach(([k, v]) => { out[k] = { ...v, _key: k }; });
     return out;
   }
   async function computeScheduleGroupCount() {
@@ -5190,19 +5187,6 @@ window.toggleProdPanel = function(e) {
   // (찰리/델타가 이 계열) gradeName만으론 구분이 안 됨 — 계열까지 합친 조합키로 고유하게 식별한다.
   function scheduleGradeCkey(adrole, gradeName) { return (adrole ? 'storage' : 'traffic') + '::' + gradeName; }
 
-  // 옛 김프로 상품 설정(products_kp_legacy)은 접수관리 prods와 별도 — 옛 김프로 예약 항목의 등급
-  // 구조 판정엔 반드시 이걸 써야 함(두 시스템 prods가 값이 다를 수 있어 섞어 쓰면 오판정 위험).
-  let _kpProdsCache = null;
-  async function getKpProdsForSchedule() {
-    if (_kpProdsCache) return _kpProdsCache;
-    try {
-      const val = (await HI.getLegacyKpProds()) || [];
-      _kpProdsCache = Array.isArray(val) ? val : Object.values(val||{});
-    } catch (e) { _kpProdsCache = []; }
-    return _kpProdsCache;
-  }
-  function prodsForSchedule(src, kpProds) { return src === 'kp' ? (kpProds || []) : prods; }
-
   // 등급별 요구값(rowData) 구조 시그니처 — daysMultiplied(일수 칸=총목표) · blogUrlProduct(블로그URL 필요) 중 하나라도 다르면
   // 저장돼 있는 rowData(일목표/일수/블로그URL 등)를 그대로 못 쓰므로 등급만 바꿔치기하면 접수가 깨진다. prods에 없는 이름(일반 등급 티어)은 둘 다 false로 간주.
   function gradeStructKey(gradeName, prodsList, adrole) {
@@ -5232,7 +5216,7 @@ window.toggleProdPanel = function(e) {
 
   // 슬롯(상세)에 저장된 검색키워드를 그대로 가져옴 — 대기중 항목마다 흩어진 값이 아니라
   // 항상 원본 상세 값을 기준으로 재분할하기 위함
-  async function fetchSourceKeyword(src, slotKey) {
+  async function fetchSourceKeyword(slotKey) {
     const s = allSlots.find(x => x._key === slotKey);
     if (s && 'searchKeyword' in s) return s.searchKeyword || '';
     return (await HI.getKeywords(slotKey)).search || '';
@@ -5273,9 +5257,7 @@ window.toggleProdPanel = function(e) {
       const gid = [..._ssBulkSelected][0];
       const items = gid ? Object.values(_ssEntries).filter(e => e.slotKey === gid && !isScheduleDone(e.status)) : [];
       const sample = items[0];
-      const groupSrc = sample?._src === 'kp' ? 'kp' : 'ha';
-      const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
-      const prodsList = prodsForSchedule(groupSrc, kpProds);
+      const prodsList = prods;
       _ssBulk.gradeGroups = sample ? await fetchScheduleGradeGroups(sample, prodsList) : [];
       _ssBulk.loading = false;
     }
@@ -5439,9 +5421,7 @@ window.toggleProdPanel = function(e) {
       const sample = items[0];
       const row = (sample.payload?.rowData || [])[0] || {};
       const label = `${row.업체명||gid} (${row.PID번호||gid})`;
-      const groupSrc = sample._src === 'kp' ? 'kp' : 'ha';
-      const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
-      const prodsList = prodsForSchedule(groupSrc, kpProds);
+      const prodsList = prods;
       const groupGrades = await fetchScheduleGradeGroups(sample, prodsList);
       const curStructs = new Set(items.map(e => gradeStructKey(e.payload?.gradeName || '', prodsList, e.adrole)));
       const applicable = v.grades.map(g => {
@@ -5449,7 +5429,7 @@ window.toggleProdPanel = function(e) {
         return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct: g.pct } : null;
       }).filter(Boolean);
       if (applicable.length !== v.grades.length) { failed.push(`${label} : 등급 설정 필요`); continue; }
-      ready.push({ gid, groupSrc, applicable });
+      ready.push({ gid, applicable });
     }
     if (failed.length) {
       alert(`아래 항목은 선택한 상품 조합에 등급이 매칭되지 않아 일괄 재분류를 실행하지 않았습니다.\n선택을 조정한 뒤 다시 시도해주세요.\n\n${failed.join('\n')}`);
@@ -5461,11 +5441,11 @@ window.toggleProdPanel = function(e) {
 
     let okCount = 0;
     const skipped = [];
-    for (const { gid, groupSrc, applicable } of ready) {
+    for (const { gid, applicable } of ready) {
       try {
         let kwList = null;
         if (_ssBulk.kwMode) {
-          const kwText = await fetchSourceKeyword(groupSrc, gid);
+          const kwText = await fetchSourceKeyword(gid);
           kwList = kwText.split(',').map(k=>k.trim()).filter(Boolean);
         }
         await applyScheduleResplit(gid, applicable, null, kwList, v.timeRows);
@@ -5495,9 +5475,7 @@ window.toggleProdPanel = function(e) {
       const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
       const targetItems = st.selectedKeys.size ? items.filter(e => st.selectedKeys.has(e._key)) : items;
       const sample = targetItems[0] || items[0];
-      const groupSrc = sample?._src === 'kp' ? 'kp' : 'ha';
-      const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
-      const prodsList = prodsForSchedule(groupSrc, kpProds);
+      const prodsList = prods;
       const allGroups = sample ? await fetchScheduleGradeGroups(sample, prodsList) : [];
       // rowData 구조가 이미 저장돼 있어 되돌릴 수 없으므로, 지금 대상들이 쓰는 등급과 요구값 구조(daysMultiplied/blogUrlProduct)가 같은 등급으로만 재분류를 제한한다
       const curStructs = new Set((targetItems.length ? targetItems : items).map(e => gradeStructKey(e.payload?.gradeName || '', prodsList, e.adrole)));
@@ -5541,11 +5519,7 @@ window.toggleProdPanel = function(e) {
     if (checked && !st.kwText && !st.kwLoading) {
       st.kwLoading = true;
       renderSplitScheduleList();
-      const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
-      const targetItems = st.selectedKeys.size ? items.filter(e => st.selectedKeys.has(e._key)) : items;
-      const sample = targetItems[0] || items[0];
-      const src = sample?._src === 'kp' ? 'kp' : 'ha';
-      try { st.kwText = await fetchSourceKeyword(src, slotKey); } catch(e) { st.kwText = ''; }
+      try { st.kwText = await fetchSourceKeyword(slotKey); } catch(e) { st.kwText = ''; }
       st.kwLoading = false;
     }
     renderSplitScheduleList();
@@ -5816,15 +5790,12 @@ window.toggleProdPanel = function(e) {
     const kwByGrade = kwList && kwList.length ? assignKeywordsForResplit(kwList, grades, buckets.length) : null;
     const bucketIdxByGrade = {};
 
-    const src = cancelItems[0]?._src === 'kp' ? 'kp' : 'ha';
-    const dispatchSuffix = scheduleDispatchSuffix(src);
-    const batchSuffix = scheduleBatchSuffix(src);
     const patch = {};
     let removed = 0, created = 0;
 
     // 취소는 원본 항목 기준 1회씩만 — timeRows 켜져 있으면 같은 날짜가 여러 시간대 조각으로
     // 나뉘어도 취소 대상은 중복 없이 한 번만 잡힘(buckets를 그대로 순회하면 이중 카운트됨)
-    cancelItems.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; removed++; });
+    cancelItems.forEach(e => { patch[`dispatch/${e._key}`] = null; removed++; });
 
     buckets.forEach(({ sendAt, sample, amounts }) => {
       const sampleRow = (sample.payload?.rowData || [])[0] || {};
@@ -5841,7 +5812,7 @@ window.toggleProdPanel = function(e) {
             bucketIdxByGrade[g.ckey] = idx + 1;
           }
         }
-        patch[`${dispatchSuffix}/${key}`] = {
+        patch[`dispatch/${key}`] = {
           slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '', adrole: g.adrole ?? null,
           payload: {
             ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || BIZFIT_TAB,
@@ -5855,7 +5826,7 @@ window.toggleProdPanel = function(e) {
 
     const batchSnap = await batchSnapOf(slotKey);
     const batch = batchSnap.exists() ? batchSnap.val() : { total: 0 };
-    patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
+    patch[`batches/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
 
     await HI.updateSchedule(patch); // 예약 항목 추가·삭제 + 조각 수를 한 번에(원자적)
     return { created, removed };
@@ -5868,16 +5839,13 @@ window.toggleProdPanel = function(e) {
   async function endSplitPending(slotKey) {
     const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
     if (!targets.length) return null;
-    const src = targets[0]._src === 'kp' ? 'kp' : 'ha';
-    const dispatchSuffix = scheduleDispatchSuffix(src);
-    const batchSuffix = scheduleBatchSuffix(src);
     const pre = await HI.readScheduled(slotKey); // 못 읽으면 여기서 중단(아무것도 취소 안 됨)
     const patch = {};
-    targets.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; });
+    targets.forEach(e => { patch[`dispatch/${e._key}`] = null; });
     const batchSnap = await batchSnapOf(slotKey);
     if (batchSnap.exists()) {
       const batch = batchSnap.val();
-      patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
+      patch[`batches/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
     }
     await HI.updateSchedule(patch);
     targets.forEach(e => { delete _ssEntries[e._key]; });
@@ -5932,9 +5900,7 @@ window.toggleProdPanel = function(e) {
     const cell = document.getElementById(`ss-grade-${key}`);
     if (!e || !cell || isScheduleDone(e.status)) return; // 완료 항목은 수정 불가
     cell.innerHTML = '<span style="font-size:11px;color:var(--muted);">불러오는 중...</span>';
-    const groupSrc = e._src === 'kp' ? 'kp' : 'ha';
-    const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
-    const prodsList = prodsForSchedule(groupSrc, kpProds);
+    const prodsList = prods;
     const groups = await fetchScheduleGradeGroups(e, prodsList);
     if (!groups.length) {
       cell.innerHTML = '<span style="color:var(--danger);font-size:11px;">등급 조회 실패</span>';
