@@ -146,7 +146,7 @@ function splitKw(patch) {
   return { kw, rest };
 }
 // 캠페인의 업체별 유입플 일 수량 [[업체, 수량]] — 업체 분류 전 승인 건(yupflByVendor 없음)은 yupflTarget 전부 풀스택
-// 9/23(KST) 이전 접수 건 — 유입플 몫까지 풀스택으로 정산돼 남아 있는 예전 분할값(yupflTarget)은 분할 표시·지출 원가에서 무시
+// 9/23(KST) 이전 접수 건 — 예전 분할값(yupflTarget, 업체 분류 없음)은 분할 표시에서 숨기고 지출 원가는 '프리미엄' 업체로
 const legacySplit = s => (s.createdAt || '') < '2026-09-22T15:00:00.000Z';
 const vendorQty = s => (s.yupflByVendor ? Object.entries(s.yupflByVendor) : s.yupflTarget ? [['풀스택', s.yupflTarget]] : []).filter(([, n]) => n > 0);
 function withoutNulls(o) {
@@ -921,7 +921,7 @@ const HI = {
   // 원가 없는 항목은 0 + missing
   slotCost(s, costs) {
     const days = s.days || 0, missing = [];
-    const vend = legacySplit(s) ? [] : vendorQty(s);
+    const vend = legacySplit(s) ? (s.yupflTarget > 0 ? [['프리미엄', s.yupflTarget]] : []) : vendorQty(s);
     // ponytail: 리워드 원가는 여러 줄 저장하지만 계산은 첫 줄 하나(정산 수량이 리워드 합계뿐) — 상품별 계산은 상품별 수량 저장 후 추가
     const yc = costs?.yupfl || {}, rc = Array.isArray(costs?.reward) ? Number(costs.reward[0]?.price) || 0 : Number(costs?.reward) || 0;
     const yupfl = {};
