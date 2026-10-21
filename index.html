@@ -100,28 +100,16 @@
 
     .bottom-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
 
-    /* 현재 순위 분포 카드 */
-    .rd-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 24px; height:100%; }
-    .rd-header { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
-    .rd-header i { width:18px; height:18px; }
-    .rd-title { font-size:15px; font-weight:700; }
-    .rd-header-arrow { margin-left:auto; width:16px; height:16px; color:var(--muted); cursor:pointer; transition:.2s; }
-    .rd-header-arrow:hover { color:var(--accent); }
-    .rd-body { display:flex; align-items:center; gap:24px; }
-    .rd-rows { flex:1; display:flex; flex-direction:column; gap:1px; min-width:0; }
-    .rd-row { display:flex; align-items:center; gap:10px; padding:7px 6px; border-radius:10px; }
-    .rd-icon { width:16px; height:16px; flex-shrink:0; }
-    .rd-label { flex:1; font-size:13px; font-weight:600; color:var(--text2); }
-    .rd-count { font-size:14px; font-weight:800; color:var(--text); white-space:nowrap; }
-    .rd-count small { font-size:11px; font-weight:500; color:var(--muted); margin-left:1px; }
-    .rd-donut { position:relative; width:120px; height:120px; flex-shrink:0; }
-    .rd-donut svg { transform:rotate(-90deg); }
-    .rd-total { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-    .rd-total-label { font-size:11px; color:var(--muted); font-weight:600; }
-    .rd-total-val { font-size:19px; font-weight:800; color:var(--text); }
-    .rd-footer { margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
-    .rd-basis { font-size:11px; color:var(--muted); }
-    .rd-empty { padding:40px 0; text-align:center; color:var(--muted); font-size:13px; }
+    /* 바로가기 카드 */
+    .dash-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 24px; height:100%; }
+    .dash-card-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+    .dash-card-header i { width:18px; height:18px; }
+    .dash-card-title { font-size:15px; font-weight:700; }
+    .site-link { display:flex; align-items:center; gap:10px; padding:10px 8px; border-radius:10px; text-decoration:none; color:var(--text); transition:.2s; }
+    .site-link:hover { background:#f1f5f9; }
+    .site-link i { width:16px; height:16px; color:var(--muted); flex-shrink:0; }
+    .site-link-name { font-size:13px; font-weight:700; }
+    .site-link-url { margin-left:auto; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
     .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:14px; gap:10px; }
     .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
@@ -178,10 +166,6 @@
 
       /* 하단 그리드 — 1열 */
       .bottom-grid { grid-template-columns:1fr; }
-
-      /* 현재 순위 분포 카드 — 세로 배치 */
-      .rd-card { max-width:100%; }
-      .rd-body { flex-direction:column; gap:16px; }
 
       /* 테이블 — 가로 스크롤 */
       .tbl-wrap, #receipt-page .tbl-wrap, #slots-page .tbl-wrap,
@@ -312,174 +296,38 @@
         <div class="stat-card c-info"><div class="stat-label">대기</div><div class="stat-value">${pendingCount}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-info"><div class="stat-label">접수</div><div class="stat-value">${acceptedCount}<span class="stat-unit">건</span></div></div>
       </div>
-      <div class="bottom-grid">
-        <div id="rd-slot">
-          <div class="rd-card"><div class="loading-wrap" style="height:160px"><div class="spinner"></div> 순위 데이터 불러오는 중...</div></div>
-        </div>
-      </div>`;
+      <div class="bottom-grid">${renderSiteCard()}</div>`;
     lucide.createIcons();
-
-    fetchRankDistribution(allSlots).then(d => {
-      if (myGen !== navGen) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-      const slot = document.getElementById('rd-slot');
-      if (slot) { slot.innerHTML = renderRankDistCard(d); lucide.createIcons(); }
-    }).catch(err => {
-      console.error('rank distribution error:', err);
-      const slot = document.getElementById('rd-slot');
-      if (slot) slot.innerHTML = `<div class="rd-card"><div class="rd-empty" style="color:var(--danger)">순위 분포 로드 실패: ${err.message}</div></div>`;
-    });
   };
 
-  // ── 현재 순위 분포 (진행중 캠페인의 최신 순위 집계) ─────────
-  window.rdGoRank = function() {
-    loadPage('순위조회.html', document.getElementById('nav-rank'), () => {
-      // 순위조회.html의 스크립트는 afterLoad 이후 비동기(blob script)로 실행되므로
-      // window.rkTab이 정의될 때까지 잠깐 재시도한다.
-      const tryClick = (attempts = 0) => {
-        const btn = document.getElementById('rk-tab-change');
-        if (btn && typeof window.rkTab === 'function') {
-          window.rkTab('change', btn);
-        } else if (attempts < 20) {
-          setTimeout(() => tryClick(attempts + 1), 50);
-        }
-      };
-      tryClick();
-    });
-  };
+  const YUPFL_SITES = [
+    { name:'풀스택',   url:'http://183.100.195.91:3005/' },
+    { name:'프리미엄', url:'http://premiumset.store/sb/' },
+  ];
+  function renderSiteCard() {
+    const links = YUPFL_SITES.map(s => `
+      <a class="site-link" href="${s.url}" target="_blank" rel="noopener noreferrer">
+        <i data-lucide="external-link"></i>
+        <span class="site-link-name">${s.name}</span>
+        <span class="site-link-url">${s.url.replace(/^https?:\/\//, '')}</span>
+      </a>`).join('');
+    return `
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <i data-lucide="globe" style="color:var(--info)"></i>
+          <span class="dash-card-title">유입플 사이트</span>
+        </div>
+        ${links}
+      </div>`;
+  }
 
   function localYMD(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
   // 진행중 = 승인(active) 또는 예약 등록 중(split — 캐시 차감 후 매일 등록이 나가는 중)이면서 시작일이 지난 캠페인.
-  // 예약 접수가 대부분이라 active만 세면 진행중 카드·종료예정·순위분포가 크게 빠짐
+  // 예약 접수가 대부분이라 active만 세면 진행중 카드·종료예정이 크게 빠짐
   function isRunningSlot(sl, todayStr) {
     return (sl.status === 'active' || sl.status === 'split') && (sl.startDate || '') <= todayStr;
-  }
-
-  // 순위조회.html '5일' 탭과 동일한 GAS 소스 — 어드민에 없는 상품도 포함된 전체 순위 집계
-  const RANK_CHANGE_GAS_URL = 'https://script.google.com/macros/s/AKfycbxyFuM-npYQ_Rkgezgl6LqfhUCCdc3mff07ESh88VxE2nTqYeR5j1JriyY8mTRdSH_a/exec';
-  const RANK_FLOOR = 301; // 5일 데이터에서 '-'(300위 밖/미확인)는 권외로 취급
-
-  async function fetchRankDistribution(allSlots) {
-    const todayStr = localYMD(new Date());
-    const running = allSlots.filter(s =>
-      isRunningSlot(s, todayStr) && s.mid && s.rankKeyword && s.endDate >= todayStr
-    );
-    const adminMids = new Set(running.map(s => s.mid));
-
-    const result = {
-      top10:0, top30:0, top100:0, top200:0, top300:0, outside:0,
-      unrecorded:0, basisDate:'', total:0,
-    };
-
-    const classify = rank => {
-      if (!Number.isFinite(rank) || rank <= 0)   { result.outside++; return; }
-      if (rank <= 10)  result.top10++;
-      else if (rank <= 30)  result.top30++;
-      else if (rank <= 100) result.top100++;
-      else if (rank <= 200) result.top200++;
-      else if (rank <= 300) result.top300++;
-      else result.outside++;
-    };
-
-    const [dataArr, allDoneVal, changeJson] = await Promise.all([
-      Promise.all(running.map(s => HI.getLatestRank(s.mid).catch(() => null))),
-      HI.getPipelineAllDone().catch(() => null),
-      fetch(`${RANK_CHANGE_GAS_URL}?action=getRankData&t=${Date.now()}`).then(r => r.json()).catch(() => null),
-    ]);
-
-    let maxDate = '';
-    dataArr.forEach(rd => {
-      const dates = rd ? Object.keys(rd).sort((a, b) => b.localeCompare(a)) : [];
-      if (!dates.length) { result.unrecorded++; return; }
-      const latestDate = dates[0];
-      if (latestDate > maxDate) maxDate = latestDate;
-      classify(Number(rd[latestDate]?.rank));
-    });
-
-    // 어드민에 등록되지 않은 상품 — '5일' 데이터의 최신값으로 집계, 어드민 mid는 중복 제외
-    if (changeJson && Array.isArray(changeJson.results)) {
-      changeJson.results.forEach(item => {
-        if (!item.mid || adminMids.has(item.mid)) return;
-        const ranks = item.ranks || [];
-        if (!ranks.length) { result.unrecorded++; return; }
-        const latestRaw = ranks[ranks.length - 1];
-        const rank = (latestRaw === '' || latestRaw === null || latestRaw === undefined || latestRaw === '-')
-          ? RANK_FLOOR
-          : parseFloat(latestRaw);
-        classify(Number.isFinite(rank) ? rank : RANK_FLOOR);
-      });
-    }
-
-    // 기준일 = 파이프라인 완료 시점(pipeline/allDone, YYMMDD). 없으면 실데이터 최신일로 대체.
-    result.basisDate = /^\d{6}$/.test(String(allDoneVal || ''))
-      ? `20${allDoneVal.slice(0,2)}-${allDoneVal.slice(2,4)}-${allDoneVal.slice(4,6)}`
-      : (maxDate || '-');
-
-    result.total = result.top10 + result.top30 + result.top100 + result.top200 + result.top300 + result.outside;
-    return result;
-  }
-
-  function renderRankDistCard(d) {
-    const headerHtml = `
-      <div class="rd-header">
-        <i data-lucide="trophy" style="color:var(--warn)"></i>
-        <span class="rd-title">현재 순위 분포</span>
-        <i data-lucide="arrow-right" class="rd-header-arrow" onclick="rdGoRank()" title="순위 조회로 이동"></i>
-      </div>`;
-
-    if (!d.total) {
-      return `<div class="rd-card">${headerHtml}<div class="rd-empty">집계할 순위 데이터가 없습니다.</div></div>`;
-    }
-
-    const C = 2 * Math.PI * 50;
-    const segs = [
-      { val: d.top10,   color:'#3b82f6' },
-      { val: d.top30,   color:'#10b981' },
-      { val: d.top100,  color:'#0d9488' },
-      { val: d.top200,  color:'#f59e0b' },
-      { val: d.top300,  color:'#f97316' },
-      { val: d.outside, color:'#ef4444' },
-    ];
-    let cum = 0;
-    const circles = segs.map(s => {
-      const len = (s.val / d.total) * C;
-      const circle = `<circle cx="60" cy="60" r="50" fill="none" stroke="${s.color}" stroke-width="16" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-cum}"></circle>`;
-      cum += len;
-      return circle;
-    }).join('');
-
-    const rows = [
-      { icon:'trophy',      color:'#3b82f6', label:'1~10위',        val:d.top10   },
-      { icon:'trending-up', color:'#10b981', label:'11~30위',       val:d.top30   },
-      { icon:'award',       color:'#0d9488', label:'31~100위',      val:d.top100  },
-      { icon:'bar-chart-2', color:'#f59e0b', label:'101~200위',     val:d.top200  },
-      { icon:'bar-chart',   color:'#f97316', label:'201~300위',     val:d.top300  },
-      { icon:'triangle-alert', color:'#ef4444', label:'권외 (301위~)', val:d.outside },
-    ].map(r => `
-      <div class="rd-row">
-        <i data-lucide="${r.icon}" class="rd-icon" style="color:${r.color}"></i>
-        <span class="rd-label">${r.label}</span>
-        <span class="rd-count">${r.val.toLocaleString()}<small> 개</small></span>
-      </div>`).join('');
-
-    return `
-      <div class="rd-card">
-        ${headerHtml}
-        <div class="rd-body">
-          <div class="rd-rows">${rows}</div>
-          <div class="rd-donut">
-            <svg viewBox="0 0 120 120" width="120" height="120">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="#eef2f7" stroke-width="16"></circle>
-              ${circles}
-            </svg>
-            <div class="rd-total"><span class="rd-total-label">합계</span><span class="rd-total-val">${d.total.toLocaleString()}</span></div>
-          </div>
-        </div>
-        <div class="rd-footer">
-          <span class="rd-basis">기준: ${d.basisDate || '-'}</span>
-        </div>
-      </div>`;
   }
 
   window.loadDashboard = function() {

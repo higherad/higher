@@ -9,7 +9,7 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-import { getDatabase, ref, query, orderByChild, orderByKey, equalTo, startAt, limitToLast,
+import { getDatabase, ref, query, orderByChild, equalTo, startAt,
   set as _set, get as _get, push as _push, update as _update, remove as _remove, onValue as _onValue,
   onChildAdded, onChildChanged, onChildRemoved, onDisconnect, goOffline, goOnline, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
@@ -797,11 +797,6 @@ const HI = {
   // ════════════════════════════════════════════════════════
   getLiveKeywordsOnce() { return once(liveKeywordsCache); },
   async getRanks(mid) { return (await get(ref(db, `${P.ranks}/${safeKey(mid)}`))).val() || {}; },
-  // 최신 날짜 1건만(전체 이력 다운로드 방지)
-  async getLatestRank(mid) {
-    return (await get(query(ref(db, `${P.ranks}/${safeKey(mid)}`), orderByKey(), limitToLast(1)))).val();
-  },
-  async getPipelineAllDone() { return (await get(ref(db, `${P.pipeline}/allDone`))).val(); },
   // 구글시트 '접수 가이드' 전 탭 원본 값 {sheets:[{title, values}]}(higherad-auto /guide-sheet, 직원만)
   getGuideSheet() { return callServer('/guide-sheet'); },
   // 플레이스 키워드 구글시트에 A급·B급 검색키워드 기입 — 같은 MID는 그 행 갱신(higherad-auto /place-keywords, 직원만)
