@@ -4694,8 +4694,26 @@ window.toggleProdPanel = function(e) {
   // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유. 같은 BizFit 계정은
   // 동시 요청 시 세션 충돌 위험이 있어 grade 단위는 순차
   // 같은 캠페인을 다른 창/직원이 동시에 접수하면 비즈핏에 두 번 등록·결제됨 — 선점 못 한 행은 빼고 표시(HI.claimRegisterRows)
+  // 정산에 쓰는 대행사 단가(리워드·이 캠페인에 수량이 있는 유입플 업체)가 회원관리에 없는 행도 빼고 표시 — 일반·예약·풀스택 접수 공통
   async function claimRowsForRegister(rows, leg) {
     let blocked = 0;
+    await userBizfitUidReady;
+    const missOf = new Map();
+    rows = rows.filter(r => {
+      const slot = r._slotKey && allSlots.find(s => s._key === r._slotKey);
+      if (!slot || slot.isRequeue) return true;
+      if (!missOf.has(slot._key)) {
+        const vp = userById.get(slot.userId)?.yupflPrices || {};
+        const miss = Object.entries(allocFieldsFor(slot).yupflByVendor || {}).filter(([v, n]) => n > 0 && !(Number(vp[v]) > 0)).map(([v]) => v);
+        if (!(slot.unitPrice > 0 || userPriceMap.get(slot.userId) > 0)) miss.unshift('리워드');
+        missOf.set(slot._key, miss);
+      }
+      const miss = missOf.get(slot._key);
+      if (!miss.length) return true;
+      blocked++;
+      if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="회원관리에서 ${escProd(slot.userId)} ${escProd(miss.join('·'))} 단가 설정">❌ 대행사 단가 설정 필요</span>`;
+      return false;
+    });
     const ok = await HI.claimRegisterRows(rows, leg, r => {
       blocked++;
       if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="다른 창 또는 다른 직원이 같은 캠페인을 접수 중입니다">⛔ 다른 창에서 접수 중</span>';
