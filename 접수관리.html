@@ -5019,16 +5019,17 @@ window.toggleProdPanel = function(e) {
     });
     const list = [...groups.values()];
     list.forEach(g => g.items.sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||'')));
-    // 정렬 기준은 필터링 전 전체(_ssEntries)의 최소 sendAt으로 고정 — 필터된 부분집합 기준이면
-    // 상태 필터를 바꿀 때마다 그룹 순서가 흔들림.
-    const minSendAtByGid = new Map();
+    // 최신 접수가 위로 — 그룹(캠페인)의 처음 접수 시각(가장 이른 조각 createdAt) 내림차순. 잔여 재분할로 생긴
+    // 조각은 늦게 생성돼도 순서를 안 바꿈. 필터링 전 전체(_ssEntries) 기준이라 상태 필터를 바꿔도 순서가 안 흔들림.
+    const firstByGid = new Map();
     Object.values(_ssEntries).forEach(e => {
       const row = (e.payload?.rowData || [])[0] || {};
       const gid = e.slotKey || row.PID번호 || row.업체명 || 'unknown';
-      const cur = minSendAtByGid.get(gid);
-      if (cur === undefined || (e.sendAt||'') < cur) minSendAtByGid.set(gid, e.sendAt||'');
+      const t = e.createdAt || '';
+      const cur = firstByGid.get(gid);
+      if (cur === undefined || t < cur) firstByGid.set(gid, t);
     });
-    list.sort((a,b) => (minSendAtByGid.get(a.gid)||'').localeCompare(minSendAtByGid.get(b.gid)||''));
+    list.sort((a,b) => (firstByGid.get(b.gid)||'').localeCompare(firstByGid.get(a.gid)||''));
     return list;
   }
 
