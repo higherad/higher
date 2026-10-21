@@ -81,6 +81,7 @@ const P = {
   staff:          `${ROOT}/staff`,
   liveKeywords:   `${ROOT}/live_keywords`,   // MID별 찾기 키워드(bizfit-dandok 매시간 동기화)
   ranks:          `${ROOT}/ranks`,
+  rankChange:     `${ROOT}/rank_change`,     // 순위 변동 목록 — google-dashboards script3가 14시 파이프라인 끝에 통째로 저장
   adClassify:     `${ROOT}/ad_classify`,
   kwCategories:   `${ROOT}/kw_categories`,  // 순위키워드 분류 [{name, keywords:[...]}] — 접수 시 캠페인 category로 저장
   pipeline:       `${ROOT}/pipeline`,
@@ -796,6 +797,7 @@ const HI = {
   // 등급·순위·파이프라인·광고분류
   // ════════════════════════════════════════════════════════
   getLiveKeywordsOnce() { return once(liveKeywordsCache); },
+  async getRankChange() { return (await get(ref(db, P.rankChange))).val(); },
   async getRanks(mid) { return (await get(ref(db, `${P.ranks}/${safeKey(mid)}`))).val() || {}; },
   // 구글시트 '접수 가이드' 전 탭 원본 값 {sheets:[{title, values}]}(higherad-auto /guide-sheet, 직원만)
   getGuideSheet() { return callServer('/guide-sheet'); },

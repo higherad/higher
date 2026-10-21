@@ -418,7 +418,6 @@
   };
 
   /* ===== 변동 탭 ===== */
-  const CHANGE_GAS_URL = 'https://script.google.com/macros/s/AKfycbxyFuM-npYQ_Rkgezgl6LqfhUCCdc3mff07ESh88VxE2nTqYeR5j1JriyY8mTRdSH_a/exec';
   const RANK_FLOOR = 301; // 순위표에 없는(300위 밖) 항목을 가장 낮은 순위로 취급
   const CHANGE_BUCKETS = [
     { label: "전체",      min: -Infinity, max: Infinity },
@@ -444,10 +443,11 @@
     const content = document.getElementById('rk-change-content');
     content.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>';
     try {
-      const res = await fetch(`${CHANGE_GAS_URL}?action=getRankData&t=${Date.now()}`);
-      rkChangeData = await res.json();
-      rkChangeLoaded = true;
+      const data = await HI.getRankChange(); // 14시 파이프라인이 정리해 저장한 순위 변동 목록
       if (!document.getElementById('rank-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
+      if (!data) { content.innerHTML = '<div class="rk-msg">데이터 수집중입니다. 14시 순위 수집이 끝나면 표시됩니다.</div>'; return; }
+      rkChangeData = { branchNames: [], dateLabels: ["-","-","-","-","-"], results: [], ...data };
+      rkChangeLoaded = true;
 
       const filter = document.getElementById('rk-change-branch');
       filter.innerHTML = '<option value="all">전체 영업점 보기</option>' +
