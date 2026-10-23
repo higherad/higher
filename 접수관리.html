@@ -1666,7 +1666,7 @@ window.toggleProdPanel = function(e) {
   window.addVendorRow = () => document.getElementById('pm-vendors').insertAdjacentHTML('beforeend', vendorRowHtml({ name: '', ratio: 0 }));
   function vendorEditorHtml(vs) {
     return `<div style="grid-column:1/-1;margin-top:10px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text2);">유입플 업체 비율 <span style="font-weight:400;color:var(--muted);">(승인 때 유입플 몫을 이 %로 나눔, 합계 100%)</span></div>
+        <div style="font-size:12px;font-weight:600;color:var(--text2);">유입플 업체 비율</div>
         <div id="pm-vendors">${vs.map(vendorRowHtml).join('')}</div>
         <button type="button" onclick="addVendorRow()" style="margin-top:6px;border:1px dashed var(--border);background:transparent;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2);font-family:inherit;">+ 업체 추가</button>
       </div>`;
