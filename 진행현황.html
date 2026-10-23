@@ -357,8 +357,13 @@
   // 잔여 재분류 후엔 현재 진행 등급(campaignTypeShown)만 표시 — 이전 등급은 campaignType에 기록으로만
   const typeLabels = s => { const v = s?.campaignTypeShown || s?.campaignType; return Array.isArray(v) ? v : (v ? Object.values(v) : []); };
   // 유입플 상품 = vendorProducts {업체: [상품]}의 상품 전부, 없는 옛 캠페인은 fullstackType
-  const yupflLabels = s => s?.vendorProducts ? Object.values(s.vendorProducts).flatMap(l => Array.isArray(l) ? l : Object.values(l))
-    : Array.isArray(s?.fullstackType) ? s.fullstackType : Object.values(s?.fullstackType || {});
+  // 풀스택 몫은 fullstackShown(매일 09시 사이트 진행 주문 기준, false = 숨김)이 있으면 그것으로 교체
+  const yupflLabels = s => {
+    const asL = v => Array.isArray(v) ? v : Object.values(v || {});
+    const vp = s?.vendorProducts || (s?.fullstackType ? { 풀스택: s.fullstackType } : {});
+    return Object.entries(vp).flatMap(([v, l]) => v === '풀스택' && s?.fullstackShown != null ? [] : asL(l))
+      .concat(s?.fullstackShown ? asL(s.fullstackShown) : []);
+  };
   function typeCellHtml(s) {
     if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음)
     const live = TYPE_LIVE.includes(s.status);

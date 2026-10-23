@@ -599,7 +599,14 @@ window.toggleProdPanel = function(e) {
   // 유입플 상품 배지 — 업체별 색(풀스택 청록·제이엔 주황·그 밖 보라). vendorProducts {업체: [상품]} 없는 옛 캠페인은 fullstackType(풀스택)
   const VENDOR_BADGE = { 풀스택: 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4', 제이엔: 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa' };
   const OTHER_VENDOR_BADGE = 'background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe';
-  const vendorProductsOf = s => s?.vendorProducts ? Object.entries(s.vendorProducts).map(([v, l]) => [v, Array.isArray(l) ? l : Object.values(l)]) : fullstackLabels(s).length ? [['풀스택', fullstackLabels(s)]] : [];
+  const recordVendorProducts = s => s?.vendorProducts ? Object.entries(s.vendorProducts).map(([v, l]) => [v, Array.isArray(l) ? l : Object.values(l)]) : fullstackLabels(s).length ? [['풀스택', fullstackLabels(s)]] : [];
+  // 풀스택 표시 = 서버가 매일 09시 사이트 진행 주문으로 맞춘 fullstackShown(false = 진행 주문 없음, 숨김), 없으면 기록 그대로
+  const vendorProductsOf = s => {
+    const rec = recordVendorProducts(s);
+    if (s?.fullstackShown == null) return rec;
+    const fs = s.fullstackShown ? (Array.isArray(s.fullstackShown) ? s.fullstackShown : Object.values(s.fullstackShown)) : [];
+    return [...rec.filter(([v]) => v !== '풀스택'), ...(fs.length ? [['풀스택', fs]] : [])];
+  };
   const yupflProductLabels = s => vendorProductsOf(s).flatMap(([, l]) => l);
   function typeBadgesHtml(s) {
     if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음 — 엑셀·필터·등급 매칭용)
@@ -906,7 +913,7 @@ window.toggleProdPanel = function(e) {
   // ── 접수 처리 ─────────────────────────────────────────────
   // 승인 건을 대기·접수로 되돌리면 승인 때 붙인 배지·유입플 분류를 지움 — 다시 승인하면 그때 값으로 새로 계산(캐시 차감은 수동 처리)
   const unapprovePatch = key => allSlots.find(x => x._key === key)?.status === 'active'
-    ? { campaignType: null, campaignTypeShown: null, fullstackType: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null,
+    ? { campaignType: null, campaignTypeShown: null, fullstackType: null, fullstackShown: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null,
         ...(allSlots.find(x => x._key === key)?.yupflRatio?.auto ? { yupflRatio: null } : {}) } : {};
   window.acceptOne = async function(key) {
     const patch = { status: 'accepted', ...unapprovePatch(key) };
@@ -3723,8 +3730,8 @@ window.toggleProdPanel = function(e) {
         if (done) {
           const rec = { result: x.result, memo: x.memo || '', start: x.start || r.start, days: x.days || r.days, daily: r.daily, at: new Date().toISOString(),
             ...(x.keywords ? { keywords: x.keywords } : {}) };
-          try { await HI.updateCampaign(r._slotKey, { fullstackOrder: rec }); } catch (e) { console.error('풀스택 접수 기록 실패:', r._slotKey, e); }
-          r._slot.fullstackOrder = rec; updateLocalSlot(r._slotKey, { fullstackOrder: rec });
+          try { await HI.updateCampaign(r._slotKey, { fullstackOrder: rec, fullstackShown: null }); } catch (e) { console.error('풀스택 접수 기록 실패:', r._slotKey, e); }
+          r._slot.fullstackOrder = rec; updateLocalSlot(r._slotKey, { fullstackOrder: rec, fullstackShown: null });
           r._fsSubmitted = true; doneKeys.add(r._slotKey); okTotal++;
           r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>';
         } else {
@@ -4057,7 +4064,7 @@ window.toggleProdPanel = function(e) {
           // 취소가 하나라도 실패한 MID·시작일의 캠페인은 기록을 남김(다시 눌러 재시도)
           const resetSlots = candidates.filter(s => !failedKeys.has(keyOf(s.mid, startOf(s))));
           await Promise.all(resetSlots.map(async s => {
-            const patch = { fullstackOrder: null };
+            const patch = { fullstackOrder: null, fullstackShown: null };
             if (s.status === 'active') patch.status = 'accepted';
             await HI.updateCampaign(s._key, patch);
             Object.assign(s, patch);
