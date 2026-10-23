@@ -874,16 +874,22 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 승인 ─────────────────────────────────────────────────
-  // btn 즉시 disable로 이중 차감 방지, settleBizfitCash await로 차감 끝나기 전 화면 닫힘(요청 취소) 방지
+  // 개별 승인 = 기록용 — 비즈핏 캐시 차감·충전 메모 안 함(접수 확인 팝업에서 접수할 때만). btn 즉시 disable로 중복 클릭 방지
   window.approveOne = async function(key, btn) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const targetSlot = allSlots.find(s => s._key === key);
-    // 개별 승인은 가이드를 안 봄 — 배분·배지 모두 상품 유형 설정(비고 비율·변경 요청 상품 우선). 접수 확인 팝업의 가이드_접수 토글이 켜져 있어도 무시
-    const extra = withoutGuide(() => allocFieldsFor(targetSlot));
+    // 배분·배지 모두 상품 유형 설정 — 가이드(팝업 가이드_접수 토글)도, 엑셀 비고 비율도 안 봄. 변경 요청 상품(changeTo)만 우선
+    const base = targetSlot && { ...targetSlot, yupflRatio: null };
+    const extra = withoutGuide(() => allocFieldsFor(base));
+    // 비율 배지: 전부 리워드 '리워드' · 전부 유입플 업체명 · 섞이면 50:50(기록 표시용 auto — 배분엔 안 씀)
+    if (extra.yupflRatio && extra.yupflRatio.reward > 0 && extra.yupflRatio.yupfl > 0) extra.yupflRatio = { reward: 50, yupfl: 50, auto: true };
+    // 유입플 몫이 있으면 업체명 배지(예 '풀스택') — 풀스택은 매일 09시 사이트 진행 주문 상품으로 바뀜(fullstack-badges)
+    const vendors = Object.entries(extra.yupflByVendor || {}).filter(([, n]) => n > 0).map(([v]) => v);
+    if (vendors.length) extra.vendorProducts = Object.fromEntries(vendors.map(v => [v, [v]]));
     // 캠페인타입이 비었으면 수량이 배분된 리워드 상품(유입플·차감 제외)으로 — 전부 유입플이면 리워드 배지 없음
-    if (targetSlot && !typeLabels(targetSlot).length) {
-      const { alloc, prods: list } = withoutGuide(() => allocRowsForSlot(targetSlot));
+    if (base && !typeLabels(base).length) {
+      const { alloc, prods: list } = withoutGuide(() => allocRowsForSlot(base));
       const names = list.filter(p => !p.classifyOnly && !p.deductOnly && (alloc[p.id] || 0) > 0).map(p => p.name);
       if (names.length) extra.campaignType = names;
     }
@@ -891,9 +897,6 @@ window.toggleProdPanel = function(e) {
     updateLocalSlot(key, { status: 'active', ...extra });
     await autoRegisterAdlog([targetSlot]);
     await autoStampSettlement([{ ...targetSlot, ...extra }]);
-    const ok = await settleBizfitCash(targetSlot, extra);
-    // 이 버튼엔 팝업이 없어 배너를 못 띄우니, 실패했을 때만 alert로 알림(성공/스킵은 조용히 넘어감)
-    if (!ok) alert('접수는 승인됐지만 비즈핏 캐시차감에 실패했습니다.\n네트워크/세션 문제일 수 있으니 잠시 후 다시 승인해보거나 개발자에게 알려주세요.');
     closeOverlayAndRefresh();
   };
   // 가이드_접수 토글(전역)을 잠깐 끄고 계산 — 동기 함수에만 씀
