@@ -3640,7 +3640,7 @@ window.toggleProdPanel = function(e) {
     return renderSubmitModal(target);
   }
 
-  // ── 풀스택 탭 — work/fullstack_macro/auto_order.py와 같은 규칙 ──
+  // ── 풀스택 탭 ──
   // 일 건수 = 유입플 중 풀스택 몫(승인 전이면 지금 배분), 방식 % = 가이드 풀스택 탭(분류 × 일 목표 구간), 시작일이 지났으면 오늘부터·종료일 그대로(서버가 계산)
   const FS_PRESETS = { '기본': 'basic', '둘러보고': 'browse', '카톡(길찾기)': 'kakao_route', '카톡(공유)': 'kakao_share' };
   const FS_LOGIN = new Set(['basic', 'browse']); // 가이드 "네이버에 로그인 한 사람" — 검색 유입 방식만 로그인 가능
@@ -3674,7 +3674,7 @@ window.toggleProdPanel = function(e) {
     && (c.startDate === r.start || (c.endDate && c.endDate === r._slot.endDate))).length;
   const fsReq = r => ({ mid: r.mid, daily: r.daily, days: r.days, start: r.start, variants: r.variants });
 
-  // 표 + 미리보기(사이트에 commit:false — 접수 안 됨) + 접수 신청(행마다 1건씩 실제 접수). 같은 MID·기간이 이미 사이트에 있으면 건너뛰고 완료로 침(로컬 매크로로 넣은 것 포함)
+  // 표 + 미리보기(사이트에 commit:false — 접수 안 됨) + 접수 신청(행마다 1건씩 실제 접수). 같은 MID·기간이 이미 사이트에 있으면 건너뛰고 완료로 침(사이트에서 직접 넣은 것 포함)
   function wireFullstackTab({ rows, bodyEl, subEl, applyBtn, closeBtn, overlay, gate, onDone }) {
     if (!rows.length) { bodyEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">풀스택 몫이 있는 캠페인이 없습니다.</div>'; applyBtn.disabled = true; return; }
     // 일반 탭(buildSubmitAgencyBlock)과 같은 대행사별 블록·표
@@ -6257,7 +6257,7 @@ window.toggleProdPanel = function(e) {
     render();
   };
 
-  // ── ↩️ 취소 탭(강제종료 팝업) — work/fullstack_macro/cancel_order.py와 같은 규칙. 환불파일양식(머리글에 대행사·MID, 시작일·환불 신청일) →
+  // ── ↩️ 취소 탭(강제종료 팝업). 환불파일양식(머리글에 대행사·MID, 시작일·환불 신청일) →
   //  ⓪ 접수관리 MID+시작일 같은 진행 캠페인: 분할은 대기 조각 전부 취소·종료, 승인은 종료일 → 환불 신청일(일수·정산은 최초 그대로)
   //  ① 대행사에 '오렌지'면 그 MID 비즈핏 오렌지 '진행중' 건 임시중단B  ② 풀스택 MID+시작일 정확히 같은 진행 주문·예약 취소
   // 조회만 먼저 해서 목록을 보여 주고, '취소 실행'을 눌러야 실제로 처리(⓪ 먼저 — 처리 중 다음 조각이 비즈핏에 올라가지 않게)
