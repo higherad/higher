@@ -2092,10 +2092,16 @@ window.toggleProdPanel = function(e) {
   // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
   // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 원래 방식(등급 매칭/상품 설정)으로.
   let guideModeOn = false, guideRules = [], guideCats = [], guideTimes = [];
-  // 풀스텍 상품 순서(기본 → 둘러보고 나감 → 카톡 길찾기 → 카톡 공유, 그 밖은 뒤)와 배지용 짧은 이름 — 시트 분류·가이드_접수 공용
-  const FULL_ORDER = ['기본', '둘러보고', '길찾기', '공유'];
-  const fullRank = n => { const i = FULL_ORDER.findIndex(k => n.includes(k)); return i < 0 ? FULL_ORDER.length : i; };
-  const shortFull = n => { const k = FULL_ORDER.find(k => n.includes(k)); return !k ? n : n.includes('카톡') && k !== '기본' && k !== '둘러보고' ? `카톡(${k})` : k; };
+  // 풀스텍 상품 = [배지 짧은 이름, 사이트 프리셋, 로그인 가능(검색 유입)] — 시트 분류 열·배지 순서도 이 순서. 시트 분류·가이드_접수·풀스택 탭 공용
+  const FULL_PRODS = [['기본', 'basic', 1], ['둘러보고', 'browse', 1], ['카톡(길찾기)', 'kakao_route'], ['카톡(공유)', 'kakao_share'],
+    ['길찾기', 'action', 1], ['지도', 'map'], ['인스타', 'insta_vendor'], ['저장', 'save'], ['리뷰', 'react'],
+    ['홈페이지', 'website'], ['블로그', 'external'], ['필터', 'filter', 1], ['급등형', 'surge', 1]];
+  // 가이드 상품 이름 → 배지 이름: 위에서부터 처음 맞는 말(사이트 프리셋 이름 그대로든 배지 이름이든). 못 찾으면 이름 그대로
+  const FULL_MATCH = [[/카톡.*공유/, '카톡(공유)'], [/카톡/, '카톡(길찾기)'], [/인스타/, '인스타'], [/급등/, '급등형'], [/필터/, '필터'],
+    [/저장/, '저장'], [/반응/, '리뷰'], [/홈페이지/, '홈페이지'], [/블로그|SNS/, '블로그'], [/길찾기/, '길찾기'], [/지도/, '지도'],
+    [/둘러/, '둘러보고'], [/리뷰/, '리뷰'], [/기본/, '기본']];
+  const shortFull = n => (FULL_MATCH.find(([re]) => re.test(n)) || [, n])[1];
+  const fullRank = n => { const i = FULL_PRODS.findIndex(([k]) => k === shortFull(n)); return i < 0 ? FULL_PRODS.length : i; };
   const fullstackOf = rule => [...rule.full].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name));
   function guideRuleFor(r) {
     const cat = r.category || HI.kwCategoryOf(r.rankKeyword, guideCats);
@@ -3688,16 +3694,18 @@ window.toggleProdPanel = function(e) {
 
   // ── 풀스택 탭 ──
   // 일 건수 = 유입플 중 풀스택 몫(승인 전이면 지금 배분), 방식 % = 가이드 풀스택 탭(분류 × 일 목표 구간), 시작일이 지났으면 오늘부터·종료일 그대로(서버가 계산)
-  const FS_PRESETS = { '기본': 'basic', '둘러보고': 'browse', '카톡(길찾기)': 'kakao_route', '카톡(공유)': 'kakao_share' };
-  const FS_LOGIN = new Set(['basic', 'browse']); // 가이드 "네이버에 로그인 한 사람" — 검색 유입 방식만 로그인 가능
+  // 로그인 = 가이드 이름에 "로그인 한 사람"이 있고 검색 유입 방식일 때만(저장·리뷰·지도는 사이트 프리셋이 원래 로그인)
+  const unknownFull = rule => (rule?.full || []).filter(p => !FULL_PRODS.some(([k]) => k === shortFull(p.name))).map(p => p.name);
   function fullstackVariants(rule) {
     // 시트 분류 엑셀처럼 상품별 %를 정수로 반올림한 뒤 합 100으로 다시 나눔(반올림 차이는 마지막 방식에)
-    const pctOf = k => { const it = (rule?.full || []).find(p => shortFull(p.name) === k); return it ? Math.round(it.ratio * 100) : 0; };
-    const mix = Object.keys(FS_PRESETS).map(k => [FS_PRESETS[k], pctOf(k)]).filter(([, v]) => v > 0);
-    const total = mix.reduce((a, [, v]) => a + v, 0);
-    const shares = mix.map(([, v]) => Math.round(v * 100 / total));
+    const mix = FULL_PRODS.map(([k, preset, canLogin]) => {
+      const it = (rule?.full || []).find(p => shortFull(p.name) === k);
+      return { preset, pct: it ? Math.round(it.ratio * 100) : 0, login: !!(canLogin && it && /로그인\s?한/.test(it.name)) };
+    }).filter(m => m.pct > 0);
+    const total = mix.reduce((a, m) => a + m.pct, 0);
+    const shares = mix.map(m => Math.round(m.pct * 100 / total));
     if (shares.length) shares[shares.length - 1] += 100 - shares.reduce((a, b) => a + b, 0);
-    return mix.map(([preset], i) => ({ key: 'ABCDEFGH'[i], preset, share: shares[i], ...(FS_LOGIN.has(preset) ? { scenario: { login: 'login' } } : {}) }));
+    return mix.map((m, i) => ({ key: 'ABCDEFGH'[i], preset: m.preset, share: shares[i], ...(m.login ? { scenario: { login: 'login' } } : {}) }));
   }
   function buildFullstackRows(slots) {
     return slots.flatMap(s => {
@@ -3710,10 +3718,11 @@ window.toggleProdPanel = function(e) {
       return [{ _slotKey: s._key, _slot: s, _fsSubmitted: !!s.fullstackOrder, agencyId: s.agencyId || '', storeName: s.storeName || '', mid: s.mid || '',
         url: s.url || '', rankKeyword: s.rankKeyword || '',
         daily, days: s.days || 0, start: s.startDate || '', variants,
-        err: !rule ? '가이드 분류·구간 없음' : !variants.length ? '가이드 풀스택 비율 없음' : '' }];
+        err: !rule ? '가이드 분류·구간 없음' : unknownFull(rule).length ? `가이드 풀스택 상품 이름 모름: ${unknownFull(rule).join(', ')}`
+          : !variants.length ? '가이드 풀스택 비율 없음' : '' }];
     });
   }
-  const fsVariantText = vs => vs.map(v => `${Object.keys(FS_PRESETS).find(k => FS_PRESETS[k] === v.preset)} ${v.share}%${v.scenario ? '(로그인)' : ''}`).join(' · ');
+  const fsVariantText = vs => vs.map(v => `${FULL_PRODS.find(([, p]) => p === v.preset)[0]} ${v.share}%${v.scenario ? '(로그인)' : ''}`).join(' · ');
   // 같은 MID·기간인 다른 캠페인 중 이미 풀스택을 넣은 수 — 서버는 사이트 주문이 이보다 많을 때만 '이미 있음'으로 건너뜀
   // (같은 업체를 순위키워드별로 여러 캠페인 받는 경우 두 번째도 접수되게). 최신 allSlots 기준(이번 접수 중 앞 행 기록 포함)
   const fsAllowed = r => allSlots.filter(c => c._key !== r._slotKey && c.mid === r.mid && c.fullstackOrder && c.status !== 'deleted'
