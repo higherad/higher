@@ -3559,13 +3559,7 @@ window.toggleProdPanel = function(e) {
     // 가이드_접수가 상품을 정해 주는 캠페인도 확인 안 함(가이드 상품으로 배분)
     const needsReward = target.some(s => noteRatio(s)?.reward > 0 && !guideAllocOf(s));
     if (needsReward && !hasNormal && !hasCharlie && !hasDelta && !hasNavy) {
-      const unguided = guideModeOn ? target.filter(s => noteRatio(s)?.reward > 0 && !guideAllocOf(s)) : [];
-      if (unguided.length) {
-        const names = unguided.slice(0, 5).map(s => `· ${s.storeName || s.mid} (순위키워드: ${s.rankKeyword || '없음'})`).join('\n');
-        alert(`가이드에서 분류·구간을 못 찾은 캠페인이 있습니다.\n순위키워드를 고치거나 상품 유형 설정에서 상품을 켜주세요.\n\n${names}`);
-        return;
-      }
-      alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
+      alert(guideModeOn ? '가이드에서 분류·구간을 못 찾은 캠페인이 있습니다.' : '활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
       return;
     }
     openSubmitModal(target);
