@@ -443,7 +443,7 @@
   };
 
   // ── 순위표 다운로드 (대상: 전체 캠페인) ──
-  // 기준순위가 같은 MID의 직전 종료건까지 보므로 종료 전체 포함. kimpro-premium /rank-table은 종료 상태를 'ended'로 판정
+  // 기준순위가 같은 MID의 직전 종료건까지 보므로 종료 전체 포함. higherad-rank /rank-table은 종료 상태를 'ended'로 판정
   window.downloadRankTable = async function() {
     const btn = document.getElementById('rank-table-btn');
     const label = btn?.querySelector('span') || btn;
@@ -464,7 +464,7 @@
         isRequeue: !!s.isRequeue,
         grade: [...typeLabels(s), ...yupflLabels(s)].join(', '),
       }));
-      const res = await fetch('https://kimpro-premium-938928195180.asia-northeast3.run.app/rank-table', {
+      const res = await fetch('https://higherad-rank-938928195180.asia-northeast3.run.app/rank-table', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memo: '1test', midEntries }),
