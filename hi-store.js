@@ -389,6 +389,11 @@ export function remainingAfterCancel(slot, canceledDates, keptDates) {
 
 // ════════════════════════════════════════════════════════════
 const HI = {
+  // 직원 전용 서버(bizfit-direct-proxy 등) 호출용 로그인 토큰 헤더
+  async authHeaders() {
+    await authReady;
+    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await auth.currentUser.getIdToken()}` };
+  },
   authReady,
   ROOT,
 

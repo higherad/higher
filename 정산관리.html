@@ -986,7 +986,7 @@
     let confirmOk=false,confirmMsg='';
     try{
       const cres=await fetch(`${BIZFIT_DIRECT_PROXY}/bizfit-charge-confirm`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
+        method:'POST',headers:await HI.authHeaders(),
         body:JSON.stringify({company:agencyId,amount,newStatus:'3'}),
       });
       const cjson=await cres.json();
