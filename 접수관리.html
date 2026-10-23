@@ -1671,23 +1671,25 @@ window.toggleProdPanel = function(e) {
         <button type="button" onclick="addVendorRow()" style="margin-top:6px;border:1px dashed var(--border);background:transparent;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2);font-family:inherit;">+ 업체 추가</button>
       </div>`;
   }
-  // 일반 상품 키워드/일목표 배분 입력칸 합계 — updateProdModalNotes/saveProdModal 공용(일목표는 유입플 업체 줄 포함)
+  // 일반 상품 키워드/일목표 배분 입력칸 합계 — updateProdModalNotes/saveProdModal 공용(일목표는 유입플 업체·차감 줄 포함)
   function sumProdModalInputs(actives, prefix) {
-    const vend = prefix === 'pm-ratio-' ? [...document.querySelectorAll('.pm-ratio-vend')].reduce((s, el) => s + (parseFloat(el.value) || 0), 0) : 0;
+    const vend = prefix === 'pm-ratio-' ? [...document.querySelectorAll('.pm-ratio-vend, #pm-ratio-deduct')].reduce((s, el) => s + (parseFloat(el.value) || 0), 0) : 0;
     return Math.round((vend + actives.reduce((s,q) => {
       const el = document.getElementById(`${prefix}${q.id}`);
       return s + (el ? parseFloat(el.value) || 0 : 0);
     }, 0)) * 10) / 10;
   }
-  // 일 목표 배분 = 일반 상품 + (유입플 켜져 있으면) 업체별 줄, 합계 100. 업체 줄 = 유입플 비율 × 업체 비율
-  // 예: 크림슨 on·유입플(풀스택 50·제이엔 50, 유입플 50%) → 크림슨 50 / 풀스택 25 / 제이엔 25
+  // 일 목표 배분 = 일반 상품 + (켜져 있으면) 유입플 업체별 줄 + 차감 줄, 합계 100 — 실제 배분 순서(allocate: 차감 먼저 → 남은 수량에서 유입플 → 나머지 일반)를 일 목표 기준 %로 환산
+  // 예: 크림슨·유입플(풀스택 50·제이엔 50, 유입플 50%) → 크림슨 50 / 풀스택 25 / 제이엔 25. 차감 10%까지 켜면 크림슨 45 / 풀스택 23 / 제이엔 22 / 차감 10(정수 표시)
   function ratioGridWithVendors(actives) {
-    const y = ap().find(q => q.classifyOnly);
-    const Y = y ? Math.max(0, Math.min(100, y.fixedPct ?? 50)) : 0;
+    const y = ap().find(q => q.classifyOnly), d = ap().find(q => q.deductOnly);
+    const D = d ? Math.max(0, Math.min(100, d.fixedPct ?? 10)) : 0;
+    const Y = y ? Math.max(0, Math.min(100, y.fixedPct ?? 50)) * (100 - D) / 100 : 0;  // 일 목표 기준 유입플 %
     const vs = y ? yupflVendors().filter(v => v.ratio > 0) : [];
     const nSum = actives.reduce((s, q) => s + (q.ratio || 0), 0) || 1;
-    const shown = lrm([...actives.map(q => ({ id: q.id, ratio: (q.ratio || 0) / nSum * (100 - Y) })),
-                       ...vs.map((v, i) => ({ id: `v${i}`, ratio: Y * v.ratio / 100 }))], 100);
+    const shown = lrm([...actives.map(q => ({ id: q.id, ratio: (q.ratio || 0) / nSum * (100 - D - Y) })),
+                       ...vs.map((v, i) => ({ id: `v${i}`, ratio: Y * v.ratio / 100 })),
+                       ...(d ? [{ id: 'deduct', ratio: D }] : [])], 100);
     const row = (color, name, val, attrs) => `
           <div class="ratio-item">
             <div class="ri-dot" style="background:${color}"></div>
@@ -1696,7 +1698,8 @@ window.toggleProdPanel = function(e) {
             <span style="font-size:12px;color:var(--text2);">%</span>
           </div>`;
     return actives.map(q => row(q.color, q.name, shown[q.id] || 0, `id="pm-ratio-${q.id}"`)).join('')
-      + vs.map((v, i) => row(y.color, v.name, shown[`v${i}`] || 0, `class="pm-ratio-vend" data-vendor="${escProd(v.name)}"`)).join('');
+      + vs.map((v, i) => row(y.color, v.name, shown[`v${i}`] || 0, `class="pm-ratio-vend" data-vendor="${escProd(v.name)}"`)).join('')
+      + (d ? row(d.color, d.name, shown.deduct || 0, 'id="pm-ratio-deduct"') : '');
   }
   window.updateProdModalNotes = function() {
     const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
@@ -1769,19 +1772,24 @@ window.toggleProdPanel = function(e) {
         const kwR = sumProdModalInputs(actives, 'pm-kwpct-'), ratR = sumProdModalInputs(actives, 'pm-ratio-');
         if(kwR!==100 && kwR!==0){ alert(`키워드 배분 합계는 100% 또는 모두 0이어야 합니다. (현재: ${kwR}%)`); return; }
         if(ratR!==100){ alert(`일 목표 배분 합계는 100%여야 합니다. (현재: ${ratR}%)`); return; }
-        // 유입플 업체 줄 → 유입플 비율(fixedPct = 업체 줄 합계) + 업체별 비율(업체 줄끼리 비중). 일반 상품은 남은 몫 안에서 비율
+        // 일 목표 기준 % → 저장값(배분 순서 그대로 역산): 차감 fixedPct = 차감 줄, 유입플 fixedPct = 업체 줄 합 ÷ 차감 뒤 남은 %,
+        // 업체별 비율 = 업체 줄끼리 비중, 일반 상품 = 나머지 안에서 합 10 기준. 남은 몫이 0이면 그 아래 비율은 그대로 둠
+        const dEl = document.getElementById('pm-ratio-deduct');
+        const D = dEl ? (parseFloat(dEl.value) || 0) : 0;
+        const d = prods.find(q => q.deductOnly);
+        if (d && dEl) d.fixedPct = D;
         const vendEls = [...document.querySelectorAll('.pm-ratio-vend')];
-        const Y = vendEls.reduce((s, el) => s + (parseFloat(el.value) || 0), 0);
+        const V = vendEls.reduce((s, el) => s + (parseFloat(el.value) || 0), 0);
         const y = prods.find(q => q.classifyOnly);
-        if (y && vendEls.length) {
-          y.fixedPct = Y;
-          if (Y > 0) y.vendors = vendEls.map(el => ({ name: el.dataset.vendor, ratio: Math.round((parseFloat(el.value) || 0) / Y * 1000) / 10 }));
+        if (y && vendEls.length && D < 100) {
+          y.fixedPct = Math.round(V / (100 - D) * 10000) / 100;
+          if (V > 0) y.vendors = vendEls.map(el => ({ name: el.dataset.vendor, ratio: Math.round((parseFloat(el.value) || 0) / V * 1000) / 10 }));
         }
-        // 화면은 %, 저장값은 일반 상품끼리 합 10 기준(배분 계산·자동 재배분이 이 기준). 유입플 100%면 일반 비율은 그대로 둠
+        const rest = 100 - D - V;
         actives.forEach(q => {
           const kwEl=document.getElementById(`pm-kwpct-${q.id}`), ratEl=document.getElementById(`pm-ratio-${q.id}`);
           if(kwEl)  q.kwPct = Math.round(parseFloat(kwEl.value) ||0)/10;
-          if(ratEl && Y < 100) q.ratio = Math.round((parseFloat(ratEl.value) || 0) / (100 - Y) * 100) / 10;
+          if(ratEl && rest > 0) q.ratio = Math.round((parseFloat(ratEl.value) || 0) / rest * 100) / 10;
         });
       }
     } else if (p.deductOnly || p.classifyOnly) {
