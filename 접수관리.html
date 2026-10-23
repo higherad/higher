@@ -894,8 +894,7 @@ window.toggleProdPanel = function(e) {
     }
     await HI.approve(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
-    await autoRegisterAdlog([targetSlot]);
-    await autoStampSettlement([{ ...targetSlot, ...extra }]);
+    await autoRegisterAdlog([targetSlot]);  // 정산 자동 도장(autoStampSettlement)은 안 함 — 개별 승인은 기록용
     closeOverlayAndRefresh();
   };
   // 가이드_접수 토글(전역)을 잠깐 끄고 계산 — 동기 함수에만 씀
