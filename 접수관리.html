@@ -882,8 +882,7 @@ window.toggleProdPanel = function(e) {
     // 배분·배지 모두 상품 유형 설정 — 가이드(팝업 가이드_접수 토글)도, 엑셀 비고 비율도 안 봄. 변경 요청 상품(changeTo)만 우선
     const base = targetSlot && { ...targetSlot, yupflRatio: null };
     const extra = withoutGuide(() => allocFieldsFor(base));
-    // 비율 배지: 전부 리워드 '리워드' · 전부 유입플 업체명 · 섞이면 50:50(기록 표시용 auto — 배분엔 안 씀)
-    if (extra.yupflRatio && extra.yupflRatio.reward > 0 && extra.yupflRatio.yupfl > 0) extra.yupflRatio = { reward: 50, yupfl: 50, auto: true };
+    // 비율 배지(withAutoRatio, 기록 표시용 auto — 배분엔 안 씀): 전부 리워드 '리워드' · 전부 유입플 업체명 · 섞이면 실제 배분 비율(예 70:30)
     // 유입플 몫이 있으면 업체명 배지(예 '풀스택') — 풀스택은 매일 09시 사이트 진행 주문 상품으로 바뀜(fullstack-badges)
     const vendors = Object.entries(extra.yupflByVendor || {}).filter(([, n]) => n > 0).map(([v]) => v);
     if (vendors.length) extra.vendorProducts = Object.fromEntries(vendors.map(v => [v, [v]]));
