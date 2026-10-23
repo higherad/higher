@@ -3696,7 +3696,7 @@ window.toggleProdPanel = function(e) {
   // ── 풀스택 탭 ──
   // 일 건수 = 유입플 중 풀스택 몫(승인 전이면 지금 배분), 방식 % = 가이드 풀스택 탭(분류 × 일 목표 구간), 시작일이 지났으면 오늘부터·종료일 그대로(서버가 계산)
   // 로그인 = 가이드 이름에 "로그인 O"·"로그인 한 사람"이 있고 검색 유입 방식일 때만(저장·리뷰·지도는 사이트 프리셋이 원래 로그인)
-  // 가이드 칸 작성법 = 시트 풀스택 탭 이름표(접수가이드_gas Code.js FULL_LEGEND) — 여기 이름 규칙을 바꾸면 같이 고칠 것
+  // 가이드 칸 작성법 = 시트 풀스택 탭 안내(접수가이드_gas Code.js FULL_LEGEND) — 여기 이름 규칙을 바꾸면 같이 고칠 것
   const unknownFull = rule => (rule?.full || []).filter(p => !FULL_PRODS.some(([k]) => k === shortFull(p.name))).map(p => p.name);
   function fullstackVariants(rule) {
     // 시트 분류 엑셀처럼 상품별 %를 정수로 반올림한 뒤 합 100으로 다시 나눔(반올림 차이는 마지막 방식에)
