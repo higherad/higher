@@ -294,7 +294,9 @@ async function writeCampaign(key, patch, cur = null) {
   if (Object.keys(rest).length) {
     const found = cur || await readCampaign(key);
     if (!found) throw new Error(`없는 캠페인입니다 (${key})`);
-    if (CATEGORIZE_STATUSES.has(rest.status) && !found.data.category && rest.category === undefined) {
+    // 분류 = 접수·승인될 때 비어 있으면, 또는 순위키워드를 고치면 지금 설정으로 다시(못 찾으면 기존 분류 유지)
+    const kwChanged = rest.rankKeyword !== undefined && rest.rankKeyword !== found.data.rankKeyword;
+    if (rest.category === undefined && (kwChanged || (CATEGORIZE_STATUSES.has(rest.status) && !found.data.category))) {
       const cat = kwCategoryOf(rest.rankKeyword ?? found.data.rankKeyword, (await get(ref(db, P.kwCategories))).val());
       if (cat) rest.category = cat;
     }
