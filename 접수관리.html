@@ -1592,6 +1592,9 @@ window.toggleProdPanel = function(e) {
     const p = prods.find(x => x.id === id); if (!p) return;
     p.active = !p.active;
     rebalanceProdActive('ratio'); rebalanceProdActive('kwPct');
+    // 유입플도 일반 상품과 한 몫으로 균등 배분(크림슨+유입플 → 50:50, 2개+유입플 → 33:33:33). 업체끼리는 업체별 비율로 다시 나눔
+    const y = prods.find(q => q.classifyOnly);
+    if (y?.active) { const n = ap().filter(q => q.autoBalance !== false).length; y.fixedPct = n ? Math.round(100 / (n + 1)) : 100; }
     if(activeProdGroupId) updateActiveProdGroup(); else { saveProdDefault(); saveProdSettings(); }
     renderPS();
   };
