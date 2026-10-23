@@ -354,7 +354,8 @@
   // 캠페인타입 칸 — 접수관리와 같은 값: 등록·예약 때 캠페인에 저장한 상품(campaignType) + 시트 분류 때 정한 풀스텍 상품(fullstackType, 청록) + 진행 중이면 변경 요청(빨간 배지)
   const TYPE_LIVE = ['active','split','force_stopped'];
   const esc = HI.esc;
-  const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
+  // 잔여 재분류 후엔 현재 진행 등급(campaignTypeShown)만 표시 — 이전 등급은 campaignType에 기록으로만
+  const typeLabels = s => { const v = s?.campaignTypeShown || s?.campaignType; return Array.isArray(v) ? v : (v ? Object.values(v) : []); };
   // 유입플 상품 = vendorProducts {업체: [상품]}의 상품 전부, 없는 옛 캠페인은 fullstackType
   const yupflLabels = s => s?.vendorProducts ? Object.values(s.vendorProducts).flatMap(l => Array.isArray(l) ? l : Object.values(l))
     : Array.isArray(s?.fullstackType) ? s.fullstackType : Object.values(s?.fullstackType || {});

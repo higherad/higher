@@ -569,7 +569,10 @@ window.toggleProdPanel = function(e) {
 
 
   // 캠페인타입 = 비즈핏 등록(또는 분할 예약) 때 캠페인에 저장한 실제 상품명(campaignType) — 캠페인별 기록이라 종료 후에도 남음
-  const typeLabels = s => Array.isArray(s?.campaignType) ? s.campaignType : (s?.campaignType ? Object.values(s.campaignType) : []);
+  const asList = v => Array.isArray(v) ? v : (v ? Object.values(v) : []);
+  const recordTypeLabels = s => asList(s?.campaignType);
+  // 표시 = 잔여 재분류 때 정한 현재 진행 등급(campaignTypeShown), 없으면 기록 전체. 이전 등급은 campaignType에 기록으로만 남음
+  const typeLabels = s => s?.campaignTypeShown ? asList(s.campaignTypeShown) : recordTypeLabels(s);
   // 풀스텍 = 시트 분류 때 가이드로 정해진 풀스텍(유입플) 상품(fullstackType) — 등급 매칭엔 안 씀
   const fullstackLabels = s => Array.isArray(s?.fullstackType) ? s.fullstackType : (s?.fullstackType ? Object.values(s.fullstackType) : []);
   // 엑셀 비고 — '리워드'(전부 리워드)·유입플 업체명(예 '풀스택': 전부 그 업체 유입플)·'50:50'(리워드%:유입플%, 합 100). 그 밖은 null
@@ -609,9 +612,11 @@ window.toggleProdPanel = function(e) {
   // 등록 성공·예약한 상품명을 캠페인에 합쳐 저장(델타 '델타#1' 같은 행 구분 꼬리는 뗌)
   async function addCampaignType(slotKey, names, slot) {
     const s = slot || allSlots.find(x => x._key === slotKey);
-    const merged = [...new Set([...typeLabels(s), ...names.map(n => String(n).replace(/#\d+$/, '').trim()).filter(Boolean)])];
-    await HI.updateCampaign(slotKey, { campaignType: merged });
-    if (s) s.campaignType = merged;
+    const clean = names.map(n => String(n).replace(/#\d+$/, '').trim()).filter(Boolean);
+    const fields = { campaignType: [...new Set([...recordTypeLabels(s), ...clean])] };
+    if (s?.campaignTypeShown) fields.campaignTypeShown = [...new Set([...typeLabels(s), ...clean])];
+    await HI.updateCampaign(slotKey, fields);
+    if (s) Object.assign(s, fields);
   }
 
   function buildGradeFilter(slots) {
@@ -901,7 +906,7 @@ window.toggleProdPanel = function(e) {
   // ── 접수 처리 ─────────────────────────────────────────────
   // 승인 건을 대기·접수로 되돌리면 승인 때 붙인 배지·유입플 분류를 지움 — 다시 승인하면 그때 값으로 새로 계산(캐시 차감은 수동 처리)
   const unapprovePatch = key => allSlots.find(x => x._key === key)?.status === 'active'
-    ? { campaignType: null, fullstackType: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null,
+    ? { campaignType: null, campaignTypeShown: null, fullstackType: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null,
         ...(allSlots.find(x => x._key === key)?.yupflRatio?.auto ? { yupflRatio: null } : {}) } : {};
   window.acceptOne = async function(key) {
     const patch = { status: 'accepted', ...unapprovePatch(key) };
@@ -5921,6 +5926,16 @@ window.toggleProdPanel = function(e) {
     patch[`batches/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
 
     await HI.updateSchedule(patch); // 예약 항목 추가·삭제 + 조각 수를 한 번에(원자적)
+
+    // 배지 = 남은 대기 조각 + 새 조각의 등급(완료·취소분 등급은 campaignType 기록에만). 개별 등급 변경(editScheduleGrade)은 배지 안 바꿈
+    const cancelled = new Set(cancelItems.map(e => e._key));
+    const shown = new Set(Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !cancelled.has(e._key)).map(e => e.payload?.gradeName));
+    Object.values(patch).forEach(v => { if (v?.payload?.gradeName) shown.add(v.payload.gradeName); });
+    const names = [...new Set([...shown].filter(Boolean).map(n => String(n).replace(/#\d+$/, '').trim()))];
+    const s = allSlots.find(x => x._key === slotKey);
+    const fields = { campaignTypeShown: names, campaignType: [...new Set([...recordTypeLabels(s), ...names])] };
+    await HI.updateCampaign(slotKey, fields).catch(err => console.error('캠페인타입 저장 실패:', slotKey, err));
+    if (s) Object.assign(s, fields);
     return { created, removed };
   }
 
