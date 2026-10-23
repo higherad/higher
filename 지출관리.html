@@ -86,7 +86,7 @@
   // 원가 미설정·승인 전 건이 남은 묶음은 고정 보류(현재 원가로 표시)
   const PER = 50, POP_PER = 12;
   let slots = [], costs = { reward: [], yupfl: {} }, snaps = {}, prods = [], paidSet = new Set(), settleSnaps = {}, users = [], refunds = {}, page = 1, rows = [], allRows = [], vendors = [];
-  const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = HI.esc;
   const won = n => `${Math.round(n).toLocaleString()}원`;
   const pad = n => String(n).padStart(2, '0');
   const ymdOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;

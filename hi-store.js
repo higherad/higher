@@ -389,6 +389,8 @@ export function remainingAfterCancel(slot, canceledDates, keptDates) {
 
 // ════════════════════════════════════════════════════════════
 const HI = {
+  // HTML 특수문자 이스케이프(화면 표시용)
+  esc: v => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
   // 직원 전용 서버(bizfit-direct-proxy 등) 호출용 로그인 토큰 헤더
   async authHeaders() {
     await authReady;

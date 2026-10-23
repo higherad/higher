@@ -202,7 +202,7 @@
     renderUsers(false);
   };
 
-  const escHtml = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escHtml = HI.esc;
   // 리워드 단가 목록 [{name, price}] — 첫 줄(가이드 '리워드' 탭) = 정산 계산 단가(unitPrice)
   const rewardPricesOf = u => u.rewardPrices?.length ? u.rewardPrices : [{ name: '리워드', price: u.unitPrice || 0 }];
   // 단가 한 줄 — 항목명 고정(가이드 시트), 금액만 입력

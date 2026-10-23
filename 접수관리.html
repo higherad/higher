@@ -1320,7 +1320,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 상품 유형 설정 ────────────────────────────────────────────
 
-  const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escProd = HI.esc;
   // onclick="fn('${v}')" 같은 홑따옴표 JS 문자열용 — escProd는 큰따옴표만 방어해 홑따옴표로 탈출 가능하므로 JS 이스케이프 후 속성 이스케이프
   const escJsAttr = v => String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')
     .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

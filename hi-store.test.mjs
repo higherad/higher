@@ -237,4 +237,5 @@ assert.equal(tree.hi.cost_snapshots.g1.total, 100, '고정 금액 유지');
   assert.deepStrictEqual(o.map(r => r.sameCount ?? 0), [2, 2, 0, 0, 0, 0], '완전히 같은 유효 행만 표시');
   assert.equal(o.length, 6, '행 수 그대로');
 }
+assert.equal(HI.esc('<a href="x">&</a>'), '&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;');
 console.log('hi-store 자가검사 통과');

@@ -214,7 +214,7 @@
   function getAgencyPrice(s){ return getPrice(s.userId); }
   // 슬롯 저장 단가 우선, 없거나 0이면 현재 유저 단가 (기존 데이터 호환)
   function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!==''&&s.unitPrice>0)?s.unitPrice:getAgencyPrice(s);}
-  const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escProd = HI.esc;
   // onclick 홑따옴표 JS 문자열용 — encodeURIComponent는 '를 안 건드려 값에 '가 있으면 문자열 탈출 가능, %27로 추가 치환해 막음
   const encAttr = v => encodeURIComponent(v).replace(/'/g,'%27');
   const userOf = s => allUsers.find(u => u.username === s.userId);
