@@ -3694,13 +3694,14 @@ window.toggleProdPanel = function(e) {
 
   // ── 풀스택 탭 ──
   // 일 건수 = 유입플 중 풀스택 몫(승인 전이면 지금 배분), 방식 % = 가이드 풀스택 탭(분류 × 일 목표 구간), 시작일이 지났으면 오늘부터·종료일 그대로(서버가 계산)
-  // 로그인 = 가이드 이름에 "로그인 한 사람"이 있고 검색 유입 방식일 때만(저장·리뷰·지도는 사이트 프리셋이 원래 로그인)
+  // 로그인 = 가이드 이름에 "로그인 O"·"로그인 한 사람"이 있고 검색 유입 방식일 때만(저장·리뷰·지도는 사이트 프리셋이 원래 로그인)
+  // 가이드 칸 작성법 메모는 접수가이드_gas Code.js FULL_NOTE(풀스택 탭 B1)
   const unknownFull = rule => (rule?.full || []).filter(p => !FULL_PRODS.some(([k]) => k === shortFull(p.name))).map(p => p.name);
   function fullstackVariants(rule) {
     // 시트 분류 엑셀처럼 상품별 %를 정수로 반올림한 뒤 합 100으로 다시 나눔(반올림 차이는 마지막 방식에)
     const mix = FULL_PRODS.map(([k, preset, canLogin]) => {
       const it = (rule?.full || []).find(p => shortFull(p.name) === k);
-      return { preset, pct: it ? Math.round(it.ratio * 100) : 0, login: !!(canLogin && it && /로그인\s?한/.test(it.name)) };
+      return { preset, pct: it ? Math.round(it.ratio * 100) : 0, login: !!(canLogin && it && /로그인\s?(한|O)/i.test(it.name)) };
     }).filter(m => m.pct > 0);
     const total = mix.reduce((a, m) => a + m.pct, 0);
     const shares = mix.map(m => Math.round(m.pct * 100 / total));
