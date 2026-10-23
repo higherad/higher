@@ -79,7 +79,7 @@ const P = {
   products:       `${ROOT}/products`,
   users:          `${ROOT}/users`,
   staff:          `${ROOT}/staff`,
-  liveKeywords:   `${ROOT}/live_keywords`,   // MID별 찾기 키워드(bizfit-dandok 매시간 동기화)
+  liveKeywords:   `${ROOT}/live_keywords`,   // MID별 찾기 키워드(google-dandok 매시간 동기화)
   ranks:          `${ROOT}/ranks`,
   rankChange:     `${ROOT}/rank_change`,     // 순위 변동 목록 — google-dashboards script3가 14시 파이프라인 끝에 통째로 저장
   adClassify:     `${ROOT}/ad_classify`,
@@ -391,7 +391,7 @@ export function remainingAfterCancel(slot, canceledDates, keptDates) {
 const HI = {
   // HTML 특수문자 이스케이프(화면 표시용)
   esc: v => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
-  // 직원 전용 서버(bizfit-direct-proxy 등) 호출용 로그인 토큰 헤더
+  // 직원 전용 서버(higherad-direct-proxy 등) 호출용 로그인 토큰 헤더
   async authHeaders() {
     await authReady;
     return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${await auth.currentUser.getIdToken()}` };
@@ -916,7 +916,7 @@ const HI = {
       missing: vend.filter(([v]) => !(Number(vp[v]) > 0)).map(([v]) => v), byVendor };
   },
   // 그날(YYYY-MM-DD) 진행 중(active·split, 시작일~종료일) 캠페인의 업체별 유입플 일 수량 — 광고분류 '유입플' 구분.
-  // bizfit-jobs BizFit_Traffic_auto.py yupfl_daily_by_vendor와 같은 규칙
+  // higherad-jobs BizFit_Traffic_auto.py yupfl_daily_by_vendor와 같은 규칙
   yupflDaily(campaigns, day) {
     const out = {};
     campaigns.filter(c => ['active', 'split'].includes(c.status) && (c.startDate || '') <= day && day <= (c.endDate || ''))

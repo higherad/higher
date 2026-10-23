@@ -522,7 +522,7 @@ window.toggleProdPanel = function(e) {
   const sanitizeFbKey = s => s.replace(/[.#$[\]/]/g, '_');
 
   // ── 비즈핏 직접 접수 ─────────────────────────────────────────
-  const BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
+  const BIZFIT_PROXY  = 'https://higherad-direct-proxy-938928195180.asia-northeast3.run.app';
   const BIZFIT_DOMAIN = 'http://higherad.co.kr';
   const BIZFIT_TAB    = '99'; // 전체 — 대행사별 단독/랜덤/통합 구분 정보가 없어 기본값 사용
   // 찰리는 NP 위치저장(adrole=100) 메뉴로 접수 — 등급명이 NP트래픽과 겹쳐 자동탐색 불가하므로 강제 지정
@@ -879,15 +879,14 @@ window.toggleProdPanel = function(e) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const targetSlot = allSlots.find(s => s._key === key);
-    // 유입플 몫은 지금 상품 유형 설정 선택값(비고 비율 우선)으로 나눔. 배지는 가이드_접수 토글과 무관하게 가이드에서 — 유입플 몫이 있으면 풀스텍 배지, 캠페인타입이 비었으면 가이드 리워드 상품
-    const extra = allocFieldsFor(targetSlot);
-    let guideErr = null;
-    if (!guideRules.length) { try { await loadGuide(); } catch (e) { guideErr = e; } }
-    const rule = !guideErr && targetSlot && !targetSlot.changeTo ? guideRuleFor(targetSlot) : null;
-    if (rule && extra.yupflByVendor && !extra.vendorProducts) Object.assign(extra, vendorProductFields(rule, extra.yupflByVendor));
-    // 리워드 몫(일 목표 − 유입플 − 차감)이 남을 때만 — 전부 유입플이면 리워드 배지 없음
-    const rewardLeft = targetSlot && (targetSlot.dailyTarget || 0) - (extra.yupflTarget || 0) - (extra.deductTarget || 0) / (targetSlot.days || 1) > 0;
-    if (rule && rule.reward.length && rewardLeft && !typeLabels(targetSlot).length) extra.campaignType = rule.reward.map(g => g.name);
+    // 개별 승인은 가이드를 안 봄 — 배분·배지 모두 상품 유형 설정(비고 비율·변경 요청 상품 우선). 접수 확인 팝업의 가이드_접수 토글이 켜져 있어도 무시
+    const extra = withoutGuide(() => allocFieldsFor(targetSlot));
+    // 캠페인타입이 비었으면 수량이 배분된 리워드 상품(유입플·차감 제외)으로 — 전부 유입플이면 리워드 배지 없음
+    if (targetSlot && !typeLabels(targetSlot).length) {
+      const { alloc, prods: list } = withoutGuide(() => allocRowsForSlot(targetSlot));
+      const names = list.filter(p => !p.classifyOnly && !p.deductOnly && (alloc[p.id] || 0) > 0).map(p => p.name);
+      if (names.length) extra.campaignType = names;
+    }
     await HI.approve(key, extra);
     updateLocalSlot(key, { status: 'active', ...extra });
     await autoRegisterAdlog([targetSlot]);
@@ -895,9 +894,13 @@ window.toggleProdPanel = function(e) {
     const ok = await settleBizfitCash(targetSlot, extra);
     // 이 버튼엔 팝업이 없어 배너를 못 띄우니, 실패했을 때만 alert로 알림(성공/스킵은 조용히 넘어감)
     if (!ok) alert('접수는 승인됐지만 비즈핏 캐시차감에 실패했습니다.\n네트워크/세션 문제일 수 있으니 잠시 후 다시 승인해보거나 개발자에게 알려주세요.');
-    if (guideErr) alert('가이드를 불러오지 못해 배지 없이 승인했습니다: ' + guideErr.message);
     closeOverlayAndRefresh();
   };
+  // 가이드_접수 토글(전역)을 잠깐 끄고 계산 — 동기 함수에만 씀
+  function withoutGuide(fn) {
+    const g = guideModeOn; guideModeOn = false;
+    try { return fn(); } finally { guideModeOn = g; }
+  }
 
   /* window.bulkApprove = async function() {
     const keys = getCheckedKeys();
@@ -1299,7 +1302,7 @@ window.toggleProdPanel = function(e) {
 
   // 델타/네이비 공용 "블로그 URL" 적용 버튼 — 플레이스 URL의 "리뷰 > 블로그 리뷰" 탭에서 URL을 분할 개수만큼 자동으로 가져와 채운다.
   // 분할 개수는 두 상품이 각자 설정을 따로 가짐(pm-blogsplit) — 활성화된 쪽(델타 우선) 설정값을 사용.
-  const BLOG_TAG_SEARCH_PROXY = 'https://blog-tag-search-938928195180.asia-northeast3.run.app';
+  const BLOG_TAG_SEARCH_PROXY = 'https://higherad-direct-proxy-938928195180.asia-northeast3.run.app';
   window.applyDeltaBlogUrls = async function(key) {
     const s = allSlots.find(x => x._key === key);
     const input = document.getElementById('detail-delta-url-input');
@@ -6150,9 +6153,9 @@ window.toggleProdPanel = function(e) {
 
   // ── 🛑 강제종료 (버튼은 index.html 상단, 순위표 오른쪽) ──
   // 엑셀(영업점/MID/Pcode, 강제종료 열이 있으면 O인 행만 — tools 임시중단_강제종료_양식 그대로 사용 가능)을 올려
-  // macro-7-bizfit-stop /process-stream으로 비즈핏 강제종료(임시중단 없음). 성공한 MID는 HI.forceStopMid로
+  // higherad-bizfit-stop /process-stream으로 비즈핏 강제종료(임시중단 없음). 성공한 MID는 HI.forceStopMid로
   // 진행 중 캠페인을 강제종료 상태로 바꾸고 남은 기간 재접수 캠페인 생성. 같은 MID에 예약(split)이 있으면 실행 불가
-  const BIZFIT_STOP_SERVER = 'https://macro-7-bizfit-stop-938928195180.asia-northeast3.run.app';
+  const BIZFIT_STOP_SERVER = 'https://higherad-bizfit-stop-938928195180.asia-northeast3.run.app';
   function loadXlsx() {
     if (window.XLSX) return Promise.resolve();
     return new Promise((ok, fail) => {
