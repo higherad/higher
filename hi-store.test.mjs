@@ -167,7 +167,7 @@ assert.equal(tree.hi.campaigns.closed[f1._key].endDate, '2026-10-14', '종료일
 
 // ── 일 목표 분할 표시: 승인 때 고정한 값이 있을 때만 ──
 assert.equal(HI.dailySplitHtml({ dailyTarget: 100, days: 3 }), '', '승인 전(고정값 없음)은 표시 안 함');
-const splitHtml = HI.dailySplitHtml({ dailyTarget: 100, days: 3, yupflTarget: 35, deductTarget: 90 });
+const splitHtml = HI.dailySplitHtml({ dailyTarget: 100, days: 3, yupflTarget: 35, deductTarget: 90, createdAt: '2026-10-01T00:00:00.000Z' });
 assert.ok(splitHtml.includes('일반 35') && splitHtml.includes('유입플 35') && splitHtml.includes('차감 30'), splitHtml);
 
 // ── 순위키워드 분류: 만들 때(대기부터) 저장, 없으면 접수·승인 때 1회, 이후 설정이 바뀌어도 유지 ──
@@ -190,16 +190,17 @@ assert.equal(tree.hi.campaigns.live[k1._key].category, '맛집', '이미 있으�
 
 // 정산 금액 = 전체 × 리워드 단가(유입플 몫 포함), 리워드·유입플 열은 각 단가(금액에 안 더함)
 const u1 = { unitPrice: 30, yupflPrices: { 풀스택: 20 } };
-assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflAmount: 5 }, u1), { amount: 6000, reward: 5995, yupfl: 5, missing: [], byVendor: { '업체 분류 전': 5 } });
+assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflAmount: 5 }, u1), { amount: 6000, reward: 5995, yupfl: 5, missing: [], byVendor: { 프리미엄: 5 } });
 assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflByVendor: { 풀스택: 28, 제이엔: 12 } }, u1),
   { amount: 100 * 2 * 30, reward: 60 * 2 * 30, yupfl: 28 * 2 * 20, missing: ['제이엔'], byVendor: { 풀스택: 28 * 2 * 20, 제이엔: 0 } });
 assert.equal(HI.slotBill({ dailyTarget: 10, days: 1, unitPrice: 50, yupflByVendor: { 풀스택: 4 } }, u1).amount, 10 * 50, '캠페인 고정 단가 우선');
 
 // 지출: 리워드 = 전체 − 유입플 − 차감 수량 × 리워드 원가, 유입플 업체별 × 업체 원가(없으면 0 + missing), 차감 = 정산 차감 금액
 const costs = { reward: 10, yupfl: { 풀스택: 8 } };
-assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 2, deductTarget: 20, deductAmount: 600, yupflByVendor: { 풀스택: 28, 제이엔: 12 } }, costs),
-  { rewardQty: 200 - 80 - 20, reward: 1000, yupfl: { 풀스택: 448, 제이엔: 0 }, total: 1448, deduct: 600, missing: ['제이엔'] });
-assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 1, yupflTarget: 40 }, costs).yupfl, { 풀스택: 320 }, '업체 분류 전 유입플은 풀스택');
+assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 2, deductTarget: 20, deductAmount: 600, yupflByVendor: { 풀스택: 28, 제이엔: 12 }, createdAt: '2026-10-01T00:00:00.000Z' }, costs),
+  { rewardQty: 200 - 80 - 20, yupflDay: { 풀스택: 28, 제이엔: 12 }, reward: 1000, yupfl: { 풀스택: 448, 제이엔: 0 }, total: 1448, deduct: 600, missing: ['제이엔'] });
+assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 1, yupflTarget: 40, createdAt: '2026-10-01T00:00:00.000Z' }, costs).yupfl, { 풀스택: 320 }, '업체 분류 전 유입플은 풀스택');
+assert.deepEqual(HI.slotCost({ dailyTarget: 100, days: 1, yupflTarget: 40 }, costs).missing, ['프리미엄'], '9/23 이전 예전 분할은 프리미엄 원가');
 assert.deepEqual(HI.slotCost({ dailyTarget: 10, days: 1 }, {}).missing, ['리워드']);
 assert.equal(HI.slotCost({ dailyTarget: 10, days: 1 }, { reward: [{ name: '리워드', price: 7 }, { name: '블랙', price: 99 }] }).reward, 70, '리워드 원가는 첫 줄');
 assert.deepEqual(HI.yupflDaily([
