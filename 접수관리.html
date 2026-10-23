@@ -382,7 +382,7 @@
         <div class="ratio-note" id="pm-kw-note"></div>
       </div>
       <div class="pmf">
-        <label>일 목표 배분</label>
+        <label id="pm-ratio-label">일 목표 배분</label>
         <div class="ratio-grid" id="pm-ratio-grid"></div>
         <div class="ratio-note" id="pm-ratio-note"></div>
       </div>
@@ -1644,7 +1644,8 @@ window.toggleProdPanel = function(e) {
 
     if (!isFixed) document.getElementById('pm-kw-grid').innerHTML = makeGrid(actives, 'kwPct', 'pm-kwpct-');
 
-    // 유입플 상세는 업체별 비율만(유입플 전체 몫은 일반 상품 '일 목표 배분'의 업체 줄 합계로 정함)
+    // 유입플 상세는 업체별 비율만(유입플 전체 몫은 일반 상품 '일 목표 배분'의 업체 줄 합계로 정함) — '일 목표 배분' 제목도 숨김
+    document.getElementById('pm-ratio-label').style.display = p.classifyOnly ? 'none' : '';
     document.getElementById('pm-ratio-grid').innerHTML = p.classifyOnly ? vendorEditorHtml(yupflVendors())
       : isDeduct
       ? `<div class="ratio-item" style="grid-column:1/-1;">
