@@ -108,15 +108,15 @@ export async function openRankPopup(slot) {
   };
   overlay.innerHTML = `
     <div class="rank-modal-box">
-      <div style="margin-bottom:4px;">
-        <div class="rank-modal-title">일자별 순위</div>
-        <div class="rank-modal-sub">${slot.storeName} &nbsp;·&nbsp; MID: ${slot.mid} &nbsp;·&nbsp; 순위키워드: <strong>${slot.rankKeyword || '-'}</strong></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:4px;">
+        <div>
+          <div class="rank-modal-title">일자별 순위</div>
+          <div class="rank-modal-sub">${slot.storeName} &nbsp;·&nbsp; MID: ${slot.mid} &nbsp;·&nbsp; 순위키워드: <strong>${slot.rankKeyword || '-'}</strong></div>
+        </div>
+        <button class="btn-cancel" style="flex-shrink:0" onclick="this.closest('.modal-overlay').remove()">닫기</button>
       </div>
       <div id="rank-table-area">
         <div class="loading-wrap"><div class="spinner"></div> 순위 데이터 불러오는 중...</div>
-      </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:16px;">
-        <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">닫기</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
