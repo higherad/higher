@@ -142,7 +142,7 @@
     return s.isRequeue && s.status !== 'requeue' && html.startsWith('<span') ? html.replace(/>([^<]+)<\/span>$/, '>재접수 | $1</span>') : html;
   }
 
-  // ── 종료예정(D-Day) 계산 — 종료예정.html에서 흡수 ─────────────
+  // ── 종료예정(D-Day) 계산 ─────────────
   function getDday(endDate) {
     const today = new Date(); today.setHours(0,0,0,0);
     const end   = new Date(endDate); end.setHours(0,0,0,0);
