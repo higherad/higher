@@ -916,9 +916,14 @@ window.toggleProdPanel = function(e) {
 
   // ── 접수 처리 ─────────────────────────────────────────────
   // 승인 건을 대기·접수로 되돌리면 승인 때 붙인 배지·유입플 분류를 지움 — 다시 승인하면 그때 값으로 새로 계산(캐시 차감은 수동 처리)
-  const unapprovePatch = key => allSlots.find(x => x._key === key)?.status === 'active'
-    ? { campaignType: null, campaignTypeShown: null, fullstackType: null, fullstackShown: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null,
-        ...(allSlots.find(x => x._key === key)?.yupflRatio?.auto ? { yupflRatio: null } : {}) } : {};
+  // 종료(분할 대기취소 등)에서 다시 접수할 때도 같은 값 + 예약실패·등록 완료 기록까지 지움 — 새 캠페인처럼 다시 배분·등록
+  const unapprovePatch = key => {
+    const s = allSlots.find(x => x._key === key);
+    if (s?.status !== 'active' && s?.status !== 'expired') return {};
+    return { campaignType: null, campaignTypeShown: null, fullstackType: null, fullstackShown: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null,
+      ...(s.yupflRatio?.auto ? { yupflRatio: null } : {}),
+      ...(s.status === 'expired' ? { scheduleFailed: null, normalDoneProducts: null } : {}) };
+  };
   window.acceptOne = async function(key) {
     const patch = { status: 'accepted', ...unapprovePatch(key) };
     await HI.updateCampaign(key, patch);
@@ -994,8 +999,9 @@ window.toggleProdPanel = function(e) {
       HI.savePlaceKeywords({ storeName: s.storeName || '', mid: s.mid, rankKeyword: s.rankKeyword || '', a, b })
         .catch(e => alert(`플레이스 키워드 시트 기입 실패: ${s.storeName || s.mid}\n${e.message}`));
     }
-    await HI.updateCampaign(key, { status: 'accepted' });
-    updateLocalSlot(key, { status: 'accepted' });
+    const patch = { status: 'accepted', ...unapprovePatch(key) };
+    await HI.updateCampaign(key, patch);
+    updateLocalSlot(key, patch);
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
     _detailOpen = false;
