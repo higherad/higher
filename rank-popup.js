@@ -45,6 +45,7 @@ function injectRankPopupStyle() {
     .rank-down { color:#2563eb; }
     .rank-same { color:var(--text); }
     .rank-empty { text-align:center; padding:40px 0; color:var(--muted); font-size:13px; }
+    .rank-modal-box .btn-cancel { padding:8px 20px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; font-family:inherit; }
   `;
   document.head.appendChild(st);
 }
