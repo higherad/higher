@@ -3757,6 +3757,8 @@ window.toggleProdPanel = function(e) {
   }
   const FS_TUNE_TEXT = { natural: '검색 시간대', business: '영업시간', even: '종일 고르게', short: '3초', normal: '5초', long: '9초',
     longtail: '롱테일', filter: '필터 검색어' };
+  // 가이드 풀스택 비율 합계(%) — 100이 아니면 그 행 접수 안 함(시트는 100 초과만 입력을 막고 미만은 빨간 표시)
+  const fsPctOf = rule => Math.round((rule.full || []).reduce((t, p) => t + p.ratio, 0) * 100);
   function buildFullstackRows(slots) {
     return slots.flatMap(s => {
       const f = s.yupflTarget != null ? s : yupflFieldsFor(s);
@@ -3769,7 +3771,7 @@ window.toggleProdPanel = function(e) {
         url: s.url || '', rankKeyword: s.rankKeyword || '',
         daily, days: s.days || 0, start: s.startDate || '', variants,
         err: !rule ? '가이드 분류·구간 없음' : unknownFull(rule).length ? `가이드 풀스택 상품 이름 모름: ${unknownFull(rule).join(', ')}`
-          : fsTuneOf(rule.tune).err || (!variants.length ? '가이드 풀스택 비율 없음' : '') }];
+          : fsTuneOf(rule.tune).err || (!variants.length ? '가이드 풀스택 비율 없음' : fsPctOf(rule) !== 100 ? `가이드 풀스택 비율 합계 ${fsPctOf(rule)}%` : '') }];
     });
   }
   const fsVariantText = vs => vs.map(v => `${FULL_PRODS.find(([, p]) => p === v.preset)[0]} ${v.share}%${v.scenario?.login ? '(로그인)' : ''}`).join(' · ')
