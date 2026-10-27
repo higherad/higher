@@ -667,28 +667,6 @@ const HI = {
     await authReady;
     return (await runTransaction(ref(db, `${P.claims}/flags/${name}`), cur => cur ? undefined : true)).committed;
   },
-  // 비즈핏 등록 선점 — 같은 캠페인·상품(leg)을 두 창이 동시에 접수하면 비즈핏에 두 번 등록·결제됨.
-  // 같은 탭은 재시도 허용, 10분 지나면 만료. 선점 못 한 행은 onBlocked로 넘기고 제외
-  async claimRegisterRows(rows, leg, onBlocked = () => {}) {
-    await authReady;
-    const keys = [...new Set(rows.map(r => r._slotKey).filter(Boolean))];
-    const ok = new Set();
-    await Promise.all(keys.map(async k => {
-      const r = await runTransaction(ref(db, `${P.claims}/register/${k}/${leg}`), cur =>
-        (cur && cur.tab !== TAB_ID && Date.now() - cur.at < CLAIM_TTL_MS) ? undefined : { tab: TAB_ID, at: Date.now() });
-      if (r.committed) ok.add(k);
-    }));
-    return rows.filter(r => {
-      if (!r._slotKey || ok.has(r._slotKey)) return true;
-      onBlocked(r);
-      return false;
-    });
-  },
-  // 이 탭이 잡은 등록 선점 풀기 — 처리가 끝나 완료 기록(접수 기록 등)이 남은 뒤라 다른 창이 다시 보내도 건너뜀. 다른 탭 선점은 안 건드림
-  async releaseRegisterRows(keys, leg) {
-    await authReady;
-    await Promise.all(keys.map(k => runTransaction(ref(db, `${P.claims}/register/${k}/${leg}`), cur => (cur && cur.tab === TAB_ID) ? null : undefined)));
-  },
   // 비즈핏 캐시 차감 선점 — 서버 /bizfit-refund는 받은 요청을 전부 실제 차감. force = 사람이 '재시도'(결과 불명 선점 덮어씀)
   async claimBizfitDeduct(keys, force = false) {
     await authReady;
@@ -721,7 +699,7 @@ const HI = {
   async releaseCharge(keys) {
     await update(ref(db), Object.fromEntries(keys.map(k => [`${P.chargeClaims}/${k}`, null])));
   },
-  // 상세 잠금 — 같은 staffId면 통과(같은 계정 두 탭은 못 막음, 등록 단계는 claimRegisterRows가 막음). 창이 닫히면 자동 해제
+  // 상세 잠금 — 같은 staffId면 통과(같은 계정 두 탭은 못 막음). 창이 닫히면 자동 해제
   async acquireDetailLock(key) {
     await authReady;
     const cu = HI.getCurrentUser() || {};

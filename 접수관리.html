@@ -3839,7 +3839,7 @@ window.toggleProdPanel = function(e) {
       closeBtn.disabled = true;
       const { otherBtns } = lockOtherSubmitTabs(overlay, 'fsub');
       pending.forEach(r => { r._statusTd.innerHTML = '<span style="color:var(--info);">⏳</span>'; });
-      const { ok: claimed, blocked } = await claimRowsForRegister(pending, 'fullstack');
+      const { ok: claimed, blocked } = await priceCheckRows(pending);
       let okTotal = 0, failTotal = blocked;
       const doneKeys = new Set(rows.filter(r => r._fsSubmitted).map(r => r._slotKey));
       for (const r of claimed) { // 한 줄씩 — 서버가 줄마다 보내기 직전에 사이트를 다시 확인
@@ -3862,8 +3862,6 @@ window.toggleProdPanel = function(e) {
           r._statusTd.innerHTML = `<span style="color:${warn ? '#b45309' : 'var(--danger)'};cursor:help" title="${escProd(x.memo || '')}">${warn ? '⚠️' : '❌'} ${escProd(x.result)}</span>`;
         }
       }
-      // 선점 바로 풀기 — '확인 필요'·실패를 새로고침 뒤 곧바로 다시 눌러도 '다른 창에서 접수 중'으로 10분 막히지 않게(들어간 건은 사이트 재확인으로 건너뜀)
-      HI.releaseRegisterRows(claimed.map(r => r._slotKey), 'fullstack').catch(e => console.warn('풀스택 선점 해제 실패(10분 뒤 자동 만료):', e));
       // 애드로그는 풀스택만 끝나도 바로(일반 탭을 기다리느라 상태가 안 바뀌어도) — 이미 등록된 건 건너뜀
       if (adlogAutoOn) await autoRegisterAdlog(claimed.filter(r => r._fsSubmitted).map(r => r._slot));
       if (gate) { gate.fullstackKeys = doneKeys; await gate.tryApprove(); }
@@ -4826,9 +4824,8 @@ window.toggleProdPanel = function(e) {
   // 한 plan(대행사별 rows)을 실제로 비즈핏에 등록 — UI는 손대지 않고 결과 집계만 반환.
   // executeSubmit(단일 탭)과 executeBlogSubmit(델타+네이비 동시 제출)이 공유. 같은 BizFit 계정은
   // 동시 요청 시 세션 충돌 위험이 있어 grade 단위는 순차
-  // 같은 캠페인을 다른 창/직원이 동시에 접수하면 비즈핏에 두 번 등록·결제됨 — 선점 못 한 행은 빼고 표시(HI.claimRegisterRows)
   // 정산에 쓰는 대행사 단가(리워드·이 캠페인에 수량이 있는 유입플 업체)가 회원관리에 없는 행도 빼고 표시 — 일반·예약·풀스택 접수 공통
-  async function claimRowsForRegister(rows, leg) {
+  async function priceCheckRows(rows) {
     let blocked = 0;
     await userBizfitUidReady;
     const missOf = new Map();
@@ -4847,18 +4844,7 @@ window.toggleProdPanel = function(e) {
       if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="회원관리에서 ${escProd(slot.userId)} ${escProd(miss.join('·'))} 단가 설정">❌ 대행사 단가 설정 필요</span>`;
       return false;
     });
-    const ok = await HI.claimRegisterRows(rows, leg, r => {
-      blocked++;
-      if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--danger);" title="다른 창 또는 다른 직원이 같은 캠페인을 접수 중입니다">⛔ 다른 창에서 접수 중</span>';
-    });
-    return { ok, blocked };
-  }
-  // 실패로 끝난 캠페인의 선점 풀기 — 고친 뒤 새로고침·다른 창에서 다시 접수해도 '다른 창에서 접수 중'으로 10분 막히지 않게.
-  // 성공 행이나 응답 없이 끊긴 행(들어갔을 수 있음)이 있는 캠페인은 유지(10분 뒤 만료)
-  function releaseFailedClaims(rows, leg) {
-    const keep = new Set(rows.filter(r => r._rowOk === true || r._sentUnknown).map(r => r._slotKey));
-    const keys = [...new Set(rows.map(r => r._slotKey).filter(k => k && !keep.has(k)))];
-    if (keys.length) HI.releaseRegisterRows(keys, leg).catch(e => console.warn('선점 해제 실패(10분 뒤 자동 만료):', e));
+    return { ok: rows, blocked };
   }
 
   async function submitPlanRows(plan, overlay, gate, legKey, adrole) {
@@ -4873,7 +4859,6 @@ window.toggleProdPanel = function(e) {
       // 한 캠페인(슬롯)에 활성 상품이 여러 개면 상품별로 행이 나뉘어 각각 성공/실패가 갈릴 수 있음.
       // 슬롯의 모든 상품행이 성공(또는 기존에 이미 완료)한 경우에만 그 슬롯을 승인 처리한다 — 일부라도 실패하면 승인 보류.
       async function finalizeSlotApprovals() {
-        releaseFailedClaims(p.rows.filter(r => !r._normalSubmitted), legKey);
         const bySlot = new Map();
         p.rows.forEach(r => {
           if (!r._slotKey) return;
@@ -4916,7 +4901,7 @@ window.toggleProdPanel = function(e) {
         }
       });
 
-      const { ok: validRows, blocked } = await claimRowsForRegister(pendingRows.filter(r => !r._kwFail), legKey);
+      const { ok: validRows, blocked } = await priceCheckRows(pendingRows.filter(r => !r._kwFail));
       failTotal += blocked;
 
       if (!validRows.length) {
@@ -4983,7 +4968,6 @@ window.toggleProdPanel = function(e) {
         } else {
           failTotal += grpRows.length;
           agencyFail += grpRows.length;
-          if (result.unknown) grpRows.forEach(r => { r._sentUnknown = true; });
           grpRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="${escProd(result.message||'')}">❌ 실패</span>`; });
         }
       }
@@ -5061,18 +5045,18 @@ window.toggleProdPanel = function(e) {
         const f = truncateAndValidateRow(r, scheduleKwSplit);
         if (f) { r._kwFail = true; mark([r], fail(f.label, f.title)); }
       });
-      const { ok: validRows, blocked } = await claimRowsForRegister(pendingRows.filter(r => !r._kwFail), legKey);
+      const { ok: validRows, blocked } = await priceCheckRows(pendingRows.filter(r => !r._kwFail));
       if (!validRows.length) { failTotal += pendingRows.length; return; }
       failTotal += blocked;
 
       const account = p.realAg ? await fetchBizfitAccount(p.realAg) : null;
-      if (!account) { failTotal += validRows.length; mark(validRows, fail('❌ 계정 미등록')); releaseFailedClaims(validRows, legKey); return; }
+      if (!account) { failTotal += validRows.length; mark(validRows, fail('❌ 계정 미등록')); return; }
 
       let gi;
       try {
         gi = await callBizfitProxy('/grade-info', { domain: BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: BIZFIT_TAB, adrole: adrole || undefined, rawData: [] });
       } catch(e) { gi = { success:false }; }
-      if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) { failTotal += validRows.length; mark(validRows, fail('❌ 등급조회 실패', gi.message || '')); releaseFailedClaims(validRows, legKey); return; }
+      if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) { failTotal += validRows.length; mark(validRows, fail('❌ 등급조회 실패', gi.message || '')); return; }
 
       const gradeNames = new Set(gi.gradeGroups.map(g => g.gradeName));
       const unmatched = validRows.filter(r => !gradeNames.has(r.상품등급명));
@@ -5084,7 +5068,6 @@ window.toggleProdPanel = function(e) {
       const held = matched.filter(r => failedSlots.has(r._slotKey));
       mark(held, fail('⛔ 보류', '같은 캠페인의 다른 상품이 실패해 예약하지 않음 — 실패 사유를 고친 뒤 다시 접수'));
       failTotal += held.length;
-      releaseFailedClaims(validRows.filter(r => failedSlots.has(r._slotKey)), legKey);
       const goRows = matched.filter(r => !failedSlots.has(r._slotKey));
       scheduledRows.push(...goRows);
 
