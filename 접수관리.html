@@ -3302,17 +3302,22 @@ window.toggleProdPanel = function(e) {
     };
     // ponytail: 탭끼리 같은 행 = 같은 분류·구간(리워드 탭엔 총 타수 열이 없어 행 위치로 맞춤) — 탭마다 행 순서가 달라지면 분류·구간 키로 매칭
     const of = (t, i) => t.prodCol < 0 ? [] : pairs((t.v[i] || []).slice(t.prodCol));
+    // 풀스택 탭 '세부조정(언제 오나)' 열 — 분류 첫 행에만 적혀 있어(병합) 같은 분류 안에서 이어 씀
+    const fsTab = tabs.find(t => t.title === '풀스택');
+    const timeCol = fsTab ? (fsTab.v[1] || []).findIndex(x => String(x).replace(/\s+/g, '').startsWith('세부조정')) : -1;
     const rules = [];
-    let cat = '';
+    let cat = '', timing = '';
     ranged.v.forEach((row, i) => {
       if (i < 2) return;
-      if (String(row[0] ?? '').trim()) cat = String(row[0]).trim();
+      if (String(row[0] ?? '').trim()) { cat = String(row[0]).trim(); timing = ''; }
+      const tv = timeCol >= 0 ? (fsTab.v[i] || [])[timeCol] : '';
+      if (String(tv ?? '').trim()) timing = tv;
       const range = String(row[ranged.rangeCol] ?? '').trim();
       const nums = (range.match(/\d+/g) || []).map(Number);
       if (!cat || !nums.length) return;
       const vendors = Object.fromEntries(tabs.slice(1).map(t => [t.title, of(t, i)]));
       rules.push({ cat, range, min: nums[0], max: range.includes('이상') || nums.length < 2 ? Infinity : nums[1],
-        reward: of(tabs[0], i), vendors, full: vendors['풀스택'] || [] });
+        reward: of(tabs[0], i), vendors, full: vendors['풀스택'] || [], timing });
     });
     return rules;
   }
@@ -3704,6 +3709,20 @@ window.toggleProdPanel = function(e) {
   // 로그인 = 가이드 이름에 "로그인 O"·"로그인 한 사람"이 있고 검색 유입 방식일 때만(저장·리뷰·지도는 사이트 프리셋이 원래 로그인)
   // 가이드 칸 작성법 = 시트 풀스택 탭 B1 메모(접수가이드_gas Code.js FULL_NOTE) — 여기 이름 규칙을 바꾸면 같이 고칠 것
   const unknownFull = rule => (rule?.full || []).filter(p => !FULL_PRODS.some(([k]) => k === shortFull(p.name))).map(p => p.name);
+  // 가이드 세부조정 칸 → 사이트 '언제 오나'. 비어 있으면 null(사이트 기본), 모르는 값이면 {err}
+  // '20:00~23:00'·'20~23시' = 직접 고르기 20~23시, 시각 하나(시트 시간 값 0.83 포함)면 끝은 23시, 이름은 사이트 선택지 이름으로
+  function fsTimingOf(v) {
+    if (v === '' || v == null) return null;
+    if (typeof v === 'number') v = `${Math.round(v * 24) % 24}`;
+    const s = String(v).trim();
+    if (/검색하는/.test(s)) return { timing: 'natural' };
+    if (/영업/.test(s)) return { timing: 'business' };
+    if (/고르게|종일/.test(s)) return { timing: 'even' };
+    const h = [...s.matchAll(/(\d{1,2})\s*(?::\d{2}|시)?/g)].map(m => +m[1] % 24);
+    if (!h.length) return { err: `가이드 세부조정 모름: ${s}` };
+    const from = h[0], to = h.length > 1 ? h[1] : 23;
+    return from === to ? { err: `가이드 세부조정 시작·끝 시각이 같음: ${s}` } : { timing: 'custom', from, to };
+  }
   function fullstackVariants(rule) {
     // 시트 분류 엑셀처럼 상품별 %를 정수로 반올림한 뒤 합 100으로 다시 나눔(반올림 차이는 마지막 방식에)
     const mix = FULL_PRODS.map(([k, preset, canLogin]) => {
@@ -3713,8 +3732,14 @@ window.toggleProdPanel = function(e) {
     const total = mix.reduce((a, m) => a + m.pct, 0);
     const shares = mix.map(m => Math.round(m.pct * 100 / total));
     if (shares.length) shares[shares.length - 1] += 100 - shares.reduce((a, b) => a + b, 0);
-    return mix.map((m, i) => ({ key: 'ABCDEFGH'[i], preset: m.preset, share: shares[i], ...(m.login ? { scenario: { login: 'login' } } : {}) }));
+    const t = fsTimingOf(rule?.timing);
+    return mix.map((m, i) => {
+      const scenario = { ...(m.login ? { login: 'login' } : {}), ...(t?.timing ? { timing: t.timing } : {}) };
+      return { key: 'ABCDEFGH'[i], preset: m.preset, share: shares[i], ...(Object.keys(scenario).length ? { scenario } : {}),
+        ...(t?.timing === 'custom' ? { timing_from: t.from, timing_to: t.to } : {}) };
+    });
   }
+  const fsTimingText = { natural: '검색 시간대', business: '영업시간', even: '종일 고르게' };
   function buildFullstackRows(slots) {
     return slots.flatMap(s => {
       const f = s.yupflTarget != null ? s : yupflFieldsFor(s);
@@ -3727,10 +3752,11 @@ window.toggleProdPanel = function(e) {
         url: s.url || '', rankKeyword: s.rankKeyword || '',
         daily, days: s.days || 0, start: s.startDate || '', variants,
         err: !rule ? '가이드 분류·구간 없음' : unknownFull(rule).length ? `가이드 풀스택 상품 이름 모름: ${unknownFull(rule).join(', ')}`
-          : !variants.length ? '가이드 풀스택 비율 없음' : '' }];
+          : fsTimingOf(rule.timing)?.err || (!variants.length ? '가이드 풀스택 비율 없음' : '') }];
     });
   }
-  const fsVariantText = vs => vs.map(v => `${FULL_PRODS.find(([, p]) => p === v.preset)[0]} ${v.share}%${v.scenario ? '(로그인)' : ''}`).join(' · ');
+  const fsVariantText = vs => vs.map(v => `${FULL_PRODS.find(([, p]) => p === v.preset)[0]} ${v.share}%${v.scenario?.login ? '(로그인)' : ''}`).join(' · ')
+    + (vs[0]?.timing_from != null ? ` · ${vs[0].timing_from}~${vs[0].timing_to}시` : vs[0]?.scenario?.timing ? ` · ${fsTimingText[vs[0].scenario.timing]}` : '');
   // 같은 MID·기간인 다른 캠페인 중 이미 풀스택을 넣은 수 — 서버는 사이트 주문이 이보다 많을 때만 '이미 있음'으로 건너뜀
   // (같은 업체를 순위키워드별로 여러 캠페인 받는 경우 두 번째도 접수되게). 최신 allSlots 기준(이번 접수 중 앞 행 기록 포함)
   const fsAllowed = r => allSlots.filter(c => c._key !== r._slotKey && c.mid === r.mid && c.fullstackOrder && c.status !== 'deleted'
