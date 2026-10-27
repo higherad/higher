@@ -6017,7 +6017,8 @@ window.toggleProdPanel = function(e) {
           const dayGroups = kwByGrade[g.ckey] || [];
           if (dayGroups.length) {
             const idx = bucketIdxByGrade[g.ckey] || 0;
-            kwOverride = { 검색키워드: (dayGroups[idx % dayGroups.length] || []).join(',') };
+            // 회차가 적으면 한 그룹이 50개를 넘을 수 있어 비즈핏 1회 등록 한도(50개)로 자름 — splitRowBySchedule과 같음
+            kwOverride = { 검색키워드: (dayGroups[idx % dayGroups.length] || []).slice(0, 50).join(',') };
             bucketIdxByGrade[g.ckey] = idx + 1;
           }
         }
