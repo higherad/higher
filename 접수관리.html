@@ -3294,8 +3294,8 @@ window.toggleProdPanel = function(e) {
       const tuneStart = h.findIndex(x => x.startsWith('세부조정'));
       return { title: t.title.trim(), v, rangeCol: h.indexOf('총타수'), prodCol: h.indexOf('상품'), tune, prodEnd: tuneStart >= 0 ? tuneStart : undefined };
     });
-    const ranged = tabs.find(t => t.rangeCol >= 0);
-    if (!ranged) throw new Error("가이드 시트에서 '총 타수' 열이 있는 탭을 찾지 못했습니다.");
+    const ranged = tabs.filter(t => t.rangeCol >= 0);
+    if (!ranged.length) throw new Error("가이드 시트에서 '총 타수' 열이 있는 탭을 찾지 못했습니다.");
     const pairs = row => {
       const out = [];
       for (let c = 0; c + 1 < row.length; c += 2) {
@@ -3305,25 +3305,37 @@ window.toggleProdPanel = function(e) {
       }
       return out;
     };
-    // ponytail: 탭끼리 같은 행 = 같은 분류·구간(구간은 총 타수 열이 있는 첫 탭에서 읽고 나머지 탭은 행 위치로 맞춤) — 탭마다 행 순서가 달라지면 분류·구간 키로 매칭
-    const of = (t, i) => t.prodCol < 0 ? [] : pairs((t.v[i] || []).slice(t.prodCol, t.prodEnd));
-    // 풀스택 탭 세부조정 — 분류 첫 행에만 적혀 있어(병합) 같은 분류 안에서 이어 씀
+    const of = (t, i) => t.prodCol < 0 || i == null ? [] : pairs((t.v[i] || []).slice(t.prodCol, t.prodEnd));
+    // 탭마다 자기 구분·총 타수로 행을 찾음(키 = 분류|구간 시작 숫자) — 탭끼리 행 순서·개수가 달라도 되고, 한 탭을 잘못 고쳐도 그 탭만 영향
+    // A열 구분·세부조정은 분류 첫 행에만 적혀 있어(병합) 같은 분류 안에서 이어 씀. 총 타수 열이 없는 탭만 첫 탭과 같은 행 위치로
+    const keyOf = (cat, min) => `${cat}|${min}`;
+    const rowsOf = t => {
+      const out = new Map();
+      let cat = '', tune = {};
+      t.v.forEach((row, i) => {
+        if (i < 2) return;
+        if (String(row[0] ?? '').trim()) { cat = String(row[0]).trim(); tune = {}; }
+        for (const [k, c] of Object.entries(t.tune)) {
+          if (c >= 0 && String(row[c] ?? '').trim()) tune = { ...tune, [k]: row[c] };
+        }
+        const range = String(row[t.rangeCol] ?? '').trim();
+        const nums = (range.match(/\d+/g) || []).map(Number);
+        const key = keyOf(cat, nums[0]);
+        if (cat && nums.length && !out.has(key)) out.set(key, { cat, range, min: nums[0],
+          max: range.includes('이상') || nums.length < 2 ? Infinity : nums[1], i, tune });
+      });
+      return out;
+    };
+    const idx = new Map(ranged.map(t => [t, rowsOf(t)]));
+    const keys = [...new Set(ranged.flatMap(t => [...idx.get(t).keys()]))];
     const fsTab = tabs.find(t => t.title === '풀스택');
-    const rules = [];
-    let cat = '', tune = {};
-    ranged.v.forEach((row, i) => {
-      if (i < 2) return;
-      if (String(row[0] ?? '').trim()) { cat = String(row[0]).trim(); tune = {}; }
-      if (fsTab) for (const [k, c] of Object.entries(fsTab.tune)) {
-        const tv = c >= 0 ? (fsTab.v[i] || [])[c] : '';
-        if (String(tv ?? '').trim()) tune = { ...tune, [k]: tv };
-      }
-      const range = String(row[ranged.rangeCol] ?? '').trim();
-      const nums = (range.match(/\d+/g) || []).map(Number);
-      if (!cat || !nums.length) return;
-      const vendors = Object.fromEntries(tabs.slice(1).map(t => [t.title, of(t, i)]));
-      rules.push({ cat, range, min: nums[0], max: range.includes('이상') || nums.length < 2 ? Infinity : nums[1],
-        reward: of(tabs[0], i), vendors, full: vendors['풀스택'] || [], tune });
+    const rules = keys.map(key => {
+      const e = ranged.map(t => idx.get(t).get(key)).find(Boolean);
+      const baseI = idx.get(ranged[0]).get(key)?.i;
+      const rowIn = t => t.rangeCol >= 0 ? idx.get(t).get(key)?.i : baseI;
+      const vendors = Object.fromEntries(tabs.slice(1).map(t => [t.title, of(t, rowIn(t))]));
+      return { cat: e.cat, range: e.range, min: e.min, max: e.max, reward: of(tabs[0], rowIn(tabs[0])), vendors,
+        full: vendors['풀스택'] || [], tune: (fsTab && fsTab.rangeCol >= 0 && idx.get(fsTab).get(key)?.tune) || {} };
     });
     return rules;
   }
