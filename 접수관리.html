@@ -3305,7 +3305,7 @@ window.toggleProdPanel = function(e) {
       }
       return out;
     };
-    // ponytail: 탭끼리 같은 행 = 같은 분류·구간(리워드 탭엔 총 타수 열이 없어 행 위치로 맞춤) — 탭마다 행 순서가 달라지면 분류·구간 키로 매칭
+    // ponytail: 탭끼리 같은 행 = 같은 분류·구간(구간은 총 타수 열이 있는 첫 탭에서 읽고 나머지 탭은 행 위치로 맞춤) — 탭마다 행 순서가 달라지면 분류·구간 키로 매칭
     const of = (t, i) => t.prodCol < 0 ? [] : pairs((t.v[i] || []).slice(t.prodCol, t.prodEnd));
     // 풀스택 탭 세부조정 — 분류 첫 행에만 적혀 있어(병합) 같은 분류 안에서 이어 씀
     const fsTab = tabs.find(t => t.title === '풀스택');
