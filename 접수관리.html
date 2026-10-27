@@ -3727,7 +3727,7 @@ window.toggleProdPanel = function(e) {
   // 로그인 = 가이드 이름에 "로그인 O"·"로그인 한 사람"이 있고 검색 유입 방식일 때만(저장·리뷰·지도는 사이트 프리셋이 원래 로그인)
   // 가이드 상품·세부조정 칸 = 시트 드롭다운(데이터 확인) — 여기 이름 규칙을 바꾸면 시트 드롭다운 목록도 같이 고칠 것
   const unknownFull = rule => (rule?.full || []).filter(p => !FULL_PRODS.some(([k]) => k === shortFull(p.name))).map(p => p.name);
-  // 가이드 세부조정 칸(시트 드롭다운) → 사이트 scenario(timing·dwell·focus). 빈칸 = 그 항목 조정 안 함(사이트 기본), 모르는 값 = err(행 접수 안 함)
+  // 가이드 세부조정 칸(시트 드롭다운) → 사이트 scenario(timing·dwell·focus). 빈칸·'방식대로' = 그 항목 조정 안 함(상품 기본값), 모르는 값 = err(행 접수 안 함)
   // 시작·끝 시각('20시') = 언제 오나가 '시간대 직접 고르기'일 때만 timing_from·to(다른 값이면 무시) — 끝이 비면 23시, 끝이 시작보다 이르면 다음 날까지
   const FS_TUNE_OPTS = {
     timing: [[/검색하는/, 'natural'], [/영업/, 'business'], [/종일/, 'even'], [/직접/, 'custom']],
@@ -3740,6 +3740,7 @@ window.toggleProdPanel = function(e) {
     const out = { scenario: {} };
     for (const [k, raw] of Object.entries(tune)) {
       const v = String(raw).trim(), hit = FS_TUNE_OPTS[k].find(([re]) => re.test(v));
+      if (v === '방식대로') continue;
       if (!hit) return { err: `가이드 세부조정 모름: ${v}` };
       out.scenario[k] = hit[1];
     }
