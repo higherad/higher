@@ -2107,7 +2107,7 @@ window.toggleProdPanel = function(e) {
     [/저장/, '저장'], [/반응/, '리뷰'], [/홈페이지/, '홈페이지'], [/블로그|SNS/, '블로그'], [/길찾기/, '길찾기'], [/지도/, '지도'],
     [/둘러/, '둘러보고'], [/리뷰/, '리뷰'], [/기본/, '기본']];
   // 가이드 풀스택 탭 세부조정 열(헤더 '세부조정(…)' 공백 제거 후 포함하는 말) → 사이트 scenario 키
-  const FS_TUNE_COLS = { timing: '언제오나', dwell: '얼마나머무나', focus: '어디에쓰나' };
+  const FS_TUNE_COLS = { timing: '언제오나', from: '시작시각', to: '끝시각', dwell: '얼마나머무나', focus: '어디에쓰나' };
   const shortFull = n => (FULL_MATCH.find(([re]) => re.test(n)) || [, n])[1];
   const fullRank = n => { const i = FULL_PRODS.findIndex(([k]) => k === shortFull(n)); return i < 0 ? FULL_PRODS.length : i; };
   const fullstackOf = rule => [...rule.full].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name));
@@ -3715,25 +3715,28 @@ window.toggleProdPanel = function(e) {
   // 로그인 = 가이드 이름에 "로그인 O"·"로그인 한 사람"이 있고 검색 유입 방식일 때만(저장·리뷰·지도는 사이트 프리셋이 원래 로그인)
   // 가이드 상품·세부조정 칸 = 시트 드롭다운(데이터 확인) — 여기 이름 규칙을 바꾸면 시트 드롭다운 목록도 같이 고칠 것
   const unknownFull = rule => (rule?.full || []).filter(p => !FULL_PRODS.some(([k]) => k === shortFull(p.name))).map(p => p.name);
-  // 가이드 세부조정 칸 → 사이트 scenario(timing·dwell·focus). 빈칸 = 그 항목 조정 안 함(사이트 기본), 모르는 값 = err(행 접수 안 함)
-  // 언제 오나: '20:00~23:00'·'20~23시' = 직접 고르기 20~23시, 시각 하나(시트 시간 값 0.83 포함)면 끝은 23시. 나머지는 사이트 선택지 이름으로
+  // 가이드 세부조정 칸(시트 드롭다운) → 사이트 scenario(timing·dwell·focus). 빈칸 = 그 항목 조정 안 함(사이트 기본), 모르는 값 = err(행 접수 안 함)
+  // 시작·끝 시각('20시') = 사이트 '시간대 직접 고르기' timing_from·to — 끝이 비면 23시, 끝이 시작보다 이르면 다음 날까지
   const FS_TUNE_OPTS = {
-    timing: [[/검색하는/, 'natural'], [/영업/, 'business'], [/종일/, 'even']],
+    timing: [[/검색하는/, 'natural'], [/영업/, 'business'], [/종일/, 'even'], [/직접/, 'custom']],
     dwell: [[/잠깐|3초/, 'short'], [/보통|5초/, 'normal'], [/오래|9초/, 'long']],
     focus: [[/고르게/, 'even'], [/롱테일/, 'longtail'], [/필터/, 'filter']],
   };
-  function fsTuneOf(tune = {}) {
+  // 시각 칸 → 시(0~23). 시트가 시간 값으로 바꾼 경우(0.83 = 20시)도
+  const fsHourOf = v => typeof v === 'number' && v < 1 ? Math.round(v * 24) % 24 : +(String(v).match(/\d{1,2}/) || [NaN])[0] % 24;
+  function fsTuneOf({ from, to, ...tune } = {}) {
     const out = { scenario: {} };
     for (const [k, raw] of Object.entries(tune)) {
-      const v = typeof raw === 'number' && k === 'timing' ? `${Math.round(raw * 24) % 24}` : String(raw).trim();
-      const hit = FS_TUNE_OPTS[k].find(([re]) => re.test(v));
-      if (hit) { out.scenario[k] = hit[1]; continue; }
-      const h = k === 'timing' ? [...v.matchAll(/(\d{1,2})\s*(?::\d{2}|시)?/g)].map(m => +m[1] % 24) : [];
-      if (!h.length) return { err: `가이드 세부조정 모름: ${v}` };
-      const from = h[0], to = h.length > 1 ? h[1] : 23;
-      if (from === to) return { err: `가이드 세부조정 시작·끝 시각이 같음: ${v}` };
-      Object.assign(out, { from, to }); out.scenario.timing = 'custom';
+      const v = String(raw).trim(), hit = FS_TUNE_OPTS[k].find(([re]) => re.test(v));
+      if (!hit) return { err: `가이드 세부조정 모름: ${v}` };
+      out.scenario[k] = hit[1];
     }
+    if (from == null && to == null && out.scenario.timing !== 'custom') return out;
+    if (from == null) return { err: '가이드 세부조정 시작 시각 없음' };
+    Object.assign(out, { from: fsHourOf(from), to: to == null ? 23 : fsHourOf(to) });
+    if (isNaN(out.from) || isNaN(out.to)) return { err: `가이드 세부조정 시각 모름: ${from}~${to ?? ''}` };
+    if (out.from === out.to) return { err: '가이드 세부조정 시작·끝 시각이 같음' };
+    out.scenario.timing = 'custom';
     return out;
   }
   function fullstackVariants(rule) {
