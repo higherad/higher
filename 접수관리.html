@@ -3897,7 +3897,7 @@ window.toggleProdPanel = function(e) {
   // 완료 기록 = 캠페인 vendorOrders {업체: {at, …}} — 승인 게이트·초기화가 이걸로 판단
   const VENDOR_TABS = [
     { key: 'premium', vendor: '프리미엄', pfx: 'psub', leg: 'premiumKeys', color: '#7c3aed', btn: '접수 신청' },
-    { key: 'jn',      vendor: '제이엔',   pfx: 'jsub', leg: 'jnKeys',      color: '#c2410c', btn: '엑셀 받고 접수' },
+    { key: 'jn',      vendor: '제이엔',   pfx: 'jsub', leg: 'jnKeys',      color: '#c2410c', btn: '엑셀 받기' },
     { key: 'busan',   vendor: '부산',     pfx: 'nsub', leg: 'busanKeys',   color: '#e11d48', btn: '접수 신청' },
   ];
   const SUBMIT_TAB_KEYS = ['normal', 'charlie', 'blog', 'fullstack', ...VENDOR_TABS.map(t => t.key)];
