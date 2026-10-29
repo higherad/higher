@@ -3653,6 +3653,16 @@ window.toggleProdPanel = function(e) {
   }
 
 
+  // 풀스택·유입플 업체 탭 오류 요약 — 일반 탭(agencyIssueSummaryHtml)과 같은 모양 "OO대행사 - 사유 N건 / 사유 N건", 사유 = 행 errs
+  function rowErrSummaryHtml(rows) {
+    const byAg = new Map();
+    rows.forEach(r => (r._done ? [] : r.errs || []).forEach(e => {
+      const ag = r.agencyId || '(대행사 미지정)', m = byAg.get(ag) || new Map();
+      m.set(e, (m.get(e) || 0) + 1); byAg.set(ag, m);
+    }));
+    return [...byAg].map(([ag, m]) => `<div style="color:#dc2626;font-size:11px;margin-top:2px;">⚠️ ${escProd(ag)} - ${[...m].map(([e, n]) => `${escProd(e)} ${n}건`).join(' / ')}</div>`).join('');
+  }
+
   // 반환값 { anyFail } — 세부 경고는 이 함수가 이미 subEl에 그대로 띄우고, 여기선 유무만 모아 상단 공용 경고박스/탭 아이콘에 씀(전체 접수 신청 비활성화는 fillBody에서 탭 통합 판단)
   function wireSubmitTab({ has, plan, bodyEl, subEl, applyBtn, label, daysMultiplied=false, blogUrl=false, target, emptyMsg, onSubmit }) {
     if (!has) {
@@ -3840,13 +3850,15 @@ window.toggleProdPanel = function(e) {
           <td style="white-space:nowrap;text-align:center" id="fs-days-${r._i}">${r.days}</td>
           <td style="white-space:nowrap" id="fs-start-${r._i}">${escProd(r.start || '-')}</td>
           <td style="${ell};font-size:11px" title="${escProd(fsVariantText(r.variants))}">${escProd(fsVariantText(r.variants)) || '-'}</td>
-          <td style="text-align:center;white-space:nowrap" id="fs-st-${r._i}">${r._fsSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : r.err ? `<span style="color:var(--danger);" title="${escProd(r.err)}">❌ 가이드 없음</span>` : '-'}</td>
+          <td style="text-align:center;white-space:nowrap" id="fs-st-${r._i}">${r._fsSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : '-'}</td>
         </tr>`).join('')}</tbody></table></div>
         <div class="agency-ft"><div class="totals"></div></div></div>`;
     }).join('');
     rows.forEach(r => { r._statusTd = bodyEl.querySelector(`#fs-st-${r._i}`); });
     const pending = rows.filter(r => !r._fsSubmitted && !r.err);
-    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · 풀스택 ${rows.length}건 · 일 건수 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>`;
+    // 오류는 일반 탭처럼 대행사 머리 배지·상단 요약 줄로(상태 칸엔 안 씀)
+    rows.forEach(r => { r.errs = !r._fsSubmitted && r.err ? [r.err] : []; });
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · 풀스택 ${rows.length}건 · 일 건수 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>${rowErrSummaryHtml(rows)}`;
     if (!pending.length) { if (rows.every(r => r._fsSubmitted)) markApplyBtnDone(applyBtn); else applyBtn.disabled = true; return; }
     // 접수 결과로 오늘로 당긴 시작일·일수를 표에 반영(지난 시작일이면 서버가 오늘부터 남은 일수로 접수)
     const showPlan = (r, x) => {
@@ -3946,10 +3958,15 @@ window.toggleProdPanel = function(e) {
     if (!rows.length) { bodyEl.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">${vendor} 몫이 있는 캠페인이 없습니다.</div>`; applyBtn.disabled = true; return; }
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     const agencies = [...new Set(rows.map(r => r.agencyId || '(대행사 미지정)'))];
-    // 부산은 지난 시작일 발급 안 함(서버도 같은 검사 — 마감 22시 뒤 오늘 시작분은 서버가 막음)
-    // 프리미엄은 일반 탭과 같은 기준(검색키워드 0개·일 목표 10 미만) — 상태 칸 대신 대행사 머리 배지·상단 요약 줄로만 표시
-    rows.forEach((r, i) => { r._i = i; r.err = r._done ? '' : isPrem ? (!r.workKw || r.daily < 10 ? 'issue' : '')
-      : vendor === '부산' ? busanErr(r.daily, r.days) || (r.start < ymd(new Date()) ? '시작일 지남' : '') : ''; });
+    // 오류 표시는 일반 탭과 같은 방식 — 상태 칸이 아니라 대행사 머리 배지(오류 N건)·상단 요약 줄(rowErrSummaryHtml)
+    // 프리미엄 = 일반 기준(검색키워드 0개·일 목표 10 미만), 부산 = 100 단위·7일·지난 시작일(서버도 같은 검사 — 마감 22시 뒤 오늘 시작분은 서버가 막음)
+    rows.forEach((r, i) => {
+      r._i = i;
+      r.errs = r._done ? [] : (isPrem ? [!r.workKw && '검색키워드 0개', r.daily < 10 && '일 목표 10 미만']
+        : vendor === '부산' ? [r.daily % BUSAN_SLOT && `일 목표 ${BUSAN_SLOT} 단위 아님`, r.days !== BUSAN_DAYS && `일 수 ${BUSAN_DAYS}일 아님`, r.start < ymd(new Date()) && '시작일 지남']
+        : []).filter(Boolean);
+      r.err = r.errs.join(' / ');
+    });
     const pfx = tab.pfx;
     bodyEl.innerHTML = (isPrem ? `<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:8px;">
         <span style="font-size:12px;color:var(--text2);">미션번호 일괄 적용</span>
@@ -3980,7 +3997,7 @@ window.toggleProdPanel = function(e) {
           ${vendor === '부산' ? `<td style="white-space:nowrap">${r.start ? escProd(busanEnd(r.start)) : '-'}</td>` : ''}
           ${isPrem ? `<td style="text-align:center"><input type="number" min="0" class="${pfx}-mission" data-i="${r._i}" value="${r.mission ?? ''}" ${r._done ? 'disabled' : ''}
             ${r._guideMission ? 'title="가이드 프리미엄 탭 상품(미션 번호)"' : ''} style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;"></td>` : ''}
-          <td style="text-align:center;white-space:nowrap" id="${pfx}-st-${r._i}">${r._done ? '<span style="color:var(--accent);">✅ 완료</span>' : r.err && !isPrem ? `<span style="color:var(--danger);">❌ ${r.err}</span>` : '-'}</td>
+          <td style="text-align:center;white-space:nowrap" id="${pfx}-st-${r._i}">${r._done ? '<span style="color:var(--accent);">✅ 완료</span>' : '-'}</td>
         </tr>`; }).join('')}</tbody></table></div>
         <div class="agency-ft"><div class="totals"></div></div></div>`;
     }).join('');
@@ -3991,7 +4008,7 @@ window.toggleProdPanel = function(e) {
       if (v !== '') bodyEl.querySelectorAll(`.${pfx}-mission`).forEach(el => { if (!el.disabled && !el.value) el.value = v; });
     };
     const pending = rows.filter(r => !r._done && !r.err);
-    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · ${vendor} ${rows.length}건 · 일 수량 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>`;
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · ${vendor} ${rows.length}건 · 일 수량 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>${rowErrSummaryHtml(rows)}`;
     applyBtn.textContent = tab.btn;
     // 오류 행이 있으면 다른 탭처럼 팝업 전체 접수 신청을 막음(fillBody tabResults)
     const anyFail = rows.some(r => r.err);
