@@ -300,8 +300,9 @@
 
       await HI.updateUser(username, data);
 
-      // 캠페인 agencyId 동기화(진행 중·종료 모두 — 정산 묶음 키에 대행사명이 들어감)
-      const userSlots = allSlots.filter(s => s.userId === username);
+      // 캠페인 agencyId 동기화(진행 중·종료 모두 — 정산 묶음 키에 대행사명이 들어감). 캠페인마다 읽기+쓰기라
+      // 값이 다른 캠페인만(단가만 바꾼 저장에서 같은 값을 수천 건 다시 쓰던 지연 원인)
+      const userSlots = allSlots.filter(s => s.userId === username && s.agencyId !== agencyVal);
       await Promise.all(userSlots.map(s => HI.updateCampaign(s._key, { agencyId: agencyVal })));
       userSlots.forEach(s => { s.agencyId = agencyVal; });
 
