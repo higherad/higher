@@ -523,7 +523,7 @@
       outdated = Date.parse(res.headers.get('Last-Modified')) > loadedAt;
       // 업데이트 내용 = 지금 화면 배포 이후 커밋 메시지 첫 줄(공개 저장소라 토큰 없이 조회)
       if (outdated) changes = (await (await fetch(`https://api.github.com/repos/higherad/higher/commits?since=${new Date(loadedAt).toISOString()}`)).json())
-        .map(c => c.commit.message.split('\n')[0]);
+        .map(c => c.commit.message.split('\n')[0]).filter(m => m !== '내부 정리');
     } catch {}
   }
   const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
