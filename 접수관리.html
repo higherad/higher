@@ -2963,7 +2963,8 @@ window.toggleProdPanel = function(e) {
           else if (startDate < uploadTodayStr) errors.push('오늘 이전 시작일');
           if (!mid)             errors.push('MID 누락');
           if (note && !yupflRatio) errors.push(`비고는 리워드/${vendors.join('/')}/비율(예 50:50)만`);
-          if (yupflRatio?.vendor === '부산' && busanErr(dailyTarget || 0, days)) errors.push(busanErr(dailyTarget || 0, days));
+          const unitErr = UNIT_VENDORS.includes(yupflRatio?.vendor) && unitVendorErr(yupflRatio.vendor, dailyTarget || 0, days);
+          if (unitErr) errors.push(unitErr);
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
           return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, valid: errors.length===0, error: errors.join(' / ') };
@@ -3919,7 +3920,9 @@ window.toggleProdPanel = function(e) {
   const BUSAN_SLOT = 100, BUSAN_DAYS = 7; // 부산 슬롯 1개 = 하루 100타, 발급 7일 고정(엑셀 접수 비고 검사와 같은 값)
   // 부산 발급 종료일 = 시작일 + 6일(서버 /busan-order expiryDate와 같은 계산)
   const busanEnd = start => { const d = new Date(start + 'T00:00:00'); d.setDate(d.getDate() + BUSAN_DAYS - 1); return ymd(d); };
-  const busanErr = (daily, days) => daily % BUSAN_SLOT || days !== BUSAN_DAYS ? `부산은 일 목표 ${BUSAN_SLOT} 단위·${BUSAN_DAYS}일만` : '';
+  // 부산·제이엔은 하루 100타·7일이 기본 접수 단위 — 엑셀 일괄접수 비고 검사·접수 팝업 탭 검사 공용
+  const UNIT_VENDORS = ['부산', '제이엔'];
+  const unitVendorErr = (vendor, daily, days) => daily % BUSAN_SLOT || days !== BUSAN_DAYS ? `${vendor}은 일 목표 ${BUSAN_SLOT} 단위·${BUSAN_DAYS}일만` : '';
   function buildVendorRows(slots, vendor) {
     return slots.flatMap(s => {
       const f = s.yupflTarget != null ? s : yupflFieldsFor(s);
@@ -3961,11 +3964,11 @@ window.toggleProdPanel = function(e) {
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     const agencies = [...new Set(rows.map(r => r.agencyId || '(대행사 미지정)'))];
     // 오류 표시는 일반 탭과 같은 방식 — 상태 칸이 아니라 대행사 머리 배지(오류 N건)·상단 요약 줄(rowErrSummaryHtml)
-    // 프리미엄 = 일반 기준(검색키워드 0개·일 목표 10 미만), 부산 = 100 단위·7일·지난 시작일(서버도 같은 검사 — 마감 22시 뒤 오늘 시작분은 서버가 막음)
+    // 프리미엄 = 일반 기준(검색키워드 0개·일 목표 10 미만), 부산·제이엔 = 100 단위·7일·지난 시작일(부산은 서버도 같은 검사 — 마감 22시 뒤 오늘 시작분은 서버가 막음)
     rows.forEach((r, i) => {
       r._i = i;
       r.errs = r._done ? [] : (isPrem ? [!r.workKw && '검색키워드 0개', r.daily < 10 && '일 목표 10 미만']
-        : vendor === '부산' ? [r.daily % BUSAN_SLOT && `일 목표 ${BUSAN_SLOT} 단위 아님`, r.days !== BUSAN_DAYS && `일 수 ${BUSAN_DAYS}일 아님`, r.start < ymd(new Date()) && '시작일 지남']
+        : UNIT_VENDORS.includes(vendor) ? [r.daily % BUSAN_SLOT && `일 목표 ${BUSAN_SLOT} 단위 아님`, r.days !== BUSAN_DAYS && `일 수 ${BUSAN_DAYS}일 아님`, r.start < ymd(new Date()) && '시작일 지남']
         : []).filter(Boolean);
       r.err = r.errs.join(' / ');
     });
