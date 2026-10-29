@@ -3902,6 +3902,8 @@ window.toggleProdPanel = function(e) {
   ];
   const SUBMIT_TAB_KEYS = ['normal', 'charlie', 'blog', 'fullstack', ...VENDOR_TABS.map(t => t.key)];
   const BUSAN_SLOT = 100, BUSAN_DAYS = 7; // 부산 슬롯 1개 = 하루 100타, 발급 7일 고정(엑셀 접수 비고 검사와 같은 값)
+  // 부산 발급 종료일 = 시작일 + 6일(서버 /busan-order expiryDate와 같은 계산)
+  const busanEnd = start => { const d = new Date(start + 'T00:00:00'); d.setDate(d.getDate() + BUSAN_DAYS - 1); return ymd(d); };
   const busanErr = (daily, days) => daily % BUSAN_SLOT || days !== BUSAN_DAYS ? `부산은 일 목표 ${BUSAN_SLOT} 단위·${BUSAN_DAYS}일만` : '';
   function buildVendorRows(slots, vendor) {
     return slots.flatMap(s => {
@@ -3961,7 +3963,7 @@ window.toggleProdPanel = function(e) {
           <th style="width:110px">업체명</th><th style="width:96px">MID</th><th style="width:90px">순위키워드</th>
           ${isPrem ? '<th style="width:64px;text-align:center">작업키워드</th>' : ''}
           <th style="width:60px;text-align:right">일 수량</th>${vendor === '부산' ? '<th style="width:50px;text-align:center">슬롯</th>' : ''}
-          <th style="width:44px;text-align:center">일수</th><th style="width:78px">시작일</th>
+          <th style="width:44px;text-align:center">일수</th><th style="width:78px">시작일</th>${vendor === '부산' ? '<th style="width:78px">종료일</th>' : ''}
           ${isPrem ? '<th style="width:64px;text-align:center">미션</th>' : ''}<th style="width:76px;text-align:center">상태</th>
         </tr></thead><tbody>${rs.map(r => {
           const kwN = kwSplit(r.workKw).length;
@@ -3973,6 +3975,7 @@ window.toggleProdPanel = function(e) {
           <td style="text-align:right;white-space:nowrap;font-weight:700">${r.daily.toLocaleString()}</td>
           ${vendor === '부산' ? `<td style="text-align:center">${Math.ceil(r.daily / BUSAN_SLOT)}</td>` : ''}
           <td style="text-align:center">${r.days}</td><td style="white-space:nowrap">${escProd(r.start || '-')}</td>
+          ${vendor === '부산' ? `<td style="white-space:nowrap">${r.start ? escProd(busanEnd(r.start)) : '-'}</td>` : ''}
           ${isPrem ? `<td style="text-align:center"><input type="number" min="0" class="${pfx}-mission" data-i="${r._i}" value="${r.mission ?? ''}" ${r._done ? 'disabled' : ''}
             ${r._guideMission ? 'title="가이드 프리미엄 탭 상품(미션 번호)"' : ''} style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;"></td>` : ''}
           <td style="text-align:center;white-space:nowrap" id="${pfx}-st-${r._i}">${r._done ? '<span style="color:var(--accent);">✅ 완료</span>' : r.err ? `<span style="color:var(--danger);">❌ ${r.err}</span>` : '-'}</td>
