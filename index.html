@@ -99,6 +99,7 @@
     .stat-card.c-danger .stat-value{ color:var(--danger); }
 
     .bottom-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+    .notes-card { grid-column:span 2; }
 
     /* 바로가기 카드 */
     .dash-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 24px; height:100%; }
@@ -166,6 +167,7 @@
 
       /* 하단 그리드 — 1열 */
       .bottom-grid { grid-template-columns:1fr; }
+      .notes-card { grid-column:auto; }
 
       /* 테이블 — 가로 스크롤 */
       .tbl-wrap, #receipt-page .tbl-wrap, #slots-page .tbl-wrap,
@@ -211,7 +213,6 @@
     <div class="nav-item" id="nav-adclassify" onclick="loadPage('광고분류.html',this)" title="광고 분류"><i data-lucide="tags" size="16"></i><span class="nav-text"> 광고 분류</span></div>
     <div class="nav-item" id="nav-rank" onclick="loadPage('순위조회.html',this)" title="순위 조회"><i data-lucide="trending-up" size="16"></i><span class="nav-text"> 순위 조회</span></div>
     <div class="nav-item" id="nav-tool" onclick="window.open('https://higheradtool.kro.kr/','_blank')" title="도구 모음"><i data-lucide="wrench" size="16"></i><span class="nav-text"> 도구 모음</span></div>
-    <div class="nav-item" id="nav-notes" onclick="openUpdateNotes()" title="업데이트 노트"><i data-lucide="megaphone" size="16"></i><span class="nav-text"> 업데이트 노트</span></div>
   </div>
   <div class="sidebar-bottom">
     <div class="admin-info">
@@ -297,8 +298,17 @@
         <div class="stat-card c-info"><div class="stat-label">대기</div><div class="stat-value">${pendingCount}<span class="stat-unit">건</span></div></div>
         <div class="stat-card c-info"><div class="stat-label">접수</div><div class="stat-value">${acceptedCount}<span class="stat-unit">건</span></div></div>
       </div>
-      <div class="bottom-grid">${renderSiteCard()}</div>`;
+      <div class="bottom-grid">${renderSiteCard()}
+        <div class="dash-card notes-card">
+          <div class="dash-card-header">
+            <i data-lucide="megaphone" style="color:var(--info)"></i>
+            <span class="dash-card-title">업데이트 노트</span>
+          </div>
+          <div id="notes-body" style="max-height:320px;overflow:auto;font-size:13px;line-height:1.7;color:var(--text2)">불러오는 중...</div>
+        </div>
+      </div>`;
     lucide.createIcons();
+    loadUpdateNotes(area.querySelector('#notes-body'));
   };
 
   const YUPFL_SITES = [
@@ -535,19 +545,10 @@
   }, true);
   setInterval(checkVersion, 5 * 60000);
 
-  // ── 업데이트 노트 — higher 커밋 첫 줄을 날짜별로(직원용 문장으로 쓰기 시작한 때부터, '내부 정리' 제외) ──
+  // ── 대시보드 업데이트 노트 — higher 커밋 첫 줄을 날짜별로(직원용 문장으로 쓰기 시작한 때부터, '내부 정리' 제외) ──
   // ponytail: 최근 100개까지만, 더 필요하면 page 파라미터로 이어 받기
   const NOTES_SINCE = '2026-10-29T04:00:00Z';
-  window.openUpdateNotes = async function() {
-    const el = document.createElement('div');
-    el.className = 'modal-overlay';
-    el.onclick = e => { if (e.target === el) el.remove(); };
-    el.innerHTML = `<div style="background:#fff;border-radius:12px;width:min(94vw,520px);max-height:80vh;display:flex;flex-direction:column;padding:22px 24px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><b style="font-size:16px">업데이트 노트</b>
-        <button onclick="this.closest('.modal-overlay').remove()" style="border:0;background:none;font-size:20px;cursor:pointer;color:#94a3b8">×</button></div>
-      <div id="notes-body" style="overflow:auto;font-size:13px;line-height:1.7;color:#374151">불러오는 중...</div></div>`;
-    document.body.appendChild(el);
-    const body = el.querySelector('#notes-body');
+  async function loadUpdateNotes(body) {
     try {
       const res = await fetch(`https://api.github.com/repos/higherad/higher/commits?since=${NOTES_SINCE}&per_page=100`);
       if (!res.ok) throw new Error(res.status);
@@ -558,10 +559,10 @@
         const day = new Date(c.commit.author.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
         byDay.has(day) ? byDay.get(day).push(msg) : byDay.set(day, [msg]);
       });
-      body.innerHTML = byDay.size ? [...byDay].map(([day, msgs]) => `<div style="margin-bottom:14px"><div style="font-weight:700;color:#111827;margin-bottom:4px">${day}</div>
+      body.innerHTML = byDay.size ? [...byDay].map(([day, msgs]) => `<div style="margin-bottom:14px"><div style="font-weight:700;color:var(--text);margin-bottom:4px">${day}</div>
         <ul style="margin:0;padding-left:18px">${msgs.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>`).join('') : '업데이트 내역이 없습니다.';
     } catch { body.textContent = '업데이트 노트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'; }
-  };
+  }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
 
   init();
