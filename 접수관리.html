@@ -3801,14 +3801,18 @@ window.toggleProdPanel = function(e) {
     longtail: '롱테일', filter: '필터 검색어' };
   // 가이드 풀스택 비율 합계(%) — 100이 아니면 그 행 접수 안 함(시트는 100 초과만 입력을 막고 미만은 빨간 표시)
   const fsPctOf = rule => Math.round((rule.full || []).reduce((t, p) => t + p.ratio, 0) * 100);
+  // 그 업체만 받는 캠페인인지(리워드·다른 업체 몫 없음) — 풀스택·유입플 업체 탭 오류가 이런 캠페인이면 그 행만 빼고 접수(다른 탭을 안 막음),
+  // 섞인 캠페인(예 50:50)이면 팝업 전체 접수 신청을 막음
+  function onlyVendorOf(s, f, vendor) {
+    const reward = (s.dailyTarget || 0) - (f.yupflTarget || 0) - Math.round((f.deductTarget || 0) / (s.days || 1));
+    return reward <= 0 && !Object.entries(f.yupflByVendor || {}).some(([v, n]) => v !== vendor && n > 0);
+  }
   function buildFullstackRows(slots) {
     return slots.flatMap(s => {
       const f = s.yupflTarget != null ? s : allocFieldsFor(s);
       const daily = f.yupflByVendor ? (f.yupflByVendor['풀스택'] || 0) : (f.yupflTarget || 0);
       if (daily <= 0) return [];
-      // 풀스택만 받는 캠페인(리워드·다른 업체 몫 없음) — 오류여도 이 행만 빼고 접수(다른 탭을 안 막음). 섞인 캠페인(예 50:50)은 팝업 전체를 막음
-      const reward = (s.dailyTarget || 0) - (f.yupflTarget || 0) - Math.round((f.deductTarget || 0) / (s.days || 1));
-      const onlyFs = reward <= 0 && !Object.entries(f.yupflByVendor || {}).some(([v, n]) => v !== '풀스택' && n > 0);
+      const onlyFs = onlyVendorOf(s, f, '풀스택');
       const cat = s.category || HI.kwCategoryOf(s.rankKeyword, guideCats);
       const rule = cat ? pickGuideRule(guideRules, cat, s.dailyTarget || 0) : null;
       const variants = rule ? fullstackVariants(rule) : [];
@@ -3877,7 +3881,10 @@ window.toggleProdPanel = function(e) {
       const { otherBtns } = lockOtherSubmitTabs(overlay, 'fsub');
       pending.forEach(r => { r._statusTd.innerHTML = '<span style="color:var(--info);">⏳</span>'; });
       const { ok: claimed, blocked } = await priceCheckRows(pending);
-      let okTotal = 0, failTotal = blocked;
+      // 오류 행(풀스택만 받는 캠페인 — 섞인 캠페인 오류면 버튼이 이미 막힘)은 보내지 않고 실패로
+      const errRows = rows.filter(r => !r._fsSubmitted && r.err);
+      errRows.forEach(r => { r._statusTd.innerHTML = `<span style="color:var(--danger);cursor:help" title="${escProd(r.err)}">❌ 실패</span>`; });
+      let okTotal = 0, failTotal = blocked + errRows.length;
       const doneKeys = new Set(rows.filter(r => r._fsSubmitted).map(r => r._slotKey));
       for (const r of claimed) { // 한 줄씩 — 서버가 줄마다 보내기 직전에 사이트를 다시 확인
         let x;
@@ -3929,10 +3936,10 @@ window.toggleProdPanel = function(e) {
   const unitVendorErr = (vendor, daily, days) => daily % BUSAN_SLOT || days !== BUSAN_DAYS ? `${vendor}은 일 목표 ${BUSAN_SLOT} 단위·${BUSAN_DAYS}일만` : '';
   function buildVendorRows(slots, vendor) {
     return slots.flatMap(s => {
-      const f = s.yupflTarget != null ? s : yupflFieldsFor(s);
+      const f = s.yupflTarget != null ? s : allocFieldsFor(s);
       const daily = f.yupflByVendor?.[vendor] || 0;
       if (daily <= 0) return [];
-      const base = { _slotKey: s._key, _slot: s, _done: !!s.vendorOrders?.[vendor], agencyId: s.agencyId || '', storeName: s.storeName || '',
+      const base = { _slotKey: s._key, _slot: s, _done: !!s.vendorOrders?.[vendor], _onlyV: onlyVendorOf(s, f, vendor), agencyId: s.agencyId || '', storeName: s.storeName || '',
         mid: s.mid || '', url: s.url || '', rankKeyword: s.rankKeyword || '', days: s.days || 0, start: s.startDate || '' };
       if (vendor !== '프리미엄') return [{ ...base, _rowKey: s._key, daily }];
       // 미션: 가이드_접수면 가이드 프리미엄 탭 상품(= 미션 번호)·비율로 행을 나눔, 아니면 1행(미션 직접 입력·일괄 적용).
@@ -4019,8 +4026,8 @@ window.toggleProdPanel = function(e) {
     const pending = rows.filter(r => !r._done && !r.err);
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · ${vendor} ${rows.length}건 · 일 수량 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>${rowErrSummaryHtml(rows)}`;
     applyBtn.textContent = tab.btn;
-    // 오류 행이 있으면 다른 탭처럼 팝업 전체 접수 신청을 막음(fillBody tabResults)
-    const anyFail = rows.some(r => r.err);
+    // 오류 행이 있으면 다른 탭처럼 팝업 전체 접수 신청을 막음(fillBody tabResults) — 그 업체만 받는 캠페인의 오류는 그 행만 실패
+    const anyFail = rows.some(r => r.err && !r._onlyV);  // 그 업체만 받는 캠페인의 오류는 그 행만 빠짐(onlyVendorOf)
     if (!pending.length) { if (rows.every(r => r._done)) markApplyBtnDone(applyBtn); else applyBtn.disabled = true; return { anyFail }; }
     applyBtn.onclick = async () => {
       if (isPrem) {
@@ -4035,6 +4042,9 @@ window.toggleProdPanel = function(e) {
       closeBtn.disabled = true;
       const { otherBtns } = lockOtherSubmitTabs(overlay, pfx);
       pending.forEach(r => { r._statusTd.innerHTML = '<span style="color:var(--info);">⏳</span>'; });
+      // 오류 행(그 업체만 받는 캠페인 — 섞인 캠페인 오류면 버튼이 이미 막힘)은 보내지 않고 실패로
+      const errRows = rows.filter(r => !r._done && r.err);
+      errRows.forEach(r => { r._statusTd.innerHTML = `<span style="color:var(--danger);cursor:help" title="${escProd(r.err)}">❌ 실패</span>`; });
       const { ok: claimed } = await priceCheckRows(pending);
       // 한 캠페인의 행(미션별)은 같이 가야 함 — 단가 확인에서 한 행이라도 빠진 캠페인은 전부 뺌
       const slotOk = k => claimed.filter(r => r._slotKey === k).length === pending.filter(r => r._slotKey === k).length;
@@ -4084,7 +4094,7 @@ window.toggleProdPanel = function(e) {
         const failed = await finishReadySlots([...doneKeys].filter(k => allSlots.find(s => s._key === k)?.status !== 'active'), new Map(allSlots.map(s => [s._key, s])));
         if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
       }
-      finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okRows.length, pending.length - okRows.length);
+      finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okRows.length, pending.length - okRows.length + errRows.length);
       if (onDone) onDone();
     };
     return { anyFail };
