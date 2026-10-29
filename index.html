@@ -514,10 +514,9 @@
   // GitHub Pages는 배포 때마다 모든 파일 Last-Modified가 배포 시각으로 바뀜 — 지금 화면의 값보다 새로우면 클릭 시 새로고침 안내
   // Pages CDN은 파일을 10분(max-age 600) 들고 있음 — 확인·새로고침 둘 다 ?v=시각을 붙여 CDN 캐시를 건너뜀(옛 index를 다시 받아 팝업이 반복되지 않게)
   const loadedAt = Date.parse(document.lastModified);
-  // 새로고침 팝업·업데이트 노트에 넣을 커밋 = 기능 변경만 — '내부 정리'와 노트 자체를 고친 지난 커밋은 뺌
-  const NOTES_HIDE = new Set(['업데이트 노트에 10월 29일 오전 업데이트 내용도 추가했습니다',
-    "왼쪽 메뉴에 '업데이트 노트'가 생겼습니다 — 지금까지 바뀐 내용을 날짜별로 다시 볼 수 있습니다"]);
-  const isNote = m => m !== '내부 정리' && !NOTES_HIDE.has(m);
+  // 업데이트 노트 = update-notes.json [{at: 'YYYY-MM-DDTHH:MM'(KST), text}] — 커밋과 무관하게 기능 변경만 사람이 적음(순서 무관, 시각순 정렬)
+  const fetchNotes = () => fetch(`update-notes.json?v=${Date.now()}`, { cache: 'no-store' }).then(r => r.json())
+    .then(list => list.map(n => ({ ...n, time: Date.parse(n.at + ':00+09:00') })).sort((a, b) => b.time - a.time));
   let lastCheck = 0, outdated = false, changes = [];
   async function checkVersion() {
     if (outdated || Date.now() - lastCheck < 60000) return;
@@ -525,9 +524,8 @@
     try {
       const res = await fetch(`index.html?v=${Date.now()}`, { method: 'HEAD', cache: 'no-store' });
       outdated = Date.parse(res.headers.get('Last-Modified')) > loadedAt;
-      // 업데이트 내용 = 지금 화면 배포 이후 커밋 메시지 첫 줄(공개 저장소라 토큰 없이 조회)
-      if (outdated) changes = (await (await fetch(`https://api.github.com/repos/higherad/higher/commits?since=${new Date(loadedAt).toISOString()}`)).json())
-        .map(c => c.commit.message.split('\n')[0]).filter(isNote);
+      // 업데이트 내용 = 지금 화면 배포 이후에 적힌 노트
+      if (outdated) changes = (await fetchNotes()).filter(n => n.time > loadedAt).map(n => n.text);
     } catch {}
   }
   const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
@@ -549,35 +547,13 @@
   }, true);
   setInterval(checkVersion, 5 * 60000);
 
-  // ── 대시보드 업데이트 노트 — higher 커밋 첫 줄을 날짜별로(직원용 문장으로 쓰기 시작한 때부터, isNote만) ──
-  // ponytail: 최근 100개까지만, 더 필요하면 page 파라미터로 이어 받기
-  const NOTES_SINCE = '2026-10-29T04:00:00Z';
-  // NOTES_SINCE 이전 업데이트(커밋 첫 줄이 개발용 문구라 직원용으로 다시 씀) — 최신이 위
-  const NOTES_EARLIER = [
-    "풀스택·부산·프리미엄·제이엔 탭: 그 업체만 받는 캠페인에 오류가 있으면 그 행만 '❌ 실패'로 빠지고, 50:50처럼 섞인 캠페인 오류는 접수 신청 전체가 막힙니다",
-    "회원 단가를 바꿔도 이미 접수된 캠페인은 접수 때 단가 그대로이고, 새로 접수하는 캠페인부터 바뀐 단가가 적용됩니다",
-    "회원 정보 저장(단가 변경)이 빨라졌습니다",
-    "엑셀 일괄접수에서 비고가 부산·제이엔인데 일 목표가 100 단위가 아니거나 7일이 아니면 오류로 막힙니다",
-    "오류가 있으면 접수 신청 버튼이 꺼지고, 다른 탭을 접수한 뒤에도 다시 켜지지 않습니다",
-    "풀스택·부산·프리미엄·제이엔 탭 오류도 일반 탭처럼 대행사 배지와 상단 요약 줄에 표시됩니다",
-    "접수 팝업 탭 순서가 일반·풀스택·부산·프리미엄·제이엔·찰리·블로그로 바뀌었습니다",
-    "가이드_접수의 리워드:유입플 비율과 유입플 업체는 가이드 시트 A1에 '50:50'을 적은 두 탭으로 정해집니다(엑셀 비고 비율이 있으면 그 비율이 우선)",
-    "부산 탭: 접수 신청을 누르면 부산 사이트에 슬롯 발급과 정보 입력이 자동으로 됩니다(일 목표 100 단위·7일, 종료일 표시, 부산 계정이 없으면 오류)",
-    "제이엔 탭: '엑셀 받기'를 누르면 날짜_제이엔 엑셀 파일이 받아지고 승인됩니다",
-    "접수 팝업에 프리미엄 탭이 다시 생겼습니다 — 사이트 자동 업로드·초기화(환불), 미션 번호 직접 입력·일괄 적용",
-    "지출관리 유입플 업체 열이 가이드 시트 탭 순서(풀스택·부산·프리미엄·제이엔)로 바뀌었고, 원가에 부산이 추가되었습니다",
-    "가이드_접수의 리워드 상품은 모두 트래픽(일반 탭)으로 접수됩니다",
-  ].map(msg => ({ date: '2026-10-29T00:00:00+09:00', msg }));
+  // ── 대시보드 업데이트 노트 — update-notes.json을 날짜별로 ──
   async function loadUpdateNotes(body) {
     try {
-      const res = await fetch(`https://api.github.com/repos/higherad/higher/commits?since=${NOTES_SINCE}&per_page=100`);
-      if (!res.ok) throw new Error(res.status);
       const byDay = new Map();
-      const notes = (await res.json()).map(c => ({ date: c.commit.author.date, msg: c.commit.message.split('\n')[0] }));
-      [...notes, ...NOTES_EARLIER].forEach(({ date, msg }) => {
-        if (!isNote(msg)) return;
-        const day = new Date(date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
-        byDay.has(day) ? byDay.get(day).push(msg) : byDay.set(day, [msg]);
+      (await fetchNotes()).forEach(({ time, text }) => {
+        const day = new Date(time).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+        byDay.has(day) ? byDay.get(day).push(text) : byDay.set(day, [text]);
       });
       body.innerHTML = byDay.size ? [...byDay].map(([day, msgs]) => `<div style="margin-bottom:14px"><div style="font-weight:700;color:var(--text);margin-bottom:4px">${day}</div>
         <ul style="margin:0;padding-left:18px">${msgs.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>`).join('') : '업데이트 내역이 없습니다.';
