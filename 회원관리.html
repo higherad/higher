@@ -334,9 +334,9 @@
     const pending = mySlots.filter(s => s.status === 'pending');
     const totalTarget = active.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0), 0);
 
-    // 정산 금액은 정산관리와 같은 HI.slotBill(접수 때 캠페인에 고정한 단가 우선, 없으면 회원 단가), 대상도 같은 기준(HI.isBillable — 재접수·휴지통 제외)
+    // 정산 금액은 회원관리 단가(리워드 u.unitPrice·유입플 업체 u.yupflPrices, HI.slotBill)로 계산, 대상은 정산관리와 같은 기준(HI.isBillable — 재접수·휴지통 제외)
     const billable = mySlots.filter(HI.isBillable);
-    const amtOf = s => HI.slotBill(s, u).amount;
+    const amtOf = s => HI.slotBill({ ...s, unitPrice: 0 }, u).amount;
     const totalAmt = billable.reduce((a,s) => a+amtOf(s), 0);
     const totalVat = Math.round(totalAmt * 1.1);
 
