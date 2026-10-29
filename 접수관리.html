@@ -2118,8 +2118,9 @@ window.toggleProdPanel = function(e) {
   function guideProdsFor(r) {
     const rule = guideRuleFor(r);
     if (!rule || !rule.reward.length) return [];
+    // 가이드 상품은 전부 트래픽 등급으로 — 찰리·델타·네이비(위치저장·블로그 탭)와 이름이 같아도 그 고정 상품으로 안 받음
     const out = rule.reward.map(g => {
-      const known = prods.find(p => p.name === g.name && !p.fixedAlloc);
+      const known = prods.find(p => p.name === g.name && !p.fixedAlloc && !FIXED_PROD_IDS.has(p.id));
       return known ? { ...known, ratio: g.ratio, kwPct: g.ratio }
         : { id: `grade_${g.name}`, name: g.name, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: g.ratio, kwPct: g.ratio, daysMultiplied: false };
     });
