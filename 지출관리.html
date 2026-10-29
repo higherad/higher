@@ -85,7 +85,7 @@
   // 회계 기록이라 정산완료 묶음 금액은 한 번 고정(hi/cost_snapshots) 후 안 바뀜. 고정 시점: 페이지 열 때 + 원가 저장 직전(옛 원가로).
   // 원가 미설정·승인 전 건이 남은 묶음은 고정 보류(현재 원가로 표시)
   const PER = 50, POP_PER = 12;
-  let slots = [], costs = { reward: [], yupfl: {} }, snaps = {}, prods = [], paidSet = new Set(), settleSnaps = {}, users = [], refunds = {}, page = 1, rows = [], allRows = [], vendors = [];
+  let slots = [], costs = { reward: [], yupfl: {} }, snaps = {}, prods = [], paidSet = new Set(), settleSnaps = {}, users = [], refunds = {}, page = 1, rows = [], allRows = [], vendors = [], guideVendors = [];
   const esc = HI.esc;
   const won = n => `${Math.round(n).toLocaleString()}원`;
   const pad = n => String(n).padStart(2, '0');
@@ -101,7 +101,9 @@
     slots.forEach(s => Object.keys(s.yupflByVendor || {}).forEach(n => yup.add(n)));
     Object.keys(costs.yupfl || {}).forEach(n => yup.add(n));
     Object.values(snaps).forEach(sn => Object.keys(sn.yupfl || {}).forEach(n => yup.add(n)));
-    return [...yup];
+    // 열 순서 = 가이드 시트 탭 순서(없는 업체는 뒤)
+    const ord = n => { const i = guideVendors.indexOf(n); return i < 0 ? 1e9 : i; };
+    return [...yup].sort((a, b) => ord(a) - ord(b));
   }
 
   // 전체 묶음 — 현재 원가로 계산(live)
@@ -366,9 +368,10 @@
     document.getElementById('cf-to').value = todayStr;
     try {
       let p;
-      let paid;
-      [slots, costs, snaps, p, paid, settleSnaps, users, refunds] = await Promise.all([HI.getAll(), HI.getCosts(), HI.getCostSnapshots(), HI.getProdsOnce(), HI.getPaidSet(),
-        HI.getAllSettleSnapshots(), HI.getUsers(), HI.getRefunds()]);
+      let paid, gi;
+      [slots, costs, snaps, p, paid, settleSnaps, users, refunds, gi] = await Promise.all([HI.getAll(), HI.getCosts(), HI.getCostSnapshots(), HI.getProdsOnce(), HI.getPaidSet(),
+        HI.getAllSettleSnapshots(), HI.getUsers(), HI.getRefunds(), HI.getGuideItems().catch(() => null)]);
+      guideVendors = gi?.vendors || [];
       settleSnaps = settleSnaps || {}; refunds = refunds || {};
       prods = Object.values(p || {}).filter(Boolean);
       paidSet = new Set(paid);
