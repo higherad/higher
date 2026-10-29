@@ -521,15 +521,18 @@ const HI = {
   // ════════════════════════════════════════════════════════
   // 캠페인 — 쓰기
   // ════════════════════════════════════════════════════════
-  // 접수(관리자 개별·엑셀). 단가는 접수 시점 회원 단가로 고정(userId=username 우선, 없으면 대행사명 매칭)
+  // 접수(관리자 개별·엑셀). 단가는 접수 시점 회원 단가로 고정 — 리워드 unitPrice·유입플 업체 yupflPrices 둘 다(회원 단가를 바꿔도
+  // 이미 접수된 건은 그대로, HI.slotBill이 캠페인 값 우선). userId=username 우선, 없으면 대행사명 매칭
   async addCampaign(data) {
     let unitPrice = Number(data.unitPrice) || 0;
     let userId = data.userId || '';
-    if (!unitPrice || !userId) {
+    let yupflPrices = data.yupflPrices;
+    if (!unitPrice || !userId || !yupflPrices) {
       const users = await once(usersCache);
       const u = users.find(x => x.username === userId) || users.find(x => x.agencyId === data.agencyId || x.agency === data.agencyId);
       if (!unitPrice) unitPrice = u?.unitPrice || 0;
       if (!userId) userId = u?.username || '';
+      if (!yupflPrices) yupflPrices = u?.yupflPrices;
     }
     const category = kwCategoryOf(data.rankKeyword, (await get(ref(db, P.kwCategories))).val());
     const rec = {
@@ -546,6 +549,7 @@ const HI = {
       ...(category ? { category } : {}),  // 순위키워드 분류 — 대기부터 표시(이후 설정이 바뀌어도 유지)
       days: Number(data.days) || 0, dailyTarget: Number(data.dailyTarget) || 0,
       unitPrice,
+      ...(yupflPrices && Object.keys(yupflPrices).length ? { yupflPrices } : {}),
       searchKwCount: kwCount(data.searchKeyword), yupflKwCount: kwCount(data.yupflKeyword),
     };
     const key = _push(ref(db, P.live)).key;
@@ -648,7 +652,7 @@ const HI = {
           agencyId: s.agencyId, userId: s.userId, storeName: s.storeName, url: s.url, mid: s.mid,
           rankKeyword: s.rankKeyword, searchKeyword: kw.search || '', memo: s.memo,
           dailyTarget: s.dailyTarget, days: remain, startDate: tomorrow, endDate: origEnd,
-          unitPrice: s.unitPrice, isRequeue: true,
+          unitPrice: s.unitPrice, yupflPrices: s.yupflPrices, isRequeue: true,
           // 변경 요청 중이던 캠페인이면 요청 상품을 넘김 — 접수 때 등급 매칭이 이 상품으로 배분
           changeTo: s.changeRequest?.to || '',
         });
@@ -889,7 +893,8 @@ const HI = {
       const yupfl = s.yupflAmount || 0;
       return { amount, reward: amount - yupfl, yupfl, missing: [], byVendor: yupfl ? { '프리미엄': yupfl } : {} };
     }
-    const vp = user?.yupflPrices || {};
+    // 업체 단가 = 접수 때 캠페인에 고정한 값, 그때 없던 업체만 지금 회원 단가
+    const vp = { ...(user?.yupflPrices || {}), ...Object.fromEntries(Object.entries(s.yupflPrices || {}).filter(([, p]) => Number(p) > 0)) };
     const byVendor = Object.fromEntries(vend.map(([v, n]) => [v, n * days * (Number(vp[v]) || 0)]));
     const yupQty = vend.reduce((a, [, n]) => a + n, 0) * days;
     return { amount, reward: (total - yupQty) * price, yupfl: Object.values(byVendor).reduce((a, x) => a + x, 0),

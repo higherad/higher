@@ -5126,7 +5126,7 @@ window.toggleProdPanel = function(e) {
       const slot = r._slotKey && allSlots.find(s => s._key === r._slotKey);
       if (!slot || slot.isRequeue) return true;
       if (!missOf.has(slot._key)) {
-        const vp = userById.get(slot.userId)?.yupflPrices || {};
+        const vp = { ...(userById.get(slot.userId)?.yupflPrices || {}), ...(slot.yupflPrices || {}) };  // 접수 때 고정한 단가 우선(HI.slotBill과 같게)
         const miss = Object.entries(allocFieldsFor(slot).yupflByVendor || {}).filter(([v, n]) => n > 0 && !(Number(vp[v]) > 0)).map(([v]) => v);
         if (!(slot.unitPrice > 0 || userPriceMap.get(slot.userId) > 0)) miss.unshift('리워드');
         missOf.set(slot._key, miss);

@@ -47,9 +47,10 @@ let src = readFileSync(new URL('./hi-store.js', import.meta.url), 'utf8')
 const { default: HI, remainingAfterCancel, kwCategoryOf } = await import('data:text/javascript,' + encodeURIComponent(src));
 
 // ── 접수: live + 키워드 분리 ──
-tree.hi = { users: { u1: { username: 'u1', agencyId: 'A', unitPrice: 30 } } };
+tree.hi = { users: { u1: { username: 'u1', agencyId: 'A', unitPrice: 30, yupflPrices: { 풀스택: 13 } } } };
 const c = await HI.addCampaign({ agencyId: 'A', userId: 'u1', mid: '111', searchKeyword: 'kw1', days: 3, dailyTarget: 10, createdAt: '2026-10-01T01:02:03.000Z' });
 assert.equal(tree.hi.campaigns.live[c._key].unitPrice, 30, '접수 시 회원 단가 고정');
+assert.deepEqual(tree.hi.campaigns.live[c._key].yupflPrices, { 풀스택: 13 }, '유입플 업체 단가도 접수 시 고정');
 assert.equal(tree.hi.campaigns.live[c._key].searchKeyword, undefined, '캠페인 레코드엔 키워드 없음');
 assert.equal(tree.hi.campaign_keywords[c._key].search, 'kw1');
 
@@ -194,6 +195,8 @@ assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflAmount: 5 }, u1),
 assert.deepEqual(HI.slotBill({ dailyTarget: 100, days: 2, yupflByVendor: { 풀스택: 28, 제이엔: 12 } }, u1),
   { amount: 100 * 2 * 30, reward: 60 * 2 * 30, yupfl: 28 * 2 * 20, missing: ['제이엔'], byVendor: { 풀스택: 28 * 2 * 20, 제이엔: 0 } });
 assert.equal(HI.slotBill({ dailyTarget: 10, days: 1, unitPrice: 50, yupflByVendor: { 풀스택: 4 } }, u1).amount, 10 * 50, '캠페인 고정 단가 우선');
+assert.deepEqual(HI.slotBill({ dailyTarget: 10, days: 1, unitPrice: 50, yupflPrices: { 풀스택: 13 }, yupflByVendor: { 풀스택: 4, 부산: 2 } }, { unitPrice: 30, yupflPrices: { 풀스택: 99, 부산: 21 } }).byVendor,
+  { 풀스택: 4 * 13, 부산: 2 * 21 }, '업체 단가도 접수 때 고정값 우선, 그때 없던 업체만 지금 회원 단가');
 
 // 지출: 리워드 = 전체 − 유입플 − 차감 수량 × 리워드 원가, 유입플 업체별 × 업체 원가(없으면 0 + missing), 차감 = 정산 차감 금액
 const costs = { reward: 10, yupfl: { 풀스택: 8 } };
