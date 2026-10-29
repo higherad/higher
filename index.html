@@ -512,14 +512,14 @@
 
   // ── 새 버전 배포 감지 ─────────────────────────────────────
   // GitHub Pages는 배포 때마다 모든 파일 Last-Modified가 배포 시각으로 바뀜 — 지금 화면의 값보다 새로우면 클릭 시 새로고침 안내
-  // ponytail: Pages CDN 캐시(max-age 600) 때문에 배포 후 최대 10분쯤 늦게 잡힐 수 있음
+  // Pages CDN은 파일을 10분(max-age 600) 들고 있음 — 확인·새로고침 둘 다 ?v=시각을 붙여 CDN 캐시를 건너뜀(옛 index를 다시 받아 팝업이 반복되지 않게)
   const loadedAt = Date.parse(document.lastModified);
   let lastCheck = 0, outdated = false, changes = [];
   async function checkVersion() {
     if (outdated || Date.now() - lastCheck < 60000) return;
     lastCheck = Date.now();
     try {
-      const res = await fetch('index.html', { method: 'HEAD', cache: 'no-store' });
+      const res = await fetch(`index.html?v=${Date.now()}`, { method: 'HEAD', cache: 'no-store' });
       outdated = Date.parse(res.headers.get('Last-Modified')) > loadedAt;
       // 업데이트 내용 = 지금 화면 배포 이후 커밋 메시지 첫 줄(공개 저장소라 토큰 없이 조회)
       if (outdated) changes = (await (await fetch(`https://api.github.com/repos/higherad/higher/commits?since=${new Date(loadedAt).toISOString()}`)).json())
@@ -535,7 +535,7 @@
     el.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px 28px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px;line-height:1.6">
       <b style="font-size:16px">새 버전이 배포되었습니다</b><br>최신 기능을 쓰려면 새로고침해 주세요.<br>
       ${changes.length ? `<ul style="text-align:left;margin:12px 0 0;padding-left:18px;max-height:240px;overflow:auto;max-width:480px;color:#374151">${changes.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
-      <button onclick="location.reload()" style="margin-top:14px;padding:8px 20px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">새로고침</button></div>`;
+      <button onclick="location.replace('/?v=' + Date.now())" style="margin-top:14px;padding:8px 20px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">새로고침</button></div>`;
     document.body.appendChild(el);
   }
   // 새 버전이면 어떤 클릭이든 막고 안내 — 새로고침 버튼만 통과
