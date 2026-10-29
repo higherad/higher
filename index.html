@@ -514,9 +514,10 @@
   // GitHub Pages는 배포 때마다 모든 파일 Last-Modified가 배포 시각으로 바뀜 — 지금 화면의 값보다 새로우면 클릭 시 새로고침 안내
   // Pages CDN은 파일을 10분(max-age 600) 들고 있음 — 확인·새로고침 둘 다 ?v=시각을 붙여 CDN 캐시를 건너뜀(옛 index를 다시 받아 팝업이 반복되지 않게)
   const loadedAt = Date.parse(document.lastModified);
-  // 업데이트 노트 = update-notes.json [{at: 'YYYY-MM-DDTHH:MM'(KST), text}] — 커밋과 무관하게 기능 변경만 사람이 적음(순서 무관, 시각순 정렬)
+  // 업데이트 노트 = update-notes.json [{at: 'YYYY-MM-DDTHH:MM'(KST), text, upd?}] — 커밋과 무관하게 기능 변경만 사람이 적음(순서 무관, 시각순 정렬)
+  // upd = 같은 날 문구를 고친 시각 — 노트 날짜는 at, 새로고침 팝업은 upd(없으면 at)가 지금 화면보다 새로우면 보여 줌
   const fetchNotes = () => fetch(`update-notes.json?v=${Date.now()}`, { cache: 'no-store' }).then(r => r.json())
-    .then(list => list.map(n => ({ ...n, time: Date.parse(n.at + ':00+09:00') })).sort((a, b) => b.time - a.time));
+    .then(list => list.map(n => ({ ...n, time: Date.parse(n.at + ':00+09:00'), changed: Date.parse((n.upd || n.at) + ':00+09:00') })).sort((a, b) => b.time - a.time));
   let lastCheck = 0, outdated = false, changes = [];
   async function checkVersion() {
     if (outdated || Date.now() - lastCheck < 60000) return;
@@ -525,7 +526,7 @@
       const res = await fetch(`index.html?v=${Date.now()}`, { method: 'HEAD', cache: 'no-store' });
       outdated = Date.parse(res.headers.get('Last-Modified')) > loadedAt;
       // 업데이트 내용 = 지금 화면 배포 이후에 적힌 노트
-      if (outdated) changes = (await fetchNotes()).filter(n => n.time > loadedAt).map(n => n.text);
+      if (outdated) changes = (await fetchNotes()).filter(n => n.changed > loadedAt).map(n => n.text);
     } catch {}
   }
   const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
