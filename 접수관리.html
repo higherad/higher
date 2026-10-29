@@ -591,7 +591,7 @@ window.toggleProdPanel = function(e) {
   const yupflVendors = () => { const v = prods.find(p => p.classifyOnly)?.vendors; return v && v.length ? v : [{ name: '풀스택', ratio: 100 }]; };
   function vendorSplit(target, slot) {
     if (noteRatio(slot)?.vendor) return target > 0 ? { [slot.yupflRatio.vendor]: target } : {};
-    if (guideAllocOf(slot)) return target > 0 ? { '풀스택': target } : {}; // 가이드_접수면 유입플 몫은 전부 풀스택(웹 접수 대상)
+    if (guideAllocOf(slot)) return target > 0 ? { [guideSplit.vendor]: target } : {}; // 가이드_접수면 유입플 몫은 전부 가이드 A1 비율 업체
     const vs = yupflVendors().filter(v => v.name && v.ratio > 0);
     const a = lrm(vs.map(v => ({ id: v.name, ratio: v.ratio })), target);
     return Object.fromEntries(Object.entries(a).filter(([, n]) => n > 0));
@@ -2097,7 +2097,7 @@ window.toggleProdPanel = function(e) {
   // ── 가이드_접수 프리셋 ──────────────────────────────────────────
   // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
   // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 원래 방식(등급 매칭/상품 설정)으로.
-  let guideModeOn = false, guideRules = [], guideCats = [], guideTimes = [];
+  let guideModeOn = false, guideRules = [], guideCats = [], guideTimes = [], guideSplit = null;
   // 풀스텍 상품 = [배지 짧은 이름, 사이트 프리셋, 로그인 가능(검색 유입)] — 시트 분류 열·배지 순서도 이 순서. 시트 분류·가이드_접수·풀스택 탭 공용
   const FULL_PRODS = [['기본', 'basic', 1], ['둘러보고', 'browse', 1], ['카톡(길찾기)', 'kakao_route'], ['카톡(공유)', 'kakao_share'],
     ['길찾기', 'action', 1], ['지도', 'map'], ['인스타', 'insta_vendor'], ['저장', 'save'], ['리뷰', 'react'],
@@ -2124,12 +2124,11 @@ window.toggleProdPanel = function(e) {
       return known ? { ...known, ratio: g.ratio, kwPct: g.ratio }
         : { id: `grade_${g.name}`, name: g.name, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: g.ratio, kwPct: g.ratio, daysMultiplied: false };
     });
-    // 리워드:유입플 = 엑셀 비고 비율, 없으면 50:50 고정('유입플' 상품 설정 켜짐·%는 무시) — 리워드 상품끼리는 가이드 비율
-    return applyGuideRatio(out, noteRatio(r) || GUIDE_SPLIT);
+    // 리워드:유입플 = 엑셀 비고 비율, 없으면 가이드 시트 A1 비율(guideSplit, '유입플' 상품 설정 켜짐·%는 무시) — 리워드 상품끼리는 가이드 비율
+    return applyGuideRatio(out, noteRatio(r) || guideSplit);
   }
   // 리워드·유입플 두 묶음 합계를 주어진 비율로 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
-  const GUIDE_SPLIT = { reward: 50, yupfl: 50 };
-  // 가이드_접수로 나눈 캠페인인지(유입플 몫은 전부 풀스택 — vendorSplit)
+  // 가이드_접수로 나눈 캠페인인지(유입플 몫은 전부 A1 비율 업체 — vendorSplit)
   const guideAllocOf = slot => guideModeOn && !(slot?.changeTo) && guideProdsFor(slot).length > 0;
   function applyGuideRatio(items, { reward, yupfl }) {
     const isY = p => p.classifyOnly;
@@ -2146,6 +2145,22 @@ window.toggleProdPanel = function(e) {
     guideRules = parseGuide(sheets || []);
     guideTimes = parseGuideTimes(sheets || []);
     guideCats = cats;
+    guideSplit = parseGuideSplit(sheets || []);  // 마지막 — 오류여도 풀스택 탭 등이 쓰는 가이드 규칙은 위에서 채워짐(가이드_접수 켜기만 막힘)
+  }
+  // 가이드_접수 리워드:유입플 비율·유입플 업체 = A1에 '50:50'처럼 비율을 적은 탭 2개('리워드' + 업체 탭 1개).
+  // 업체를 바꾸려면 A1 비율을 그 업체 탭으로 옮김. 2개가 아니거나 리워드 탭이 빠지거나 둘 값이 다르면 오류
+  function parseGuideSplit(sheets) {
+    const ratioOf = v => {
+      // 시트가 '50:50'을 시간(50시간 50분 = 일 단위 소수)으로 바꾼 값도 시:분으로 되돌림
+      const t = typeof v === 'number' && v > 0 && !Number.isInteger(v) ? (m => `${Math.floor(m / 60)}:${m % 60}`)(Math.round(v * 1440)) : String(v ?? '').replace(/\s+/g, '');
+      const m = t.match(/^(\d{1,2})[:：](\d{1,2})$/);
+      return m && +m[1] + +m[2] === 100 ? { reward: +m[1], yupfl: +m[2] } : null;
+    };
+    const marked = sheets.map(t => ({ title: String(t.title || '').trim(), r: ratioOf(t.values?.[0]?.[0]) })).filter(t => t.r);
+    const rw = marked.find(t => t.title.includes('리워드')), vd = marked.find(t => !t.title.includes('리워드'));
+    if (marked.length !== 2 || !rw || !vd || rw.r.reward !== vd.r.reward)
+      throw new Error(`가이드 수정 필요 — A1에 같은 비율(예 50:50)을 '리워드' 탭과 업체 탭 1개에만 넣어 주세요. (지금: ${marked.map(t => `${t.title} ${t.r.reward}:${t.r.yupfl}`).join(', ') || '없음'})`);
+    return { ...rw.r, vendor: vd.title };
   }
   window.toggleGuidePreset = async function() {
     if (guideModeOn) { guideModeOn = false; renderPS(); return; }
@@ -3928,7 +3943,9 @@ window.toggleProdPanel = function(e) {
     if (!rows.length) { bodyEl.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">${vendor} 몫이 있는 캠페인이 없습니다.</div>`; applyBtn.disabled = true; return; }
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     const agencies = [...new Set(rows.map(r => r.agencyId || '(대행사 미지정)'))];
-    rows.forEach((r, i) => { r._i = i; r.err = r._done ? '' : isPrem && !r.workKw ? '검색키워드 없음' : vendor === '부산' ? busanErr(r.daily, r.days) : ''; });
+    // 부산은 지난 시작일 발급 안 함(서버도 같은 검사 — 마감 22시 뒤 오늘 시작분은 서버가 막음)
+    rows.forEach((r, i) => { r._i = i; r.err = r._done ? '' : isPrem && !r.workKw ? '검색키워드 없음'
+      : vendor === '부산' ? busanErr(r.daily, r.days) || (r.start < ymd(new Date()) ? '시작일 지남' : '') : ''; });
     const pfx = tab.pfx;
     bodyEl.innerHTML = (isPrem ? `<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:8px;">
         <span style="font-size:12px;color:var(--text2);">미션번호 일괄 적용</span>
