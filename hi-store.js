@@ -653,7 +653,7 @@ const HI = {
           rankKeyword: s.rankKeyword, searchKeyword: kw.search || '', memo: s.memo,
           dailyTarget: s.dailyTarget, days: remain, startDate: tomorrow, endDate: origEnd,
           unitPrice: s.unitPrice, yupflPrices: s.yupflPrices, isRequeue: true,
-          // 변경 요청 중이던 캠페인이면 요청 상품을 넘김 — 접수 때 등급 매칭이 이 상품으로 배분
+          // 변경 요청 중이던 캠페인이면 요청 상품을 넘김 — 접수 때 이 상품으로 배분
           changeTo: s.changeRequest?.to || '',
         });
         patch.requeueCreated = true;
