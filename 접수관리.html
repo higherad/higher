@@ -3895,10 +3895,11 @@ window.toggleProdPanel = function(e) {
 
   // 유입플 업체 탭 — 풀스택처럼 업체 몫(yupflByVendor)이 있는 캠페인만. 프리미엄 = 사이트 업로드(/youpfl-upload), 제이엔·부산 = 엑셀만 받고 완료.
   // 완료 기록 = 캠페인 vendorOrders {업체: {at, …}} — 승인 게이트·초기화가 이걸로 판단
+  // 배열 순서 = 접수 팝업 탭 순서(일반 · 풀스택 다음)
   const VENDOR_TABS = [
+    { key: 'busan',   vendor: '부산',     pfx: 'nsub', leg: 'busanKeys',   color: '#e11d48', btn: '접수 신청' },
     { key: 'premium', vendor: '프리미엄', pfx: 'psub', leg: 'premiumKeys', color: '#7c3aed', btn: '접수 신청' },
     { key: 'jn',      vendor: '제이엔',   pfx: 'jsub', leg: 'jnKeys',      color: '#c2410c', btn: '엑셀 받기' },
-    { key: 'busan',   vendor: '부산',     pfx: 'nsub', leg: 'busanKeys',   color: '#e11d48', btn: '접수 신청' },
   ];
   const SUBMIT_TAB_KEYS = ['normal', 'charlie', 'blog', 'fullstack', ...VENDOR_TABS.map(t => t.key)];
   const BUSAN_SLOT = 100, BUSAN_DAYS = 7; // 부산 슬롯 1개 = 하루 100타, 발급 7일 고정(엑셀 접수 비고 검사와 같은 값)
@@ -4093,8 +4094,9 @@ window.toggleProdPanel = function(e) {
     const fullstackRows = buildFullstackRows(target);
     const hasFullstack = fullstackRows.length > 0;
     const vendorRows = Object.fromEntries(VENDOR_TABS.map(t => [t.key, buildVendorRows(target, t.vendor)]));
-    const defaultTab = hasNormal ? 'normal' : (hasCharlie ? 'charlie' : ((hasDelta||hasNavy) ? 'blog' : (hasFullstack ? 'fullstack'
-      : (VENDOR_TABS.find(t => vendorRows[t.key].length)?.key || 'normal'))));
+    // 처음 보이는 탭 = 탭 순서(일반·풀스택·부산·프리미엄·제이엔·찰리·블로그)에서 행이 있는 첫 탭
+    const defaultTab = hasNormal ? 'normal' : hasFullstack ? 'fullstack'
+      : VENDOR_TABS.find(t => vendorRows[t.key].length)?.key || (hasCharlie ? 'charlie' : (hasDelta||hasNavy) ? 'blog' : 'normal');
     return { normalPlan, charliePlan, deltaPlan, navyPlan, fullstackRows, vendorRows, hasNormal, hasCharlie, hasDelta, hasNavy, hasFullstack, defaultTab };
   }
 
@@ -4158,14 +4160,14 @@ window.toggleProdPanel = function(e) {
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
           <button id="stab-normal" class="submit-tab${data.defaultTab==='normal'?' active':''}"
             onclick="switchSubmitTab('normal')"${!data.hasNormal?' disabled':''}>일반<span id="stab-warn-normal" class="stab-warn-ico" style="display:none;">⚠</span></button>
-          <button id="stab-charlie" class="submit-tab${data.defaultTab==='charlie'?' active':''}"
-            onclick="switchSubmitTab('charlie')" style="${data.hasCharlie?'':'display:none;'}">찰리<span id="stab-warn-charlie" class="stab-warn-ico" style="display:none;">⚠</span></button>
-          <button id="stab-blog" class="submit-tab${data.defaultTab==='blog'?' active':''}"
-            onclick="switchSubmitTab('blog')" style="${(data.hasDelta||data.hasNavy)?'':'display:none;'}">블로그<span id="stab-warn-blog" class="stab-warn-ico" style="display:none;">⚠</span></button>
           <button id="stab-fullstack" class="submit-tab${data.defaultTab==='fullstack'?' active':''}"
             onclick="switchSubmitTab('fullstack')" style="${data.hasFullstack?'':'display:none;'}">풀스택</button>
           ${VENDOR_TABS.map(t => `<button id="stab-${t.key}" class="submit-tab${data.defaultTab===t.key?' active':''}"
             onclick="switchSubmitTab('${t.key}')" style="${data.vendorRows[t.key].length?'':'display:none;'}">${t.vendor}<span id="stab-warn-${t.key}" class="stab-warn-ico" style="display:none;">⚠</span></button>`).join('')}
+          <button id="stab-charlie" class="submit-tab${data.defaultTab==='charlie'?' active':''}"
+            onclick="switchSubmitTab('charlie')" style="${data.hasCharlie?'':'display:none;'}">찰리<span id="stab-warn-charlie" class="stab-warn-ico" style="display:none;">⚠</span></button>
+          <button id="stab-blog" class="submit-tab${data.defaultTab==='blog'?' active':''}"
+            onclick="switchSubmitTab('blog')" style="${(data.hasDelta||data.hasNavy)?'':'display:none;'}">블로그<span id="stab-warn-blog" class="stab-warn-ico" style="display:none;">⚠</span></button>
         </div>
         <div id="stab-panel-normal" style="display:${data.defaultTab==='normal'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
