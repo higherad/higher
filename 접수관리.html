@@ -3707,7 +3707,8 @@ window.toggleProdPanel = function(e) {
 
   // 레그별 "접수 신청" 버튼 셀렉터 — openSubmitModal 안 여러 곳(lockDoneButtons, 자동승인 레이스 가드)에서 공용.
   // 델타/네이비는 "블로그" 탭 하나(#bsub-apply-btn)를 공유 — 등급 체계가 달라도 UI 버튼은 하나.
-  const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn', fullstackKeys: '#fsub-apply-btn' };
+  const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn', fullstackKeys: '#fsub-apply-btn',
+    premiumKeys: '#psub-apply-btn', jnKeys: '#jsub-apply-btn', busanKeys: '#nsub-apply-btn' };
 
   // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 등급 매칭은 끔·애드로그는 켬으로 초기화 — 토글 버튼 자체의 재오픈은
   // 방금 뒤집은 값을 유지해야 하므로 renderSubmitModal()을 직접 호출한다(아래 gmBtn.onclick 참고).
@@ -3875,6 +3876,163 @@ window.toggleProdPanel = function(e) {
       if (onDone) onDone();
     };
   }
+
+  // 유입플 업체 탭 — 풀스택처럼 업체 몫(yupflByVendor)이 있는 캠페인만. 프리미엄 = 사이트 업로드(/youpfl-upload), 제이엔·부산 = 엑셀만 받고 완료.
+  // 완료 기록 = 캠페인 vendorOrders {업체: {at, …}} — 승인 게이트·초기화가 이걸로 판단
+  const VENDOR_TABS = [
+    { key: 'premium', vendor: '프리미엄', pfx: 'psub', leg: 'premiumKeys', color: '#7c3aed', btn: '접수 신청' },
+    { key: 'jn',      vendor: '제이엔',   pfx: 'jsub', leg: 'jnKeys',      color: '#c2410c', btn: '엑셀 받고 접수' },
+    { key: 'busan',   vendor: '부산',     pfx: 'nsub', leg: 'busanKeys',   color: '#e11d48', btn: '엑셀 받고 접수' },
+  ];
+  const SUBMIT_TAB_KEYS = ['normal', 'charlie', 'blog', 'fullstack', ...VENDOR_TABS.map(t => t.key)];
+  const BUSAN_SLOT = 100; // 부산 슬롯 1개 = 하루 100타
+  function buildVendorRows(slots, vendor) {
+    return slots.flatMap(s => {
+      const f = s.yupflTarget != null ? s : yupflFieldsFor(s);
+      const daily = f.yupflByVendor?.[vendor] || 0;
+      if (daily <= 0) return [];
+      const base = { _slotKey: s._key, _slot: s, _done: !!s.vendorOrders?.[vendor], agencyId: s.agencyId || '', storeName: s.storeName || '',
+        mid: s.mid || '', url: s.url || '', rankKeyword: s.rankKeyword || '', days: s.days || 0, start: s.startDate || '' };
+      if (vendor !== '프리미엄') return [{ ...base, _rowKey: s._key, daily }];
+      // 미션: 가이드_접수면 가이드 프리미엄 탭 상품(= 미션 번호)·비율로 행을 나눔, 아니면 1행(미션 직접 입력·일괄 적용).
+      // 작업키워드 = 검색키워드(상세 A·B 합친 값)를 행 비율대로 나눔(일반 상품 키워드 배분과 같은 lrm)
+      const rule = guideModeOn && !s.changeTo ? guideRuleFor(s) : null;
+      const items = (rule?.vendors?.[vendor] || []).filter(p => /^\d+$/.test(String(p.name).trim()));
+      const parts = kwSplit(s.searchKeyword);
+      if (!items.length) return [{ ...base, _rowKey: s._key, daily, mission: null, workKw: parts.join(',') }];
+      const w = items.map((p, i) => ({ id: i, ratio: p.ratio }));
+      const qty = lrm(w, daily), kwN = lrm(w, parts.length);
+      let off = 0;
+      return items.map((p, i) => {
+        const kw = parts.slice(off, off + kwN[i]); off += kwN[i];
+        return { ...base, _rowKey: `${s._key}__${i}`, daily: qty[i], mission: +p.name, workKw: kw.join(','), _guideMission: true };
+      }).filter(r => r.daily > 0);
+    });
+  }
+  const premiumIkil = start => { const t = new Date(); t.setHours(0, 0, 0, 0); const d = start ? new Date(start) : t; d.setHours(0, 0, 0, 0); return Math.max(0, Math.round((d - t) / 86400000)); };
+  const placeLink = r => r.url || (r.mid ? `https://m.place.naver.com/place/${r.mid}` : '');
+  // 제이엔 = 리더스 오가닉 '밸런스양식'(2행 머리글), 부산 = 슬롯 정보 수정 붙여넣기용(키워드·URL, 슬롯 1개당 1줄) + 발급 요약
+  async function downloadVendorXlsx(vendor, rows) {
+    await loadXlsx();
+    const wb = XLSX.utils.book_new();
+    if (vendor === '제이엔') {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+        ['플레이스 링크 (https://m.place.naver.com/restaurnat/3737373737)', '순위 키워드', '상호명 (띄어쓰기 같이 일치)', '트래픽 타수 (100 단위)', '시작일 (2026-10-07)', '구동일 (최소 7일)'],
+        [null, '메인 키워드', null, '트래픽 복합', null, null],
+        ...rows.map(r => [placeLink(r), r.rankKeyword, r.storeName, r.daily, r.start, r.days])]), '밸런스양식');
+    } else {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['순위 측정 키워드', '상품 URL'],
+        ...rows.flatMap(r => Array.from({ length: Math.ceil(r.daily / BUSAN_SLOT) }, () => [r.rankKeyword, placeLink(r)]))]), '슬롯정보');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['업체명', 'MID', '일 수량', '슬롯 수', '시작일', '일수'],
+        ...rows.map(r => [r.storeName, r.mid, r.daily, Math.ceil(r.daily / BUSAN_SLOT), r.start, r.days])]), '발급');
+    }
+    XLSX.writeFile(wb, `${vendor}-접수-${ymd(new Date())}.xlsx`);
+  }
+  function wireVendorTab(tab, { rows, bodyEl, subEl, applyBtn, closeBtn, overlay, gate, onDone }) {
+    const { vendor } = tab, isPrem = vendor === '프리미엄';
+    if (!rows.length) { bodyEl.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">${vendor} 몫이 있는 캠페인이 없습니다.</div>`; applyBtn.disabled = true; return; }
+    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
+    const agencies = [...new Set(rows.map(r => r.agencyId || '(대행사 미지정)'))];
+    rows.forEach((r, i) => { r._i = i; r.err = isPrem && !r._done && !r.workKw ? '검색키워드 없음' : ''; });
+    const pfx = tab.pfx;
+    bodyEl.innerHTML = (isPrem ? `<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:8px;">
+        <span style="font-size:12px;color:var(--text2);">미션번호 일괄 적용</span>
+        <input type="number" min="0" id="${pfx}-mission-bulk" placeholder="예: 12" style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+        <button type="button" id="${pfx}-mission-bulk-btn" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--bg);cursor:pointer;">적용</button></div>` : '')
+      + agencies.map(ag => {
+      const rs = rows.filter(r => (r.agencyId || '(대행사 미지정)') === ag);
+      const errN = rs.filter(r => r.err).length;
+      return `<div class="agency-block">
+        <div class="agency-hd"><div><div class="aname">${escProd(ag)}${errN ? ` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">⚠️ 오류 ${errN}건</span>` : ''}</div>
+          <div class="ameta">총 ${rs.length}건 · 일 수량 합계 ${rs.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}</div></div></div>
+        <div style="width:100%"><table class="ag-table ag-table-tight" style="table-layout:fixed;width:100%"><thead><tr>
+          <th style="width:110px">업체명</th><th style="width:96px">MID</th><th style="width:90px">순위키워드</th>
+          ${isPrem ? '<th style="width:64px;text-align:center">작업키워드</th>' : ''}
+          <th style="width:60px;text-align:right">일 수량</th>${vendor === '부산' ? '<th style="width:50px;text-align:center">슬롯</th>' : ''}
+          <th style="width:44px;text-align:center">일수</th><th style="width:78px">시작일</th>
+          ${isPrem ? '<th style="width:64px;text-align:center">미션</th>' : ''}<th style="width:76px;text-align:center">상태</th>
+        </tr></thead><tbody>${rs.map(r => {
+          const kwN = kwSplit(r.workKw).length;
+          return `<tr>
+          <td style="${ell}" title="${escProd(r.storeName)}">${escProd(r.storeName)}</td>
+          <td style="${ell};font-size:11px;color:var(--text2)" title="${escProd(r.mid)}">${escProd(r.mid || '-')}</td>
+          <td style="${ell}" title="${escProd(r.rankKeyword)}">${escProd(r.rankKeyword || '-')}</td>
+          ${isPrem ? `<td style="text-align:center" title="${escProd(r.workKw)}"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwN ? '#eff6ff' : '#fee2e2'};color:${kwN ? '#1d4ed8' : '#dc2626'};border:1px solid ${kwN ? '#bfdbfe' : '#fca5a5'}">${kwN}개</span></td>` : ''}
+          <td style="text-align:right;white-space:nowrap;font-weight:700">${r.daily.toLocaleString()}</td>
+          ${vendor === '부산' ? `<td style="text-align:center">${Math.ceil(r.daily / BUSAN_SLOT)}</td>` : ''}
+          <td style="text-align:center">${r.days}</td><td style="white-space:nowrap">${escProd(r.start || '-')}</td>
+          ${isPrem ? `<td style="text-align:center"><input type="number" min="0" class="${pfx}-mission" data-i="${r._i}" value="${r.mission ?? ''}" ${r._done ? 'disabled' : ''}
+            ${r._guideMission ? 'title="가이드 프리미엄 탭 상품(미션 번호)"' : ''} style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;"></td>` : ''}
+          <td style="text-align:center;white-space:nowrap" id="${pfx}-st-${r._i}">${r._done ? '<span style="color:var(--accent);">✅ 완료</span>' : r.err ? `<span style="color:var(--danger);">❌ ${r.err}</span>` : '-'}</td>
+        </tr>`; }).join('')}</tbody></table></div>
+        <div class="agency-ft"><div class="totals"></div></div></div>`;
+    }).join('');
+    rows.forEach(r => { r._statusTd = bodyEl.querySelector(`#${pfx}-st-${r._i}`); });
+    const bulkBtn = bodyEl.querySelector(`#${pfx}-mission-bulk-btn`);
+    if (bulkBtn) bulkBtn.onclick = () => {  // 빈 미션 칸에만 채움 — 가이드로 정해진·완료된 칸은 그대로
+      const v = bodyEl.querySelector(`#${pfx}-mission-bulk`).value;
+      if (v !== '') bodyEl.querySelectorAll(`.${pfx}-mission`).forEach(el => { if (!el.disabled && !el.value) el.value = v; });
+    };
+    const pending = rows.filter(r => !r._done && !r.err);
+    subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · ${vendor} ${rows.length}건 · 일 수량 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>`;
+    applyBtn.textContent = tab.btn;
+    if (!pending.length) { if (rows.every(r => r._done)) markApplyBtnDone(applyBtn); else applyBtn.disabled = true; return; }
+    applyBtn.onclick = async () => {
+      if (isPrem) {
+        for (const r of pending) {
+          const v = bodyEl.querySelector(`.${pfx}-mission[data-i="${r._i}"]`)?.value;
+          if (v === '' || v == null) { alert(`"${r.storeName}" 미션 번호를 입력해주세요.`); return; }
+          r.mission = Math.max(0, parseInt(v, 10) || 0);
+        }
+      }
+      window.bizfitSubmitting = true;
+      applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; applyBtn.style.background = '#6b7280';
+      closeBtn.disabled = true;
+      const { otherBtns } = lockOtherSubmitTabs(overlay, pfx);
+      pending.forEach(r => { r._statusTd.innerHTML = '<span style="color:var(--info);">⏳</span>'; });
+      const { ok: claimed } = await priceCheckRows(pending);
+      // 한 캠페인의 행(미션별)은 같이 가야 함 — 단가 확인에서 한 행이라도 빠진 캠페인은 전부 뺌
+      const slotOk = k => claimed.filter(r => r._slotKey === k).length === pending.filter(r => r._slotKey === k).length;
+      const go = claimed.filter(r => slotOk(r._slotKey));
+      let ok = false, msg = '';
+      if (go.length) {
+        if (isPrem) {
+          try {
+            const res = await callBizfitProxy('/youpfl-upload', { rows: go.map(r => ({ rankKw: r.rankKeyword, workKw: r.workKw, placeId: r.mid, target: r.daily, days: r.days, mission: r.mission, ikil: premiumIkil(r.start) })) });
+            ok = !!res.success; msg = res.message || '';
+          } catch (e) { msg = '서버 호출 실패: ' + e.message; }
+        } else {
+          try { await downloadVendorXlsx(vendor, go); ok = true; } catch (e) { msg = e.message; }
+        }
+      }
+      const doneKeys = new Set(rows.filter(r => r._done).map(r => r._slotKey));
+      if (ok) {
+        const at = new Date().toISOString();
+        for (const k of new Set(go.map(r => r._slotKey))) {
+          const s = go.find(r => r._slotKey === k)._slot;
+          const vo = { ...(s.vendorOrders || {}), [vendor]: { at, daily: go.filter(r => r._slotKey === k).reduce((a2, r) => a2 + r.daily, 0),
+            ...(isPrem ? { missions: go.filter(r => r._slotKey === k).map(r => r.mission) } : {}) } };
+          try { await HI.updateCampaign(k, { vendorOrders: vo }); } catch (e) { console.error(`${vendor} 접수 기록 실패:`, k, e); }
+          s.vendorOrders = vo; updateLocalSlot(k, { vendorOrders: vo });
+          doneKeys.add(k);
+        }
+        go.forEach(r => { r._done = true; r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+      } else {
+        go.forEach(r => { r._statusTd.innerHTML = `<span style="color:var(--danger);cursor:help" title="${escProd(msg)}">❌ 실패</span>`; });
+        if (msg) alert(`${vendor} 접수 실패: ${msg}`);
+      }
+      claimed.filter(r => !go.includes(r)).forEach(r => { r._statusTd.innerHTML = '<span style="color:var(--danger);">❌ 같은 캠페인 행 단가 확인 실패</span>'; });
+      if (ok && adlogAutoOn) await autoRegisterAdlog([...new Set(go.map(r => r._slot))]);
+      if (gate) { gate[tab.leg] = doneKeys; await gate.tryApprove(); }
+      else if (doneKeys.size) {
+        const failed = await finishReadySlots([...doneKeys].filter(k => allSlots.find(s => s._key === k)?.status !== 'active'), new Map(allSlots.map(s => [s._key, s])));
+        if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
+      }
+      const okN = ok ? go.length : 0;
+      finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okN, pending.length - okN);
+      if (onDone) onDone();
+    };
+  }
   // 각 탭의 plan/rows만 계산하는 순수 데이터 빌더 — renderSubmitModal의 최초 렌더/토글 재계산 양쪽에서 재사용.
   function computeSubmitData(target) {
     const agencies   = getAgencies(target);
@@ -3906,8 +4064,10 @@ window.toggleProdPanel = function(e) {
     const hasNavy    = navyPlan.some(p => p.rows.length > 0);
     const fullstackRows = buildFullstackRows(target);
     const hasFullstack = fullstackRows.length > 0;
-    const defaultTab = hasNormal ? 'normal' : (hasCharlie ? 'charlie' : ((hasDelta||hasNavy) ? 'blog' : (hasFullstack ? 'fullstack' : 'normal')));
-    return { normalPlan, charliePlan, deltaPlan, navyPlan, fullstackRows, hasNormal, hasCharlie, hasDelta, hasNavy, hasFullstack, defaultTab };
+    const vendorRows = Object.fromEntries(VENDOR_TABS.map(t => [t.key, buildVendorRows(target, t.vendor)]));
+    const defaultTab = hasNormal ? 'normal' : (hasCharlie ? 'charlie' : ((hasDelta||hasNavy) ? 'blog' : (hasFullstack ? 'fullstack'
+      : (VENDOR_TABS.find(t => vendorRows[t.key].length)?.key || 'normal'))));
+    return { normalPlan, charliePlan, deltaPlan, navyPlan, fullstackRows, vendorRows, hasNormal, hasCharlie, hasDelta, hasNavy, hasFullstack, defaultTab };
   }
 
   async function renderSubmitModal(target) {
@@ -3974,6 +4134,8 @@ window.toggleProdPanel = function(e) {
             onclick="switchSubmitTab('blog')" style="${(data.hasDelta||data.hasNavy)?'':'display:none;'}">블로그<span id="stab-warn-blog" class="stab-warn-ico" style="display:none;">⚠</span></button>
           <button id="stab-fullstack" class="submit-tab${data.defaultTab==='fullstack'?' active':''}"
             onclick="switchSubmitTab('fullstack')" style="${data.hasFullstack?'':'display:none;'}">풀스택</button>
+          ${VENDOR_TABS.map(t => `<button id="stab-${t.key}" class="submit-tab${data.defaultTab===t.key?' active':''}"
+            onclick="switchSubmitTab('${t.key}')" style="${data.vendorRows[t.key].length?'':'display:none;'}">${t.vendor}</button>`).join('')}
         </div>
         <div id="stab-panel-normal" style="display:${data.defaultTab==='normal'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
@@ -4028,6 +4190,19 @@ window.toggleProdPanel = function(e) {
           </div>
           <div id="fsub-body"></div>
         </div>
+        ${VENDOR_TABS.map(t => `<div id="stab-panel-${t.key}" style="display:${data.defaultTab===t.key?'block':'none'}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-size:12px;" id="${t.pfx}-sub"></div>
+              <button id="reset-${t.key}-btn" style="display:none;background:none;border:none;padding:0;font-size:11px;cursor:pointer;font-family:inherit;color:var(--muted);text-decoration:underline;">초기화</button>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+              <button class="btn-cancel" id="${t.pfx}-close-btn">닫기</button>
+              <button id="${t.pfx}-apply-btn" style="background:${t.color};color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">${t.btn}</button>
+            </div>
+          </div>
+          <div id="${t.pfx}-body"></div>
+        </div>`).join('')}
       </div>`;
     document.body.appendChild(overlay);
 
@@ -4133,7 +4308,7 @@ window.toggleProdPanel = function(e) {
 
         // 팝업은 닫지 않고 데이터만 재계산해 이 탭 상태만 갱신
         renderReceipts(false);
-        const keepTab = ['normal','charlie','blog','fullstack'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+        const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
         data = computeSubmitData(target);
         scheduleValidationRows = flattenScheduleRows(data);
         applyTabState(keepTab);
@@ -4193,7 +4368,7 @@ window.toggleProdPanel = function(e) {
           }));
 
           renderReceipts(false);
-          const keepTab = ['normal','charlie','blog','fullstack'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+          const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
           data = computeSubmitData(target);
           scheduleValidationRows = flattenScheduleRows(data);
           applyTabState(keepTab);
@@ -4202,6 +4377,50 @@ window.toggleProdPanel = function(e) {
         } finally {
           window.bizfitSubmitting = false;
           if (btn.isConnected && btn.textContent !== '초기화') { btn.disabled = false; btn.textContent = '초기화'; }
+        }
+      };
+    }
+
+    // 유입플 업체 탭 "초기화" — 프리미엄은 사이트 슬롯을 MID로 찾아 환불한 뒤, 제이엔·부산은 엑셀만 받은 거라 기록만 지움(업체 쪽 취소는 직접)
+    function wireVendorReset(tab, btn, doneRows) {
+      const candidates = [...new Set(doneRows.map(r => r._slot))];
+      if (!candidates.length) { btn.style.display = 'none'; return; }
+      btn.style.display = '';
+      btn.disabled = false; btn.textContent = '초기화';
+      btn.onclick = async () => {
+        const isPrem = tab.vendor === '프리미엄';
+        if (!confirm(isPrem ? `${candidates.length}건의 프리미엄 슬롯을 환불하고 초기화합니다.\n※ MID 단위라 같은 MID의 다른 프리미엄 슬롯도 같이 환불됩니다.`
+          : `${candidates.length}건의 ${tab.vendor} 접수 기록을 지웁니다.\n${tab.vendor} 쪽 취소는 직접 해야 합니다.`)) return;
+        btn.disabled = true; btn.textContent = '초기화 중...';
+        window.bizfitSubmitting = true;
+        let okMids = new Set(candidates.map(s => s.mid));
+        const errors = [];
+        try {
+          if (isPrem) {
+            try {
+              const res = await callBizfitProxy('/cleanup-youpfl-refund', { mids: [...okMids].filter(Boolean) });
+              if (res.success) res.results.forEach(r => { if (!r.success) { okMids.delete(r.mid); errors.push(`${r.mid}: ${r.message}`); } });
+              else { okMids = new Set(); errors.push(`환불 요청 실패: ${res.message || ''}`); }
+            } catch (e) { okMids = new Set(); errors.push(`환불 요청 실패: ${e.message}`); }
+          }
+          const resetSlots = candidates.filter(s => okMids.has(s.mid));
+          await Promise.all(resetSlots.map(async s => {
+            const vo = { ...(s.vendorOrders || {}) }; delete vo[tab.vendor];
+            const patch = { vendorOrders: Object.keys(vo).length ? vo : null };
+            if (s.status === 'active') patch.status = 'accepted';
+            await HI.updateCampaign(s._key, patch);
+            Object.assign(s, patch);
+            updateLocalSlot(s._key, patch);
+          }));
+          renderReceipts(false);
+          const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+          data = computeSubmitData(target);
+          scheduleValidationRows = flattenScheduleRows(data);
+          applyTabState(keepTab);
+          fillBody();
+          alert(`${tab.vendor} 초기화 완료: ${resetSlots.length}건` + (errors.length ? `\n실패(기록 남김):\n${errors.join('\n')}` : ''));
+        } finally {
+          window.bizfitSubmitting = false;
         }
       };
     }
@@ -4221,7 +4440,9 @@ window.toggleProdPanel = function(e) {
       overlay.querySelector('#stab-charlie').style.display = data.hasCharlie ? '' : 'none';
       overlay.querySelector('#stab-blog').style.display    = (data.hasDelta||data.hasNavy) ? '' : 'none';
       overlay.querySelector('#stab-fullstack').style.display = data.hasFullstack ? '' : 'none';
-      const avail = { normal: data.hasNormal, charlie: data.hasCharlie, blog: data.hasDelta||data.hasNavy, fullstack: data.hasFullstack };
+      VENDOR_TABS.forEach(t => { overlay.querySelector(`#stab-${t.key}`).style.display = data.vendorRows[t.key].length ? '' : 'none'; });
+      const avail = { normal: data.hasNormal, charlie: data.hasCharlie, blog: data.hasDelta||data.hasNavy, fullstack: data.hasFullstack,
+        ...Object.fromEntries(VENDOR_TABS.map(t => [t.key, data.vendorRows[t.key].length > 0])) };
       window.switchSubmitTab((keepTab && avail[keepTab]) ? keepTab : data.defaultTab);
     }
     // 재계산마다 재사용되는 버튼을 매번 초기 상태(활성화·기본 문구·원래 색)로 되돌려둔 뒤 wireSubmitTab 등이 다시 채움
@@ -4235,6 +4456,7 @@ window.toggleProdPanel = function(e) {
     function fillBody() {
       submitBodyEl.innerHTML = ''; csubBodyEl.innerHTML = ''; bsubBodyEl.innerHTML = ''; fsubBodyEl.innerHTML = '';
       resetApplyBtn(fsubApplyBtn, '#0d9488');
+      VENDOR_TABS.forEach(t => { overlay.querySelector(`#${t.pfx}-body`).innerHTML = ''; resetApplyBtn(overlay.querySelector(`#${t.pfx}-apply-btn`), t.color); });
       resetApplyBtn(submitApplyBtn, '#16a34a');
       resetApplyBtn(csubApplyBtn,   '#d946ef');
       resetApplyBtn(bsubApplyBtn,   '#22c55e');
@@ -4253,6 +4475,7 @@ window.toggleProdPanel = function(e) {
       const deltaAlreadyDone   = alreadyDoneOf(rowsBySlotOf(data.deltaPlan.flatMap(p => p.rows)), '_normalSubmitted');
       const navyAlreadyDone    = alreadyDoneOf(rowsBySlotOf(data.navyPlan.flatMap(p => p.rows)), '_normalSubmitted');
       const fullstackAlreadyDone = alreadyDoneOf(rowsBySlotOf(data.fullstackRows), '_fsSubmitted');
+      const vendorAlreadyDone = Object.fromEntries(VENDOR_TABS.map(t => [t.leg, alreadyDoneOf(rowsBySlotOf(data.vendorRows[t.key]), '_done')]));
 
       // "초기화" 버튼 대상 — every(전부 완료)가 아니라 some(하나라도 완료)으로 판단. 초기화는 실수를
       // 되돌리는 용도라 이 탭에 뭔가 이미 나간 게 있으면(전부는 아니어도) 되돌릴 수 있어야 한다.
@@ -4279,6 +4502,7 @@ window.toggleProdPanel = function(e) {
         new Set([...tabDoneNames(data.deltaPlan.flatMap(p => p.rows)), ...tabDoneNames(data.navyPlan.flatMap(p => p.rows))]),
       );
       wireFullstackReset(overlay.querySelector('#reset-fullstack-btn'), data.fullstackRows.filter(r => r._fsSubmitted));
+      VENDOR_TABS.forEach(t => wireVendorReset(t, overlay.querySelector(`#reset-${t.key}-btn`), data.vendorRows[t.key].filter(r => r._done)));
 
       // 슬롯별로 실제 쓰는 레그 집합 — rows에 그 슬롯(_slotKey)이 등장하는지로 판단
       const requiredLegsByKey = new Map(); // slotKey -> Set('normalKeys'|'charlieKeys'|'deltaKeys'|'navyKeys')
@@ -4292,6 +4516,7 @@ window.toggleProdPanel = function(e) {
       addRequired(data.deltaPlan.flatMap(p => p.rows), 'deltaKeys');
       addRequired(data.navyPlan.flatMap(p => p.rows), 'navyKeys');
       addRequired(data.fullstackRows, 'fullstackKeys');
+      VENDOR_TABS.forEach(t => addRequired(data.vendorRows[t.key], t.leg));
 
       // 게이트 유무와 상관없이 쓰는 판정 — doneSets를 받아 슬롯이 필요 레그를 전부 채웠는지로 승인 대상을 고름(조회 전용, 실행 안 함)
       const slotMapAll = new Map(allSlots.map(s => [s._key, s]));
@@ -4305,7 +4530,8 @@ window.toggleProdPanel = function(e) {
 
       // 다 완료된 슬롯은 승인(상태 전환)만 창 열자마자 자동 처리 — 차감(실제 돈)은 자동 시도 안 하고 배너 "재시도"로만 실행.
       // 탭 버튼은 렌더 시점 스냅샷이라 비동기 완료를 자동 반영 못 하므로 승인 끝나는 즉시 여기서 잠금.
-      const legHas = { normalKeys: data.hasNormal, charlieKeys: data.hasCharlie, deltaKeys: data.hasDelta, navyKeys: data.hasNavy, fullstackKeys: data.hasFullstack };
+      const legHas = { normalKeys: data.hasNormal, charlieKeys: data.hasCharlie, deltaKeys: data.hasDelta, navyKeys: data.hasNavy, fullstackKeys: data.hasFullstack,
+        ...Object.fromEntries(VENDOR_TABS.map(t => [t.leg, data.vendorRows[t.key].length > 0])) };
       function lockDoneButtons() {
         Object.entries(LEG_BTN_SEL).forEach(([leg, sel]) => {
           if (!legHas[leg]) return;
@@ -4320,15 +4546,19 @@ window.toggleProdPanel = function(e) {
       if (data.hasDelta)   activeLegs.push('deltaKeys');
       if (data.hasNavy)    activeLegs.push('navyKeys');
       if (data.hasFullstack) activeLegs.push('fullstackKeys');
+      VENDOR_TABS.forEach(t => { if (data.vendorRows[t.key].length) activeLegs.push(t.leg); });
+      // 사이트에 즉시 넣는(예약 없는) 레그 — 분할 예약 대상 아님, 분할 예약 때 이 레그가 남은 캠페인은 상태 변경 보류
+      const directLegs = ['fullstackKeys', ...VENDOR_TABS.map(t => t.leg)];
       const gate = (activeLegs.length > 1) ? {
+        ...Object.fromEntries(VENDOR_TABS.map(t => [t.leg, vendorAlreadyDone[t.leg].size ? vendorAlreadyDone[t.leg] : null])),
         normalKeys:  normalAlreadyDone.size  ? normalAlreadyDone  : null,
         charlieKeys: charlieAlreadyDone.size ? charlieAlreadyDone : null,
         deltaKeys:   deltaAlreadyDone.size   ? deltaAlreadyDone   : null,
         navyKeys:    navyAlreadyDone.size    ? navyAlreadyDone    : null,
         fullstackKeys: fullstackAlreadyDone.size ? fullstackAlreadyDone : null,
         slotMap: slotMapAll,
-        // 이 캠페인이 풀스택 탭을 아직 기다리는지 — 분할 예약 때 상태 변경을 보류할지 판단
-        fsPending(k) { return !slotMapAll.get(k)?.isRequeue && !!requiredLegsByKey.get(k)?.has('fullstackKeys') && !(this.fullstackKeys && this.fullstackKeys.has(k)); },
+        // 이 캠페인이 풀스택·유입플 업체 탭을 아직 기다리는지 — 분할 예약 때 상태 변경을 보류할지 판단
+        fsPending(k) { return !slotMapAll.get(k)?.isRequeue && directLegs.some(l => requiredLegsByKey.get(k)?.has(l) && !(this[l] && this[l].has(k))); },
         async tryApprove() {
           // 호출부가 try/catch 없이 await만 하므로, 내부 예외가 밖으로 새면 등록 성공해도
           // 승인/화면갱신이 통째로 스킵됨 — 여기서 막는다.
@@ -4349,7 +4579,7 @@ window.toggleProdPanel = function(e) {
 
       // 서버는 승인 게이트를 모르므로 예약은 레그 2개 이상이 동시에 필요한 슬롯이 섞이면 막음.
       // 풀스택은 예약 대상이 아님 — 분할 예약을 켜도 풀스택 탭은 접수 신청 즉시 접수(예약은 일반 등 등록 탭에만)
-      const registerLegs = activeLegs.filter(l => l !== 'fullstackKeys');
+      const registerLegs = activeLegs.filter(l => !directLegs.includes(l));
       const refreshScheduleToggle = () => {
         const alreadySplit = target.some(s => s.scheduleHold || s.status === 'split');
         const scheduleBlocked = registerLegs.length > 1 || alreadySplit;
@@ -4367,7 +4597,7 @@ window.toggleProdPanel = function(e) {
 
       // 팝업 여는 시점 스냅샷으로 딱 한 번 판단 — 이후 실제 클릭(gate.tryApprove 등)에서 갱신되는
       // 완료 집합은 그 클릭 흐름이 알아서 처리하므로 여기서 다시 계산할 필요 없음.
-      const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone, fullstackKeys: fullstackAlreadyDone });
+      const initialReady = readyKeysOf({ normalKeys: normalAlreadyDone, charlieKeys: charlieAlreadyDone, deltaKeys: deltaAlreadyDone, navyKeys: navyAlreadyDone, fullstackKeys: fullstackAlreadyDone, ...vendorAlreadyDone });
       if (initialReady.length) {
         // 자동 승인 도는 틈에 관리자가 같은 레그 "접수 신청"을 누르면 이중 차감 가능 — 처리 끝날 때까지 그 레그 버튼만 잠금
         const legsInvolved = new Set();
@@ -4430,6 +4660,10 @@ window.toggleProdPanel = function(e) {
         rows: data.fullstackRows, bodyEl: fsubBodyEl, subEl: overlay.querySelector('#fsub-sub'),
         applyBtn: fsubApplyBtn, closeBtn: overlay.querySelector('#fsub-close-btn'), overlay, gate, onDone: refreshScheduleToggle,
       });
+      VENDOR_TABS.forEach(t => wireVendorTab(t, {
+        rows: data.vendorRows[t.key], bodyEl: overlay.querySelector(`#${t.pfx}-body`), subEl: overlay.querySelector(`#${t.pfx}-sub`),
+        applyBtn: overlay.querySelector(`#${t.pfx}-apply-btn`), closeBtn: overlay.querySelector(`#${t.pfx}-close-btn`), overlay, gate, onDone: refreshScheduleToggle,
+      }));
 
       // 탭 통합 — 하나라도 경고가 있으면 전체 탭의 접수 신청을 비활성화. 세부 경고는 각 탭 서브헤더에 이미 뜨므로,
       // 타이틀 아래 공용 박스에는 어느 탭인지만 간략히 표시. 각 탭 버튼에는 빨간 경고 아이콘 표시.
@@ -4477,7 +4711,7 @@ window.toggleProdPanel = function(e) {
       gradeMatchOn = !gradeMatchOn;
       if (gmIcon) gmIcon.style.background = gradeMatchOn ? '#16a34a' : '#94a3b8';
       if (gmLabel) gmLabel.style.color = gradeMatchOn ? '#16a34a' : 'var(--text2)';
-      const keepTab = ['normal','charlie','blog','fullstack'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+      const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
       data = computeSubmitData(target);
       scheduleValidationRows = flattenScheduleRows(data);
       applyTabState(keepTab);
@@ -4512,7 +4746,7 @@ window.toggleProdPanel = function(e) {
         } catch (e) { fail++; }
       }
       bsubBulkBtn.disabled = false; bsubBulkBtn.textContent = '🔗 블로그URL 일괄조회';
-      const keepTab = ['normal','charlie','blog','fullstack'].find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+      const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
       data = computeSubmitData(target);
       scheduleValidationRows = flattenScheduleRows(data);
       applyTabState(keepTab);
@@ -4526,10 +4760,11 @@ window.toggleProdPanel = function(e) {
     overlay.querySelector('#csub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#bsub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
     overlay.querySelector('#fsub-close-btn').onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); };
+    VENDOR_TABS.forEach(t => { overlay.querySelector(`#${t.pfx}-close-btn`).onclick = () => { if (!window.bizfitSubmitting) overlay.remove(); }; });
   }
 
   window.switchSubmitTab = function(tab) {
-    ['normal','charlie','blog','fullstack'].forEach(k => {
+    SUBMIT_TAB_KEYS.forEach(k => {
       const panel = document.getElementById(`stab-panel-${k}`);
       const btn   = document.getElementById(`stab-${k}`);
       if (panel) panel.style.display = k === tab ? 'block' : 'none';
@@ -4800,7 +5035,7 @@ window.toggleProdPanel = function(e) {
 
   // legKey: 게이트 기록 필드('normalKeys'|'charlieKeys'|'deltaKeys'|'navyKeys') — 일반/찰리/블로그(델타+네이비) 탭이 이 로직을 공유
   // adrole: 지정 시 grade-info/register를 해당 adrole로만 조회 — 등급명이 겹쳐도 원하는 메뉴로만 정확히 접수
-  const ALL_SUBMIT_PREFIXES = ['submit', 'csub', 'bsub', 'fsub'];
+  const ALL_SUBMIT_PREFIXES = ['submit', 'csub', 'bsub', 'fsub', 'psub', 'jsub', 'nsub'];
   const SUBMIT_TAB_PREFIX = { normalKeys: 'submit', charlieKeys: 'csub' };
 
   // 찰리/델타/네이비는 동적 버전조회가 빈 값을 반환해 "버전체크 실패"로 거부됨(실측) — 상품 설정 ver로
