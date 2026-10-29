@@ -3803,15 +3803,18 @@ window.toggleProdPanel = function(e) {
   const fsPctOf = rule => Math.round((rule.full || []).reduce((t, p) => t + p.ratio, 0) * 100);
   function buildFullstackRows(slots) {
     return slots.flatMap(s => {
-      const f = s.yupflTarget != null ? s : yupflFieldsFor(s);
+      const f = s.yupflTarget != null ? s : allocFieldsFor(s);
       const daily = f.yupflByVendor ? (f.yupflByVendor['풀스택'] || 0) : (f.yupflTarget || 0);
       if (daily <= 0) return [];
+      // 풀스택만 받는 캠페인(리워드·다른 업체 몫 없음) — 오류여도 이 행만 빼고 접수(다른 탭을 안 막음). 섞인 캠페인(예 50:50)은 팝업 전체를 막음
+      const reward = (s.dailyTarget || 0) - (f.yupflTarget || 0) - Math.round((f.deductTarget || 0) / (s.days || 1));
+      const onlyFs = reward <= 0 && !Object.entries(f.yupflByVendor || {}).some(([v, n]) => v !== '풀스택' && n > 0);
       const cat = s.category || HI.kwCategoryOf(s.rankKeyword, guideCats);
       const rule = cat ? pickGuideRule(guideRules, cat, s.dailyTarget || 0) : null;
       const variants = rule ? fullstackVariants(rule) : [];
       return [{ _slotKey: s._key, _slot: s, _fsSubmitted: !!s.fullstackOrder, agencyId: s.agencyId || '', storeName: s.storeName || '', mid: s.mid || '',
         url: s.url || '', rankKeyword: s.rankKeyword || '',
-        daily, days: s.days || 0, start: s.startDate || '', variants,
+        daily, days: s.days || 0, start: s.startDate || '', variants, _onlyFs: onlyFs,
         err: !rule ? '가이드 분류·구간 없음' : unknownFull(rule).length ? `가이드 풀스택 상품 이름 모름: ${unknownFull(rule).join(', ')}`
           : fsTuneOf(rule.tune).err || (!variants.length ? '가이드 풀스택 비율 없음' : fsPctOf(rule) !== 100 ? `가이드 풀스택 비율 합계 ${fsPctOf(rule)}%` : '') }];
     });
@@ -3857,7 +3860,8 @@ window.toggleProdPanel = function(e) {
     }).join('');
     rows.forEach(r => { r._statusTd = bodyEl.querySelector(`#fs-st-${r._i}`); });
     const pending = rows.filter(r => !r._fsSubmitted && !r.err);
-    const anyFail = rows.some(r => !r._fsSubmitted && r.err);  // 다른 탭처럼 오류가 있으면 팝업 전체 접수 신청을 막음(fillBody tabResults)
+    // 다른 탭처럼 오류가 있으면 팝업 전체 접수 신청을 막음(fillBody tabResults) — 풀스택만 받는 캠페인의 오류는 그 행만 빠짐(_onlyFs)
+    const anyFail = rows.some(r => !r._fsSubmitted && r.err && !r._onlyFs);
     // 오류는 일반 탭처럼 대행사 머리 배지·상단 요약 줄로(상태 칸엔 안 씀)
     rows.forEach(r => { r.errs = !r._fsSubmitted && r.err ? [r.err] : []; });
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · 풀스택 ${rows.length}건 · 일 건수 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>${rowErrSummaryHtml(rows)}`;
