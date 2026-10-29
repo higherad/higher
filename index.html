@@ -499,6 +499,37 @@
     document.getElementById('sidebar').classList.add('collapsed');
   }
 
+  // ── 새 버전 배포 감지 ─────────────────────────────────────
+  // GitHub Pages는 배포 때마다 모든 파일 Last-Modified가 배포 시각으로 바뀜 — 지금 화면의 값보다 새로우면 클릭 시 새로고침 안내
+  // ponytail: Pages CDN 캐시(max-age 600) 때문에 배포 후 최대 10분쯤 늦게 잡힐 수 있음
+  const loadedAt = Date.parse(document.lastModified);
+  let lastCheck = 0, outdated = false;
+  async function checkVersion() {
+    if (outdated || Date.now() - lastCheck < 60000) return;
+    lastCheck = Date.now();
+    try {
+      const res = await fetch('index.html', { method: 'HEAD', cache: 'no-store' });
+      outdated = Date.parse(res.headers.get('Last-Modified')) > loadedAt;
+    } catch {}
+  }
+  function showReloadNotice() {
+    if (document.getElementById('reload-notice')) return;
+    const el = document.createElement('div');
+    el.id = 'reload-notice';
+    el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center';
+    el.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px 28px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px;line-height:1.6">
+      <b style="font-size:16px">새 버전이 배포되었습니다</b><br>최신 기능을 쓰려면 새로고침해 주세요.<br>
+      <button onclick="location.reload()" style="margin-top:14px;padding:8px 20px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">새로고침</button></div>`;
+    document.body.appendChild(el);
+  }
+  // 새 버전이면 어떤 클릭이든 막고 안내 — 새로고침 버튼만 통과
+  document.addEventListener('click', e => {
+    if (outdated && !e.target.closest('#reload-notice')) { e.stopPropagation(); e.preventDefault(); showReloadNotice(); }
+    else checkVersion();
+  }, true);
+  setInterval(checkVersion, 5 * 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
+
   init();
 </script>
 </body>
