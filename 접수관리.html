@@ -3947,7 +3947,8 @@ window.toggleProdPanel = function(e) {
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     const agencies = [...new Set(rows.map(r => r.agencyId || '(대행사 미지정)'))];
     // 부산은 지난 시작일 발급 안 함(서버도 같은 검사 — 마감 22시 뒤 오늘 시작분은 서버가 막음)
-    rows.forEach((r, i) => { r._i = i; r.err = r._done ? '' : isPrem && !r.workKw ? '검색키워드 없음'
+    // 프리미엄은 일반 탭과 같은 기준(검색키워드 0개·일 목표 10 미만) — 상태 칸 대신 대행사 머리 배지·상단 요약 줄로만 표시
+    rows.forEach((r, i) => { r._i = i; r.err = r._done ? '' : isPrem ? (!r.workKw || r.daily < 10 ? 'issue' : '')
       : vendor === '부산' ? busanErr(r.daily, r.days) || (r.start < ymd(new Date()) ? '시작일 지남' : '') : ''; });
     const pfx = tab.pfx;
     bodyEl.innerHTML = (isPrem ? `<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:8px;">
@@ -3979,7 +3980,7 @@ window.toggleProdPanel = function(e) {
           ${vendor === '부산' ? `<td style="white-space:nowrap">${r.start ? escProd(busanEnd(r.start)) : '-'}</td>` : ''}
           ${isPrem ? `<td style="text-align:center"><input type="number" min="0" class="${pfx}-mission" data-i="${r._i}" value="${r.mission ?? ''}" ${r._done ? 'disabled' : ''}
             ${r._guideMission ? 'title="가이드 프리미엄 탭 상품(미션 번호)"' : ''} style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;text-align:center;"></td>` : ''}
-          <td style="text-align:center;white-space:nowrap" id="${pfx}-st-${r._i}">${r._done ? '<span style="color:var(--accent);">✅ 완료</span>' : r.err ? `<span style="color:var(--danger);">❌ ${r.err}</span>` : '-'}</td>
+          <td style="text-align:center;white-space:nowrap" id="${pfx}-st-${r._i}">${r._done ? '<span style="color:var(--accent);">✅ 완료</span>' : r.err && !isPrem ? `<span style="color:var(--danger);">❌ ${r.err}</span>` : '-'}</td>
         </tr>`; }).join('')}</tbody></table></div>
         <div class="agency-ft"><div class="totals"></div></div></div>`;
     }).join('');
