@@ -2948,6 +2948,7 @@ window.toggleProdPanel = function(e) {
           else if (startDate < uploadTodayStr) errors.push('오늘 이전 시작일');
           if (!mid)             errors.push('MID 누락');
           if (note && !yupflRatio) errors.push(`비고는 리워드/${vendors.join('/')}/비율(예 50:50)만`);
+          if (yupflRatio?.vendor === '부산' && busanErr(dailyTarget || 0, days)) errors.push(busanErr(dailyTarget || 0, days));
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
           return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, valid: errors.length===0, error: errors.join(' / ') };
@@ -3882,10 +3883,11 @@ window.toggleProdPanel = function(e) {
   const VENDOR_TABS = [
     { key: 'premium', vendor: '프리미엄', pfx: 'psub', leg: 'premiumKeys', color: '#7c3aed', btn: '접수 신청' },
     { key: 'jn',      vendor: '제이엔',   pfx: 'jsub', leg: 'jnKeys',      color: '#c2410c', btn: '엑셀 받고 접수' },
-    { key: 'busan',   vendor: '부산',     pfx: 'nsub', leg: 'busanKeys',   color: '#e11d48', btn: '엑셀 받고 접수' },
+    { key: 'busan',   vendor: '부산',     pfx: 'nsub', leg: 'busanKeys',   color: '#e11d48', btn: '접수 신청' },
   ];
   const SUBMIT_TAB_KEYS = ['normal', 'charlie', 'blog', 'fullstack', ...VENDOR_TABS.map(t => t.key)];
-  const BUSAN_SLOT = 100; // 부산 슬롯 1개 = 하루 100타
+  const BUSAN_SLOT = 100, BUSAN_DAYS = 7; // 부산 슬롯 1개 = 하루 100타, 발급 7일 고정(엑셀 접수 비고 검사와 같은 값)
+  const busanErr = (daily, days) => daily % BUSAN_SLOT || days !== BUSAN_DAYS ? `부산은 일 목표 ${BUSAN_SLOT} 단위·${BUSAN_DAYS}일만` : '';
   function buildVendorRows(slots, vendor) {
     return slots.flatMap(s => {
       const f = s.yupflTarget != null ? s : yupflFieldsFor(s);
@@ -3911,29 +3913,22 @@ window.toggleProdPanel = function(e) {
   }
   const premiumIkil = start => { const t = new Date(); t.setHours(0, 0, 0, 0); const d = start ? new Date(start) : t; d.setHours(0, 0, 0, 0); return Math.max(0, Math.round((d - t) / 86400000)); };
   const placeLink = r => r.url || (r.mid ? `https://m.place.naver.com/place/${r.mid}` : '');
-  // 제이엔 = 리더스 오가닉 '밸런스양식'(2행 머리글), 부산 = 슬롯 정보 수정 붙여넣기용(키워드·URL, 슬롯 1개당 1줄) + 발급 요약
+  // 제이엔 = 리더스 오가닉 '밸런스양식'(2행 머리글) 엑셀만 받음(사이트 접수 없음)
   async function downloadVendorXlsx(vendor, rows) {
     await loadXlsx();
     const wb = XLSX.utils.book_new();
-    if (vendor === '제이엔') {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-        ['플레이스 링크 (https://m.place.naver.com/restaurnat/3737373737)', '순위 키워드', '상호명 (띄어쓰기 같이 일치)', '트래픽 타수 (100 단위)', '시작일 (2026-10-07)', '구동일 (최소 7일)'],
-        [null, '메인 키워드', null, '트래픽 복합', null, null],
-        ...rows.map(r => [placeLink(r), r.rankKeyword, r.storeName, r.daily, r.start, r.days])]), '밸런스양식');
-    } else {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['순위 측정 키워드', '상품 URL'],
-        ...rows.flatMap(r => Array.from({ length: Math.ceil(r.daily / BUSAN_SLOT) }, () => [r.rankKeyword, placeLink(r)]))]), '슬롯정보');
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['업체명', 'MID', '일 수량', '슬롯 수', '시작일', '일수'],
-        ...rows.map(r => [r.storeName, r.mid, r.daily, Math.ceil(r.daily / BUSAN_SLOT), r.start, r.days])]), '발급');
-    }
-    XLSX.writeFile(wb, `${vendor}-접수-${ymd(new Date())}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['플레이스 링크 (https://m.place.naver.com/restaurnat/3737373737)', '순위 키워드', '상호명 (띄어쓰기 같이 일치)', '트래픽 타수 (100 단위)', '시작일 (2026-10-07)', '구동일 (최소 7일)'],
+      [null, '메인 키워드', null, '트래픽 복합', null, null],
+      ...rows.map(r => [placeLink(r), r.rankKeyword, r.storeName, r.daily, r.start, r.days])]), '밸런스양식');
+    XLSX.writeFile(wb, `${ymd(new Date()).slice(2).replace(/-/g, '')}_${vendor}.xlsx`);  // 예 261029_제이엔.xlsx
   }
   function wireVendorTab(tab, { rows, bodyEl, subEl, applyBtn, closeBtn, overlay, gate, onDone }) {
     const { vendor } = tab, isPrem = vendor === '프리미엄';
     if (!rows.length) { bodyEl.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">${vendor} 몫이 있는 캠페인이 없습니다.</div>`; applyBtn.disabled = true; return; }
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     const agencies = [...new Set(rows.map(r => r.agencyId || '(대행사 미지정)'))];
-    rows.forEach((r, i) => { r._i = i; r.err = isPrem && !r._done && !r.workKw ? '검색키워드 없음' : ''; });
+    rows.forEach((r, i) => { r._i = i; r.err = r._done ? '' : isPrem && !r.workKw ? '검색키워드 없음' : vendor === '부산' ? busanErr(r.daily, r.days) : ''; });
     const pfx = tab.pfx;
     bodyEl.innerHTML = (isPrem ? `<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:8px;">
         <span style="font-size:12px;color:var(--text2);">미션번호 일괄 적용</span>
@@ -3976,7 +3971,9 @@ window.toggleProdPanel = function(e) {
     const pending = rows.filter(r => !r._done && !r.err);
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · ${vendor} ${rows.length}건 · 일 수량 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>`;
     applyBtn.textContent = tab.btn;
-    if (!pending.length) { if (rows.every(r => r._done)) markApplyBtnDone(applyBtn); else applyBtn.disabled = true; return; }
+    // 오류 행이 있으면 다른 탭처럼 팝업 전체 접수 신청을 막음(fillBody tabResults)
+    const anyFail = rows.some(r => r.err);
+    if (!pending.length) { if (rows.every(r => r._done)) markApplyBtnDone(applyBtn); else applyBtn.disabled = true; return { anyFail }; }
     applyBtn.onclick = async () => {
       if (isPrem) {
         for (const r of pending) {
@@ -3994,8 +3991,23 @@ window.toggleProdPanel = function(e) {
       // 한 캠페인의 행(미션별)은 같이 가야 함 — 단가 확인에서 한 행이라도 빠진 캠페인은 전부 뺌
       const slotOk = k => claimed.filter(r => r._slotKey === k).length === pending.filter(r => r._slotKey === k).length;
       const go = claimed.filter(r => slotOk(r._slotKey));
-      let ok = false, msg = '';
-      if (go.length) {
+      // 성공한 행 — 프리미엄(한 번에 업로드)·제이엔(엑셀)은 전부 아니면 전무, 부산은 행마다(서버가 행마다 발급·정보 입력)
+      let okRows = [];
+      const failRow = (r, label, memo, warn) => { r._statusTd.innerHTML = `<span style="color:${warn ? '#b45309' : 'var(--danger)'};cursor:help" title="${escProd(memo || '')}">${warn ? '⚠️' : '❌'} ${escProd(label)}</span>`; };
+      if (go.length && vendor === '부산') {
+        for (const r of go) {
+          let x;
+          try {
+            const res = await callBizfitProxy('/busan-order', { rows: [{ agency: r.agencyId, daily: r.daily, days: r.days, start: r.start, keyword: r.rankKeyword, url: placeLink(r), title: r.storeName }] });
+            x = res.success ? res.results[0] : { result: '실패', memo: res.message };
+          } catch (e) { x = { result: '확인 필요', memo: '서버 호출 실패(발급됐을 수 있음): ' + e.message }; }
+          if (x.result === '접수') okRows.push(r);
+          // '확인 필요' = 발급됐을 수 있음 — 다시 누르면 또 발급되므로 사이트에서 확인
+          else failRow(r, /계정 정보/.test(x.memo || '') ? '계정 없음' : x.result, x.memo, x.result === '확인 필요');
+          if (/계정 정보/.test(x.memo || '')) alert(x.memo);
+        }
+      } else if (go.length) {
+        let ok = false, msg = '';
         if (isPrem) {
           try {
             const res = await callBizfitProxy('/youpfl-upload', { rows: go.map(r => ({ rankKw: r.rankKeyword, workKw: r.workKw, placeId: r.mid, target: r.daily, days: r.days, mission: r.mission, ikil: premiumIkil(r.start) })) });
@@ -4004,34 +4016,30 @@ window.toggleProdPanel = function(e) {
         } else {
           try { await downloadVendorXlsx(vendor, go); ok = true; } catch (e) { msg = e.message; }
         }
+        if (ok) okRows = go;
+        else { go.forEach(r => failRow(r, '실패', msg)); if (msg) alert(`${vendor} 접수 실패: ${msg}`); }
       }
       const doneKeys = new Set(rows.filter(r => r._done).map(r => r._slotKey));
-      if (ok) {
-        const at = new Date().toISOString();
-        for (const k of new Set(go.map(r => r._slotKey))) {
-          const s = go.find(r => r._slotKey === k)._slot;
-          const vo = { ...(s.vendorOrders || {}), [vendor]: { at, daily: go.filter(r => r._slotKey === k).reduce((a2, r) => a2 + r.daily, 0),
-            ...(isPrem ? { missions: go.filter(r => r._slotKey === k).map(r => r.mission) } : {}) } };
-          try { await HI.updateCampaign(k, { vendorOrders: vo }); } catch (e) { console.error(`${vendor} 접수 기록 실패:`, k, e); }
-          s.vendorOrders = vo; updateLocalSlot(k, { vendorOrders: vo });
-          doneKeys.add(k);
-        }
-        go.forEach(r => { r._done = true; r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
-      } else {
-        go.forEach(r => { r._statusTd.innerHTML = `<span style="color:var(--danger);cursor:help" title="${escProd(msg)}">❌ 실패</span>`; });
-        if (msg) alert(`${vendor} 접수 실패: ${msg}`);
+      const at = new Date().toISOString();
+      for (const k of new Set(okRows.map(r => r._slotKey))) {
+        const rs = okRows.filter(r => r._slotKey === k), s = rs[0]._slot;
+        const vo = { ...(s.vendorOrders || {}), [vendor]: { at, daily: rs.reduce((a2, r) => a2 + r.daily, 0), ...(isPrem ? { missions: rs.map(r => r.mission) } : {}) } };
+        try { await HI.updateCampaign(k, { vendorOrders: vo }); } catch (e) { console.error(`${vendor} 접수 기록 실패:`, k, e); }
+        s.vendorOrders = vo; updateLocalSlot(k, { vendorOrders: vo });
+        doneKeys.add(k);
       }
-      claimed.filter(r => !go.includes(r)).forEach(r => { r._statusTd.innerHTML = '<span style="color:var(--danger);">❌ 같은 캠페인 행 단가 확인 실패</span>'; });
-      if (ok && adlogAutoOn) await autoRegisterAdlog([...new Set(go.map(r => r._slot))]);
+      okRows.forEach(r => { r._done = true; r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>'; });
+      claimed.filter(r => !go.includes(r)).forEach(r => failRow(r, '같은 캠페인 행 단가 확인 실패'));
+      if (okRows.length && adlogAutoOn) await autoRegisterAdlog([...new Set(okRows.map(r => r._slot))]);
       if (gate) { gate[tab.leg] = doneKeys; await gate.tryApprove(); }
       else if (doneKeys.size) {
         const failed = await finishReadySlots([...doneKeys].filter(k => allSlots.find(s => s._key === k)?.status !== 'active'), new Map(allSlots.map(s => [s._key, s])));
         if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
       }
-      const okN = ok ? go.length : 0;
-      finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okN, pending.length - okN);
+      finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okRows.length, pending.length - okRows.length);
       if (onDone) onDone();
     };
+    return { anyFail };
   }
   // 각 탭의 plan/rows만 계산하는 순수 데이터 빌더 — renderSubmitModal의 최초 렌더/토글 재계산 양쪽에서 재사용.
   function computeSubmitData(target) {
@@ -4135,7 +4143,7 @@ window.toggleProdPanel = function(e) {
           <button id="stab-fullstack" class="submit-tab${data.defaultTab==='fullstack'?' active':''}"
             onclick="switchSubmitTab('fullstack')" style="${data.hasFullstack?'':'display:none;'}">풀스택</button>
           ${VENDOR_TABS.map(t => `<button id="stab-${t.key}" class="submit-tab${data.defaultTab===t.key?' active':''}"
-            onclick="switchSubmitTab('${t.key}')" style="${data.vendorRows[t.key].length?'':'display:none;'}">${t.vendor}</button>`).join('')}
+            onclick="switchSubmitTab('${t.key}')" style="${data.vendorRows[t.key].length?'':'display:none;'}">${t.vendor}<span id="stab-warn-${t.key}" class="stab-warn-ico" style="display:none;">⚠</span></button>`).join('')}
         </div>
         <div id="stab-panel-normal" style="display:${data.defaultTab==='normal'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
@@ -4660,18 +4668,19 @@ window.toggleProdPanel = function(e) {
         rows: data.fullstackRows, bodyEl: fsubBodyEl, subEl: overlay.querySelector('#fsub-sub'),
         applyBtn: fsubApplyBtn, closeBtn: overlay.querySelector('#fsub-close-btn'), overlay, gate, onDone: refreshScheduleToggle,
       });
-      VENDOR_TABS.forEach(t => wireVendorTab(t, {
+      const vendorResults = VENDOR_TABS.map(t => ({ key: t.key, ...wireVendorTab(t, {
         rows: data.vendorRows[t.key], bodyEl: overlay.querySelector(`#${t.pfx}-body`), subEl: overlay.querySelector(`#${t.pfx}-sub`),
         applyBtn: overlay.querySelector(`#${t.pfx}-apply-btn`), closeBtn: overlay.querySelector(`#${t.pfx}-close-btn`), overlay, gate, onDone: refreshScheduleToggle,
-      }));
+      }) }));
 
       // 탭 통합 — 하나라도 경고가 있으면 전체 탭의 접수 신청을 비활성화. 세부 경고는 각 탭 서브헤더에 이미 뜨므로,
       // 타이틀 아래 공용 박스에는 어느 탭인지만 간략히 표시. 각 탭 버튼에는 빨간 경고 아이콘 표시.
-      const tabNames = { normal: '일반', charlie: '찰리', blog: '블로그' };
+      const tabNames = { normal: '일반', charlie: '찰리', blog: '블로그', ...Object.fromEntries(VENDOR_TABS.map(t => [t.key, t.vendor])) };
       const tabResults = [
         { key: 'normal',  ...normalResult },
         { key: 'charlie', ...charlieResult },
         { key: 'blog',    ...blogResult },
+        ...vendorResults,
       ];
       tabResults.forEach(t => {
         const ico = overlay.querySelector(`#stab-warn-${t.key}`);
@@ -4683,7 +4692,7 @@ window.toggleProdPanel = function(e) {
       warnBox.innerHTML = combinedWarnHtml;
       warnBox.style.display = combinedWarnHtml ? 'block' : 'none';
       if (tabResults.some(t => t.anyFail)) {
-        [submitApplyBtn, csubApplyBtn, bsubApplyBtn].forEach(btn => {
+        [submitApplyBtn, csubApplyBtn, bsubApplyBtn, ...VENDOR_TABS.map(t => overlay.querySelector(`#${t.pfx}-apply-btn`))].forEach(btn => {
           if (btn.disabled) return; // 이미 대상없음/전체완료로 비활성인 버튼은 그대로 둠
           btn.disabled = true;
           btn.title = '경고가 있는 탭을 먼저 수정해야 접수 신청이 가능합니다';
