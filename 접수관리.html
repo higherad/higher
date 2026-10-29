@@ -573,7 +573,7 @@ window.toggleProdPanel = function(e) {
   const recordTypeLabels = s => asList(s?.campaignType);
   // 표시 = 잔여 재분류 때 정한 현재 진행 등급(campaignTypeShown), 없으면 기록 전체. 이전 등급은 campaignType에 기록으로만 남음
   const typeLabels = s => s?.campaignTypeShown ? asList(s.campaignTypeShown) : recordTypeLabels(s);
-  // 풀스텍 = 시트 분류 때 가이드로 정해진 풀스텍(유입플) 상품(fullstackType) — 등급 매칭엔 안 씀
+  // 풀스텍 = 시트 분류 때 가이드로 정해진 풀스텍(유입플) 상품(fullstackType)
   const fullstackLabels = s => Array.isArray(s?.fullstackType) ? s.fullstackType : (s?.fullstackType ? Object.values(s.fullstackType) : []);
   // 엑셀 비고 — '리워드'(전부 리워드)·유입플 업체명(예 '풀스택': 전부 그 업체 유입플)·'50:50'(리워드%:유입플%, 합 100). 그 밖은 null
   function parseRatioNote(t, vendors = []) {
@@ -609,7 +609,7 @@ window.toggleProdPanel = function(e) {
   };
   const yupflProductLabels = s => vendorProductsOf(s).flatMap(([, l]) => l);
   function typeBadgesHtml(s) {
-    if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음 — 엑셀·필터·등급 매칭용)
+    if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음 — 엑셀·필터용)
     const badge = (l, style) => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;${style}">${escProd(l)}</span>`;
     const html = [...typeLabels(s).map(l => badge(l, 'background:#f1f5f9;color:#334155;border:1px solid #e2e8f0')),
       ...vendorProductsOf(s).flatMap(([v, l]) => l.map(n => badge(n, VENDOR_BADGE[v] || OTHER_VENDOR_BADGE)))];
@@ -2096,7 +2096,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 가이드_접수 프리셋 ──────────────────────────────────────────
   // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
-  // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 원래 방식(등급 매칭/상품 설정)으로.
+  // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 상품 유형 설정으로.
   let guideModeOn = false, guideRules = [], guideCats = [], guideTimes = [], guideSplit = null;
   // 풀스텍 상품 = [배지 짧은 이름, 사이트 프리셋, 로그인 가능(검색 유입)] — 시트 분류 열·배지 순서도 이 순서. 시트 분류·가이드_접수·풀스택 탭 공용
   const FULL_PRODS = [['기본', 'basic', 1], ['둘러보고', 'browse', 1], ['카톡(길찾기)', 'kakao_route'], ['카톡(공유)', 'kakao_share'],
@@ -2168,11 +2168,6 @@ window.toggleProdPanel = function(e) {
     if (activeProdGroupId) deactivateProdGroup();
     guideModeOn = true; renderPS();
   };
-
-  // ── MID의 기존 진행중 등급으로 접수(등급 자동매칭) ──────────────
-  // 같은 MID의 진행 중 캠페인에 저장된 상품(gradeLabelsOf)이 있으면 상품 유형 설정 ratio 무시하고 그 상품(들)로만 접수.
-  // 팝업 토글(기본 off) 켜면 그 상품으로, 끄면 상품 유형 설정값 그대로 배분.
-  let gradeMatchOn = false;
 
   // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(approveReadySlots)에서 애드로그 자동등록을 스킵.
   // 행 단위 단건 승인 버튼(approveOne)은 이 토글과 무관하게 항상 자동등록.
@@ -2298,17 +2293,7 @@ window.toggleProdPanel = function(e) {
     return results.filter(r => !r.ok).map(r => r.g);
   }
 
-  // 같은 MID에서 지금 진행 중(승인·분할)인 캠페인들에 저장된 상품 — 등급 자동매칭의 기준
-  function gradeLabelsOf(mid) {
-    return [...new Set(allSlots.filter(s => s.mid === mid && (s.status === 'active' || s.status === 'split')).flatMap(typeLabels))];
-  }
-
-  function matchedGradeProds(mid) {
-    if (!mid) return [];
-    return gradeProdsFromLabels(gradeLabelsOf(mid));
-  }
-
-  // 등급명 목록 → 배분용 상품(설정에 있는 상품이면 그 상품, 없으면 가상 상품) — MID 등급 매칭·변경 요청 상품 공용
+  // 등급명 목록 → 배분용 상품(설정에 있는 상품이면 그 상품, 없으면 가상 상품) — 변경 요청 상품용
   function gradeProdsFromLabels(labels) {
     if (!labels.length) return [];
     const seen = new Set();
@@ -2324,8 +2309,8 @@ window.toggleProdPanel = function(e) {
     return result;
   }
 
-  // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 매칭된 등급 있으면 고정 항목은 그대로
-  // 두고 나머지만 균등분배, 없으면 기존 ratio 배분. 재접수는 변경 요청 상품(changeTo)이 있으면 그 상품, 없으면 매칭 안 함.
+  // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 가이드·변경 요청 상품이 있으면 고정 항목은 그대로
+  // 두고 그 상품으로 배분, 없으면 상품 유형 설정 ratio 배분.
   function allocRowsForSlot(r) {
     // 엑셀 비고 비율(yupflRatio)이 있으면 유입플 분류 % 대신 그 비율(가이드_접수면 가이드 비율 대신)
     const R = noteRatio(r);
@@ -2334,13 +2319,12 @@ window.toggleProdPanel = function(e) {
       const list = ap().map(p => p.classifyOnly ? { ...p, fixedPct: pct } : p);
       return y && !list.some(p => p.classifyOnly) ? [...list, { ...y, fixedPct: pct }] : list;
     })();
-    // 변경 요청으로 생긴 재접수(changeTo)는 요청한 상품으로, 그 외 재접수는 매칭 안 함
+    // 변경 요청으로 생긴 재접수(changeTo)는 요청한 상품으로
     const changeTo = (r.changeTo || '').split('/').map(x => x.trim()).filter(Boolean);
     const guideProds = guideModeOn && !changeTo.length ? guideProdsFor(r) : [];
-    // 우선순위: 변경 요청 상품(토글과 무관) > 가이드_접수 > 등급 매칭(토글 켰을 때, 재접수 제외) > 상품 유형 설정
+    // 우선순위: 변경 요청 상품 > 가이드_접수 > 상품 유형 설정
     const gradeProds = guideProds.length ? guideProds
-      : changeTo.length ? gradeProdsFromLabels(changeTo)
-      : gradeMatchOn && !r.isRequeue ? matchedGradeProds(r.mid) : [];
+      : changeTo.length ? gradeProdsFromLabels(changeTo) : [];
     if (!gradeProds.length) {
       return { alloc: allocate(AP.slice(), r.dailyTarget||0), prods: AP, gradeProds: null };
     }
@@ -2349,7 +2333,7 @@ window.toggleProdPanel = function(e) {
     return { alloc: allocate(asgn, r.dailyTarget||0), prods: asgn, gradeProds };
   }
 
-  // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 ratio대로(등급 매칭은 모두 1 = 균등, 가이드는 가이드 비율) 나눈다.
+  // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 ratio대로(변경 요청 상품은 모두 1 = 균등, 가이드는 가이드 비율) 나눈다.
   function kwForGradeProd(keywords, prod, gradeProds) {
     if (!keywords) return '';
     const parts = keywords.split(',').map(k => k.trim()).filter(k => k);
@@ -3087,7 +3071,7 @@ window.toggleProdPanel = function(e) {
   // ── 캠페인 타입 변경 요청 ─────────────────────────────────────
   // 신청은 진행현황(체크 후 변경 요청, 승인·예약 건만) → 여기선 등급 아래 빨간 배지·'변경' 카드 집계. 표시는 원 캠페인이 종료(closed)될
   // 때까지 유지 — 상태를 접수·대기로 바꾸거나 강제종료 당일이어도 그대로. 실제 강제종료는 사람이 직접 하고, 강제종료로 생기는
-  // 재접수 캠페인이 요청 상품(changeTo)을 이어받아 빨간 배지·등급 매칭에 씀. 완료·취소 단계 없음. 광고주에겐 서버가 이 필드를 안 보냄
+  // 재접수 캠페인이 요청 상품(changeTo)을 이어받아 빨간 배지·배분에 씀. 완료·취소 단계 없음. 광고주에겐 서버가 이 필드를 안 보냄
   const isTypeChangeReq = s => !!(s && s.changeRequest && !['expired','deleted'].includes(s.status));
   // 등급 배지 아래 빨간 배지 — 변경 요청 중인 원 캠페인, 그리고 요청 상품을 이어받은 재접수 캠페인(진행 중 상태 동안)
   const typeChangeTo = s => isTypeChangeReq(s) ? s.changeRequest.to
@@ -3546,7 +3530,7 @@ window.toggleProdPanel = function(e) {
     const rows = [];
     slots.forEach(r => {
       const { alloc, gradeProds } = allocRowsForSlot(r);
-      // 등급 매칭이 있으면 그 슬롯은 매칭 결과에서만(비활성이어도) 델타/네이비를 찾고, 없으면 기존처럼 활성 상품만 대상으로 한다.
+      // 가이드·변경 요청 상품이 있으면 그 슬롯은 그 결과에서만(비활성이어도) 델타/네이비를 찾고, 없으면 기존처럼 활성 상품만 대상으로 한다.
       const prod = gradeProds ? gradeProds.find(p => p.name === baseProd.name) : ap().find(p => p.id === prodId);
       if (!prod) return;
       const pp = alloc[prod.id] ?? 0;
@@ -3737,10 +3721,8 @@ window.toggleProdPanel = function(e) {
   const LEG_BTN_SEL = { normalKeys: '#submit-apply-btn', charlieKeys: '#csub-apply-btn', deltaKeys: '#bsub-apply-btn', navyKeys: '#bsub-apply-btn', fullstackKeys: '#fsub-apply-btn',
     premiumKeys: '#psub-apply-btn', jnKeys: '#jsub-apply-btn', busanKeys: '#nsub-apply-btn' };
 
-  // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 등급 매칭은 끔·애드로그는 켬으로 초기화 — 토글 버튼 자체의 재오픈은
-  // 방금 뒤집은 값을 유지해야 하므로 renderSubmitModal()을 직접 호출한다(아래 gmBtn.onclick 참고).
+  // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 애드로그는 켬으로 초기화
   async function openSubmitModal(target) {
-    gradeMatchOn = false;
     adlogAutoOn = true;
     scheduleConfig = null;
     // 가이드_접수면 시간 분할 편집기 기본값 = 가이드 시간 분배
@@ -4155,15 +4137,6 @@ window.toggleProdPanel = function(e) {
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
             </button>
-            <!-- 등급 매칭 토글 — 사용자 요청으로 숨김(gradeMatchOn은 항상 false). 다시 쓰려면 이 주석과 아래 gmBtn 핸들러 주석을 풀면 됨
-            <button id="grade-match-toggle" type="button" title="진행중인 MID가 있으면 동일한 상품으로 접수 — 끄면 상품 유형 설정값 그대로 배분"
-              style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
-              <span id="grade-match-toggle-label" style="font-size:12px;color:${gradeMatchOn?'#16a34a':'var(--text2)'};font-weight:600;">등급 매칭</span>
-              <span id="grade-match-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${gradeMatchOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
-                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              </span>
-            </button>
-            -->
             <button id="schedule-toggle-btn" type="button" onclick="toggleScheduleEditor()"
               style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
               <span id="schedule-toggle-label" style="font-size:12px;color:${scheduleConfig?'#f59e0b':'var(--text2)'};font-weight:600;">⏰ 분할 예약</span>
@@ -4774,22 +4747,6 @@ window.toggleProdPanel = function(e) {
       if (adlogLabel) adlogLabel.style.color = adlogAutoOn ? '#16a34a' : 'var(--text2)';
     };
 
-    // 등급 자동매칭 토글 — 모달을 새로 열지 않고 데이터만 재계산해 탭 본문만 다시 채움(버튼 숨김 중이라 지금은 동작 안 함 — 위 버튼 주석과 같이 풀기)
-    /*
-    const gmBtn   = overlay.querySelector('#grade-match-toggle');
-    const gmIcon  = overlay.querySelector('#grade-match-toggle-icon');
-    const gmLabel = overlay.querySelector('#grade-match-toggle-label');
-    if (gmBtn) gmBtn.onclick = () => {
-      gradeMatchOn = !gradeMatchOn;
-      if (gmIcon) gmIcon.style.background = gradeMatchOn ? '#16a34a' : '#94a3b8';
-      if (gmLabel) gmLabel.style.color = gradeMatchOn ? '#16a34a' : 'var(--text2)';
-      const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
-      data = computeSubmitData(target);
-      scheduleValidationRows = flattenScheduleRows(data);
-      applyTabState(keepTab);
-      fillBody();
-    };
-    */
 
     // 블로그URL 미입력 슬롯만 골라 applyDeltaBlogUrls와 동일한 프록시로 자동조회해 채움(기존 값은 안 건드림).
     const bsubBulkBtn = overlay.querySelector('#bsub-bulk-blogurl-btn');
@@ -5331,7 +5288,7 @@ window.toggleProdPanel = function(e) {
     return { okTotal, failTotal };
   }
 
-  // submitPlanRows와 같은 검증·등급매칭을 거치되 /register 대신 schedule/dispatch에 저장 —
+  // submitPlanRows와 같은 검증·배분을 거치되 /register 대신 schedule/dispatch에 저장 —
   // 승인은 서버가 그룹 완료 확인 후 처리, 캐시차감은 예약 시점에 바로 실행.
   async function submitPlanRowsScheduled(plan, overlay, legKey, adrole, schedule, gate = null) {
     const productVer = productVerFor(legKey);
