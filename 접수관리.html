@@ -3856,10 +3856,11 @@ window.toggleProdPanel = function(e) {
     }).join('');
     rows.forEach(r => { r._statusTd = bodyEl.querySelector(`#fs-st-${r._i}`); });
     const pending = rows.filter(r => !r._fsSubmitted && !r.err);
+    const anyFail = rows.some(r => !r._fsSubmitted && r.err);  // 다른 탭처럼 오류가 있으면 팝업 전체 접수 신청을 막음(fillBody tabResults)
     // 오류는 일반 탭처럼 대행사 머리 배지·상단 요약 줄로(상태 칸엔 안 씀)
     rows.forEach(r => { r.errs = !r._fsSubmitted && r.err ? [r.err] : []; });
     subEl.innerHTML = `<span style="color:var(--muted)">대행사 ${agencies.length}곳 · 풀스택 ${rows.length}건 · 일 건수 합계 ${rows.reduce((a2, r) => a2 + r.daily, 0).toLocaleString()}${pending.length < rows.length ? ` · 접수할 것 ${pending.length}건` : ''}</span>${rowErrSummaryHtml(rows)}`;
-    if (!pending.length) { if (rows.every(r => r._fsSubmitted)) markApplyBtnDone(applyBtn); else applyBtn.disabled = true; return; }
+    if (!pending.length) { if (rows.every(r => r._fsSubmitted)) markApplyBtnDone(applyBtn); else applyBtn.disabled = true; return { anyFail }; }
     // 접수 결과로 오늘로 당긴 시작일·일수를 표에 반영(지난 시작일이면 서버가 오늘부터 남은 일수로 접수)
     const showPlan = (r, x) => {
       if (x.start && x.start !== r.start) { bodyEl.querySelector(`#fs-start-${r._i}`).innerHTML = `${escProd(x.start)}<div style="font-size:10px;color:var(--muted);">원래 ${escProd(r.start)}</div>`; bodyEl.querySelector(`#fs-days-${r._i}`).textContent = x.days; }
@@ -3903,6 +3904,7 @@ window.toggleProdPanel = function(e) {
       finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okTotal, failTotal);
       if (onDone) onDone();
     };
+    return { anyFail };
   }
 
   // 유입플 업체 탭 — 풀스택처럼 업체 몫(yupflByVendor)이 있는 캠페인만. 프리미엄 = 사이트 업로드(/youpfl-upload), 제이엔·부산 = 엑셀만 받고 완료.
@@ -4179,7 +4181,7 @@ window.toggleProdPanel = function(e) {
           <button id="stab-normal" class="submit-tab${data.defaultTab==='normal'?' active':''}"
             onclick="switchSubmitTab('normal')"${!data.hasNormal?' disabled':''}>일반<span id="stab-warn-normal" class="stab-warn-ico" style="display:none;">⚠</span></button>
           <button id="stab-fullstack" class="submit-tab${data.defaultTab==='fullstack'?' active':''}"
-            onclick="switchSubmitTab('fullstack')" style="${data.hasFullstack?'':'display:none;'}">풀스택</button>
+            onclick="switchSubmitTab('fullstack')" style="${data.hasFullstack?'':'display:none;'}">풀스택<span id="stab-warn-fullstack" class="stab-warn-ico" style="display:none;">⚠</span></button>
           ${VENDOR_TABS.map(t => `<button id="stab-${t.key}" class="submit-tab${data.defaultTab===t.key?' active':''}"
             onclick="switchSubmitTab('${t.key}')" style="${data.vendorRows[t.key].length?'':'display:none;'}">${t.vendor}<span id="stab-warn-${t.key}" class="stab-warn-ico" style="display:none;">⚠</span></button>`).join('')}
           <button id="stab-charlie" class="submit-tab${data.defaultTab==='charlie'?' active':''}"
@@ -4706,10 +4708,10 @@ window.toggleProdPanel = function(e) {
       });
 
       // 풀스택 탭 구성 — 미리보기는 열 때 자동(사이트에 접수 안 됨), 접수 신청을 눌러야 실제 접수
-      if (data.hasFullstack) wireFullstackTab({
+      const fullstackResult = data.hasFullstack ? wireFullstackTab({
         rows: data.fullstackRows, bodyEl: fsubBodyEl, subEl: overlay.querySelector('#fsub-sub'),
         applyBtn: fsubApplyBtn, closeBtn: overlay.querySelector('#fsub-close-btn'), overlay, gate, onDone: refreshScheduleToggle,
-      });
+      }) : {};
       const vendorResults = VENDOR_TABS.map(t => ({ key: t.key, ...wireVendorTab(t, {
         rows: data.vendorRows[t.key], bodyEl: overlay.querySelector(`#${t.pfx}-body`), subEl: overlay.querySelector(`#${t.pfx}-sub`),
         applyBtn: overlay.querySelector(`#${t.pfx}-apply-btn`), closeBtn: overlay.querySelector(`#${t.pfx}-close-btn`), overlay, gate, onDone: refreshScheduleToggle,
@@ -4717,11 +4719,12 @@ window.toggleProdPanel = function(e) {
 
       // 탭 통합 — 하나라도 경고가 있으면 전체 탭의 접수 신청을 비활성화. 세부 경고는 각 탭 서브헤더에 이미 뜨므로,
       // 타이틀 아래 공용 박스에는 어느 탭인지만 간략히 표시. 각 탭 버튼에는 빨간 경고 아이콘 표시.
-      const tabNames = { normal: '일반', charlie: '찰리', blog: '블로그', ...Object.fromEntries(VENDOR_TABS.map(t => [t.key, t.vendor])) };
+      const tabNames = { normal: '일반', charlie: '찰리', blog: '블로그', fullstack: '풀스택', ...Object.fromEntries(VENDOR_TABS.map(t => [t.key, t.vendor])) };
       const tabResults = [
         { key: 'normal',  ...normalResult },
         { key: 'charlie', ...charlieResult },
         { key: 'blog',    ...blogResult },
+        { key: 'fullstack', ...fullstackResult },
         ...vendorResults,
       ];
       tabResults.forEach(t => {
@@ -4734,7 +4737,7 @@ window.toggleProdPanel = function(e) {
       warnBox.innerHTML = combinedWarnHtml;
       warnBox.style.display = combinedWarnHtml ? 'block' : 'none';
       if (tabResults.some(t => t.anyFail)) {
-        [submitApplyBtn, csubApplyBtn, bsubApplyBtn, ...VENDOR_TABS.map(t => overlay.querySelector(`#${t.pfx}-apply-btn`))].forEach(btn => {
+        [submitApplyBtn, csubApplyBtn, bsubApplyBtn, fsubApplyBtn, ...VENDOR_TABS.map(t => overlay.querySelector(`#${t.pfx}-apply-btn`))].forEach(btn => {
           if (btn.disabled) return; // 이미 대상없음/전체완료로 비활성인 버튼은 그대로 둠
           btn.disabled = true;
           btn.title = '경고가 있는 탭을 먼저 수정해야 접수 신청이 가능합니다';
@@ -6453,10 +6456,11 @@ window.toggleProdPanel = function(e) {
 
   function lockOtherSubmitTabs(overlay, btnPrefix) {
     // 슬롯 상태를 동시에 건드릴 수 있는 다른 탭(일반/찰리/블로그)도 진행 중엔 잠가둔다
+    // 이미 꺼진 버튼(오류·완료·대상 없음)은 빼야 끝난 뒤 finishTabUI가 그 버튼을 다시 켜지 않음
     const otherBtns = ALL_SUBMIT_PREFIXES
       .filter(pfx => pfx !== btnPrefix)
       .map(pfx => overlay.querySelector(`#${pfx}-apply-btn`))
-      .filter(Boolean);
+      .filter(b => b && !b.disabled);
     otherBtns.forEach(b => { b.disabled = true; });
     return { otherBtns };
   }
