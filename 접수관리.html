@@ -222,7 +222,7 @@
 
 <style>
   /* 상단 카드 — 가운데 정렬 8칸 */
-  #receipt-stat-bar { display:grid; grid-template-columns:repeat(9,1fr); gap:10px; margin-bottom:16px; }
+  #receipt-stat-bar { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:16px; }
   #receipt-stat-bar .rc-stat { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
   #receipt-stat-bar .rc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
   #receipt-stat-bar .rc-sub { color:var(--muted); font-weight:500; margin-right:5px; padding-right:5px; border-right:1px solid var(--border); }
@@ -236,7 +236,6 @@
   <div class="rc-stat" onclick="filterByCard('accepted')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">접수</div><div class="rc-val" id="stat-accepted" style="color:#1d4ed8">-</div></div>
   <div class="rc-stat" onclick="filterByCard('active')" title="클릭하면 이 상태만 봅니다"><div class="rc-label">승인</div><div class="rc-val" id="stat-active" style="color:var(--accent)">-</div></div>
   <div class="rc-stat" onclick="openSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="rc-label" style="color:#b45309;font-weight:700;">분할 <span style="font-size:10px;">↗</span></div><div class="rc-val" id="stat-split" style="color:#b45309">-</div></div>
-  <div class="rc-stat" onclick="filterByCard('change')" title="클릭하면 변경 요청 캠페인만 봅니다"><div class="rc-label" style="color:#dc2626;font-weight:700;">변경</div><div class="rc-val" id="stat-change" style="color:#dc2626">-</div></div>
   <div class="rc-stat" onclick="filterByCard('requeue')" title="클릭하면 이 상태만 봅니다"><div class="rc-label"><span class="rc-sub">재접수</span>대기</div><div class="rc-val" id="stat-requeue" style="color:#b45309">-</div></div>
   <div class="rc-stat" onclick="filterByCard('requeue_accepted')" title="클릭하면 이 상태만 봅니다"><div class="rc-label"><span class="rc-sub">재접수</span>접수</div><div class="rc-val" id="stat-requeue-accepted" style="color:#1d4ed8">-</div></div>
   <div class="rc-stat" onclick="filterByCard('requeue_active')" title="클릭하면 이 상태만 봅니다"><div class="rc-label"><span class="rc-sub">재접수</span>승인</div><div class="rc-val" id="stat-requeue-active" style="color:var(--accent)">-</div></div>
@@ -301,7 +300,6 @@
     <option value="requeue_active">재접수|승인</option>
     <option value="force_stopped">강제종료</option>
     <option value="expired">종료</option>
-    <option value="change">변경 요청</option>
   </select>
   <select id="filter-slot-type" onchange="renderReceipts()">
     <option value="">전체 등급</option>
@@ -668,8 +666,7 @@ window.toggleProdPanel = function(e) {
     return allSlots.filter(s => {
       if (s.status === 'deleted') return false;
       // 재접수|접수·승인은 재접수 건만, 대기·접수·승인은 재접수 제외(상단 카드와 같은 기준)
-      if (status === 'change') { if (!isTypeChangeReq(s)) return false; }
-      else if (status === 'requeue_accepted') { if (!(s.isRequeue && s.status === 'accepted')) return false; }
+      if (status === 'requeue_accepted') { if (!(s.isRequeue && s.status === 'accepted')) return false; }
       else if (status === 'requeue_active') { if (!(s.isRequeue && s.status === 'active')) return false; }
       else if (['pending','accepted','active'].includes(status)) { if (s.status !== status || s.isRequeue) return false; }
       else if (status && s.status !== status) return false;
@@ -768,7 +765,6 @@ window.toggleProdPanel = function(e) {
     document.getElementById('stat-requeue').textContent  = allSlots.filter(s => s.status === 'requeue').length.toLocaleString();
     document.getElementById('stat-requeue-accepted').textContent = allSlots.filter(s => s.isRequeue && s.status === 'accepted').length.toLocaleString();
     document.getElementById('stat-requeue-active').textContent   = allSlots.filter(s => s.isRequeue && s.status === 'active').length.toLocaleString();
-    document.getElementById('stat-change').textContent   = allSlots.filter(isTypeChangeReq).length.toLocaleString();
     document.getElementById('stat-force').textContent    = allSlots.filter(s => s.status === 'force_stopped').length.toLocaleString();
     // 예약(split) 카드는 예약 분할 현황 팝업과 동일한 계산(computeScheduleGroupCount) — 재조회 중엔 깜빡임 방지로 기존 값 유지.
     computeScheduleGroupCount().then(n => {
@@ -790,7 +786,7 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${HI.ratioBadgeHtml(s.yupflRatio)}</td>
-          <td>${typeBadgesHtml(s)}${['pending','accepted','active','split','requeue','force_stopped'].includes(s.status) ? typeChangeLine(s) : ''}</td>
+          <td>${typeBadgesHtml(s)}</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${escProd(s.rankKeyword)}</a>` : '-'}</td>
@@ -879,7 +875,7 @@ window.toggleProdPanel = function(e) {
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const targetSlot = allSlots.find(s => s._key === key);
-    // 배분·배지 모두 상품 유형 설정 — 가이드(팝업 가이드_접수 토글)도, 엑셀 비고 비율도 안 봄. 변경 요청 상품(changeTo)만 우선
+    // 배분·배지 모두 상품 유형 설정 — 가이드(팝업 가이드_접수 토글)도, 엑셀 비고 비율도 안 봄
     const base = targetSlot && { ...targetSlot, yupflRatio: null };
     const extra = withoutGuide(() => allocFieldsFor(base));
     // 비율 배지(withAutoRatio, 기록 표시용 auto — 배분엔 안 씀): 전부 리워드 '리워드' · 전부 유입플 업체명 · 섞이면 실제 배분 비율(예 70:30)
@@ -1082,7 +1078,7 @@ window.toggleProdPanel = function(e) {
           </div>
           <div>
             <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">등급</div>
-            <div>${typeBadgesHtml(s)}${typeChangeLine(s)}</div>
+            <div>${typeBadgesHtml(s)}</div>
           </div>
         </div>
         <div class="modal-row">
@@ -1860,7 +1856,7 @@ window.toggleProdPanel = function(e) {
     // 유입플 몫만큼 캐시가 남으므로 그만큼 빼서 잔액을 맞춤(업체 실제 단가와 무관). 정산관리 유입플 열은 업체 단가로 따로 계산(HI.slotBill)
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
     // 가이드_접수로 승인하면 수량이 있는 업체의 가이드 상품을 배지(vendorProducts)로 같이 기록
-    const rule = guideModeOn && !slot.changeTo ? guideRuleFor(slot) : null;
+    const rule = guideModeOn ? guideRuleFor(slot) : null;
     return { yupflTarget: target, yupflByVendor, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice, ...(rule ? vendorProductFields(rule, yupflByVendor) : {}) };
   }
   // 수량 있는 업체마다 가이드 그 업체 탭 상품(짧은 이름) — vendorProducts {업체: [상품]}, 풀스택은 fullstackType에도(시트 분류 엑셀·풀스택 매크로)
@@ -2096,7 +2092,7 @@ window.toggleProdPanel = function(e) {
 
   // ── 가이드_접수 프리셋 ──────────────────────────────────────────
   // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
-  // 변경 요청 상품(changeTo)이 있는 재접수는 그쪽이 우선, 분류·구간을 못 찾은 캠페인은 상품 유형 설정으로.
+  // 분류·구간을 못 찾은 캠페인은 상품 유형 설정으로.
   let guideModeOn = false, guideRules = [], guideCats = [], guideTimes = [], guideSplit = null;
   // 풀스텍 상품 = [배지 짧은 이름, 사이트 프리셋, 로그인 가능(검색 유입)] — 시트 분류 열·배지 순서도 이 순서. 시트 분류·가이드_접수·풀스택 탭 공용
   const FULL_PRODS = [['기본', 'basic', 1], ['둘러보고', 'browse', 1], ['카톡(길찾기)', 'kakao_route'], ['카톡(공유)', 'kakao_share'],
@@ -2129,7 +2125,7 @@ window.toggleProdPanel = function(e) {
   }
   // 리워드·유입플 두 묶음 합계를 주어진 비율로 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
   // 가이드_접수로 나눈 캠페인인지(유입플 몫은 전부 A1 비율 업체 — vendorSplit)
-  const guideAllocOf = slot => guideModeOn && !(slot?.changeTo) && guideProdsFor(slot).length > 0;
+  const guideAllocOf = slot => guideModeOn && guideProdsFor(slot).length > 0;
   function applyGuideRatio(items, { reward, yupfl }) {
     const isY = p => p.classifyOnly;
     const rSum = items.filter(p => !isY(p)).reduce((a, p) => a + p.ratio, 0);
@@ -2293,23 +2289,7 @@ window.toggleProdPanel = function(e) {
     return results.filter(r => !r.ok).map(r => r.g);
   }
 
-  // 등급명 목록 → 배분용 상품(설정에 있는 상품이면 그 상품, 없으면 가상 상품) — 변경 요청 상품용
-  function gradeProdsFromLabels(labels) {
-    if (!labels.length) return [];
-    const seen = new Set();
-    const result = [];
-    labels.forEach(label => {
-      if (seen.has(label)) return;
-      seen.add(label);
-      const known = prods.find(p => p.name === label && !p.fixedAlloc);
-      result.push(known
-        ? { ...known, ratio: 1, kwPct: 1 }
-        : { id: `grade_${label}`, name: label, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: 1, kwPct: 1, daysMultiplied: false });
-    });
-    return result;
-  }
-
-  // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 가이드·변경 요청 상품이 있으면 고정 항목은 그대로
+  // buildNormalRows/buildDeltaRows가 공유하는 슬롯별 배분 — 가이드 상품이 있으면 고정 항목은 그대로
   // 두고 그 상품으로 배분, 없으면 상품 유형 설정 ratio 배분.
   function allocRowsForSlot(r) {
     // 엑셀 비고 비율(yupflRatio)이 있으면 유입플 분류 % 대신 그 비율(가이드_접수면 가이드 비율 대신)
@@ -2319,12 +2299,9 @@ window.toggleProdPanel = function(e) {
       const list = ap().map(p => p.classifyOnly ? { ...p, fixedPct: pct } : p);
       return y && !list.some(p => p.classifyOnly) ? [...list, { ...y, fixedPct: pct }] : list;
     })();
-    // 변경 요청으로 생긴 재접수(changeTo)는 요청한 상품으로
-    const changeTo = (r.changeTo || '').split('/').map(x => x.trim()).filter(Boolean);
-    const guideProds = guideModeOn && !changeTo.length ? guideProdsFor(r) : [];
-    // 우선순위: 변경 요청 상품 > 가이드_접수 > 상품 유형 설정
-    const gradeProds = guideProds.length ? guideProds
-      : changeTo.length ? gradeProdsFromLabels(changeTo) : [];
+    // 가이드_접수 > 상품 유형 설정
+    const guideProds = guideModeOn ? guideProdsFor(r) : [];
+    const gradeProds = guideProds;
     if (!gradeProds.length) {
       return { alloc: allocate(AP.slice(), r.dailyTarget||0), prods: AP, gradeProds: null };
     }
@@ -2333,7 +2310,7 @@ window.toggleProdPanel = function(e) {
     return { alloc: allocate(asgn, r.dailyTarget||0), prods: asgn, gradeProds };
   }
 
-  // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 ratio대로(변경 요청 상품은 모두 1 = 균등, 가이드는 가이드 비율) 나눈다.
+  // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 ratio대로(가이드 비율) 나눈다.
   function kwForGradeProd(keywords, prod, gradeProds) {
     if (!keywords) return '';
     const parts = keywords.split(',').map(k => k.trim()).filter(k => k);
@@ -3068,19 +3045,6 @@ window.toggleProdPanel = function(e) {
     });
   }
 
-  // ── 캠페인 타입 변경 요청 ─────────────────────────────────────
-  // 신청은 진행현황(체크 후 변경 요청, 승인·예약 건만) → 여기선 등급 아래 빨간 배지·'변경' 카드 집계. 표시는 원 캠페인이 종료(closed)될
-  // 때까지 유지 — 상태를 접수·대기로 바꾸거나 강제종료 당일이어도 그대로. 실제 강제종료는 사람이 직접 하고, 강제종료로 생기는
-  // 재접수 캠페인이 요청 상품(changeTo)을 이어받아 빨간 배지·배분에 씀. 완료·취소 단계 없음. 광고주에겐 서버가 이 필드를 안 보냄
-  const isTypeChangeReq = s => !!(s && s.changeRequest && !['expired','deleted'].includes(s.status));
-  // 등급 배지 아래 빨간 배지 — 변경 요청 중인 원 캠페인, 그리고 요청 상품을 이어받은 재접수 캠페인(진행 중 상태 동안)
-  const typeChangeTo = s => isTypeChangeReq(s) ? s.changeRequest.to
-    : (s.changeTo && ['requeue','pending','accepted','active','split'].includes(s.status)) ? s.changeTo : '';
-  function typeChangeLine(s) {
-    const to = typeChangeTo(s);
-    if (!to) return '';
-    return `<div style="margin-top:3px;"><span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;" title="변경 요청 상품">${escProd(to)}</span></div>`;
-  }
   // 상단 카드 클릭 = 상태 필터(분할 카드만 예약 분할 현황 팝업)
   window.filterByCard = function(status) {
     document.getElementById('filter-status').value = status;
@@ -3530,7 +3494,7 @@ window.toggleProdPanel = function(e) {
     const rows = [];
     slots.forEach(r => {
       const { alloc, gradeProds } = allocRowsForSlot(r);
-      // 가이드·변경 요청 상품이 있으면 그 슬롯은 그 결과에서만(비활성이어도) 델타/네이비를 찾고, 없으면 기존처럼 활성 상품만 대상으로 한다.
+      // 가이드 상품이 있으면 그 슬롯은 그 결과에서만(비활성이어도) 델타/네이비를 찾고, 없으면 기존처럼 활성 상품만 대상으로 한다.
       const prod = gradeProds ? gradeProds.find(p => p.name === baseProd.name) : ap().find(p => p.id === prodId);
       if (!prod) return;
       const pp = alloc[prod.id] ?? 0;
@@ -3926,7 +3890,7 @@ window.toggleProdPanel = function(e) {
       if (vendor !== '프리미엄') return [{ ...base, _rowKey: s._key, daily }];
       // 미션: 가이드_접수면 가이드 프리미엄 탭 상품(= 미션 번호)·비율로 행을 나눔, 아니면 1행(미션 직접 입력·일괄 적용).
       // 작업키워드 = 검색키워드(상세 A·B 합친 값)를 행 비율대로 나눔(일반 상품 키워드 배분과 같은 lrm)
-      const rule = guideModeOn && !s.changeTo ? guideRuleFor(s) : null;
+      const rule = guideModeOn ? guideRuleFor(s) : null;
       const items = (rule?.vendors?.[vendor] || []).filter(p => /^\d+$/.test(String(p.name).trim()));
       const parts = kwSplit(s.searchKeyword);
       if (!items.length) return [{ ...base, _rowKey: s._key, daily, mission: null, workKw: parts.join(',') }];

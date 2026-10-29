@@ -10,7 +10,6 @@
   @media (max-width:1100px) { #slots-page .stat-bar { grid-template-columns:repeat(3,1fr); } }
   .type-badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:10px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
   .type-badge.full { background:#ccfbf1; color:#0f766e; border-color:#99f6e4; }
-  .type-badge.change { background:#fee2e2; color:#b91c1c; border-color:#fca5a5; }
   #slots-page .filter-bar {
     background:#fff; border:1px solid var(--border); border-radius:10px;
     padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;
@@ -351,8 +350,7 @@
     if(window.lucide) lucide.createIcons();
   };
 
-  // 캠페인타입 칸 — 접수관리와 같은 값: 등록·예약 때 캠페인에 저장한 상품(campaignType) + 시트 분류 때 정한 풀스텍 상품(fullstackType, 청록) + 진행 중이면 변경 요청(빨간 배지)
-  const TYPE_LIVE = ['active','split','force_stopped'];
+  // 캠페인타입 칸 — 접수관리와 같은 값: 등록·예약 때 캠페인에 저장한 상품(campaignType) + 시트 분류 때 정한 풀스텍 상품(fullstackType, 청록)
   const esc = HI.esc;
   // 잔여 재분류 후엔 현재 진행 등급(campaignTypeShown)만 표시 — 이전 등급은 campaignType에 기록으로만
   const typeLabels = s => { const v = s?.campaignTypeShown || s?.campaignType; return Array.isArray(v) ? v : (v ? Object.values(v) : []); };
@@ -366,81 +364,14 @@
   };
   function typeCellHtml(s) {
     if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음)
-    const live = TYPE_LIVE.includes(s.status);
-    const change = live ? (s.changeRequest?.to || s.changeTo || '') : '';
     const html = [
       ...typeLabels(s).map(l => `<span class="type-badge">${esc(l)}</span>`),
       ...yupflLabels(s).map(l => `<span class="type-badge full">${esc(l)}</span>`),
-      ...(change ? [`<span class="type-badge change">${esc(change)}</span>`] : []),
     ].join('');
     return html ? `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html}</div>` : '<span style="color:#cbd5e1">-</span>';
   }
 
 
-  // ── 캠페인 타입 변경 요청 ─────────────────────────────────
-  // 체크한 승인·예약 캠페인에 바꿀 상품을 요청 → 접수관리·진행현황 등급 아래 빨간 배지, 접수관리 '변경' 카드·필터로 확인.
-  // 상품은 상품 유형 설정 목록에서만 골라 표기를 통일(차감·유입플 분류처럼 배분 전용 항목 제외).
-  // 이미 요청 중인 건은 새 요청으로 덮어씀. 실제 강제종료는 사람이 하고, 재접수 캠페인이 요청 상품을 이어받음(hi-store forceStopMid)
-  const CHANGE_STATUSES = ['active','split'];
-  const NOT_PRODUCTS = new Set(['deduct','yupflc','yupfl','yupfl2']);
-  const FIXED_PRODUCTS = new Set(['charlie','delta','navy']); // 상품 유형 설정의 '고정' 줄(차감·유입플 분류는 상품 아님)
-  window.openTypeChangeModal = async function() {
-    const keys = [...document.querySelectorAll('.s-check:checked')].map(c => c.dataset.key);
-    const targets = keys.map(k => allSlots.find(s => s._key === k)).filter(Boolean);
-    const ok = targets.filter(s => CHANGE_STATUSES.includes(s.status));
-    if (!targets.length) { alert('변경 요청할 캠페인을 체크해 주세요.'); return; }
-    if (!ok.length) { alert('진행·예약 중인 캠페인만 변경 요청할 수 있습니다.'); return; }
-    const prods = await HI.getProdsOnce().catch(() => null);
-    // 상품 유형 설정과 같은 두 줄(일반/고정). X3·X4 같은 빈 자리 상품명 제외
-    const list = (Array.isArray(prods) ? prods : Object.values(prods || {}))
-      .filter(p => p && p.name && !NOT_PRODUCTS.has(p.id) && !/^X\d*$/i.test(p.name.trim()));
-    const namesOf = fixed => [...new Set(list.filter(p => FIXED_PRODUCTS.has(p.id) === fixed).map(p => p.name))];
-    const chip = n => `<button type="button" data-name="${esc(n)}" style="padding:4px 12px;border:1px solid var(--border);border-radius:14px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">${esc(n)}</button>`;
-    const row = (label, names) => names.length ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;"><span style="flex:0 0 28px;font-size:11px;font-weight:700;color:var(--muted);padding-top:6px;">${label}</span><div style="display:flex;flex-wrap:wrap;gap:6px;">${names.map(chip).join('')}</div></div>` : '';
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div style="background:#fff;border-radius:14px;width:min(94vw,460px);padding:22px 24px;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:6px;">타입 변경 요청</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">대상 ${ok.length}건${targets.length > ok.length ? ` <span style="color:var(--muted);">(진행·예약이 아닌 ${targets.length - ok.length}건 제외)</span>` : ''}${ok.some(s => s.changeRequest) ? ' · <span style="color:#b91c1c;">이미 요청 중인 건은 새 요청으로 바뀝니다</span>' : ''}</div>
-        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">바꿀 상품</div>
-        <div id="tc-prods" style="margin-bottom:8px;">${row('일반', namesOf(false))}${row('고정', namesOf(true))}</div>
-        <div style="font-size:12px;margin-top:10px;color:var(--text2);">요청 내용: <b id="tc-preview" style="color:#b91c1c;">-</b></div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
-          <button type="button" id="tc-close" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit;">닫기</button>
-          <button type="button" id="tc-submit" style="padding:8px 16px;border:none;border-radius:8px;background:#dc2626;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">요청</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-    const picked = [];
-    const toText = () => picked.join('/');
-    const refresh = () => {
-      overlay.querySelectorAll('#tc-prods button').forEach(b => {
-        const on = picked.includes(b.dataset.name);
-        b.style.background = on ? '#dc2626' : '#fff'; b.style.color = on ? '#fff' : ''; b.style.borderColor = on ? '#dc2626' : '';
-      });
-      overlay.querySelector('#tc-preview').textContent = toText() || '-';
-    };
-    overlay.querySelector('#tc-prods').onclick = e => {
-      const n = e.target.dataset?.name; if (!n) return;
-      const i = picked.indexOf(n); i < 0 ? picked.push(n) : picked.splice(i, 1);
-      refresh();
-    };
-    overlay.querySelector('#tc-close').onclick = () => overlay.remove();
-    overlay.querySelector('#tc-submit').onclick = async e => {
-      const to = toText();
-      if (!to) { alert('바꿀 상품을 골라 주세요.'); return; }
-      e.target.disabled = true;
-      const cu = HI.getCurrentUser() || {};
-      const req = { to, by: cu.username || '-', byName: cu.name || cu.username || '', at: new Date().toISOString() };
-      try {
-        await Promise.all(ok.map(s => HI.updateCampaign(s._key, { changeRequest: req })));
-      } catch (err) { e.target.disabled = false; alert('요청 저장 실패: ' + err.message); return; }
-      ok.forEach(s => { s.changeRequest = req; });
-      overlay.remove();
-      renderSlots(false);
-    };
-  };
 
   // ── 순위표 다운로드 (대상: 전체 캠페인) ──
   // 기준순위가 같은 MID의 직전 종료건까지 보므로 종료 전체 포함. higherad-rank /rank-table은 종료 상태를 'ended'로 판정
