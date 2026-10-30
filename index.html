@@ -536,7 +536,7 @@
     el.id = 'reload-notice';
     el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center';
     el.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px 28px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px;line-height:1.6">
-      <b style="font-size:16px">새 버전이 배포되었습니다</b><br>최신 기능을 쓰려면 새로고침해 주세요.<br>
+      <b style="font-size:16px">새 버전이 배포되었습니다</b><br>${changes.length ? '최신 기능을 쓰려면' : '업데이트를 적용하려면'} 새로고침해 주세요.<br>
       ${changes.length ? `<ul style="text-align:left;margin:12px 0 0;padding-left:18px;max-height:240px;overflow:auto;max-width:480px;color:#374151">${changes.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
       <button onclick="location.replace('/?v=' + Date.now())" style="margin-top:14px;padding:8px 20px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">새로고침</button></div>`;
     document.body.appendChild(el);
