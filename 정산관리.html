@@ -785,7 +785,7 @@
 
   // ── 환불 예정 자동 차감 ──
   // 등록 다음 날(KST) 이후 접수된 해당 대행사 정산 묶음에 min(남은 금액, 묶음 금액)만큼 환불로 넣고 나머지는 다음 묶음으로 이월(등록 당일 묶음은 제외).
-  // 접수 직후 같은 분 묶음이 아직 다 안 들어왔을 수 있어 묶음 시각+2분 지난 것만, 입금 처리된 묶음은 건드리지 않음.
+  // 접수 직후 같은 분 묶음이 아직 다 안 들어왔을 수 있어 묶음 시각+2분 지난 것만, 입금·충전 처리된 묶음은 건드리지 않음.
   // ponytail: 서로 다른 환불 예정 2건이 다른 두 세션에서 같은 묶음에 동시에 적용되면 refund 덮어쓰기 가능 — 발생하면 refunds 쓰기도 트랜잭션으로
   function applyPendingRefunds(){
     if(!_applyRun) _applyRun=(async()=>{
@@ -803,6 +803,7 @@
           const sk=`${safe2(g.timeKey)}__${safe2(g.agencyId)}__${safe2(g.userId)}`;
           if(p.applied?.[sk]!=null) continue;
           const snap=snapshotMap[sk];
+          if(snap?.chargeConfirmedByName) continue; // 이미 충전된 묶음 — 환불을 넣어도 충전 금액엔 반영 안 되니 다음 묶음으로 이월
           const gross=(g.timeKey.slice(0,10)<todayStr&&snap) ? snap.amount+(snap.refund||0) : calcGroup(g).amt;
           const cur=getRefund(g.timeKey,g.agencyId,g.userId);
           if(gross-cur<=0) continue;
