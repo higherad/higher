@@ -20,7 +20,7 @@
   #shop-page tbody td { padding:10px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; }
   #shop-page tbody tr:hover { background:#f8fafc; }
   #shop-page tr.new td { background:#fffbeb; }
-  #shop-page td.l { text-align:left; } #shop-page .amt { text-align:right; font-variant-numeric:tabular-nums; }
+
   #shop-page .sub-tot td { background:#f8fafc; font-weight:700; }
   #shop-page .empty-row td { height:140px; color:var(--muted); }
   #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
@@ -227,7 +227,7 @@
       const st = slotState(x), n = isNew(x);
       return `<tr class="${n ? 'new' : ''}"><td><input type="checkbox" class="sh-cb" value="${esc(x.userId)}|${x.no}" ${n ? '' : 'disabled'}></td><td><b>${x.no}</b></td>
         <td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
-        <td class="l">${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url.length > 48 ? x.url.slice(0, 48) + '…' : x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
+        <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url.length > 48 ? x.url.slice(0, 48) + '…' : x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
         <td><span class="pill p-${STATE[st][1]}">${STATE[st][0]}</span></td>
         <td>${!x.mid ? '-' : n ? `<button class="act act-ok" onclick="shopCheck(['${esc(x.userId)}|${x.no}'],this)">확인</button>` : x.checked ? '<span class="pill p-g">확인됨</span>' : '-'}</td></tr>`;
@@ -256,11 +256,11 @@
       const state = is.revokedAt ? (is.paidAt ? '<span class="pill p-r">환불 대상</span>' : `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : '회수'} (정산 제외)</span>`) : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
       return `<tr><td>${md(is.at)}</td><td>#${is.no}</td><td>${is.by === 'user' ? '<span class="pill p-b">광고주</span>' : '<span class="pill p-n">관리자</span>'}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
-        <td class="amt">${won(is.price)}</td><td class="amt">${won(b)}</td><td class="amt">${won(Math.round(b * VAT))}</td>
-        <td class="amt" style="color:${r ? 'var(--danger)' : 'inherit'}">${r ? '-' + won(r) : '-'}</td>
+        <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td>
+        <td style="color:${r ? 'var(--danger)' : 'inherit'}">${r ? '-' + won(r) : '-'}</td>
         <td>${state}</td><td>${md(is.paidAt)}</td>
         <td>${is.revokedAt ? '-' : is.paidAt ? `<button class="act act-edit" onclick="shopPaid(${k},false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaid(${k},true,this)">입금 확인</button>`}</td></tr>`;
-    }).join('') + (rows.length ? `<tr class="sub-tot"><td colspan="5">합계</td><td>${sum(is => is.qty)}</td><td></td><td class="amt">${won(tot)}</td><td class="amt">${won(Math.round(tot * VAT))}</td><td class="amt">${ref ? '-' + won(ref) : '-'}</td><td colspan="3"></td></tr>`
+    }).join('') + (rows.length ? `<tr class="sub-tot"><td colspan="5">합계</td><td>${sum(is => is.qty)}</td><td></td><td>${won(tot)}</td><td>${won(Math.round(tot * VAT))}</td><td>${ref ? '-' + won(ref) : '-'}</td><td colspan="3"></td></tr>`
       : `<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
   window.shopPaid = (uid, no, on, btn) => {
@@ -277,9 +277,9 @@
       const iss = ISSUES.filter(x => x.userId === u.id), last = iss.reduce((a, x) => x.at > a ? x.at : a, '');
       const own = SLOTS.filter(x => x.userId === u.id && slotState(x) !== 'end').length;
       const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
-      return `<tr><td>${i + 1}</td><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td><td><b>${esc(u.company)}</b></td><td>${esc(u.id)}</td><td class="amt">${won(u.price)}</td>
-        <td>${own}</td><td class="amt">${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td class="amt" style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>
-        <td class="l">${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
+      return `<tr><td>${i + 1}</td><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td><td><b>${esc(u.company)}</b></td><td>${esc(u.id)}</td><td>${won(u.price)}</td>
+        <td>${own}</td><td>${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>
+        <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
         <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button> <button class="act ${u.blocked ? 'act-ok' : 'act-del'}" onclick="shopBlock('${esc(u.id)}',this)">${u.blocked ? '해제' : '차단'}</button></td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '광고주가 없습니다. 오른쪽 위 \'광고주 추가\'로 계정을 만드세요.' : '불러오는 중…'}</td></tr>`;
   }
