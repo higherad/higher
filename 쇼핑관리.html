@@ -19,10 +19,8 @@
   #shop-page thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; }
   #shop-page tbody td { padding:10px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; }
   #shop-page tbody tr:hover { background:#f8fafc; }
-  #shop-page tr.new td { background:#fffbeb; }
   #shop-page tr.void td { text-decoration:line-through; color:var(--muted); }
 
-  #shop-page .sub-tot td { background:#f8fafc; font-weight:700; }
   #shop-page .empty-row td { height:140px; color:var(--muted); }
   #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
   #shop-page .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
@@ -55,7 +53,7 @@
 <div id="shop-page">
   <div class="tabs">
     <div class="tab on" data-t="issue"><i data-lucide="plus-square"></i>슬롯 발급</div>
-    <div class="tab" data-t="slots"><i data-lucide="layout-list"></i>접수 현황 <span class="cnt" id="sh-tab-new" style="display:none"></span></div>
+    <div class="tab" data-t="slots"><i data-lucide="layout-list"></i>접수 현황</div>
     <div class="tab" data-t="settle"><i data-lucide="receipt"></i>정산 <span class="cnt" id="sh-tab-unpaid" style="display:none"></span></div>
     <div class="tab" data-t="users"><i data-lucide="users-round"></i>광고주 관리</div>
   </div>
@@ -87,16 +85,14 @@
 
   <!-- 접수 현황 -->
   <section class="pane" id="sh-t-slots">
-    <div class="stat-bar" id="sh-slot-stats"></div>
+    <div class="stat-bar" id="sh-slot-stats" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-fs-user"></select>
       <input id="sh-fs-q" style="flex:1;min-width:200px" placeholder="키워드, MID 검색">
-      <label><input id="sh-fs-new" type="checkbox"> 확인 대기만</label>
       <label><input id="sh-fs-noend" type="checkbox" checked> 만료 제외</label>
-      <button class="act act-ok" style="margin-left:auto;padding:7px 14px" id="sh-check-sel">선택 확인 처리</button>
     </div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th><th>확인</th></tr></thead>
+      <thead><tr><th>번호</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -117,7 +113,8 @@
 
   <!-- 광고주 관리 -->
   <section class="pane" id="sh-t-users">
-    <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="광고주, 아이디 검색"></div>
+    <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="광고주, 아이디 검색">
+      <button class="btn-go" style="margin-left:auto;padding:7px 16px" onclick="openShopUser()">+ 광고주 추가</button></div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>번호</th><th>가입일</th><th>최종 발급일</th><th>광고주</th><th>아이디</th><th>슬롯 단가(원)</th><th>보유 슬롯</th><th>누적 정산(VAT 별도)</th><th>미입금(VAT 별도)</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
       <tbody id="sh-user-rows"></tbody>
@@ -156,7 +153,6 @@
   const canRevoke = is => !is.revokedAt && is.start > today();
   const STATE = { run: ['사용 중', 'g'], wait: ['시작 전', 'b'], empty: ['빈 슬롯', 'n'], end: ['만료', 'r'] };
   const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.start > today() ? 'wait' : 'run';
-  const isNew = x => x.mid && !x.checked && slotState(x) !== 'end';
 
   let USERS = [], ISSUES = [], SLOTS = [], loaded = false, editId = null;
   const userOf = id => USERS.find(u => u.id === id) || { company: id, price: 0 };
@@ -218,29 +214,21 @@
   /* ── 접수 현황 ── */
   function renderSlots() {
     const cnt = k => SLOTS.filter(x => slotState(x) === k).length;
-    $('sh-slot-stats').innerHTML = [['사용 중', cnt('run'), 'g'], ['시작 전', cnt('wait'), 'b'], ['빈 슬롯 (미세팅)', cnt('empty'), ''], ['확인 대기', SLOTS.filter(isNew).length, 'w'], ['만료', cnt('end'), 'r']]
+    $('sh-slot-stats').innerHTML = [['사용 중', cnt('run'), 'g'], ['시작 전', cnt('wait'), 'b'], ['빈 슬롯 (미세팅)', cnt('empty'), ''], ['만료', cnt('end'), 'r']]
       .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${v}</div></div>`).join('');
-    const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), onlyNew = $('sh-fs-new').checked, noEnd = $('sh-fs-noend').checked;
+    const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked;
     const rows = SLOTS.filter(x => (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
-      && (!onlyNew || isNew(x)) && !(noEnd && slotState(x) === 'end')).sort((a, b) => b.no - a.no);
+      && !(noEnd && slotState(x) === 'end')).sort((a, b) => b.no - a.no);
     const miss = '<span class="muted">미세팅</span>';
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
-      const st = slotState(x), n = isNew(x);
-      return `<tr class="${n ? 'new' : ''}"><td><input type="checkbox" class="sh-cb" value="${esc(x.userId)}|${x.no}" ${n ? '' : 'disabled'}></td><td><b>${x.no}</b></td>
+      const st = slotState(x);
+      return `<tr><td><b>${x.no}</b></td>
         <td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url.length > 48 ? x.url.slice(0, 48) + '…' : x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
-        <td><span class="pill p-${STATE[st][1]}">${STATE[st][0]}</span></td>
-        <td>${!x.mid ? '-' : n ? `<button class="act act-ok" onclick="shopCheck(['${esc(x.userId)}|${x.no}'],this)">확인</button>` : x.checked ? '<span class="pill p-g">확인됨</span>' : '-'}</td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="11">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
+        <td><span class="pill p-${STATE[st][1]}">${STATE[st][0]}</span></td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="9">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
-  window.shopCheck = (keys, btn) => busy(btn, () => HI.shopUpdate(Object.fromEntries(keys.map(k => { const [u, n] = k.split('|'); return [`slots/${u}/s${n}/checked`, true]; }))));
-  $('sh-check-sel').onclick = () => {
-    const keys = [...document.querySelectorAll('.sh-cb:checked')].map(c => c.value);
-    if (!keys.length) return alert('확인할 슬롯을 선택해 주세요.');
-    shopCheck(keys, $('sh-check-sel'));
-  };
-  $('sh-cb-all').onclick = e => document.querySelectorAll('.sh-cb:not(:disabled)').forEach(c => c.checked = e.target.checked);
 
   /* ── 정산 ── */
   function renderSettle() {
@@ -261,8 +249,7 @@
         <td style="color:${r ? 'var(--danger)' : 'inherit'}">${r ? '-' + won(r) : '-'}</td>
         <td>${state}</td><td>${md(is.paidAt)}</td>
         <td>${is.revokedAt ? '-' : is.paidAt ? `<button class="act act-edit" onclick="shopPaid(${k},false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaid(${k},true,this)">입금 확인</button>`}</td></tr>`;
-    }).join('') + (rows.length ? `<tr class="sub-tot"><td colspan="5">합계</td><td>${sum(is => is.qty)}</td><td></td><td>${won(tot)}</td><td>${won(Math.round(tot * VAT))}</td><td>${ref ? '-' + won(ref) : '-'}</td><td colspan="3"></td></tr>`
-      : `<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
+    }).join('') || (`<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
   window.shopPaid = (uid, no, on, btn) => {
     const is = ISSUES.find(x => x.userId === uid && x.no === no);
@@ -314,14 +301,14 @@
     const keep = (id, html) => { const el = $(id), v = el.value; el.innerHTML = html; el.value = v; if (el.selectedIndex < 0) el.selectedIndex = 0; };
     keep('sh-is-user', '<option value="">-- 광고주 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join(''));
     ['sh-fi-user', 'sh-fs-user', 'sh-ft-user'].forEach(id => keep(id, opts('전체 광고주')));
-    const nNew = SLOTS.filter(isNew).length, nUnpaid = ISSUES.filter(x => !x.paidAt && !x.revokedAt).length;
-    [['sh-tab-new', nNew], ['sh-tab-unpaid', nUnpaid]].forEach(([id, n]) => { $(id).textContent = n; $(id).style.display = n ? '' : 'none'; });
+    const nUnpaid = ISSUES.filter(x => !x.paidAt && !x.revokedAt).length;
+    [['sh-tab-unpaid', nUnpaid]].forEach(([id, n]) => { $(id).textContent = n; $(id).style.display = n ? '' : 'none'; });
     syncIssue(); renderIssues(); renderSlots(); renderSettle(); renderUsers();
   }
 
   const bind = (ids, fn) => ids.forEach(id => { $(id).oninput = fn; $(id).onchange = fn; });
   bind(['sh-fi-user', 'sh-fi-norevoke', 'sh-fi-age', 'sh-fi-from', 'sh-fi-to'], renderIssues);
-  bind(['sh-fs-user', 'sh-fs-q', 'sh-fs-new', 'sh-fs-noend'], renderSlots);
+  bind(['sh-fs-user', 'sh-fs-q', 'sh-fs-noend'], renderSlots);
   bind(['sh-ft-user', 'sh-ft-st', 'sh-ft-from', 'sh-ft-to'], renderSettle);
   bind(['sh-fu-q'], renderUsers);
   document.querySelectorAll('#shop-page .tab').forEach(t => t.onclick = () => {
