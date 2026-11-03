@@ -20,6 +20,7 @@
   #shop-page tbody td { padding:10px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; }
   #shop-page tbody tr:hover { background:#f8fafc; }
   #shop-page tr.new td { background:#fffbeb; }
+  #shop-page tr.void td { text-decoration:line-through; color:var(--muted); }
 
   #shop-page .sub-tot td { background:#f8fafc; font-weight:700; }
   #shop-page .empty-row td { height:140px; color:var(--muted); }
@@ -253,8 +254,8 @@
       .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${won(v)}<small>원</small></div></div>`).join('');
     $('sh-settle-rows').innerHTML = rows.map(is => {
       const b = billOf(is), r = refundOf(is), k = `'${esc(is.userId)}',${is.no}`;
-      const state = is.revokedAt ? (is.paidAt ? '<span class="pill p-r">환불 대상</span>' : `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : '회수'} (정산 제외)</span>`) : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
-      return `<tr><td>${md(is.at)}</td><td>#${is.no}</td><td>${is.by === 'user' ? '<span class="pill p-b">광고주</span>' : '<span class="pill p-n">관리자</span>'}</td>
+      const state = is.revokedAt ? (is.paidAt ? '<span class="pill p-r">환불 대상</span>' : `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : '회수 (정산 제외)'}</span>`) : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
+      return `<tr class="${is.revokedAt ? 'void' : ''}"><td>${md(is.at)}</td><td>#${is.no}</td><td>${is.by === 'user' ? '<span class="pill p-b">광고주</span>' : '<span class="pill p-n">관리자</span>'}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
         <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td>
         <td style="color:${r ? 'var(--danger)' : 'inherit'}">${r ? '-' + won(r) : '-'}</td>
