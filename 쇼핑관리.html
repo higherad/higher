@@ -63,6 +63,8 @@
   #shop-page table.fx { table-layout:fixed; min-width:1100px; } /* 열 너비 고정 — 긴 글자는 … (마우스 올리면 전체) */
   #shop-page tbody tr:hover { background:#f8fafc; }
   #shop-page tr.void td { text-decoration:line-through; color:var(--muted); }
+  #shop-page tr.grp { cursor:pointer; } #shop-page tr.child td { background:#f8fafc; font-size:11.5px; }
+  #shop-page .tg { color:var(--muted); font-size:11px; font-weight:600; }
 
   #shop-page .empty-row td { height:140px; color:var(--muted); }
   #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
@@ -145,8 +147,8 @@
         <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(true,this)">진행중 전환</button>
         <button class="act act-edit" style="padding:7px 12px" onclick="shopRun(false,this)">진행 해제</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:70px"><col style="width:150px"><col style="width:160px"><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>구분</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:150px"><col style="width:160px"><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>구분</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -230,6 +232,9 @@
   // 정산 체크(정산 등록 팝업 대상) — 같은 이유로 여기서 선언
   const SPICK = new Set();
   let settleShown = [];
+  // 펼친 묶음(정산 's|총판|날짜', 광고주 관리 'u|총판') — 다시 그려도 유지
+  const OPEN = new Set();
+  let GROUPS = {};
   const userOf = id => USERS.find(u => u.id === id) || { company: id, price: 0 };
   // 계정 구분(글자색만) — 총판 주황 / '소속 총판 | 하부점' 회색 / 일반 파랑. 네 탭의 구분 칸이 모두 이것
   const gradePill = u => u.role === 'dist' ? '<b style="color:#ea580c">총판</b>' : u.parent ? `<b style="color:#64748b">${esc(userOf(u.parent).company)} | 하부점</b>` : '<b style="color:#2563eb">일반</b>';
@@ -315,18 +320,18 @@
     const miss = '<span class="muted">미세팅</span>';
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
       const st = slotState(x), pick = st === 'wait' || st === 'run';
-      return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td><td><b>${x.no}</b></td>
+      return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
         <td>${gradePill(userOf(x.userId))}</td><td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
         <td><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="11">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="10">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   /* ── 정산 ── */
   function renderSettle() {
     const uid = $('sh-ft-user').value, st = $('sh-ft-st').value, from = $('sh-ft-from').value, to = $('sh-ft-to').value;
-    const rows = ISSUES.filter(is => (!uid || is.userId === uid) && !is.revokedAt && (!st || (st === 'paid') === !!is.paidAt)
+    const rows = ISSUES.filter(is => (!uid || is.userId === uid || is.dist === uid) && !is.revokedAt && (!st || (st === 'paid') === !!is.paidAt)
       && (!from || is.at.slice(0, 10) >= from) && (!to || is.at.slice(0, 10) <= to)).sort((a, b) => b.no - a.no);
     // 카드 = 정산관리와 같은 구성(필터 무관, 취소 건 제외): 총 매출액(VAT 별도)·총 입금액(VAT 포함)·당일 매출액·당일 입금액(오늘 입금 확인분)·미입금(VAT 포함)
     const live = ISSUES.filter(is => !is.revokedAt), todays = live.filter(is => is.at.slice(0, 10) === today()), unpaid = live.filter(is => !is.paidAt);
@@ -341,18 +346,45 @@
     const shownKeys = new Set(rows.map(slotKey));
     [...SPICK].forEach(k => shownKeys.has(k) || SPICK.delete(k));
     $('sh-reg-n').textContent = SPICK.size ? `${SPICK.size}건 선택` : '';
-    $('sh-settle-rows').innerHTML = rows.map(is => {
-      const b = billOf(is), k = `'${esc(is.userId)}',${is.no}`;
-      const state = is.revokedAt ? `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
-      return `<tr class="${is.revokedAt ? 'void' : ''}"><td><input type="checkbox" class="sh-sc" data-k="${esc(slotKey(is))}"${SPICK.has(slotKey(is)) ? ' checked' : ''}></td><td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
+    // 총판에게 받을 건(하부점 발급분 + 총판 본인 발급분)은 같은 날짜끼리 총판 한 줄로 합침 — 클릭하면 개별 건 펼침
+    const items = [];
+    GROUPS = {};
+    rows.forEach(is => {
+      const payer = is.dist || is.userId;
+      if (userOf(payer).role !== 'dist') return items.push(is);
+      const k = `${payer}|${is.at.slice(0, 10)}`;
+      if (!GROUPS[k]) items.push(GROUPS[k] = { k, payer, date: is.at.slice(0, 10), list: [] });
+      GROUPS[k].list.push(is);
+    });
+    const stateOf = is => is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
+    const issueCells = is => { const b = billOf(is); return `<td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
         <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td>
-        <td>${state}</td><td>${md(is.paidAt)}</td>
-        <td>${is.revokedAt ? '-' : is.paidAt ? `<button class="act act-edit" onclick="shopPaid(${k},false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaid(${k},true,this)">입금 확인</button>`}</td></tr>`;
+        <td>${stateOf(is)}</td><td>${md(is.paidAt)}</td>`; };
+    const box = keys => `<input type="checkbox" class="sh-sc" data-k="${esc(keys.join(','))}"${keys.every(k => SPICK.has(k)) ? ' checked' : ''}>`;
+    $('sh-settle-rows').innerHTML = items.map(it => {
+      if (!it.list) {
+        const k = `'${esc(it.userId)}',${it.no}`;
+        return `<tr><td>${box([slotKey(it)])}</td>${issueCells(it)}
+        <td>${it.paidAt ? `<button class="act act-edit" onclick="shopPaid(${k},false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaid(${k},true,this)">입금 확인</button>`}</td></tr>`;
+      }
+      const L = it.list, b = L.reduce((a, x) => a + billOf(x), 0), paid = L.filter(x => x.paidAt).length, open = OPEN.has('s|' + it.k);
+      const prices = [...new Set(L.map(x => x.price))], last = L.reduce((a, x) => (x.paidAt || '') > a ? x.paidAt : a, '');
+      const st = paid === L.length ? '<span class="pill p-g">입금 완료</span>' : paid ? `<span class="pill p-w" title="${paid}/${L.length}건 입금">일부 입금</span>` : '<span class="pill p-w">미입금</span>';
+      return `<tr class="grp" data-g="s|${esc(it.k)}"><td>${box(L.map(slotKey))}</td><td>${md(it.date)}</td><td>${L.length}건 <span class="tg">${open ? '▾' : '▸'}</span></td><td>${gradePill(userOf(it.payer))}</td>
+        <td><b>${esc(userOf(it.payer).company)}</b></td><td>${esc(it.payer)}</td><td>${L.reduce((a, x) => a + x.qty, 0)}</td>
+        <td>${prices.length === 1 ? won(prices[0]) : '-'}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td><td>${st}</td><td>${md(last)}</td>
+        <td>${paid === L.length ? `<button class="act act-edit" onclick="shopPaidGroup('${esc(it.k)}',false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaidGroup('${esc(it.k)}',true,this)">입금 확인</button>`}</td></tr>`
+        + (open ? L.map(is => `<tr class="child"><td></td>${issueCells(is)}<td></td></tr>`).join('') : '');
     }).join('') || (`<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
-  $('sh-settle-rows').addEventListener('change', e => { if (!e.target.classList.contains('sh-sc')) return; e.target.checked ? SPICK.add(e.target.dataset.k) : SPICK.delete(e.target.dataset.k); $('sh-reg-n').textContent = SPICK.size ? `${SPICK.size}건 선택` : ''; });
-  $('sh-sc-all').onchange = e => { document.querySelectorAll('#sh-settle-rows .sh-sc').forEach(c => { c.checked = e.target.checked; c.checked ? SPICK.add(c.dataset.k) : SPICK.delete(c.dataset.k); }); $('sh-reg-n').textContent = SPICK.size ? `${SPICK.size}건 선택` : ''; };
+  const pickSet = (c, on) => c.dataset.k.split(',').forEach(k => on ? SPICK.add(k) : SPICK.delete(k));
+  $('sh-settle-rows').addEventListener('change', e => { if (!e.target.classList.contains('sh-sc')) return; pickSet(e.target, e.target.checked); $('sh-reg-n').textContent = SPICK.size ? `${SPICK.size}건 선택` : ''; });
+  $('sh-sc-all').onchange = e => { document.querySelectorAll('#sh-settle-rows .sh-sc').forEach(c => { c.checked = e.target.checked; pickSet(c, c.checked); }); $('sh-reg-n').textContent = SPICK.size ? `${SPICK.size}건 선택` : ''; };
+  // 묶음 줄 클릭 = 펼치기/접기 (체크·버튼·단가 링크 클릭은 제외)
+  const toggleGroup = (e, render) => { const tr = e.target.closest('tr.grp'); if (!tr || e.target.closest('input,button,.price-link')) return; const g = tr.dataset.g; OPEN.has(g) ? OPEN.delete(g) : OPEN.add(g); render(); };
+  $('sh-settle-rows').addEventListener('click', e => toggleGroup(e, renderSettle));
+  $('sh-user-rows').addEventListener('click', e => toggleGroup(e, renderUsers));
   // 정산 등록(정산관리와 같은 구성) — 체크한 건(없으면 지금 목록 전체)을 입금할 쪽별로 묶고 '복사'로 입금 안내 문구
   // 입금할 쪽 = 하부점 발급 건은 총판(총판 단가로 청구), 나머지는 광고주 본인
   window.shopSettleReg = () => {
@@ -447,17 +479,34 @@
     busy(btn, () => HI.shopUpdate({ [`issues/${uid}/i${no}/${f}At`]: on ? kstNow().toISOString().slice(0, 16).replace('T', ' ') : null, [`issues/${uid}/i${no}/${f}By`]: on ? who : null }));
   };
 
+  window.shopPaidGroup = (k, on, btn) => {
+    const g = GROUPS[k];
+    if (!g) return;
+    const todo = g.list.filter(is => !!is.paidAt !== on), amt = todo.reduce((a, is) => a + billOf(is), 0);
+    if (!confirm(on ? `${userOf(g.payer).company} ${g.date} ${todo.length}건 ${won(Math.round(amt * VAT))}원 입금 확인 처리합니다.` : `${userOf(g.payer).company} ${g.date} ${todo.length}건 입금 확인을 취소합니다.`)) return;
+    const who = HI.getCurrentUser()?.username || '', at = on ? kstNow().toISOString().slice(0, 16).replace('T', ' ') : null, upd = {};
+    todo.forEach(is => { const f = is.dist ? 'distPaid' : 'paid'; upd[`issues/${is.userId}/i${is.no}/${f}At`] = at; upd[`issues/${is.userId}/i${is.no}/${f}By`] = on ? who : null; });
+    busy(btn, () => HI.shopUpdate(upd));
+  };
+
   /* ── 광고주 관리 ── */
   function renderUsers() {
     const q = $('sh-fu-q').value.trim();
-    $('sh-user-rows').innerHTML = USERS.filter(u => !q || (u.company || '').includes(q) || u.id.includes(q)).map((u, i) => {
+    // 하부점은 총판 줄 아래에 접어 둠(총판 줄 클릭 = 펼침). 검색이 하부점에 걸리면 그 총판을 펼쳐서 보여줌
+    const hit = u => !q || (u.company || '').includes(q) || u.id.includes(q), has = id => USERS.some(x => x.id === id);
+    const subsOf = id => USERS.filter(x => x.parent === id);
+    const list = USERS.filter(u => !(u.parent && has(u.parent)) && (hit(u) || subsOf(u.id).some(hit))).flatMap(u => {
+      const subs = subsOf(u.id).filter(x => hit(u) || hit(x)), open = OPEN.has('u|' + u.id) || (q && subs.some(hit) && !hit(u));
+      return [{ u, subs: subs.length, open }, ...(open ? subs.map(x => ({ u: x, child: true })) : [])];
+    });
+    $('sh-user-rows').innerHTML = list.map(({ u, subs, open, child }) => {
       // 하이어 청구 대상 건: 직속·총판 본인 발급(dist 없음) + 총판이면 하부점 발급분(dist = 이 총판). 하부점은 총판이 정산
       const iss = ISSUES.filter(x => (x.userId === u.id && !x.dist) || x.dist === u.id), last = iss.reduce((a, x) => x.at > a ? x.at : a, '');
       const own = SLOTS.filter(x => x.userId === u.id && slotState(x) !== 'end').length;
       const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
-      return `<tr><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td>
+      return `<tr${child ? ' class="child"' : subs ? ` class="grp" data-g="u|${esc(u.id)}"` : ''}><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td>
         <td>${gradePill(u)}</td>
-        <td><b>${esc(u.company)}</b></td><td>${esc(u.id)}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td>
+        <td><b>${esc(u.company)}</b>${subs ? ` <span class="tg">${open ? '▾' : '▸'} 하부점 ${subs}</span>` : ''}</td><td>${esc(u.id)}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td>
         <td>${own}</td>${u.parent ? '<td title="총판이 정산">-</td><td title="총판이 정산">-</td>' : `<td>${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>`}
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
         <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button></td></tr>`;

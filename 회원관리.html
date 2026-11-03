@@ -81,12 +81,12 @@
   <table>
     <thead>
       <tr>
-        <th>번호</th><th>가입일</th><th>최종 접수일</th><th>대행사</th><th>단가(원)</th>
+        <th>가입일</th><th>최종 접수일</th><th>대행사</th><th>단가(원)</th>
         <th>아이디</th><th>캠페인 수</th><th>메모</th><th>액션</th>
       </tr>
     </thead>
     <tbody id="user-body">
-      <tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>
+      <tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -129,7 +129,7 @@
   window.renderUsers = async function(resetPage = true, forceReload = false) {
     if (resetPage) page = 1;
     document.getElementById('user-body').innerHTML =
-      '<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
     // 회원 목록은 저장·삭제 직후 정확한 값이 필요해 매번 새로 받음(4.5KB라 저렴) — 슬롯·충전 계정만 캐시
     const usersPromise = HI.getUsers();
     const chargesPromise = _chargesLoaded && !forceReload ? charges
@@ -151,11 +151,10 @@
     const body  = document.getElementById('user-body');
 
     if (!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="9">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="8">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((u, i) => {
         return `<tr>
-          <td style="color:var(--text2)">${all.length - start - i}</td>
           <td style="color:var(--text2)">${fmtDateOnly(u.createdAt)}</td>
           <td style="color:var(--text2)">${fmtDateOnly(getUserLastReceiptDate(u.username))}</td>
           <td><span class="agency-link" onclick="openUserAgencyPopup('${u._key}')">${u.agency||u.agencyId||'-'}</span></td>
