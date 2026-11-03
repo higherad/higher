@@ -45,6 +45,13 @@
   #shop-page .qty button { padding:0 10px; border:1px solid var(--border); background:#fff; border-radius:7px; cursor:pointer; font-weight:700; font-family:inherit; }
   #shop-page .btn-go { padding:9px 20px; border:none; border-radius:7px; background:var(--accent); color:#fff; font-weight:700; cursor:pointer; font-family:inherit; }
   #shop-page .btn-go:hover { background:var(--accent2); }
+  #shop-page .price-link { color:var(--info); font-weight:700; cursor:pointer; text-decoration:underline; }
+  #shop-pl { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:none; align-items:center; justify-content:center; }
+  #shop-pl.show { display:flex; }
+  #shop-pl .box { background:#fff; border-radius:16px; width:560px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  #shop-pl .ttl { font-size:17px; font-weight:700; margin-bottom:16px; }
+  #shop-pl .foot { display:flex; justify-content:flex-end; margin-top:16px; }
+  #shop-pl .foot button { padding:8px 20px; border-radius:7px; font-size:13px; cursor:pointer; font-family:inherit; }
   #shop-um { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:none; align-items:center; justify-content:center; }
   #shop-um.show { display:flex; }
   #shop-um .box { background:#fff; border-radius:16px; width:460px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
@@ -128,6 +135,16 @@
     </table></div>
   </section>
 
+  <!-- 단가 변경 이력 -->
+  <div id="shop-pl" onclick="if(event.target===this)this.classList.remove('show')"><div class="box">
+    <div class="ttl" id="sh-pl-title"></div>
+    <div class="tbl-wrap" style="max-height:50vh"><table>
+      <thead><tr><th>변경일시</th><th>이전 단가</th><th>변경 단가</th><th>변경자</th></tr></thead>
+      <tbody id="sh-pl-rows"></tbody>
+    </table></div>
+    <div class="foot"><button style="border:1px solid var(--border);background:#fff" onclick="document.getElementById('shop-pl').classList.remove('show')">닫기</button></div>
+  </div></div>
+
   <!-- 광고주 추가/수정 -->
   <div id="shop-um"><div class="box">
     <div class="ttl" id="sh-um-title">광고주 추가</div>
@@ -161,7 +178,7 @@
   const STATE = { run: ['사용 중', 'g'], wait: ['시작 전', 'b'], empty: ['빈 슬롯', 'n'], end: ['만료', 'r'] };
   const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.start > today() ? 'wait' : 'run';
 
-  let USERS = [], ISSUES = [], SLOTS = [], loaded = false, editId = null;
+  let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, loaded = false, editId = null;
   const userOf = id => USERS.find(u => u.id === id) || { company: id, price: 0 };
 
   async function busy(btn, fn) {
@@ -174,6 +191,7 @@
     if (!$('shop-page')) { unsub(); return; }
     USERS = Object.entries(v.users || {}).map(([id, u]) => ({ id, ...u })).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
     ISSUES = Object.entries(v.issues || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
+    PRICE_LOG = v.price_log || {};
     SLOTS = Object.entries(v.slots || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
     loaded = true;
     renderAll();
@@ -274,7 +292,7 @@
       const iss = ISSUES.filter(x => x.userId === u.id), last = iss.reduce((a, x) => x.at > a ? x.at : a, '');
       const own = SLOTS.filter(x => x.userId === u.id && slotState(x) !== 'end').length;
       const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
-      return `<tr><td>${i + 1}</td><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td><td><b>${esc(u.company)}</b></td><td>${esc(u.id)}</td><td>${won(u.price)}</td>
+      return `<tr><td>${i + 1}</td><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td><td><b>${esc(u.company)}</b></td><td>${esc(u.id)}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td>
         <td>${own}</td><td>${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
         <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button> <button class="act ${u.blocked ? 'act-ok' : 'act-del'}" onclick="shopBlock('${esc(u.id)}',this)">${u.blocked ? '해제' : '차단'}</button></td></tr>`;
@@ -298,6 +316,15 @@
     await HI.shopCall('/shop-user', d);
     $('shop-um').classList.remove('show');
   });
+  // 단가 변경 이력 팝업 — 기록은 서버(/shop-user)가 단가가 바뀔 때만 남김
+  window.shopPriceLog = id => {
+    const u = USERS.find(x => x.id === id);
+    const logs = Object.values(PRICE_LOG[id] || {}).sort((a, b) => b.at.localeCompare(a.at));
+    $('sh-pl-title').textContent = `${u.company} (${u.id}) 단가 변경 이력`;
+    $('sh-pl-rows').innerHTML = logs.map(l => `<tr><td>${esc(l.at)}</td><td>${l.from == null ? '최초 등록' : won(l.from) + '원'}</td><td><b>${won(l.to)}원</b></td><td>${esc(l.by)}</td></tr>`).join('')
+      || `<tr class="empty-row"><td colspan="4">변경 이력이 없습니다. (현재 ${won(u.price)}원)</td></tr>`;
+    $('shop-pl').classList.add('show');
+  };
   window.shopBlock = (id, btn) => {
     const u = USERS.find(x => x.id === id);
     if (!confirm(`${u.company} 계정을 ${u.blocked ? '차단 해제' : '차단'}합니다.`)) return;
