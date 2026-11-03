@@ -49,7 +49,8 @@
   #shop-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:auto; }
   #shop-page table { width:100%; border-collapse:collapse; font-size:12px; }
   #shop-page thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; }
-  #shop-page tbody td { padding:10px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; }
+  #shop-page tbody td { padding:10px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #shop-page table.fx { table-layout:fixed; min-width:1100px; } /* 열 너비 고정 — 긴 글자는 … (마우스 올리면 전체) */
   #shop-page tbody tr:hover { background:#f8fafc; }
   #shop-page tr.void td { text-decoration:line-through; color:var(--muted); }
 
@@ -116,7 +117,7 @@
       <span class="lb">경과</span><input id="sh-fi-age" type="number" style="width:56px;text-align:center" placeholder="일수"><span class="lb">일 이상</span>
       <span class="lb">시작일</span><input id="sh-fi-from" type="date"> ~ <input id="sh-fi-to" type="date">
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:80px"><col style="width:70px"><col><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:120px"><col style="width:190px"><col style="width:60px"><col style="width:60px"><col style="width:100px"><col style="width:100px"></colgroup>
       <thead><tr><th>발급번호</th><th>발급</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 만료일</th><th>기간</th><th>경과</th><th>취소일</th><th>관리</th></tr></thead>
       <tbody id="sh-issue-rows"><tr class="empty-row"><td colspan="12">불러오는 중…</td></tr></tbody>
     </table></div>
@@ -130,7 +131,7 @@
       <input id="sh-fs-q" style="flex:1;min-width:200px" placeholder="키워드, MID 검색">
       <label><input id="sh-fs-noend" type="checkbox" checked>만료 제외</label>
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:70px"><col><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
       <thead><tr><th>번호</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
@@ -144,7 +145,7 @@
       <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option><option value="revoked">취소</option></select>
       <span class="lb">발급일</span><input id="sh-ft-from" type="date"> ~ <input id="sh-ft-to" type="date">
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:120px"><col style="width:80px"><col style="width:70px"><col><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col style="width:90px"><col style="width:100px"><col style="width:120px"><col style="width:110px"></colgroup>
       <thead><tr><th>발급일시</th><th>발급번호</th><th>발급</th><th>광고주</th><th>아이디</th><th>수량</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불</th><th>정산상태</th><th>입금 확인일시</th><th>액션</th></tr></thead>
       <tbody id="sh-settle-rows"></tbody>
     </table></div>
@@ -154,7 +155,7 @@
   <section class="pane" id="sh-t-users">
     <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="광고주, 아이디 검색">
       <button class="btn-go" style="margin-left:auto;padding:7px 16px" onclick="openShopUser()">+ 광고주 추가</button></div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:60px"><col style="width:140px"><col style="width:100px"><col style="width:90px"><col><col style="width:110px"><col style="width:110px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col><col style="width:70px"><col style="width:130px"></colgroup>
       <thead><tr><th>번호</th><th>가입일</th><th>최종 발급일</th><th>구분</th><th>광고주</th><th>아이디</th><th>슬롯 단가(원)</th><th>보유 슬롯</th><th>누적 정산(VAT 별도)</th><th>미입금(VAT 별도)</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
       <tbody id="sh-user-rows"></tbody>
     </table></div>
@@ -189,6 +190,8 @@
 (() => {
   const TERM_DAYS = 7, MAX_QTY = 500, CUTOFF_HOUR = 22, VAT = 1.1;
   const $ = id => document.getElementById(id);
+  // 잘린 칸은 마우스 올리면 전체 글자
+  $('shop-page').addEventListener('mouseover', e => { const td = e.target.closest('td'); if (td && !td.title && td.scrollWidth > td.clientWidth) td.title = td.innerText; });
   const esc = HI.esc, won = n => (n || 0).toLocaleString('ko-KR');
   const kstNow = () => new Date(Date.now() + 9 * 3600e3);
   const today = () => kstNow().toISOString().slice(0, 10);
@@ -277,7 +280,7 @@
       const st = slotState(x);
       return `<tr><td><b>${x.no}</b></td>
         <td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
-        <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url.length > 48 ? x.url.slice(0, 48) + '…' : x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
+        <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
         <td><span class="pill p-${STATE[st][1]}">${STATE[st][0]}</span></td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="9">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
