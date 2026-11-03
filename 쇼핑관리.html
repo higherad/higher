@@ -146,7 +146,7 @@
     <div class="sum-grid" id="sh-settle-stats"></div>
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-ft-user"></select>
-      <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option><option value="revoked">취소</option></select>
+      <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option></select>
       <span class="lb">발급일</span><input id="sh-ft-from" type="date"> ~ <input id="sh-ft-to" type="date">
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:120px"><col style="width:80px"><col style="width:70px"><col><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col style="width:100px"><col style="width:120px"><col style="width:110px"></colgroup>
@@ -309,7 +309,7 @@
   /* ── 정산 ── */
   function renderSettle() {
     const uid = $('sh-ft-user').value, st = $('sh-ft-st').value, from = $('sh-ft-from').value, to = $('sh-ft-to').value;
-    const rows = ISSUES.filter(is => (!uid || is.userId === uid) && (!st || (st === 'revoked' ? !!is.revokedAt : !is.revokedAt && (st === 'paid') === !!is.paidAt))
+    const rows = ISSUES.filter(is => (!uid || is.userId === uid) && !is.revokedAt && (!st || (st === 'paid') === !!is.paidAt)
       && (!from || is.at.slice(0, 10) >= from) && (!to || is.at.slice(0, 10) <= to)).sort((a, b) => b.no - a.no);
     // 카드 = 정산관리와 같은 구성(필터 무관, 취소 건 제외): 총 매출액(VAT 별도)·총 입금액(VAT 포함)·당일 매출액·당일 입금액(오늘 입금 확인분)·미입금(VAT 포함)
     const live = ISSUES.filter(is => !is.revokedAt), todays = live.filter(is => is.at.slice(0, 10) === today()), unpaid = live.filter(is => !is.paidAt);
