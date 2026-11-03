@@ -506,7 +506,7 @@
       const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
       return `<tr${child ? ' class="child"' : subs ? ` class="grp" data-g="u|${esc(u.id)}"` : ''}><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td>
         <td>${gradePill(u)}</td>
-        <td><b>${esc(u.company)}</b>${subs ? ` <span class="tg">${open ? '▾' : '▸'} 하부점 ${subs}</span>` : ''}</td><td>${esc(u.id)}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td>
+        <td><b>${esc(u.company)}</b>${subs ? `<br><span class="tg">${open ? '▾' : '▸'} 하부점 ${subs}</span>` : ''}</td><td>${esc(u.id)}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td>
         <td>${own}</td>${u.parent ? '<td title="총판이 정산">-</td><td title="총판이 정산">-</td>' : `<td>${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>`}
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
         <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button></td></tr>`;
