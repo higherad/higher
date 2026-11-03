@@ -129,10 +129,14 @@
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-fs-user"></select>
       <input id="sh-fs-q" style="flex:1;min-width:200px" placeholder="키워드, MID 검색">
+      <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 슬롯</option><option value="end">만료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>만료 제외</label>
+      <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
+        <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(true,this)">진행중 전환</button>
+        <button class="act act-edit" style="padding:7px 12px" onclick="shopRun(false,this)">진행 해제</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:70px"><col><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
-      <thead><tr><th>번호</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:70px"><col><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -202,11 +206,15 @@
   const md = s => s ? s.slice(5) : '-';
   const safeUrl = u => /^https:\/\/([a-z0-9-]+\.)*naver\.com\//i.test((u || '').trim());
   const billOf = is => is.qty * is.price;
-  const canRevoke = is => !is.revokedAt && is.start > today();
-  const STATE = { run: ['사용 중', 'g'], wait: ['시작 전', 'b'], empty: ['빈 슬롯', 'n'], end: ['만료', 'r'] };
-  const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.start > today() ? 'wait' : 'run';
+  // 취소 = 진행중 슬롯 없음 + 만료 전 (서버 can_cancel과 같음, 입금·정보 입력 무관)
+  const canRevoke = is => !is.revokedAt && is.end >= today() && !SLOTS.some(x => x.userId === is.userId && x.issueNo === is.no && x.runAt);
+  // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
+  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 슬롯', 'n'], end: ['만료', 'r'] };
+  const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.runAt ? 'run' : 'wait';
 
   let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, loaded = false, editId = null;
+  // 접수 현황 체크 — 실시간 갱신으로 표를 다시 그려도 유지(구독 콜백보다 먼저 선언)
+  const PICKED = new Set(), slotKey = x => `${x.userId}|${x.no}`;
   const userOf = id => USERS.find(u => u.id === id) || { company: id, price: 0 };
 
   async function busy(btn, fn) {
@@ -262,27 +270,40 @@
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}개</td>
         <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${TERM_DAYS}일</td><td>${el}일</td>
         <td>${md(is.revokedAt)}</td>
-        <td>${is.revokedAt ? `<span class="muted">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">취소</button>` : `<span class="muted" title="시작된 슬롯은 취소할 수 없습니다">${is.end < today() ? '종료' : '진행 중'}</span>`}</td></tr>`;
+        <td>${is.revokedAt ? `<span class="muted">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">취소</button>` : `<span class="muted" title="진행중인 슬롯이 있어 취소할 수 없습니다">${is.end < today() ? '종료' : '진행중'}</span>`}</td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '발급 내역이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   /* ── 접수 현황 ── */
+  const pickedN = () => { $('sh-run-n').textContent = PICKED.size ? `${PICKED.size}개 선택` : ''; };
+  $('sh-slot-rows').addEventListener('change', e => { if (!e.target.classList.contains('sh-cb')) return; e.target.checked ? PICKED.add(e.target.dataset.k) : PICKED.delete(e.target.dataset.k); pickedN(); });
+  $('sh-cb-all').onchange = e => { document.querySelectorAll('#sh-slot-rows .sh-cb').forEach(c => { c.checked = e.target.checked; c.checked ? PICKED.add(c.dataset.k) : PICKED.delete(c.dataset.k); }); pickedN(); };
+  window.shopRun = (on, btn) => busy(btn, async () => {
+    if (!PICKED.size) throw new Error('슬롯을 선택해 주세요.');
+    const items = [...PICKED].map(k => { const i = k.lastIndexOf('|'); return { userId: k.slice(0, i), no: +k.slice(i + 1) }; });
+    if (!confirm(`선택한 슬롯 ${items.length}개를 ${on ? '진행중으로 전환합니다. 진행중 슬롯이 있는 발급 건은 취소할 수 없게 됩니다.' : '진행 해제합니다. 다시 취소할 수 있게 됩니다.'}`)) return;
+    const r = await HI.shopCall('/shop-run', { items, on });
+    PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
+    if (r.skipped) alert(`${r.changed}개 변경, ${r.skipped}개는 정보가 없거나 만료·취소돼 건너뛰었습니다.`);
+  });
   function renderSlots() {
     const cnt = k => SLOTS.filter(x => slotState(x) === k).length;
-    $('sh-slot-stats').innerHTML = [['사용 중', cnt('run'), 'g'], ['시작 전', cnt('wait'), 'b'], ['빈 슬롯 (미세팅)', cnt('empty'), ''], ['만료', cnt('end'), 'r']]
+    $('sh-slot-stats').innerHTML = [['진행중', cnt('run'), 'g'], ['접수 (진행 대기)', cnt('wait'), 'b'], ['빈 슬롯 (미입력)', cnt('empty'), ''], ['만료', cnt('end'), 'r']]
       .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${v}</div></div>`).join('');
-    const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked;
+    const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked, fst = $('sh-fs-st').value;
     const rows = SLOTS.filter(x => (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
-      && !(noEnd && slotState(x) === 'end')).sort((a, b) => b.no - a.no);
+      && !(noEnd && slotState(x) === 'end') && (!fst || slotState(x) === fst)).sort((a, b) => b.no - a.no);
+    const live = new Set(SLOTS.map(slotKey));
+    [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
     const miss = '<span class="muted">미세팅</span>';
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
-      const st = slotState(x);
-      return `<tr><td><b>${x.no}</b></td>
+      const st = slotState(x), pick = st === 'wait' || st === 'run';
+      return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td><td><b>${x.no}</b></td>
         <td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
-        <td><span class="pill p-${STATE[st][1]}">${STATE[st][0]}</span></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="9">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
+        <td><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="10">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   /* ── 정산 ── */
@@ -434,7 +455,7 @@
 
   const bind = (ids, fn) => ids.forEach(id => { $(id).oninput = fn; $(id).onchange = fn; });
   bind(['sh-fi-user', 'sh-fi-norevoke', 'sh-fi-age', 'sh-fi-from', 'sh-fi-to'], renderIssues);
-  bind(['sh-fs-user', 'sh-fs-q', 'sh-fs-noend'], renderSlots);
+  bind(['sh-fs-user', 'sh-fs-q', 'sh-fs-noend', 'sh-fs-st'], renderSlots);
   bind(['sh-ft-user', 'sh-ft-st', 'sh-ft-from', 'sh-ft-to'], renderSettle);
   bind(['sh-fu-q'], renderUsers);
   document.querySelectorAll('#shop-page .tab').forEach(t => t.onclick = () => {
