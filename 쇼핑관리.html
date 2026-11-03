@@ -145,8 +145,8 @@
       <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option><option value="revoked">취소</option></select>
       <span class="lb">발급일</span><input id="sh-ft-from" type="date"> ~ <input id="sh-ft-to" type="date">
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:120px"><col style="width:80px"><col style="width:70px"><col><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col style="width:90px"><col style="width:100px"><col style="width:120px"><col style="width:110px"></colgroup>
-      <thead><tr><th>발급일시</th><th>발급번호</th><th>발급</th><th>광고주</th><th>아이디</th><th>수량</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불</th><th>정산상태</th><th>입금 확인일시</th><th>액션</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:120px"><col style="width:80px"><col style="width:70px"><col><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col style="width:100px"><col style="width:120px"><col style="width:110px"></colgroup>
+      <thead><tr><th>발급일시</th><th>발급번호</th><th>발급</th><th>광고주</th><th>아이디</th><th>수량</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>정산상태</th><th>입금 확인일시</th><th>액션</th></tr></thead>
       <tbody id="sh-settle-rows"></tbody>
     </table></div>
   </section>
@@ -202,7 +202,6 @@
   const md = s => s ? s.slice(5) : '-';
   const safeUrl = u => /^https:\/\/([a-z0-9-]+\.)*naver\.com\//i.test((u || '').trim());
   const billOf = is => is.qty * is.price;
-  const refundOf = is => is.revokedAt && is.paidAt ? billOf(is) : 0;  // 입금 후 취소만 환불(취소는 시작 전만 → 전액)
   const canRevoke = is => !is.revokedAt && is.start > today();
   const STATE = { run: ['사용 중', 'g'], wait: ['시작 전', 'b'], empty: ['빈 슬롯', 'n'], end: ['만료', 'r'] };
   const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.start > today() ? 'wait' : 'run';
@@ -250,7 +249,7 @@
   window.shopRevoke = (uid, no, btn) => busy(btn, async () => {
     const is = ISSUES.find(x => x.userId === uid && x.no === no);
     const set = SLOTS.filter(x => x.userId === uid && x.issueNo === no && x.mid).length;
-    if (!confirm(`발급번호 #${no} 슬롯 ${is.qty}개를 취소합니다.${set ? ` 세팅된 ${set}개도 함께 지워집니다.` : ''}${is.paidAt ? ` 입금된 ${won(Math.round(billOf(is) * VAT))}원은 환불 대상이 됩니다.` : ''}`)) return;
+    if (!confirm(`발급번호 #${no} 슬롯 ${is.qty}개를 취소합니다.${set ? ` 세팅된 ${set}개도 함께 지워집니다.` : ''}`)) return;
     await HI.shopCall('/shop-revoke', { userId: uid, issueNo: no });
   });
   function renderIssues() {
@@ -301,15 +300,14 @@
       + card('today', `당일 매출액 (${today()})`, day, `${todays.length}건 발급`) + card('today', '당일 입금액', Math.round(paidDay * VAT), `오늘 입금 확인 ${paidToday.length}건 · VAT 포함`)
       + card('due', '미입금(VAT 포함)', Math.round(due * VAT), `${unpaid.length}건`);
     $('sh-settle-rows').innerHTML = rows.map(is => {
-      const b = billOf(is), r = refundOf(is), k = `'${esc(is.userId)}',${is.no}`;
-      const state = is.revokedAt ? (is.paidAt ? '<span class="pill p-r">환불 대상</span>' : `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>`) : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
+      const b = billOf(is), k = `'${esc(is.userId)}',${is.no}`;
+      const state = is.revokedAt ? `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
       return `<tr class="${is.revokedAt ? 'void' : ''}"><td>${md(is.at)}</td><td>#${is.no}</td><td>${is.by === 'user' ? '<span class="pill p-b">광고주</span>' : is.by === 'dist' ? '<span class="pill p-b">총판</span>' : '<span class="pill p-n">관리자</span>'}</td>
         <td>${esc(userOf(is.userId).company)}${is.dist ? `<br><span style="font-size:11px;color:var(--muted)">총판 ${esc(userOf(is.dist).company)}</span>` : ''}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
         <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td>
-        <td style="color:${r ? 'var(--danger)' : 'inherit'}">${r ? '-' + won(r) : '-'}</td>
         <td>${state}</td><td>${md(is.paidAt)}</td>
         <td>${is.revokedAt ? '-' : is.paidAt ? `<button class="act act-edit" onclick="shopPaid(${k},false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaid(${k},true,this)">입금 확인</button>`}</td></tr>`;
-    }).join('') || (`<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
+    }).join('') || (`<tr class="empty-row"><td colspan="12">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
   // 매출 팝업(정산관리와 같은 구성): 취소 제외 발급 건을 하이어 청구액 기준으로 발급일별·월별 합산
   function groupBy(keyOf) {
