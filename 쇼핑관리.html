@@ -231,8 +231,8 @@
   const SPICK = new Set();
   let settleShown = [];
   const userOf = id => USERS.find(u => u.id === id) || { company: id, price: 0 };
-  // 계정 구분(광고주 관리 '구분'과 같은 말) — 총판 / 하부점 / 일반
-  const gradePill = u => u.role === 'dist' ? '<span class="pill p-o">총판</span>' : u.parent ? '<span class="pill p-n">하부점</span>' : '<span class="pill p-b">일반</span>';
+  // 계정 구분 — 총판 / 하부점(위에 소속 총판 이름) / 일반. 네 탭의 구분 칸이 모두 이것
+  const gradePill = u => u.role === 'dist' ? '<span class="pill p-o">총판</span>' : u.parent ? `<span style="font-size:11px;color:var(--muted)">${esc(userOf(u.parent).company)}</span><br><span class="pill p-n">하부점</span>` : '<span class="pill p-b">일반</span>';
 
   async function busy(btn, fn) {
     if (btn) btn.disabled = true;
@@ -345,7 +345,7 @@
       const b = billOf(is), k = `'${esc(is.userId)}',${is.no}`;
       const state = is.revokedAt ? `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
       return `<tr class="${is.revokedAt ? 'void' : ''}"><td><input type="checkbox" class="sh-sc" data-k="${esc(slotKey(is))}"${SPICK.has(slotKey(is)) ? ' checked' : ''}></td><td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
-        <td>${esc(userOf(is.userId).company)}${is.dist ? `<br><span style="font-size:11px;color:var(--muted)">총판 ${esc(userOf(is.dist).company)}</span>` : ''}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
+        <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
         <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td>
         <td>${state}</td><td>${md(is.paidAt)}</td>
         <td>${is.revokedAt ? '-' : is.paidAt ? `<button class="act act-edit" onclick="shopPaid(${k},false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaid(${k},true,this)">입금 확인</button>`}</td></tr>`;
@@ -456,7 +456,7 @@
       const own = SLOTS.filter(x => x.userId === u.id && slotState(x) !== 'end').length;
       const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
       return `<tr><td>${i + 1}</td><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td>
-        <td>${u.parent ? `<span style="font-size:11px;color:var(--muted)">${esc(userOf(u.parent).company)}</span><br>` : ''}${gradePill(u)}</td>
+        <td>${gradePill(u)}</td>
         <td><b>${esc(u.company)}</b></td><td>${esc(u.id)}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td>
         <td>${own}</td>${u.parent ? '<td title="총판이 정산">-</td><td title="총판이 정산">-</td>' : `<td>${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>`}
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
