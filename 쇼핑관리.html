@@ -144,8 +144,7 @@
       <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 슬롯</option><option value="end">만료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>만료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
-        <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(true,this)">진행중 전환</button>
-        <button class="act act-edit" style="padding:7px 12px" onclick="shopRun(false,this)">진행 해제</button></span>
+        <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:150px"><col style="width:160px"><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
       <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>구분</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
@@ -300,11 +299,12 @@
   const pickedN = () => { $('sh-run-n').textContent = PICKED.size ? `${PICKED.size}개 선택` : ''; };
   $('sh-slot-rows').addEventListener('change', e => { if (!e.target.classList.contains('sh-cb')) return; e.target.checked ? PICKED.add(e.target.dataset.k) : PICKED.delete(e.target.dataset.k); pickedN(); });
   $('sh-cb-all').onchange = e => { document.querySelectorAll('#sh-slot-rows .sh-cb').forEach(c => { c.checked = e.target.checked; c.checked ? PICKED.add(c.dataset.k) : PICKED.delete(c.dataset.k); }); pickedN(); };
-  window.shopRun = (on, btn) => busy(btn, async () => {
+  // 진행중은 되돌리지 않음 — 전환하면 만료까지 진행
+  window.shopRun = btn => busy(btn, async () => {
     if (!PICKED.size) throw new Error('슬롯을 선택해 주세요.');
     const items = [...PICKED].map(k => { const i = k.lastIndexOf('|'); return { userId: k.slice(0, i), no: +k.slice(i + 1) }; });
-    if (!confirm(`선택한 슬롯 ${items.length}개를 ${on ? '진행중으로 전환합니다. 진행중 슬롯이 있는 발급 건은 취소할 수 없게 됩니다.' : '진행 해제합니다. 다시 취소할 수 있게 됩니다.'}`)) return;
-    const r = await HI.shopCall('/shop-run', { items, on });
+    if (!confirm(`선택한 슬롯 ${items.length}개를 진행중으로 전환합니다. 되돌릴 수 없고, 진행중 슬롯이 있는 발급 건은 취소할 수 없게 됩니다.`)) return;
+    const r = await HI.shopCall('/shop-run', { items });
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
     if (r.skipped) alert(`${r.changed}개 변경, ${r.skipped}개는 정보가 없거나 만료·취소돼 건너뛰었습니다.`);
   });
@@ -319,7 +319,7 @@
     [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
     const miss = '<span class="muted">미세팅</span>';
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
-      const st = slotState(x), pick = st === 'wait' || st === 'run';
+      const st = slotState(x), pick = st === 'wait';
       return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
         <td>${gradePill(userOf(x.userId))}</td><td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
