@@ -456,7 +456,7 @@
       const own = SLOTS.filter(x => x.userId === u.id && slotState(x) !== 'end').length;
       const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
       return `<tr><td>${i + 1}</td><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td>
-        <td>${gradePill(u)}${u.parent ? `<br><span style="font-size:11px;color:var(--muted)">${esc(userOf(u.parent).company)}</span>` : ''}</td>
+        <td>${u.parent ? `<span style="font-size:11px;color:var(--muted)">${esc(userOf(u.parent).company)}</span><br>` : ''}${gradePill(u)}</td>
         <td><b>${esc(u.company)}</b></td><td>${esc(u.id)}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td>
         <td>${own}</td>${u.parent ? '<td title="총판이 정산">-</td><td title="총판이 정산">-</td>' : `<td>${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>`}
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
