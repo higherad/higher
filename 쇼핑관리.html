@@ -357,10 +357,10 @@
       GROUPS[k].list.push(is);
     });
     const stateOf = is => is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
-    const issueCells = is => { const b = billOf(is); return `<td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
+    const issueCells = (is, child) => { const b = billOf(is); return `<td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
         <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td>
-        <td>${stateOf(is)}</td><td>${md(is.paidAt)}</td>`; };
+        ${child ? '<td></td><td></td>' : `<td>${stateOf(is)}</td><td>${md(is.paidAt)}</td>`}`; };  // 펼친 개별 건은 상태 없음(입금은 총판 묶음 단위)
     const box = keys => `<input type="checkbox" class="sh-sc" data-k="${esc(keys.join(','))}"${keys.every(k => SPICK.has(k)) ? ' checked' : ''}>`;
     $('sh-settle-rows').innerHTML = items.map(it => {
       if (!it.list) {
@@ -370,12 +370,12 @@
       }
       const L = it.list, b = L.reduce((a, x) => a + billOf(x), 0), paid = L.filter(x => x.paidAt).length, open = OPEN.has('s|' + it.k);
       const prices = [...new Set(L.map(x => x.price))], last = L.reduce((a, x) => (x.paidAt || '') > a ? x.paidAt : a, '');
-      const st = paid === L.length ? '<span class="pill p-g">입금 완료</span>' : paid ? `<span class="pill p-w" title="${paid}/${L.length}건 입금">일부 입금</span>` : '<span class="pill p-w">미입금</span>';
+      const st = paid === L.length ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
       return `<tr class="grp" data-g="s|${esc(it.k)}"><td>${box(L.map(slotKey))}</td><td>${md(it.date)}</td><td>${L.length}건 <span class="tg">${open ? '▾' : '▸'}</span></td><td>${gradePill(userOf(it.payer))}</td>
         <td><b>${esc(userOf(it.payer).company)}</b></td><td>${esc(it.payer)}</td><td>${L.reduce((a, x) => a + x.qty, 0)}</td>
         <td>${prices.length === 1 ? won(prices[0]) : '-'}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td><td>${st}</td><td>${md(last)}</td>
         <td>${paid === L.length ? `<button class="act act-edit" onclick="shopPaidGroup('${esc(it.k)}',false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaidGroup('${esc(it.k)}',true,this)">입금 확인</button>`}</td></tr>`
-        + (open ? L.map(is => `<tr class="child"><td></td>${issueCells(is)}<td></td></tr>`).join('') : '');
+        + (open ? L.map(is => `<tr class="child"><td></td>${issueCells(is, true)}<td></td></tr>`).join('') : '');
     }).join('') || (`<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
   const pickSet = (c, on) => c.dataset.k.split(',').forEach(k => on ? SPICK.add(k) : SPICK.delete(k));
