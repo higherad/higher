@@ -67,7 +67,7 @@
   #shop-page .empty-row td { height:140px; color:var(--muted); }
   #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
   #shop-page .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
-  #shop-page .p-g { background:#ecfdf5; color:#059669; } #shop-page .p-v { background:#f5f3ff; color:#7c3aed; } #shop-page .p-n { background:#f1f5f9; color:#64748b; } #shop-page .p-w { background:#fffbeb; color:#b45309; } #shop-page .p-r { background:#fef2f2; color:var(--danger); } #shop-page .p-b { background:#eff6ff; color:#1d4ed8; }
+  #shop-page .p-g { background:#ecfdf5; color:#059669; } #shop-page .p-o { background:#fff7ed; color:#ea580c; } #shop-page .p-n { background:#f1f5f9; color:#64748b; } #shop-page .p-w { background:#fffbeb; color:#b45309; } #shop-page .p-r { background:#fef2f2; color:var(--danger); } #shop-page .p-b { background:#eff6ff; color:#1d4ed8; }
   #shop-page .act { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
   #shop-page .act-edit { background:#eff6ff; color:#1d4ed8; } #shop-page .act-del { background:#fef2f2; color:var(--danger); } #shop-page .act-ok { background:#ecfdf5; color:#059669; }
   #shop-page .act:disabled, #shop-page .btn-go:disabled { opacity:.5; cursor:default; }
@@ -128,7 +128,7 @@
       <span class="lb">시작일</span><input id="sh-fi-from" type="date"> ~ <input id="sh-fi-to" type="date">
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:80px"><col style="width:70px"><col><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:120px"><col style="width:190px"><col style="width:60px"><col style="width:60px"><col style="width:100px"><col style="width:100px"></colgroup>
-      <thead><tr><th>발급번호</th><th>발급</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 만료일</th><th>기간</th><th>경과</th><th>취소일</th><th>관리</th></tr></thead>
+      <thead><tr><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 만료일</th><th>기간</th><th>경과</th><th>취소일</th><th>관리</th></tr></thead>
       <tbody id="sh-issue-rows"><tr class="empty-row"><td colspan="12">불러오는 중…</td></tr></tbody>
     </table></div>
   </section>
@@ -145,8 +145,8 @@
         <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(true,this)">진행중 전환</button>
         <button class="act act-edit" style="padding:7px 12px" onclick="shopRun(false,this)">진행 해제</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:70px"><col><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:70px"><col style="width:80px"><col><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>구분</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -232,7 +232,7 @@
   let settleShown = [];
   const userOf = id => USERS.find(u => u.id === id) || { company: id, price: 0 };
   // 계정 구분(광고주 관리 '구분'과 같은 말) — 총판 / 하부점 / 일반
-  const gradePill = u => u.role === 'dist' ? '<span class="pill p-b">총판</span>' : u.parent ? '<span class="pill p-v">하부점</span>' : '<span class="pill p-n">일반</span>';
+  const gradePill = u => u.role === 'dist' ? '<span class="pill p-o">총판</span>' : u.parent ? '<span class="pill p-n">하부점</span>' : '<span class="pill p-b">일반</span>';
 
   async function busy(btn, fn) {
     if (btn) btn.disabled = true;
@@ -283,7 +283,7 @@
       && Math.max(0, daysBetween(is.start, today())) >= age).sort((a, b) => b.no - a.no);
     $('sh-issue-rows').innerHTML = rows.map(is => {
       const set = SLOTS.filter(x => x.userId === is.userId && x.issueNo === is.no && x.mid).length, el = Math.max(0, daysBetween(is.start, today()));
-      return `<tr><td>#${is.no}</td><td>${is.by === 'user' ? '<span class="pill p-b">광고주</span>' : is.by === 'dist' ? '<span class="pill p-b">총판</span>' : `<span class="pill p-n" title="${esc(is.byName)}">관리자</span>`}</td>
+      return `<tr><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}개</td>
         <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${TERM_DAYS}일</td><td>${el}일</td>
         <td>${md(is.revokedAt)}</td>
@@ -316,11 +316,11 @@
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
       const st = slotState(x), pick = st === 'wait' || st === 'run';
       return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td><td><b>${x.no}</b></td>
-        <td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
+        <td>${gradePill(userOf(x.userId))}</td><td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
         <td><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="10">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="11">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   /* ── 정산 ── */
