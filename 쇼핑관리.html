@@ -105,7 +105,7 @@
     <div class="stat-bar" id="sh-settle-stats" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-ft-user"></select>
-      <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option><option value="revoked">회수</option></select>
+      <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option><option value="revoked">취소·회수</option></select>
       <span class="lb">발급일</span><input id="sh-ft-from" type="date"> ~ <input id="sh-ft-to" type="date">
     </div>
     <div class="tbl-wrap"><table>
@@ -210,7 +210,7 @@
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}개</td>
         <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${TERM_DAYS}일</td><td>${el}일</td>
         <td>${md(is.revokedAt)}</td>
-        <td>${is.revokedAt ? '<span class="muted">회수됨</span>' : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">회수</button>` : `<span class="muted" title="시작된 슬롯은 회수할 수 없습니다">${is.end < today() ? '종료' : '진행 중'}</span>`}</td></tr>`;
+        <td>${is.revokedAt ? `<span class="muted">${is.revokedRole === 'user' ? '광고주 취소' : '회수됨'}</span>` : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">회수</button>` : `<span class="muted" title="시작된 슬롯은 회수할 수 없습니다">${is.end < today() ? '종료' : '진행 중'}</span>`}</td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '발급 내역이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
@@ -253,7 +253,7 @@
       .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${won(v)}<small>원</small></div></div>`).join('');
     $('sh-settle-rows').innerHTML = rows.map(is => {
       const b = billOf(is), r = refundOf(is), k = `'${esc(is.userId)}',${is.no}`;
-      const state = is.revokedAt ? (is.paidAt ? '<span class="pill p-r">환불 대상</span>' : '<span class="pill p-n">회수 (정산 제외)</span>') : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
+      const state = is.revokedAt ? (is.paidAt ? '<span class="pill p-r">환불 대상</span>' : `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : '회수'} (정산 제외)</span>`) : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
       return `<tr><td>${md(is.at)}</td><td>#${is.no}</td><td>${is.by === 'user' ? '<span class="pill p-b">광고주</span>' : '<span class="pill p-n">관리자</span>'}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
         <td class="amt">${won(is.price)}</td><td class="amt">${won(b)}</td><td class="amt">${won(Math.round(b * VAT))}</td>
