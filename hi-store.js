@@ -249,6 +249,9 @@ const recentClosedCache = makeCollectionCache(() => {
   return query(ref(db, P.closed), orderByChild('endDate'), startAt(ymd(d)));
 });
 const paidCache           = makeValueCache(P.paid, v => new Set(v ? Object.keys(v) : []));
+// 쇼핑슬롯(hireward.co.kr) 전체 — 쇼핑 관리 화면에서만 구독(광고주·발급·슬롯). 발급·회수·계정 저장은 higherad-shop 서버
+const shopCache           = makeValueCache('shop', v => v || {});
+const SHOP_API = 'https://higherad-shop-938928195180.asia-northeast3.run.app';
 const refundsCache        = makeValueCache(P.refunds, v => v || {});
 const pendingRefundsCache = makeValueCache(P.pendingRefunds, v => v || {});
 const snapshotsCache      = makeValueCache(P.snapshots, v => v || {});
@@ -1062,6 +1065,17 @@ const HI = {
     const u2 = recentClosedCache.subscribe(v => { recent = v; calc(); });
     const u3 = paidCache(v => { paid = v; calc(); });
     return () => { u1(); u2(); u3(); };
+  },
+
+  // ── 쇼핑슬롯 ──────────────────────────────────────────────
+  onShopChange: shopCache,
+  // 입금 확인·접수 확인·차단 같은 직원 직접 쓰기(shop/ 기준 상대 경로 멀티패스)
+  shopUpdate(patch) { return update(ref(db, 'shop'), patch); },
+  async shopCall(path, body) {
+    const res = await fetch(SHOP_API + path, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify(body || {}) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.ok === false) throw new Error(j.error || `서버 오류 (${res.status})`);
+    return j;
   },
 };
 

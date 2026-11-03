@@ -1,0 +1,333 @@
+<style>
+  #shop-page .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:18px; }
+  #shop-page .tab { padding:10px 16px; cursor:pointer; color:var(--text2); font-weight:600; font-size:13px; border-bottom:2px solid transparent; margin-bottom:-1px; display:flex; align-items:center; gap:6px; }
+  #shop-page .tab svg { width:14px; height:14px; }
+  #shop-page .tab.on { color:var(--text); border-color:var(--accent); }
+  #shop-page .tab .cnt { background:var(--warn); color:#fff; font-size:10px; padding:0 6px; border-radius:8px; }
+  #shop-page .pane { display:none; } #shop-page .pane.on { display:block; }
+  #shop-page .stat-bar { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; }
+  #shop-page .sb { background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px; text-align:center; position:relative; overflow:hidden; }
+  #shop-page .sb::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--border); }
+  #shop-page .sb.g::after { background:var(--accent); } #shop-page .sb.w::after { background:var(--warn); } #shop-page .sb.r::after { background:var(--danger); } #shop-page .sb.b::after { background:var(--info); }
+  #shop-page .sb-l { font-size:11px; color:var(--text2); font-weight:600; } #shop-page .sb-v { font-size:22px; font-weight:800; margin-top:6px; }
+  #shop-page .sb-v small { font-size:13px; color:var(--muted); font-weight:400; }
+  #shop-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; font-size:12px; }
+  #shop-page .filter-bar input, #shop-page .filter-bar select { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; outline:none; background:#fff; font-family:inherit; }
+  #shop-page .lb { color:var(--text2); font-weight:600; }
+  #shop-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:auto; }
+  #shop-page table { width:100%; border-collapse:collapse; font-size:12px; }
+  #shop-page thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; }
+  #shop-page tbody td { padding:10px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; }
+  #shop-page tbody tr:hover { background:#f8fafc; }
+  #shop-page tr.new td { background:#fffbeb; }
+  #shop-page td.l { text-align:left; } #shop-page .amt { text-align:right; font-variant-numeric:tabular-nums; }
+  #shop-page .sub-tot td { background:#f8fafc; font-weight:700; }
+  #shop-page .empty-row td { height:140px; color:var(--muted); }
+  #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
+  #shop-page .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+  #shop-page .p-g { background:#ecfdf5; color:#059669; } #shop-page .p-n { background:#f1f5f9; color:#64748b; } #shop-page .p-w { background:#fffbeb; color:#b45309; } #shop-page .p-r { background:#fef2f2; color:var(--danger); } #shop-page .p-b { background:#eff6ff; color:#1d4ed8; }
+  #shop-page .act { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
+  #shop-page .act-edit { background:#eff6ff; color:#1d4ed8; } #shop-page .act-del { background:#fef2f2; color:var(--danger); } #shop-page .act-ok { background:#ecfdf5; color:#059669; }
+  #shop-page .act:disabled, #shop-page .btn-go:disabled { opacity:.5; cursor:default; }
+  #shop-page .issue-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+  #shop-page .issue-card h4 { margin:0 0 14px; font-size:14px; }
+  #shop-page .issue-grid { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; }
+  #shop-page .fld label { display:block; font-size:11px; color:var(--text2); font-weight:600; margin-bottom:5px; }
+  #shop-page .fld label em { color:var(--danger); font-style:normal; margin-left:4px; }
+  #shop-page .fld input, #shop-page .fld select { padding:8px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; outline:none; font-family:inherit; }
+  #shop-page .qty { display:flex; gap:4px; } #shop-page .qty input { width:70px; text-align:center; }
+  #shop-page .qty button { padding:0 10px; border:1px solid var(--border); background:#fff; border-radius:7px; cursor:pointer; font-weight:700; font-family:inherit; }
+  #shop-page .btn-go { padding:9px 20px; border:none; border-radius:7px; background:var(--accent); color:#fff; font-weight:700; cursor:pointer; font-family:inherit; }
+  #shop-page .btn-go:hover { background:var(--accent2); }
+  #shop-um { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:none; align-items:center; justify-content:center; }
+  #shop-um.show { display:flex; }
+  #shop-um .box { background:#fff; border-radius:16px; width:460px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  #shop-um .ttl { font-size:17px; font-weight:700; margin-bottom:20px; }
+  #shop-um .f { margin-bottom:14px; } #shop-um .f label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
+  #shop-um .f label .req { color:var(--danger); margin-left:2px; }
+  #shop-um .f input { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; outline:none; font-family:inherit; box-sizing:border-box; }
+  #shop-um .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  #shop-um .foot { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+  #shop-um .foot button { padding:8px 20px; border-radius:7px; font-size:13px; cursor:pointer; font-family:inherit; }
+</style>
+
+<div id="shop-page">
+  <div class="tabs">
+    <div class="tab on" data-t="issue"><i data-lucide="plus-square"></i>슬롯 발급</div>
+    <div class="tab" data-t="slots"><i data-lucide="layout-list"></i>접수 현황 <span class="cnt" id="sh-tab-new" style="display:none"></span></div>
+    <div class="tab" data-t="settle"><i data-lucide="receipt"></i>정산 <span class="cnt" id="sh-tab-unpaid" style="display:none"></span></div>
+    <div class="tab" data-t="users"><i data-lucide="users-round"></i>광고주 관리</div>
+  </div>
+
+  <!-- 슬롯 발급 -->
+  <section class="pane on" id="sh-t-issue">
+    <div class="issue-card">
+      <h4>신규 슬롯 발급</h4>
+      <div class="issue-grid">
+        <div class="fld"><label>대상 광고주</label><select id="sh-is-user" style="width:200px"></select></div>
+        <div class="fld"><label>수량<em>1회 최대 500개</em></label><div class="qty"><button data-q="-1">-</button><input id="sh-is-qty" type="number" value="1"><button data-q="1">+</button><button data-q="10">+10</button><button data-q="100">+100</button><button data-q="max">최대</button></div></div>
+        <div class="fld"><label>시작일<em>당일 22시 마감</em></label><input id="sh-is-start" type="date"></div>
+        <div class="fld"><label>만료 예정일<em>7일</em></label><input id="sh-is-end" type="date" disabled></div>
+        <div class="fld"><label>정산 금액<em>VAT 별도</em></label><div id="sh-is-amt" style="padding:9px 0;font-weight:800;font-size:15px">-</div></div>
+        <button class="btn-go" id="sh-is-go">슬롯 발급</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <span class="lb">광고주</span><select id="sh-fi-user"></select>
+      <label><input id="sh-fi-norevoke" type="checkbox"> 회수 제외</label>
+      <span class="lb">경과</span><input id="sh-fi-age" type="number" style="width:56px;text-align:center" placeholder="일수"><span class="lb">일 이상</span>
+      <span class="lb">시작일</span><input id="sh-fi-from" type="date"> ~ <input id="sh-fi-to" type="date">
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>발급번호</th><th>발급</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 만료일</th><th>기간</th><th>경과</th><th>회수일</th><th>관리</th></tr></thead>
+      <tbody id="sh-issue-rows"><tr class="empty-row"><td colspan="12">불러오는 중…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <!-- 접수 현황 -->
+  <section class="pane" id="sh-t-slots">
+    <div class="stat-bar" id="sh-slot-stats"></div>
+    <div class="filter-bar">
+      <span class="lb">광고주</span><select id="sh-fs-user"></select>
+      <input id="sh-fs-q" style="flex:1;min-width:200px" placeholder="키워드, MID 검색">
+      <label><input id="sh-fs-new" type="checkbox"> 확인 대기만</label>
+      <label><input id="sh-fs-noend" type="checkbox" checked> 만료 제외</label>
+      <button class="act act-ok" style="margin-left:auto;padding:7px 14px" id="sh-check-sel">선택 확인 처리</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th><th>확인</th></tr></thead>
+      <tbody id="sh-slot-rows"></tbody>
+    </table></div>
+  </section>
+
+  <!-- 정산 -->
+  <section class="pane" id="sh-t-settle">
+    <div class="stat-bar" id="sh-settle-stats" style="grid-template-columns:repeat(4,1fr)"></div>
+    <div class="filter-bar">
+      <span class="lb">광고주</span><select id="sh-ft-user"></select>
+      <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option><option value="revoked">회수</option></select>
+      <span class="lb">발급일</span><input id="sh-ft-from" type="date"> ~ <input id="sh-ft-to" type="date">
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>발급일시</th><th>발급번호</th><th>발급</th><th>광고주</th><th>아이디</th><th>수량</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>회수 환불</th><th>정산상태</th><th>입금 확인일시</th><th>액션</th></tr></thead>
+      <tbody id="sh-settle-rows"></tbody>
+    </table></div>
+  </section>
+
+  <!-- 광고주 관리 -->
+  <section class="pane" id="sh-t-users">
+    <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="광고주, 아이디 검색"></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>번호</th><th>가입일</th><th>최종 발급일</th><th>광고주</th><th>아이디</th><th>슬롯 단가(원)</th><th>보유 슬롯</th><th>누적 정산(VAT 별도)</th><th>미입금(VAT 별도)</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
+      <tbody id="sh-user-rows"></tbody>
+    </table></div>
+  </section>
+
+  <!-- 광고주 추가/수정 -->
+  <div id="shop-um"><div class="box">
+    <div class="ttl" id="sh-um-title">광고주 추가</div>
+    <div class="f"><label>광고주(업체명)<span class="req">*</span></label><input id="sh-um-company" maxlength="30" placeholder="예: 하이어애드"></div>
+    <div class="row">
+      <div class="f"><label>아이디<span class="req">*</span></label><input id="sh-um-id" maxlength="20" placeholder="영문+숫자 3~20자" autocomplete="off"></div>
+      <div class="f"><label id="sh-um-pw-l">비밀번호<span class="req">*</span></label><input id="sh-um-pw" maxlength="64" autocomplete="new-password"></div>
+    </div>
+    <div class="f"><label>슬롯 단가 (원, 7일 1슬롯 · VAT 별도)<span class="req">*</span></label><input id="sh-um-price" type="number" style="text-align:center"></div>
+    <div class="f"><label>메모</label><input id="sh-um-memo" maxlength="200"></div>
+    <div class="foot"><button style="border:1px solid var(--border);background:#fff" id="sh-um-cancel">취소</button><button class="btn-go" id="sh-um-save">저장</button></div>
+  </div></div>
+</div>
+
+<script>
+(() => {
+  const TERM_DAYS = 7, MAX_QTY = 500, CUTOFF_HOUR = 22, VAT = 1.1;
+  const $ = id => document.getElementById(id);
+  const esc = HI.esc, won = n => (n || 0).toLocaleString('ko-KR');
+  const kstNow = () => new Date(Date.now() + 9 * 3600e3);
+  const today = () => kstNow().toISOString().slice(0, 10);
+  const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5);
+  const minStart = () => kstNow().getUTCHours() >= CUTOFF_HOUR ? addDays(today(), 1) : today();
+  const endOf = s => addDays(s, TERM_DAYS - 1);
+  const md = s => s ? s.slice(5) : '-';
+  const safeUrl = u => /^https:\/\/([a-z0-9-]+\.)*naver\.com\//i.test((u || '').trim());
+  const billOf = is => is.qty * is.price;
+  const refundOf = is => is.revokedAt ? billOf(is) : 0;  // 회수는 시작 전만 가능 → 전액
+  const canRevoke = is => !is.revokedAt && is.start > today();
+  const STATE = { run: ['사용 중', 'g'], wait: ['시작 전', 'b'], empty: ['빈 슬롯', 'n'], end: ['만료', 'r'] };
+  const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.start > today() ? 'wait' : 'run';
+  const isNew = x => x.mid && !x.checked && slotState(x) !== 'end';
+
+  let USERS = [], ISSUES = [], SLOTS = [], loaded = false, editId = null;
+  const userOf = id => USERS.find(u => u.id === id) || { company: id, price: 0 };
+
+  async function busy(btn, fn) {
+    if (btn) btn.disabled = true;
+    try { await fn(); } catch (e) { alert(e.message); } finally { if (btn) btn.disabled = false; }
+  }
+
+  // 공유 캐시 구독 — 다른 메뉴로 나가면 해제
+  const unsub = HI.onShopChange(v => {
+    if (!$('shop-page')) { unsub(); return; }
+    USERS = Object.entries(v.users || {}).map(([id, u]) => ({ id, ...u })).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    ISSUES = Object.entries(v.issues || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
+    SLOTS = Object.entries(v.slots || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
+    loaded = true;
+    renderAll();
+  });
+
+  /* ── 슬롯 발급 ── */
+  function syncIssue() {
+    const q = $('sh-is-qty'); q.value = Math.min(MAX_QTY, Math.max(1, parseInt(q.value) || 1));
+    const st = $('sh-is-start'); if (!st.value || st.value < minStart()) st.value = minStart();
+    $('sh-is-end').value = endOf(st.value);
+    const u = USERS.find(x => x.id === $('sh-is-user').value);
+    $('sh-is-amt').textContent = u ? `${won(u.price * +q.value)}원` : '-';
+  }
+  document.querySelectorAll('#shop-page [data-q]').forEach(b => b.onclick = () => {
+    const q = $('sh-is-qty'); q.value = b.dataset.q === 'max' ? MAX_QTY : (parseInt(q.value) || 0) + +b.dataset.q; syncIssue();
+  });
+  ['sh-is-qty', 'sh-is-start', 'sh-is-user'].forEach(id => $(id).onchange = syncIssue);
+  $('sh-is-go').onclick = () => busy($('sh-is-go'), async () => {
+    syncIssue();
+    const u = USERS.find(x => x.id === $('sh-is-user').value), qty = +$('sh-is-qty').value, start = $('sh-is-start').value;
+    if (!u) throw new Error('대상 광고주를 선택해 주세요.');
+    if (!confirm(`${u.company}에 슬롯 ${qty}개를 발급합니다. (${start} ~ ${endOf(start)}, ${won(u.price * qty)}원)`)) return;
+    await HI.shopCall('/shop-issue', { userId: u.id, qty, start, reqId: crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2) });
+  });
+  window.shopRevoke = (uid, no, btn) => busy(btn, async () => {
+    const is = ISSUES.find(x => x.userId === uid && x.no === no);
+    const set = SLOTS.filter(x => x.userId === uid && x.issueNo === no && x.mid).length;
+    if (!confirm(`발급번호 #${no} 슬롯 ${is.qty}개를 회수합니다.${set ? ` 세팅된 ${set}개도 함께 회수됩니다.` : ''} (${won(Math.round(billOf(is) * VAT))}원 전액 환불)`)) return;
+    await HI.shopCall('/shop-revoke', { userId: uid, issueNo: no });
+  });
+  function renderIssues() {
+    const uid = $('sh-fi-user').value, noRev = $('sh-fi-norevoke').checked, age = parseInt($('sh-fi-age').value) || 0, from = $('sh-fi-from').value, to = $('sh-fi-to').value;
+    const rows = ISSUES.filter(is => (!uid || is.userId === uid) && !(noRev && is.revokedAt) && (!from || is.start >= from) && (!to || is.start <= to)
+      && Math.max(0, daysBetween(is.start, today())) >= age).sort((a, b) => b.no - a.no);
+    $('sh-issue-rows').innerHTML = rows.map(is => {
+      const set = SLOTS.filter(x => x.userId === is.userId && x.issueNo === is.no && x.mid).length, el = Math.max(0, daysBetween(is.start, today()));
+      return `<tr><td>#${is.no}</td><td>${is.by === 'user' ? '<span class="pill p-b">광고주</span>' : `<span class="pill p-n" title="${esc(is.byName)}">관리자</span>`}</td>
+        <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}개</td>
+        <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${TERM_DAYS}일</td><td>${el}일</td>
+        <td>${md(is.revokedAt)}</td>
+        <td>${is.revokedAt ? '<span class="muted">회수됨</span>' : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">회수</button>` : `<span class="muted" title="시작된 슬롯은 회수할 수 없습니다">${is.end < today() ? '종료' : '진행 중'}</span>`}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '발급 내역이 없습니다.' : '불러오는 중…'}</td></tr>`;
+  }
+
+  /* ── 접수 현황 ── */
+  function renderSlots() {
+    const cnt = k => SLOTS.filter(x => slotState(x) === k).length;
+    $('sh-slot-stats').innerHTML = [['사용 중', cnt('run'), 'g'], ['시작 전', cnt('wait'), 'b'], ['빈 슬롯 (미세팅)', cnt('empty'), ''], ['확인 대기', SLOTS.filter(isNew).length, 'w'], ['만료', cnt('end'), 'r']]
+      .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${v}</div></div>`).join('');
+    const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), onlyNew = $('sh-fs-new').checked, noEnd = $('sh-fs-noend').checked;
+    const rows = SLOTS.filter(x => (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
+      && (!onlyNew || isNew(x)) && !(noEnd && slotState(x) === 'end')).sort((a, b) => b.no - a.no);
+    const miss = '<span class="muted">미세팅</span>';
+    $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
+      const st = slotState(x), n = isNew(x);
+      return `<tr class="${n ? 'new' : ''}"><td><input type="checkbox" class="sh-cb" value="${esc(x.userId)}|${x.no}" ${n ? '' : 'disabled'}></td><td><b>${x.no}</b></td>
+        <td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
+        <td class="l">${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url.length > 48 ? x.url.slice(0, 48) + '…' : x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
+        <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
+        <td><span class="pill p-${STATE[st][1]}">${STATE[st][0]}</span></td>
+        <td>${!x.mid ? '-' : n ? `<button class="act act-ok" onclick="shopCheck(['${esc(x.userId)}|${x.no}'],this)">확인</button>` : x.checked ? '<span class="pill p-g">확인됨</span>' : '-'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="11">${loaded ? '조회된 슬롯이 없습니다.' : '불러오는 중…'}</td></tr>`;
+  }
+  window.shopCheck = (keys, btn) => busy(btn, () => HI.shopUpdate(Object.fromEntries(keys.map(k => { const [u, n] = k.split('|'); return [`slots/${u}/s${n}/checked`, true]; }))));
+  $('sh-check-sel').onclick = () => {
+    const keys = [...document.querySelectorAll('.sh-cb:checked')].map(c => c.value);
+    if (!keys.length) return alert('확인할 슬롯을 선택해 주세요.');
+    shopCheck(keys, $('sh-check-sel'));
+  };
+  $('sh-cb-all').onclick = e => document.querySelectorAll('.sh-cb:not(:disabled)').forEach(c => c.checked = e.target.checked);
+
+  /* ── 정산 ── */
+  function renderSettle() {
+    const uid = $('sh-ft-user').value, st = $('sh-ft-st').value, from = $('sh-ft-from').value, to = $('sh-ft-to').value;
+    const rows = ISSUES.filter(is => (!uid || is.userId === uid) && (!st || (st === 'revoked' ? !!is.revokedAt : !is.revokedAt && (st === 'paid') === !!is.paidAt))
+      && (!from || is.at.slice(0, 10) >= from) && (!to || is.at.slice(0, 10) <= to)).sort((a, b) => b.no - a.no);
+    const sum = f => rows.reduce((a, is) => a + f(is), 0);
+    const tot = sum(billOf), ref = sum(refundOf);
+    $('sh-settle-stats').innerHTML = [['정산 금액 (VAT 별도)', tot, ''], ['입금 완료 (VAT 포함)', Math.round(sum(is => is.paidAt ? billOf(is) : 0) * VAT), 'g'],
+      ['미입금 (VAT 포함)', Math.round(sum(is => is.paidAt || is.revokedAt ? 0 : billOf(is)) * VAT), 'w'], ['회수 환불 (VAT 별도)', ref, 'r']]
+      .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${won(v)}<small>원</small></div></div>`).join('');
+    $('sh-settle-rows').innerHTML = rows.map(is => {
+      const b = billOf(is), r = refundOf(is), k = `'${esc(is.userId)}',${is.no}`;
+      const state = is.revokedAt ? (is.paidAt ? '<span class="pill p-r">환불 대상</span>' : '<span class="pill p-n">회수 (정산 제외)</span>') : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
+      return `<tr><td>${md(is.at)}</td><td>#${is.no}</td><td>${is.by === 'user' ? '<span class="pill p-b">광고주</span>' : '<span class="pill p-n">관리자</span>'}</td>
+        <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
+        <td class="amt">${won(is.price)}</td><td class="amt">${won(b)}</td><td class="amt">${won(Math.round(b * VAT))}</td>
+        <td class="amt" style="color:${r ? 'var(--danger)' : 'inherit'}">${r ? '-' + won(r) : '-'}</td>
+        <td>${state}</td><td>${md(is.paidAt)}</td>
+        <td>${is.revokedAt ? '-' : is.paidAt ? `<button class="act act-edit" onclick="shopPaid(${k},false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaid(${k},true,this)">입금 확인</button>`}</td></tr>`;
+    }).join('') + (rows.length ? `<tr class="sub-tot"><td colspan="5">합계</td><td>${sum(is => is.qty)}</td><td></td><td class="amt">${won(tot)}</td><td class="amt">${won(Math.round(tot * VAT))}</td><td class="amt">${ref ? '-' + won(ref) : '-'}</td><td colspan="3"></td></tr>`
+      : `<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
+  }
+  window.shopPaid = (uid, no, on, btn) => {
+    const is = ISSUES.find(x => x.userId === uid && x.no === no);
+    if (!confirm(on ? `#${no} ${userOf(uid).company} ${won(Math.round(billOf(is) * VAT))}원 입금 확인 처리합니다.` : `#${no} 입금 확인을 취소합니다.`)) return;
+    const who = HI.getCurrentUser()?.username || '';
+    busy(btn, () => HI.shopUpdate({ [`issues/${uid}/i${no}/paidAt`]: on ? kstNow().toISOString().slice(0, 16).replace('T', ' ') : null, [`issues/${uid}/i${no}/paidBy`]: on ? who : null }));
+  };
+
+  /* ── 광고주 관리 ── */
+  function renderUsers() {
+    const q = $('sh-fu-q').value.trim();
+    $('sh-user-rows').innerHTML = USERS.filter(u => !q || (u.company || '').includes(q) || u.id.includes(q)).map((u, i) => {
+      const iss = ISSUES.filter(x => x.userId === u.id), last = iss.reduce((a, x) => x.at > a ? x.at : a, '');
+      const own = SLOTS.filter(x => x.userId === u.id && slotState(x) !== 'end').length;
+      const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
+      return `<tr><td>${i + 1}</td><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td><td><b>${esc(u.company)}</b></td><td>${esc(u.id)}</td><td class="amt">${won(u.price)}</td>
+        <td>${own}</td><td class="amt">${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td class="amt" style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>
+        <td class="l">${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
+        <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button> <button class="act ${u.blocked ? 'act-ok' : 'act-del'}" onclick="shopBlock('${esc(u.id)}',this)">${u.blocked ? '해제' : '차단'}</button></td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '광고주가 없습니다. 오른쪽 위 \'광고주 추가\'로 계정을 만드세요.' : '불러오는 중…'}</td></tr>`;
+  }
+  window.openShopUser = id => {
+    if (!$('shop-page')) return;
+    editId = id || null;
+    const u = USERS.find(x => x.id === id) || { company: '', id: '', price: '', memo: '' };
+    $('sh-um-title').textContent = id ? '광고주 정보 수정' : '광고주 추가';
+    $('sh-um-pw-l').innerHTML = id ? '비밀번호 <span style="font-weight:400;color:var(--muted)">(바꿀 때만 입력)</span>' : '비밀번호<span class="req">*</span>';
+    $('sh-um-company').value = u.company; $('sh-um-id').value = u.id; $('sh-um-id').disabled = !!id;
+    $('sh-um-pw').value = ''; $('sh-um-price').value = u.price; $('sh-um-memo').value = u.memo || '';
+    $('shop-um').classList.add('show');
+  };
+  $('sh-um-cancel').onclick = () => $('shop-um').classList.remove('show');
+  $('sh-um-save').onclick = () => busy($('sh-um-save'), async () => {
+    const d = { isNew: !editId, id: $('sh-um-id').value.trim(), company: $('sh-um-company').value.trim(), pw: $('sh-um-pw').value,
+      price: parseInt($('sh-um-price').value), memo: $('sh-um-memo').value.trim() };
+    if (!d.company || !d.id || !(d.price > 0) || (!editId && !d.pw)) throw new Error('필수 항목을 입력해 주세요.');
+    await HI.shopCall('/shop-user', d);
+    $('shop-um').classList.remove('show');
+  });
+  window.shopBlock = (id, btn) => {
+    const u = USERS.find(x => x.id === id);
+    if (!confirm(`${u.company} 계정을 ${u.blocked ? '차단 해제' : '차단'}합니다.`)) return;
+    busy(btn, () => HI.shopUpdate({ [`users/${id}/blocked`]: !u.blocked }));
+  };
+
+  function renderAll() {
+    if (!$('shop-page')) return;
+    const opts = all => (all ? `<option value="">${all}</option>` : '') + USERS.map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
+    const keep = (id, html) => { const el = $(id), v = el.value; el.innerHTML = html; el.value = v; if (el.selectedIndex < 0) el.selectedIndex = 0; };
+    keep('sh-is-user', '<option value="">-- 광고주 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join(''));
+    ['sh-fi-user', 'sh-fs-user', 'sh-ft-user'].forEach(id => keep(id, opts('전체 광고주')));
+    const nNew = SLOTS.filter(isNew).length, nUnpaid = ISSUES.filter(x => !x.paidAt && !x.revokedAt).length;
+    [['sh-tab-new', nNew], ['sh-tab-unpaid', nUnpaid]].forEach(([id, n]) => { $(id).textContent = n; $(id).style.display = n ? '' : 'none'; });
+    syncIssue(); renderIssues(); renderSlots(); renderSettle(); renderUsers();
+  }
+
+  const bind = (ids, fn) => ids.forEach(id => { $(id).oninput = fn; $(id).onchange = fn; });
+  bind(['sh-fi-user', 'sh-fi-norevoke', 'sh-fi-age', 'sh-fi-from', 'sh-fi-to'], renderIssues);
+  bind(['sh-fs-user', 'sh-fs-q', 'sh-fs-new', 'sh-fs-noend'], renderSlots);
+  bind(['sh-ft-user', 'sh-ft-st', 'sh-ft-from', 'sh-ft-to'], renderSettle);
+  bind(['sh-fu-q'], renderUsers);
+  document.querySelectorAll('#shop-page .tab').forEach(t => t.onclick = () => {
+    document.querySelectorAll('#shop-page .tab').forEach(x => x.classList.toggle('on', x === t));
+    document.querySelectorAll('#shop-page .pane').forEach(p => p.classList.toggle('on', p.id === 'sh-t-' + t.dataset.t));
+  });
+  $('sh-is-start').value = minStart();
+  syncIssue();
+})();
+</script>
