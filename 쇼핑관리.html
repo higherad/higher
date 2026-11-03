@@ -5,6 +5,13 @@
   #shop-page .tab.on { color:var(--text); border-color:var(--accent); }
   #shop-page .tab .cnt { background:var(--warn); color:#fff; font-size:10px; padding:0 6px; border-radius:8px; }
   #shop-page .pane { display:none; } #shop-page .pane.on { display:block; }
+  #shop-page .sum-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:16px; }
+  #shop-page .sum-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
+  #shop-page .sum-card .sc-label { font-size:11px; color:var(--text2); font-weight:600; white-space:nowrap; }
+  #shop-page .sum-card .sc-value { font-size:24px; font-weight:800; line-height:1; }
+  #shop-page .sum-card .sc-value small { font-size:14px; color:var(--muted); font-weight:400; margin-left:4px; }
+  #shop-page .sum-card.month .sc-value { color:var(--accent); } #shop-page .sum-card.today .sc-value { color:var(--info); } #shop-page .sum-card.due .sc-value { color:var(--warn); }
+  #shop-page .sum-card .sc-sub { font-size:11px; color:var(--muted); }
   #shop-page .stat-bar { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; }
   #shop-page .sb { background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px; text-align:center; position:relative; overflow:hidden; }
   #shop-page .sb::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--border); }
@@ -99,7 +106,7 @@
 
   <!-- 정산 -->
   <section class="pane" id="sh-t-settle">
-    <div class="stat-bar" id="sh-settle-stats" style="grid-template-columns:repeat(4,1fr)"></div>
+    <div class="sum-grid" id="sh-settle-stats"></div>
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-ft-user"></select>
       <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option><option value="revoked">취소·회수</option></select>
@@ -149,7 +156,7 @@
   const md = s => s ? s.slice(5) : '-';
   const safeUrl = u => /^https:\/\/([a-z0-9-]+\.)*naver\.com\//i.test((u || '').trim());
   const billOf = is => is.qty * is.price;
-  const refundOf = is => is.revokedAt ? billOf(is) : 0;  // 회수는 시작 전만 가능 → 전액
+  const refundOf = is => is.revokedAt && is.paidAt ? billOf(is) : 0;  // 입금 후 회수만 환불(회수는 시작 전만 → 전액)
   const canRevoke = is => !is.revokedAt && is.start > today();
   const STATE = { run: ['사용 중', 'g'], wait: ['시작 전', 'b'], empty: ['빈 슬롯', 'n'], end: ['만료', 'r'] };
   const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.start > today() ? 'wait' : 'run';
@@ -235,11 +242,13 @@
     const uid = $('sh-ft-user').value, st = $('sh-ft-st').value, from = $('sh-ft-from').value, to = $('sh-ft-to').value;
     const rows = ISSUES.filter(is => (!uid || is.userId === uid) && (!st || (st === 'revoked' ? !!is.revokedAt : !is.revokedAt && (st === 'paid') === !!is.paidAt))
       && (!from || is.at.slice(0, 10) >= from) && (!to || is.at.slice(0, 10) <= to)).sort((a, b) => b.no - a.no);
-    const sum = f => rows.reduce((a, is) => a + f(is), 0);
-    const tot = sum(billOf), ref = sum(refundOf);
-    $('sh-settle-stats').innerHTML = [['정산 금액 (VAT 별도)', tot, ''], ['입금 완료 (VAT 포함)', Math.round(sum(is => is.paidAt ? billOf(is) : 0) * VAT), 'g'],
-      ['미입금 (VAT 포함)', Math.round(sum(is => is.paidAt || is.revokedAt ? 0 : billOf(is)) * VAT), 'w'], ['회수 환불 (VAT 별도)', ref, 'r']]
-      .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${won(v)}<small>원</small></div></div>`).join('');
+    // 카드 = 정산관리와 같은 구성(필터 무관, 취소·회수 건 제외): 총 매출액(VAT 별도)·총 입금액(VAT 포함)·당일 매출액·당일 입금액·미입금(VAT 포함)
+    const live = ISSUES.filter(is => !is.revokedAt), todays = live.filter(is => is.at.slice(0, 10) === today()), unpaid = live.filter(is => !is.paidAt);
+    const tot = live.reduce((a, is) => a + billOf(is), 0), day = todays.reduce((a, is) => a + billOf(is), 0), due = unpaid.reduce((a, is) => a + billOf(is), 0);
+    const card = (cls, label, v, sub) => `<div class="sum-card ${cls}"><div class="sc-label">${label}</div><div class="sc-value">${won(v)}<small>원</small></div><div class="sc-sub">${sub}</div></div>`;
+    $('sh-settle-stats').innerHTML = card('month', '총 매출액(VAT 별도)', tot, `${live.length}건 전체`) + card('month', '총 입금액(VAT 포함)', Math.round(tot * VAT), 'VAT 10% 포함')
+      + card('today', `당일 매출액 (${today()})`, day, `${todays.length}건 발급`) + card('today', '당일 입금액', Math.round(day * VAT), 'VAT 10% 포함')
+      + card('due', '미입금(VAT 포함)', Math.round(due * VAT), `${unpaid.length}건`);
     $('sh-settle-rows').innerHTML = rows.map(is => {
       const b = billOf(is), r = refundOf(is), k = `'${esc(is.userId)}',${is.no}`;
       const state = is.revokedAt ? (is.paidAt ? '<span class="pill p-r">환불 대상</span>' : `<span class="pill p-n">${is.revokedRole === 'user' ? '광고주 취소' : '회수 (정산 제외)'}</span>`) : is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
