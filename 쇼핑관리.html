@@ -144,6 +144,7 @@
       <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 슬롯</option><option value="end">종료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
+        <button class="act act-edit" style="padding:7px 12px" onclick="shopExcel()">엑셀 다운로드</button>
         <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:150px"><col style="width:160px"><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
@@ -310,13 +311,31 @@
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
     if (r.skipped) alert(`${r.changed}개 변경, ${r.skipped}개는 정보가 없거나 종료·취소돼 건너뛰었습니다.`);
   });
+  // 접수 현황 필터(광고주·검색·상태·종료 제외)
+  function slotShown(x) {
+    const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked, fst = $('sh-fs-st').value;
+    return (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
+      && !(noEnd && slotState(x) === 'end') && (!fst || slotState(x) === fst);
+  }
+  // 확장(키워드 추출·캠페인 등록) 업로드용 — 쇼핑 접수 가이드 양식. 선택한 슬롯, 없으면 화면에 보이는 접수·진행중 슬롯
+  // 일목표는 슬롯에 없는 값이라 빈칸(확장이 10 미만은 등록을 막음)
+  window.shopExcel = () => {
+    const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
+      .sort((a, b) => b.no - a.no).map(x => {
+        const from = x.start > today() ? x.start : today();
+        return [x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', Math.min(TERM_DAYS, Math.max(1, daysBetween(from, x.end) + 1)), ''];
+      });
+    if (!rows.length) return alert('내보낼 접수·진행중 슬롯이 없습니다.');
+    const ws = XLSX.utils.aoa_to_sheet([['상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
+    ws['!cols'] = [{ wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '접수');
+    XLSX.writeFile(wb, `쇼핑접수_${today()}.xlsx`);
+  };
   function renderSlots() {
     const cnt = k => SLOTS.filter(x => slotState(x) === k).length;
     $('sh-slot-stats').innerHTML = [['진행중', cnt('run'), 'g'], ['접수 (진행 대기)', cnt('wait'), 'b'], ['빈 슬롯 (미입력)', cnt('empty'), 'w'], ['종료', cnt('end'), '']]
       .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${v}</div></div>`).join('');
-    const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked, fst = $('sh-fs-st').value;
-    const rows = SLOTS.filter(x => (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
-      && !(noEnd && slotState(x) === 'end') && (!fst || slotState(x) === fst)).sort((a, b) => b.no - a.no);
+    const rows = SLOTS.filter(slotShown).sort((a, b) => b.no - a.no);
     const live = new Set(SLOTS.map(slotKey));
     [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
     const miss = '<span class="muted">미세팅</span>';
