@@ -118,7 +118,7 @@
         <div class="fld"><label>대상 광고주</label><select id="sh-is-user" style="width:200px"></select></div>
         <div class="fld"><label>수량<em>1회 최대 500개</em></label><div class="qty"><button data-q="-1">-</button><input id="sh-is-qty" type="number" value="1"><button data-q="1">+</button><button data-q="10">+10</button><button data-q="100">+100</button><button data-q="max">최대</button></div></div>
         <div class="fld"><label>시작일<em>당일 22시 마감</em></label><input id="sh-is-start" type="date"></div>
-        <div class="fld"><label>만료 예정일<em>7일</em></label><input id="sh-is-end" type="date" disabled></div>
+        <div class="fld"><label>종료 예정일<em>7일</em></label><input id="sh-is-end" type="date" disabled></div>
         <div class="fld"><label>정산 금액<em>VAT 별도</em></label><div id="sh-is-amt" style="padding:9px 0;font-weight:800;font-size:15px">-</div></div>
         <button class="btn-go" id="sh-is-go">슬롯 발급</button>
       </div>
@@ -130,7 +130,7 @@
       <span class="lb">시작일</span><input id="sh-fi-from" type="date"> ~ <input id="sh-fi-to" type="date">
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:120px"><col style="width:190px"><col style="width:60px"><col style="width:60px"><col style="width:100px"><col style="width:100px"></colgroup>
-      <thead><tr><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 만료일</th><th>기간</th><th>진행</th><th>취소일</th><th>관리</th></tr></thead>
+      <thead><tr><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 종료일</th><th>기간</th><th>진행</th><th>취소일</th><th>관리</th></tr></thead>
       <tbody id="sh-issue-rows"><tr class="empty-row"><td colspan="12">불러오는 중…</td></tr></tbody>
     </table></div>
   </section>
@@ -141,13 +141,13 @@
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-fs-user"></select>
       <input id="sh-fs-q" style="flex:1;min-width:200px" placeholder="키워드, MID 검색">
-      <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 슬롯</option><option value="end">만료</option></select>
-      <label><input id="sh-fs-noend" type="checkbox" checked>만료 제외</label>
+      <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 슬롯</option><option value="end">종료</option></select>
+      <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
         <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:150px"><col style="width:160px"><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>구분</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>만료일</th><th>상태</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>구분</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>종료일</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -219,10 +219,10 @@
   const md = s => s ? s.slice(5) : '-';
   const safeUrl = u => /^https:\/\/([a-z0-9-]+\.)*naver\.com\//i.test((u || '').trim());
   const billOf = is => is.qty * is.price;
-  // 취소 = 진행중 슬롯 없음 + 만료 전 (서버 can_cancel과 같음, 입금·정보 입력 무관)
+  // 취소 = 진행중 슬롯 없음 + 종료 전 (서버 can_cancel과 같음, 입금·정보 입력 무관)
   const canRevoke = is => !is.revokedAt && is.end >= today() && !SLOTS.some(x => x.userId === is.userId && x.issueNo === is.no && x.runAt);
   // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
-  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 슬롯', 'n'], end: ['만료', 'r'] };
+  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 슬롯', 'n'], end: ['종료', 'r'] };
   const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.runAt ? 'run' : 'wait';
 
   let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, loaded = false, editId = null;
@@ -281,7 +281,7 @@
     if (!confirm(`발급번호 #${no} 슬롯 ${is.qty}개를 취소합니다.${set ? ` 세팅된 ${set}개도 함께 지워집니다.` : ''}`)) return;
     await HI.shopCall('/shop-revoke', { userId: uid, issueNo: no });
   });
-  // 진행 = 시작일부터 오늘(만료 후엔 만료일)까지 일수, 시작일 당일 = 1일, 최대 TERM_DAYS
+  // 진행 = 시작일부터 오늘(종료 후엔 종료일)까지 일수, 시작일 당일 = 1일, 최대 TERM_DAYS
   const ranDays = is => is.revokedAt ? 0 : Math.min(TERM_DAYS, Math.max(0, daysBetween(is.start, today()) + 1));
   function renderIssues() {
     const uid = $('sh-fi-user').value, noRev = $('sh-fi-norevoke').checked, age = parseInt($('sh-fi-age').value) || 0, from = $('sh-fi-from').value, to = $('sh-fi-to').value;
@@ -301,18 +301,18 @@
   const pickedN = () => { $('sh-run-n').textContent = PICKED.size ? `${PICKED.size}개 선택` : ''; };
   $('sh-slot-rows').addEventListener('change', e => { if (!e.target.classList.contains('sh-cb')) return; e.target.checked ? PICKED.add(e.target.dataset.k) : PICKED.delete(e.target.dataset.k); pickedN(); });
   $('sh-cb-all').onchange = e => { document.querySelectorAll('#sh-slot-rows .sh-cb').forEach(c => { c.checked = e.target.checked; c.checked ? PICKED.add(c.dataset.k) : PICKED.delete(c.dataset.k); }); pickedN(); };
-  // 진행중은 되돌리지 않음 — 전환하면 만료까지 진행
+  // 진행중은 되돌리지 않음 — 전환하면 종료까지 진행
   window.shopRun = btn => busy(btn, async () => {
     if (!PICKED.size) throw new Error('슬롯을 선택해 주세요.');
     const items = [...PICKED].map(k => { const i = k.lastIndexOf('|'); return { userId: k.slice(0, i), no: +k.slice(i + 1) }; });
     if (!confirm(`선택한 슬롯 ${items.length}개를 진행중으로 전환합니다. 되돌릴 수 없고, 진행중 슬롯이 있는 발급 건은 취소할 수 없게 됩니다.`)) return;
     const r = await HI.shopCall('/shop-run', { items });
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
-    if (r.skipped) alert(`${r.changed}개 변경, ${r.skipped}개는 정보가 없거나 만료·취소돼 건너뛰었습니다.`);
+    if (r.skipped) alert(`${r.changed}개 변경, ${r.skipped}개는 정보가 없거나 종료·취소돼 건너뛰었습니다.`);
   });
   function renderSlots() {
     const cnt = k => SLOTS.filter(x => slotState(x) === k).length;
-    $('sh-slot-stats').innerHTML = [['진행중', cnt('run'), 'g'], ['접수 (진행 대기)', cnt('wait'), 'b'], ['빈 슬롯 (미입력)', cnt('empty'), ''], ['만료', cnt('end'), 'r']]
+    $('sh-slot-stats').innerHTML = [['진행중', cnt('run'), 'g'], ['접수 (진행 대기)', cnt('wait'), 'b'], ['빈 슬롯 (미입력)', cnt('empty'), ''], ['종료', cnt('end'), 'r']]
       .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${v}</div></div>`).join('');
     const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked, fst = $('sh-fs-st').value;
     const rows = SLOTS.filter(x => (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
