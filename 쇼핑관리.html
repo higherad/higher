@@ -244,18 +244,6 @@
     try { await fn(); } catch (e) { alert(e.message); } finally { if (btn) btn.disabled = false; }
   }
 
-  // 공유 캐시 구독 — 다른 메뉴로 나가면 해제
-  const unsub = HI.onShopChange(v => {
-    if (!$('shop-page')) { unsub(); return; }
-    USERS = Object.entries(v.users || {}).map(([id, u]) => ({ id, ...u })).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-    // 하이어가 받을 돈 기준 — 하부점 발급 건(dist)은 총판에게 총판 단가로 청구, 입금 확인도 총판 입금(distPaidAt)
-    ISSUES = Object.entries(v.issues || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid,
-      subPrice: x.price, price: x.dist ? x.distPrice : x.price, paidAt: x.dist ? x.distPaidAt || '' : x.paidAt || '' })));
-    PRICE_LOG = v.price_log || {};
-    SLOTS = Object.entries(v.slots || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
-    loaded = true;
-    renderAll();
-  });
 
   /* ── 슬롯 발급 ── */
   function syncIssue() {
@@ -590,5 +578,21 @@
   });
   $('sh-is-start').value = minStart();
   syncIssue();
+
+  // 공유 캐시 구독 — 맨 끝에 둠: 다시 들어오면 캐시가 있어 콜백이 즉시(동기) 실행되므로 위 선언이 다 끝난 뒤여야 함
+  // 이 화면이 사라지면(다른 메뉴 또는 다시 들어와 새 화면) 다음 변경 때 해제 — 옛 구독이 새 화면을 덮어 그리지 않게
+  const pageEl = $('shop-page');
+  let unsub = null;
+  unsub = HI.onShopChange(v => {
+    if ($('shop-page') !== pageEl) { unsub?.(); return; }
+    USERS = Object.entries(v.users || {}).map(([id, u]) => ({ id, ...u })).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    // 하이어가 받을 돈 기준 — 하부점 발급 건(dist)은 총판에게 총판 단가로 청구, 입금 확인도 총판 입금(distPaidAt)
+    ISSUES = Object.entries(v.issues || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid,
+      subPrice: x.price, price: x.dist ? x.distPrice : x.price, paidAt: x.dist ? x.distPaidAt || '' : x.paidAt || '' })));
+    PRICE_LOG = v.price_log || {};
+    SLOTS = Object.entries(v.slots || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
+    loaded = true;
+    renderAll();
+  });
 })();
 </script>
