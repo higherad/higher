@@ -319,13 +319,14 @@
       && !(noEnd && slotState(x) === 'end') && (!fst || slotState(x) === fst);
   }
   // 확장(키워드 추출·캠페인 등록) 업로드용 — 쇼핑 접수 가이드 양식. 선택한 슬롯, 없으면 화면에 보이는 접수·진행중 슬롯
-  // 일수 7·일목표 100(슬롯 1개당) 고정
+  // 영업점 = 슬롯 주인의 총판 회사명(확장 파트너키 이름과 같아야 함, 총판 없는 일반 광고주는 빈칸) · 등급 스모키 · 일수 7 · 일목표 100(슬롯 1개당) 고정
+  const distOf = u => u.role === 'dist' ? u.company : u.parent ? userOf(u.parent).company : '';
   window.shopExcel = () => {
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
-      .sort((a, b) => b.no - a.no).map(x => [x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', TERM_DAYS, 100]);
+      .sort((a, b) => b.no - a.no).map(x => [distOf(userOf(x.userId)), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', TERM_DAYS, 100]);
     if (!rows.length) return alert('내보낼 접수·진행중 슬롯이 없습니다.');
-    const ws = XLSX.utils.aoa_to_sheet([['상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
-    ws['!cols'] = [{ wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
+    const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
+    ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '접수');
     XLSX.writeFile(wb, `쇼핑접수_${today()}.xlsx`);
   };
