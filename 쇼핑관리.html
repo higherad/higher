@@ -67,7 +67,7 @@
   #shop-page .tg { color:var(--muted); font-size:11px; font-weight:600; }
 
   #shop-page .empty-row td { height:140px; color:var(--muted); }
-  #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
+  #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .st-g { color:#059669; font-weight:600; } #shop-page .st-n { color:#64748b; font-weight:600; } #shop-page .st-r { color:var(--danger); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
   #shop-page .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
   #shop-page .p-g { background:#ecfdf5; color:#059669; } #shop-page .p-n { background:#f1f5f9; color:#64748b; } #shop-page .p-w { background:#fffbeb; color:#b45309; } #shop-page .p-r { background:#fef2f2; color:var(--danger); } #shop-page .p-b { background:#eff6ff; color:#1d4ed8; }
   #shop-page .act { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
@@ -126,11 +126,11 @@
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-fi-user"></select>
       <label><input id="sh-fi-norevoke" type="checkbox">취소 제외</label>
-      <span class="lb">경과</span><input id="sh-fi-age" type="number" style="width:56px;text-align:center" placeholder="일수"><span class="lb">일 이상</span>
+      <span class="lb">진행</span><input id="sh-fi-age" type="number" style="width:56px;text-align:center" placeholder="일수"><span class="lb">일 이상</span>
       <span class="lb">시작일</span><input id="sh-fi-from" type="date"> ~ <input id="sh-fi-to" type="date">
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:120px"><col style="width:190px"><col style="width:60px"><col style="width:60px"><col style="width:100px"><col style="width:100px"></colgroup>
-      <thead><tr><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 만료일</th><th>기간</th><th>경과</th><th>취소일</th><th>관리</th></tr></thead>
+      <thead><tr><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 만료일</th><th>기간</th><th>진행</th><th>취소일</th><th>관리</th></tr></thead>
       <tbody id="sh-issue-rows"><tr class="empty-row"><td colspan="12">불러오는 중…</td></tr></tbody>
     </table></div>
   </section>
@@ -281,17 +281,19 @@
     if (!confirm(`발급번호 #${no} 슬롯 ${is.qty}개를 취소합니다.${set ? ` 세팅된 ${set}개도 함께 지워집니다.` : ''}`)) return;
     await HI.shopCall('/shop-revoke', { userId: uid, issueNo: no });
   });
+  // 진행 = 시작일부터 오늘(만료 후엔 만료일)까지 일수, 시작일 당일 = 1일, 최대 TERM_DAYS
+  const ranDays = is => is.revokedAt ? 0 : Math.min(TERM_DAYS, Math.max(0, daysBetween(is.start, today()) + 1));
   function renderIssues() {
     const uid = $('sh-fi-user').value, noRev = $('sh-fi-norevoke').checked, age = parseInt($('sh-fi-age').value) || 0, from = $('sh-fi-from').value, to = $('sh-fi-to').value;
     const rows = ISSUES.filter(is => (!uid || is.userId === uid) && !(noRev && is.revokedAt) && (!from || is.start >= from) && (!to || is.start <= to)
-      && Math.max(0, daysBetween(is.start, today())) >= age).sort((a, b) => b.no - a.no);
+      && ranDays(is) >= age).sort((a, b) => b.no - a.no);
     $('sh-issue-rows').innerHTML = rows.map(is => {
-      const set = SLOTS.filter(x => x.userId === is.userId && x.issueNo === is.no && x.mid).length, el = Math.max(0, daysBetween(is.start, today()));
+      const set = SLOTS.filter(x => x.userId === is.userId && x.issueNo === is.no && x.mid).length, el = ranDays(is);
       return `<tr><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}개</td>
-        <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${TERM_DAYS}일</td><td>${el}일</td>
+        <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${TERM_DAYS}일</td><td>${is.revokedAt ? '-' : `${el}일`}</td>
         <td>${md(is.revokedAt)}</td>
-        <td>${is.revokedAt ? `<span class="muted">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">취소</button>` : `<span class="muted" title="진행중인 슬롯이 있어 취소할 수 없습니다">${is.end < today() ? '종료' : '진행중'}</span>`}</td></tr>`;
+        <td>${is.revokedAt ? `<span class="st-r">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">취소</button>` : (is.end < today() ? '<span class="st-n">종료</span>' : '<span class="st-g" title="진행중인 슬롯이 있어 취소할 수 없습니다">진행중</span>')}</td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '발급 내역이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
