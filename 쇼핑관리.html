@@ -304,8 +304,9 @@
   $('sh-cb-all').onchange = e => { document.querySelectorAll('#sh-slot-rows .sh-cb').forEach(c => { c.checked = e.target.checked; c.checked ? PICKED.add(c.dataset.k) : PICKED.delete(c.dataset.k); }); pickedN(); };
   // 진행중은 되돌리지 않음 — 전환하면 종료까지 진행
   window.shopRun = btn => busy(btn, async () => {
-    if (!PICKED.size) throw new Error('슬롯을 선택해 주세요.');
-    const items = [...PICKED].map(k => { const i = k.lastIndexOf('|'); return { userId: k.slice(0, i), no: +k.slice(i + 1) }; });
+    // 체크는 접수·진행중(엑셀용) 둘 다 — 전환 대상은 접수만
+    const items = SLOTS.filter(x => PICKED.has(slotKey(x)) && slotState(x) === 'wait').map(x => ({ userId: x.userId, no: x.no }));
+    if (!items.length) throw new Error('접수 상태 슬롯을 선택해 주세요.');
     if (!confirm(`선택한 슬롯 ${items.length}개를 진행중으로 전환합니다. 되돌릴 수 없고, 진행중 슬롯이 있는 발급 건은 취소할 수 없게 됩니다.`)) return;
     const r = await HI.shopCall('/shop-run', { items });
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
@@ -340,7 +341,7 @@
     [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
     const miss = '<span class="muted">미세팅</span>';
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
-      const st = slotState(x), pick = st === 'wait';
+      const st = slotState(x), pick = st === 'wait' || st === 'run';
       return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
         <td>${gradePill(userOf(x.userId))}</td><td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
