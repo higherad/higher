@@ -526,7 +526,8 @@
     lastCheck = Date.now();
     try {
       const res = await fetch(`index.html?v=${Date.now()}`, { method: 'HEAD', cache: 'no-store' });
-      outdated = Date.parse(res.headers.get('Last-Modified')) > loadedAt;
+      // 같은 배포도 Pages 서버마다 Last-Modified가 1초쯤 다름 → 1분 넘게 새로울 때만 새 버전(배포 간격은 그보다 김)
+      outdated = Date.parse(res.headers.get('Last-Modified')) > loadedAt + 60000;
       // 업데이트 내용 = 지금 화면 배포 이후에 적힌 노트
       if (outdated) changes = (await fetchNotes()).filter(n => n.changed > loadedAt).map(n => n.text);
     } catch {}
