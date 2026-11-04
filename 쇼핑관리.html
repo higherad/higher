@@ -222,7 +222,7 @@
   // 취소 = 진행중 슬롯 없음 + 종료 전 (서버 can_cancel과 같음, 입금·정보 입력 무관)
   const canRevoke = is => !is.revokedAt && is.end >= today() && !SLOTS.some(x => x.userId === is.userId && x.issueNo === is.no && x.runAt);
   // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
-  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 슬롯', 'n'], end: ['종료', 'r'] };
+  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 슬롯', 'n'], end: ['종료', 'n'] };
   const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.runAt ? 'run' : 'wait';
 
   let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, loaded = false, editId = null;
@@ -312,7 +312,7 @@
   });
   function renderSlots() {
     const cnt = k => SLOTS.filter(x => slotState(x) === k).length;
-    $('sh-slot-stats').innerHTML = [['진행중', cnt('run'), 'g'], ['접수 (진행 대기)', cnt('wait'), 'b'], ['빈 슬롯 (미입력)', cnt('empty'), ''], ['종료', cnt('end'), 'r']]
+    $('sh-slot-stats').innerHTML = [['진행중', cnt('run'), 'g'], ['접수 (진행 대기)', cnt('wait'), 'b'], ['빈 슬롯 (미입력)', cnt('empty'), ''], ['종료', cnt('end'), '']]
       .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${v}</div></div>`).join('');
     const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked, fst = $('sh-fs-st').value;
     const rows = SLOTS.filter(x => (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
