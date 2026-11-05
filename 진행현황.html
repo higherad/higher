@@ -9,7 +9,10 @@
   #slots-page .rc-stat[onclick]:hover { border-color:#cbd5e1; background:#f8fafc; }
   @media (max-width:1100px) { #slots-page .stat-bar { grid-template-columns:repeat(3,1fr); } }
   .type-badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:10px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
-  .type-badge.full { background:#ccfbf1; color:#0f766e; border-color:#99f6e4; }
+  /* 유입플 업체별 색 — 접수관리 VENDOR_BADGE와 같음(풀스택 청록·제이엔 주황·그 밖 보라) */
+  .type-badge.v-other { background:#ede9fe; color:#6d28d9; border-color:#ddd6fe; }
+  .type-badge.v-full { background:#ccfbf1; color:#0f766e; border-color:#99f6e4; }
+  .type-badge.v-jn { background:#ffedd5; color:#c2410c; border-color:#fed7aa; }
   #slots-page .filter-bar {
     background:#fff; border:1px solid var(--border); border-radius:10px;
     padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;
@@ -44,7 +47,8 @@
   .s-reserved { background:rgba(245,158,11,.12); color:#d97706; }
   .s-expired  { background:#f1f5f9; color:#64748b; }
   .s-split    { background:#fef3c7; color:#b45309; }
-  .s-force    { background:rgba(239,68,68,.1); color:#dc2626; }
+  .s-force    { background:#fee2e2; color:#b91c1c; }
+  .s-pending  { background:rgba(245,158,11,.1); color:#b45309; }
   .s-wait     { background:rgba(59,130,246,.1); color:#1d4ed8; }
   .dday-today  { background:#fef2f2; color:var(--danger); font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
   .dday-urgent { background:#fff7ed; color:#c2410c; font-weight:700; padding:2px 8px; border-radius:4px; font-size:11px; }
@@ -122,8 +126,8 @@
     expired: '<span class="status-badge s-expired">종료</span>',
     split:   '<span class="status-badge s-split">분할</span>',
     force_stopped: '<span class="status-badge s-force">강제종료</span>',
-    requeue: '<span class="status-badge s-wait">재접수 | 대기</span>',
-    pending: '<span class="status-badge s-wait">대기</span>',
+    requeue: '<span class="status-badge s-pending">재접수 | 대기</span>',
+    pending: '<span class="status-badge s-pending">대기</span>',
     accepted:'<span class="status-badge s-wait">접수</span>',
   };
 
@@ -354,17 +358,20 @@
   const typeLabels = s => { const v = s?.campaignTypeShown || s?.campaignType; return Array.isArray(v) ? v : (v ? Object.values(v) : []); };
   // 유입플 상품 = vendorProducts {업체: [상품]}의 상품 전부, 없는 옛 캠페인은 fullstackType
   // 풀스택 몫은 fullstackShown(매일 09시 사이트 진행 주문 기준, false = 숨김)이 있으면 그것으로 교체
-  const yupflLabels = s => {
+  // [업체, 상품] 쌍 — 배지 색이 업체별
+  const yupflPairs = s => {
     const asL = v => Array.isArray(v) ? v : Object.values(v || {});
     const vp = s?.vendorProducts || (s?.fullstackType ? { 풀스택: s.fullstackType } : {});
-    return Object.entries(vp).flatMap(([v, l]) => v === '풀스택' && s?.fullstackShown != null ? [] : asL(l))
-      .concat(s?.fullstackShown ? asL(s.fullstackShown) : []);
+    return Object.entries(vp).flatMap(([v, l]) => v === '풀스택' && s?.fullstackShown != null ? [] : asL(l).map(n => [v, n]))
+      .concat(s?.fullstackShown ? asL(s.fullstackShown).map(n => ['풀스택', n]) : []);
   };
+  const yupflLabels = s => yupflPairs(s).map(([, n]) => n);
+  const VENDOR_CLS = { 풀스택: 'v-full', 제이엔: 'v-jn' };
   function typeCellHtml(s) {
     if (s.status === 'expired') return '<span style="color:#cbd5e1">-</span>';  // 종료된 캠페인은 배지 숨김(데이터는 남음)
     const html = [
       ...typeLabels(s).map(l => `<span class="type-badge">${esc(l)}</span>`),
-      ...yupflLabels(s).map(l => `<span class="type-badge full">${esc(l)}</span>`),
+      ...yupflPairs(s).map(([v, l]) => `<span class="type-badge ${VENDOR_CLS[v] || 'v-other'}">${esc(l)}</span>`),
     ].join('');
     return html ? `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html}</div>` : '<span style="color:#cbd5e1">-</span>';
   }
