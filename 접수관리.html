@@ -872,7 +872,7 @@ window.toggleProdPanel = function(e) {
   // 개별 승인 = 기록용 — 비즈핏 캐시 차감·충전 메모 안 함(접수 확인 팝업에서 접수할 때만). btn 즉시 disable로 중복 클릭 방지
   window.approveOne = async function(key, btn) {
     // 켜진 상품이 없으면 배분할 곳이 없어 리워드 배지·빈 캠페인 타입으로 승인됨 → 막음
-    if (!ap().length) { alert('활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.'); return; }
+    if (!ap().length) { alert('활성화된 상품이 없습니다.'); return; }
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const targetSlot = allSlots.find(s => s._key === key);
@@ -3556,7 +3556,7 @@ window.toggleProdPanel = function(e) {
     // 가이드_접수가 상품을 정해 주는 캠페인도 확인 안 함(가이드 상품으로 배분)
     const needsReward = target.some(s => noteRatio(s)?.reward > 0 && !guideAllocOf(s));
     if (needsReward && !hasNormal && !hasCharlie && !hasDelta && !hasNavy) {
-      alert(guideModeOn ? '가이드에서 분류·구간을 못 찾은 캠페인이 있습니다.' : '활성화된 상품이 없습니다.\n상품 유형 설정에서 최소 1개를 켜주세요.');
+      alert(guideModeOn ? '가이드에서 분류·구간을 못 찾은 캠페인이 있습니다.' : '활성화된 상품이 없습니다.');
       return;
     }
     openSubmitModal(target);
