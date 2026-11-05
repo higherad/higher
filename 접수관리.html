@@ -871,21 +871,23 @@ window.toggleProdPanel = function(e) {
   // ── 승인 ─────────────────────────────────────────────────
   // 개별 승인 = 기록용 — 비즈핏 캐시 차감·충전 메모 안 함(접수 확인 팝업에서 접수할 때만). btn 즉시 disable로 중복 클릭 방지
   window.approveOne = async function(key, btn) {
-    // 켜진 상품이 없으면 배분할 곳이 없어 리워드 배지·빈 캠페인 타입으로 승인됨 → 막음
-    if (!ap().length) { alert('활성화된 상품이 없습니다.'); return; }
+    const targetSlot = allSlots.find(s => s._key === key);
+    // 배분·배지 = 가이드_접수가 켜져 있고 이 캠페인 행을 찾으면 가이드, 아니면 상품 유형 설정 — 엑셀 비고 비율은 안 봄
+    const base = targetSlot && { ...targetSlot, yupflRatio: null };
+    const useGuide = !!base && guideAllocOf(base);
+    const calc = fn => useGuide ? fn() : withoutGuide(fn);
+    // 배분할 곳이 없으면 리워드 배지·빈 캠페인 타입으로 승인됨 → 막음
+    if (!useGuide && !ap().length) { alert(guideModeOn ? '가이드에서 분류·구간을 못 찾은 캠페인입니다.' : '활성화된 상품이 없습니다.'); return; }
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
-    const targetSlot = allSlots.find(s => s._key === key);
-    // 배분·배지 모두 상품 유형 설정 — 가이드(팝업 가이드_접수 토글)도, 엑셀 비고 비율도 안 봄
-    const base = targetSlot && { ...targetSlot, yupflRatio: null };
-    const extra = withoutGuide(() => allocFieldsFor(base));
+    const extra = calc(() => allocFieldsFor(base));
     // 비율 배지(withAutoRatio, 기록 표시용 auto — 배분엔 안 씀): 전부 리워드 '리워드' · 전부 유입플 업체명 · 섞이면 실제 배분 비율(예 70:30)
     // 유입플 몫이 있으면 업체명 배지(예 '풀스택') — 풀스택은 매일 09시 사이트 진행 주문 상품으로 바뀜(fullstack-badges)
     const vendors = Object.entries(extra.yupflByVendor || {}).filter(([, n]) => n > 0).map(([v]) => v);
-    if (vendors.length) extra.vendorProducts = Object.fromEntries(vendors.map(v => [v, [v]]));
+    if (vendors.length && !extra.vendorProducts) extra.vendorProducts = Object.fromEntries(vendors.map(v => [v, [v]]));  // 가이드면 가이드 업체 상품 그대로
     // 캠페인타입이 비었으면 수량이 배분된 리워드 상품(유입플·차감 제외)으로 — 전부 유입플이면 리워드 배지 없음
     if (base && !typeLabels(base).length) {
-      const { alloc, prods: list } = withoutGuide(() => allocRowsForSlot(base));
+      const { alloc, prods: list } = calc(() => allocRowsForSlot(base));
       const names = list.filter(p => !p.classifyOnly && !p.deductOnly && (alloc[p.id] || 0) > 0).map(p => p.name);
       if (names.length) extra.campaignType = names;
     }
