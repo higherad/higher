@@ -161,6 +161,8 @@
       <span class="lb">상태</span><select id="sh-ft-st"><option value="">전체</option><option value="unpaid">미입금</option><option value="paid">입금 완료</option></select>
       <span class="lb">발급일</span><input id="sh-ft-from" type="date"> ~ <input id="sh-ft-to" type="date">
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-reg-n"></span>
+        <button class="act act-ok" style="padding:7px 12px" onclick="shopPaidBulk(true,this)">입금 확인</button>
+        <button class="act act-edit" style="padding:7px 12px" onclick="shopPaidBulk(false,this)">입금 취소</button>
         <button class="btn-go" style="padding:7px 16px" onclick="shopSettleReg()">정산 등록</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:120px"><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col style="width:100px"><col style="width:120px"><col style="width:110px"></colgroup>
@@ -191,7 +193,8 @@
 
   <!-- 광고주 추가/수정 -->
   <div id="shop-um"><div class="box">
-    <div class="ttl" id="sh-um-title">광고주 추가</div>
+    <div class="ttl" style="display:flex;align-items:center;gap:12px"><span id="sh-um-title">광고주 추가</span>
+      <label id="sh-um-dist-f" style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--border);border-radius:999px;font-size:13px;font-weight:600;color:#ea580c;cursor:pointer"><input type="checkbox" id="sh-um-dist" style="width:16px;height:16px;margin:0;cursor:pointer">총판</label></div>
     <div class="f"><label>광고주(업체명)<span class="req">*</span></label><input id="sh-um-company" maxlength="30" placeholder="예: 하이어애드"></div>
     <div class="row">
       <div class="f"><label>아이디<span class="req">*</span></label><input id="sh-um-id" maxlength="20" placeholder="영문+숫자 3~20자" autocomplete="off"></div>
@@ -199,8 +202,7 @@
     </div>
     <div class="f"><label>슬롯 단가 (원, 7일 1슬롯 · VAT 별도)<span class="req">*</span></label><input id="sh-um-price" type="number" style="text-align:center"></div>
     <div class="f"><label>메모</label><input id="sh-um-memo" maxlength="200"></div>
-    <div class="f" id="sh-um-dist-f"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="sh-um-dist" style="width:auto"> 총판 권한 <span style="font-weight:400;color:var(--muted)">(하부점 계정을 만들고 관리할 수 있음)</span></label></div>
-    <div class="foot"><button class="act" id="sh-um-block" style="margin-right:auto;padding:9px 16px"></button><button style="border:1px solid var(--border);background:#fff" id="sh-um-cancel">취소</button><button class="btn-go" id="sh-um-save">저장</button></div>
+    <div class="foot"><button class="act" id="sh-um-block" style="padding:9px 16px"></button><button class="act act-del" id="sh-um-del" style="margin-right:auto;padding:9px 16px">삭제</button><button style="border:1px solid var(--border);background:#fff" id="sh-um-cancel">취소</button><button class="btn-go" id="sh-um-save">저장</button></div>
   </div></div>
 </div>
 
@@ -220,8 +222,9 @@
   const md = s => s ? s.slice(5) : '-';
   const safeUrl = u => /^https:\/\/([a-z0-9-]+\.)*naver\.com\//i.test((u || '').trim());
   const billOf = is => is.qty * is.price;
-  // 취소 = 진행중 슬롯 없음 + 종료 전 (서버 can_cancel과 같음, 입금·정보 입력 무관)
-  const canRevoke = is => !is.revokedAt && is.end >= today() && !SLOTS.some(x => x.userId === is.userId && x.issueNo === is.no && x.runAt);
+  // 취소 = 진행중 전환 슬롯 없음 + 시작일 당일까지 (서버 can_cancel과 같음, 입금·정보 입력 무관)
+  const running = is => SLOTS.some(x => x.userId === is.userId && x.issueNo === is.no && x.runAt);
+  const canRevoke = is => !is.revokedAt && is.start >= today() && !running(is);
   // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
   const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 슬롯', 'w'], end: ['종료', 'n'] };
   const slotState = sl => sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.runAt ? 'run' : 'wait';
@@ -282,7 +285,7 @@
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}개</td>
         <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${TERM_DAYS}일</td><td>${is.revokedAt ? '-' : `${el}일`}</td>
         <td>${md(is.revokedAt)}</td>
-        <td>${is.revokedAt ? `<span class="st-r">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">취소</button>` : (is.end < today() ? '<span class="st-n">종료</span>' : '<span class="st-g" title="진행중인 슬롯이 있어 취소할 수 없습니다">진행중</span>')}</td></tr>`;
+        <td>${is.revokedAt ? `<span class="st-r">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">취소</button>` : (is.end < today() ? '<span class="st-n">종료</span>' : running(is) ? '<span class="st-g" title="진행중인 슬롯이 있어 취소할 수 없습니다">진행중</span>' : '<span class="st-n" title="시작일이 지나 취소할 수 없습니다">-</span>')}</td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '발급 내역이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
@@ -354,16 +357,15 @@
     const shownKeys = new Set(rows.map(slotKey));
     [...SPICK].forEach(k => shownKeys.has(k) || SPICK.delete(k));
     $('sh-reg-n').textContent = SPICK.size ? `${SPICK.size}건 선택` : '';
-    // 총판에게 받을 건(하부점 발급분 + 총판 본인 발급분)은 같은 날짜끼리 총판 한 줄로 합침 — 클릭하면 개별 건 펼침
-    const items = [];
+    // 입금할 쪽(하부점 발급분은 총판)별로 같은 발급일끼리 한 줄로 합침 — 클릭하면 개별 건 펼침. 일반 광고주 1건뿐이면 그냥 한 줄
     GROUPS = {};
+    const items = [];
     rows.forEach(is => {
-      const payer = is.dist || is.userId;
-      if (userOf(payer).role !== 'dist') return items.push(is);
-      const k = `${payer}|${is.at.slice(0, 10)}`;
+      const payer = is.dist || is.userId, k = `${payer}|${is.at.slice(0, 10)}`;
       if (!GROUPS[k]) items.push(GROUPS[k] = { k, payer, date: is.at.slice(0, 10), list: [] });
       GROUPS[k].list.push(is);
     });
+    items.forEach((g, i) => { if (g.list.length === 1 && userOf(g.payer).role !== 'dist') items[i] = g.list[0]; });
     const stateOf = is => is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
     const issueCells = (is, child) => { const b = billOf(is); return `<td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
@@ -479,22 +481,23 @@
       '월별 합산', ['월', '발급 건수', '슬롯 수', '정산 금액(VAT 별도)', '입금액(VAT 포함)'],
       Object.keys(byMonth).sort().reverse().map(m => amtRow(m, byMonth[m])), 1000);
   };
-  window.shopPaid = (uid, no, on, btn) => {
-    const is = ISSUES.find(x => x.userId === uid && x.no === no);
-    if (!confirm(on ? `#${no} ${is.dist ? `총판 ${userOf(is.dist).company}` : userOf(uid).company} ${won(Math.round(billOf(is) * VAT))}원 입금 확인 처리합니다.` : `#${no} 입금 확인을 취소합니다.`)) return;
-    const who = HI.getCurrentUser()?.username || '';
-    const f = is.dist ? 'distPaid' : 'paid';  // 하부점 발급 건 = 총판이 하이어에 낸 돈
-    busy(btn, () => HI.shopUpdate({ [`issues/${uid}/i${no}/${f}At`]: on ? kstNow().toISOString().slice(0, 16).replace('T', ' ') : null, [`issues/${uid}/i${no}/${f}By`]: on ? who : null }));
-  };
-
-  window.shopPaidGroup = (k, on, btn) => {
-    const g = GROUPS[k];
-    if (!g) return;
-    const todo = g.list.filter(is => !!is.paidAt !== on), amt = todo.reduce((a, is) => a + billOf(is), 0);
-    if (!confirm(on ? `${userOf(g.payer).company} ${g.date} ${todo.length}건 ${won(Math.round(amt * VAT))}원 입금 확인 처리합니다.` : `${userOf(g.payer).company} ${g.date} ${todo.length}건 입금 확인을 취소합니다.`)) return;
+  // 입금 확인·취소(단건·발급일 묶음·체크 일괄 공통) — 하부점 발급 건은 총판이 하이어에 낸 돈(distPaid)
+  function paidMany(list, on, label, btn, done) {
+    const todo = list.filter(is => !!is.paidAt !== on), amt = todo.reduce((a, is) => a + billOf(is), 0);
+    if (!todo.length) return alert(on ? '입금 확인할 건이 없습니다.' : '입금 취소할 건이 없습니다.');
+    if (!confirm(on ? `${label}${todo.length}건 ${won(Math.round(amt * VAT))}원 입금 확인 처리합니다.` : `${label}${todo.length}건 입금 확인을 취소합니다.`)) return;
     const who = HI.getCurrentUser()?.username || '', at = on ? kstNow().toISOString().slice(0, 16).replace('T', ' ') : null, upd = {};
     todo.forEach(is => { const f = is.dist ? 'distPaid' : 'paid'; upd[`issues/${is.userId}/i${is.no}/${f}At`] = at; upd[`issues/${is.userId}/i${is.no}/${f}By`] = on ? who : null; });
-    busy(btn, () => HI.shopUpdate(upd));
+    busy(btn, async () => { await HI.shopUpdate(upd); done?.(); });
+  }
+  window.shopPaid = (uid, no, on, btn) => {
+    const is = ISSUES.find(x => x.userId === uid && x.no === no);
+    paidMany([is], on, `#${no} ${is.dist ? `총판 ${userOf(is.dist).company}` : userOf(uid).company} `, btn);
+  };
+  window.shopPaidGroup = (k, on, btn) => { const g = GROUPS[k]; if (g) paidMany(g.list, on, `${userOf(g.payer).company} ${g.date} `, btn); };
+  window.shopPaidBulk = (on, btn) => {
+    if (!SPICK.size) return alert('정산 건을 선택해 주세요.');
+    paidMany(settleShown.filter(is => SPICK.has(slotKey(is))), on, '선택한 ', btn, () => { SPICK.clear(); $('sh-sc-all').checked = false; renderSettle(); });
   };
 
   /* ── 광고주 관리 ── */
@@ -502,8 +505,8 @@
     const q = $('sh-fu-q').value.trim();
     // 하부점은 총판 줄 아래에 접어 둠(총판 줄 클릭 = 펼침). 검색이 하부점에 걸리면 그 총판을 펼쳐서 보여줌
     const hit = u => !q || (u.company || '').includes(q) || u.id.includes(q), has = id => USERS.some(x => x.id === id);
-    const subsOf = id => USERS.filter(x => x.parent === id);
-    const list = USERS.filter(u => !(u.parent && has(u.parent)) && (hit(u) || subsOf(u.id).some(hit))).flatMap(u => {
+    const subsOf = id => USERS.filter(x => x.parent === id && !x.deleted);
+    const list = USERS.filter(u => !u.deleted && !(u.parent && has(u.parent)) && (hit(u) || subsOf(u.id).some(hit))).flatMap(u => {
       const subs = subsOf(u.id).filter(x => hit(u) || hit(x)), open = OPEN.has('u|' + u.id) || (q && subs.some(hit) && !hit(u));
       return [{ u, subs: subs.length, open }, ...(open ? subs.map(x => ({ u: x, child: true })) : [])];
     });
@@ -530,7 +533,7 @@
     $('sh-um-dist').checked = u.role === 'dist'; $('sh-um-dist-f').style.display = u.parent ? 'none' : '';  // 하부점은 총판 불가(2단계까지)
     $('sh-um-pw').value = ''; $('sh-um-price').value = u.price; $('sh-um-memo').value = u.memo || '';
     const bl = $('sh-um-block');  // 차단·해제는 수정 팝업 안에서만(추가할 땐 숨김)
-    bl.style.display = id ? '' : 'none'; bl.textContent = u.blocked ? '차단 해제' : '차단'; bl.className = `act ${u.blocked ? 'act-ok' : 'act-del'}`;
+    bl.style.display = $('sh-um-del').style.display = id ? '' : 'none'; bl.textContent = u.blocked ? '차단 해제' : '차단'; bl.className = `act ${u.blocked ? 'act-ok' : 'act-del'}`;
     $('shop-um').classList.add('show');
   };
   $('sh-um-cancel').onclick = () => $('shop-um').classList.remove('show');
@@ -555,10 +558,16 @@
     if (!u || !confirm(`${u.company} 계정을 ${u.blocked ? '차단 해제' : '차단'}합니다.`)) return;
     busy($('sh-um-block'), async () => { await HI.shopUpdate({ [`users/${u.id}/blocked`]: !u.blocked }); $('shop-um').classList.remove('show'); });
   };
+  // 삭제 = 로그인 정보만 지움(서버) — 발급·슬롯·정산 기록은 남음, 아이디 재사용 불가
+  $('sh-um-del').onclick = () => {
+    const u = USERS.find(x => x.id === editId);
+    if (!u || !confirm(`${u.company}(${u.id}) 계정을 삭제합니다. 로그인할 수 없게 되고, 정산·슬롯 기록은 남습니다.`)) return;
+    busy($('sh-um-del'), async () => { await HI.shopCall('/shop-user-delete', { id: u.id }); $('shop-um').classList.remove('show'); });
+  };
 
   function renderAll() {
     if (!$('shop-page')) return;
-    const opts = all => (all ? `<option value="">${all}</option>` : '') + USERS.map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
+    const opts = all => (all ? `<option value="">${all}</option>` : '') + USERS.map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})${u.deleted ? ' · 삭제' : ''}</option>`).join('');
     const keep = (id, html) => { const el = $(id), v = el.value; el.innerHTML = html; el.value = v; if (el.selectedIndex < 0) el.selectedIndex = 0; };
     keep('sh-is-user', '<option value="">-- 광고주 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join(''));
     ['sh-fi-user', 'sh-fs-user', 'sh-ft-user'].forEach(id => keep(id, opts('전체 광고주')));
