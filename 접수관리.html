@@ -872,12 +872,13 @@ window.toggleProdPanel = function(e) {
   // 개별 승인 = 기록용 — 비즈핏 캐시 차감·충전 메모 안 함(접수 확인 팝업에서 접수할 때만). btn 즉시 disable로 중복 클릭 방지
   window.approveOne = async function(key, btn) {
     const targetSlot = allSlots.find(s => s._key === key);
-    // 배분·배지 = 가이드_접수가 켜져 있고 이 캠페인 행을 찾으면 가이드, 아니면 상품 유형 설정 — 엑셀 비고 비율은 안 봄
+    // 배분·배지 = 가이드_접수 켜짐이면 가이드만(상품 유형 설정 on/off 안 봄, 차감만 적용), 꺼짐이면 상품 유형 설정 — 엑셀 비고 비율은 안 봄
     const base = targetSlot && { ...targetSlot, yupflRatio: null };
-    const useGuide = !!base && guideAllocOf(base);
+    const useGuide = guideModeOn;
     const calc = fn => useGuide ? fn() : withoutGuide(fn);
     // 배분할 곳이 없으면 리워드 배지·빈 캠페인 타입으로 승인됨 → 막음
-    if (!useGuide && !ap().length) { alert(guideModeOn ? '가이드에서 분류·구간을 못 찾은 캠페인입니다.' : '활성화된 상품이 없습니다.'); return; }
+    if (useGuide && !(base && guideAllocOf(base))) { alert('가이드에서 분류·구간을 못 찾은 캠페인입니다.'); return; }
+    if (!useGuide && !ap().length) { alert('활성화된 상품이 없습니다.'); return; }
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const extra = calc(() => allocFieldsFor(base));
@@ -3550,16 +3551,13 @@ window.toggleProdPanel = function(e) {
     const allowedStatuses = checkedKeys.length ? ['accepted', 'active'] : ['accepted'];
     const target = base.filter(s => allowedStatuses.includes(s.status));
     if (!target.length) { alert('접수 상태인 캠페인이 없습니다.'); return; }
-    const hasNormal  = ap().some(p => !FIXED_PROD_IDS.has(p.id));
-    const hasCharlie = ap().some(p => p.id === 'charlie');
-    const hasDelta   = ap().some(p => p.id === 'delta');
-    const hasNavy    = ap().some(p => p.id === 'navy');
-    // 상품 1개 이상 켜기는 비고가 '리워드'·비율(리워드 몫 있음)인 캠페인이 섞였을 때만 — 업체명(전부 유입플)·비고 없음은 확인 안 함.
-    // 가이드_접수가 상품을 정해 주는 캠페인도 확인 안 함(가이드 상품으로 배분)
-    const needsReward = target.some(s => noteRatio(s)?.reward > 0 && !guideAllocOf(s));
-    if (needsReward && !hasNormal && !hasCharlie && !hasDelta && !hasNavy) {
-      alert(guideModeOn ? '가이드에서 분류·구간을 못 찾은 캠페인이 있습니다.' : '활성화된 상품이 없습니다.');
-      return;
+    // 가이드_접수 켜짐 = 가이드로만 배분(상품 유형 설정 on/off 안 봄, 차감만 적용) — 가이드에서 행을 못 찾은 캠페인이 하나라도 있으면 막음
+    if (guideModeOn) {
+      if (target.some(s => !guideAllocOf(s))) { alert('가이드에서 분류·구간을 못 찾은 캠페인이 있습니다.'); return; }
+    } else {
+      // 상품 1개 이상 켜기는 비고가 '리워드'·비율(리워드 몫 있음)인 캠페인이 섞였을 때만 — 업체명(전부 유입플)·비고 없음은 확인 안 함
+      const needsReward = target.some(s => noteRatio(s)?.reward > 0);
+      if (needsReward && !ap().some(p => !p.deductOnly)) { alert('활성화된 상품이 없습니다.'); return; }
     }
     openSubmitModal(target);
   };
