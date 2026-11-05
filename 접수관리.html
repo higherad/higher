@@ -5074,7 +5074,7 @@ window.toggleProdPanel = function(e) {
       const miss = missOf.get(slot._key);
       if (!miss.length) return true;
       blocked++;
-      if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="회원관리에서 ${escProd(slot.userId)} ${escProd(miss.join('·'))} 단가 설정">❌ 대행사 단가 설정 필요</span>`;
+      if (r._statusTd) r._statusTd.innerHTML = `<span style="color:var(--danger);" title="회원관리에서 ${escProd(slot.agencyId || '')} ${escProd(miss.join('·'))} 단가 설정">❌ 대행사 단가 설정 필요</span>`;
       return false;
     });
     return { ok: rows, blocked };
