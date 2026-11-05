@@ -97,6 +97,12 @@
   #shop-um .f { margin-bottom:14px; } #shop-um .f label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
   #shop-um .f label .req { color:var(--danger); margin-left:2px; }
   #shop-um .f input { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; outline:none; font-family:inherit; box-sizing:border-box; }
+  /* 총판 토글(제목 옆) — 체크박스는 숨기고 알약 버튼 전체가 클릭 영역, 켜면 주황 */
+  #sh-um-dist-f { display:inline-flex; align-items:center; gap:4px; padding:5px 14px; border:1.5px solid #fdba74; border-radius:999px; font-size:13px; font-weight:700; color:#ea580c; background:#fff; cursor:pointer; user-select:none; transition:background .15s, color .15s; }
+  #sh-um-dist-f input { display:none; }
+  #sh-um-dist-f::before { content:'+'; font-weight:800; }
+  #sh-um-dist-f:has(input:checked) { background:#ea580c; border-color:#ea580c; color:#fff; }
+  #sh-um-dist-f:has(input:checked)::before { content:'✓'; }
   #shop-um .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   #shop-um .foot { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
   #shop-um .foot button { padding:8px 20px; border-radius:7px; font-size:13px; cursor:pointer; font-family:inherit; }
@@ -194,7 +200,7 @@
   <!-- 광고주 추가/수정 -->
   <div id="shop-um"><div class="box">
     <div class="ttl" style="display:flex;align-items:center;gap:12px"><span id="sh-um-title">광고주 추가</span>
-      <label id="sh-um-dist-f" style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--border);border-radius:999px;font-size:13px;font-weight:600;color:#ea580c;cursor:pointer"><input type="checkbox" id="sh-um-dist" style="width:16px;height:16px;margin:0;cursor:pointer">총판</label></div>
+      <label id="sh-um-dist-f" title="총판 권한"><input type="checkbox" id="sh-um-dist">총판</label></div>
     <div class="f"><label>광고주(업체명)<span class="req">*</span></label><input id="sh-um-company" maxlength="30" placeholder="예: 하이어애드"></div>
     <div class="row">
       <div class="f"><label>아이디<span class="req">*</span></label><input id="sh-um-id" maxlength="20" placeholder="영문+숫자 3~20자" autocomplete="off"></div>
@@ -357,7 +363,7 @@
     const shownKeys = new Set(rows.map(slotKey));
     [...SPICK].forEach(k => shownKeys.has(k) || SPICK.delete(k));
     $('sh-reg-n').textContent = SPICK.size ? `${SPICK.size}건 선택` : '';
-    // 입금할 쪽(하부점 발급분은 총판)별로 같은 발급일끼리 한 줄로 합침 — 클릭하면 개별 건 펼침. 일반 광고주 1건뿐이면 그냥 한 줄
+    // 입금할 쪽(하부점 발급분은 총판)별로 같은 발급일끼리 한 줄로 합침(1건이어도) — 클릭하면 개별 건 펼침
     GROUPS = {};
     const items = [];
     rows.forEach(is => {
@@ -365,19 +371,12 @@
       if (!GROUPS[k]) items.push(GROUPS[k] = { k, payer, date: is.at.slice(0, 10), list: [] });
       GROUPS[k].list.push(is);
     });
-    items.forEach((g, i) => { if (g.list.length === 1 && userOf(g.payer).role !== 'dist') items[i] = g.list[0]; });
-    const stateOf = is => is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
-    const issueCells = (is, child) => { const b = billOf(is); return `<td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
+    // 펼친 개별 건은 상태 없음(입금은 묶음 단위)
+    const issueCells = is => { const b = billOf(is); return `<td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
-        <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td>
-        ${child ? '<td></td><td></td>' : `<td>${stateOf(is)}</td><td>${md(is.paidAt)}</td>`}`; };  // 펼친 개별 건은 상태 없음(입금은 총판 묶음 단위)
+        <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td><td></td><td></td>`; };
     const box = keys => `<input type="checkbox" class="sh-sc" data-k="${esc(keys.join(','))}"${keys.every(k => SPICK.has(k)) ? ' checked' : ''}>`;
     $('sh-settle-rows').innerHTML = items.map(it => {
-      if (!it.list) {
-        const k = `'${esc(it.userId)}',${it.no}`;
-        return `<tr><td>${box([slotKey(it)])}</td>${issueCells(it)}
-        <td>${it.paidAt ? `<button class="act act-edit" onclick="shopPaid(${k},false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaid(${k},true,this)">입금 확인</button>`}</td></tr>`;
-      }
       const L = it.list, b = L.reduce((a, x) => a + billOf(x), 0), paid = L.filter(x => x.paidAt).length, open = OPEN.has('s|' + it.k);
       const prices = [...new Set(L.map(x => x.price))], last = L.reduce((a, x) => (x.paidAt || '') > a ? x.paidAt : a, '');
       const st = paid === L.length ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
@@ -385,7 +384,7 @@
         <td><b>${esc(userOf(it.payer).company)}</b></td><td>${esc(it.payer)}</td><td>${L.reduce((a, x) => a + x.qty, 0)}</td>
         <td>${prices.length === 1 ? won(prices[0]) : '-'}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}</td><td>${st}</td><td>${md(last)}</td>
         <td>${paid === L.length ? `<button class="act act-edit" onclick="shopPaidGroup('${esc(it.k)}',false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaidGroup('${esc(it.k)}',true,this)">입금 확인</button>`}</td></tr>`
-        + (open ? L.map(is => `<tr class="child"><td></td>${issueCells(is, true)}<td></td></tr>`).join('') : '');
+        + (open ? L.map(is => `<tr class="child"><td></td>${issueCells(is)}<td></td></tr>`).join('') : '');
     }).join('') || (`<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
   const pickSet = (c, on) => c.dataset.k.split(',').forEach(k => on ? SPICK.add(k) : SPICK.delete(k));
@@ -481,7 +480,7 @@
       '월별 합산', ['월', '발급 건수', '슬롯 수', '정산 금액(VAT 별도)', '입금액(VAT 포함)'],
       Object.keys(byMonth).sort().reverse().map(m => amtRow(m, byMonth[m])), 1000);
   };
-  // 입금 확인·취소(단건·발급일 묶음·체크 일괄 공통) — 하부점 발급 건은 총판이 하이어에 낸 돈(distPaid)
+  // 입금 확인·취소(발급일 묶음·체크 일괄 공통) — 하부점 발급 건은 총판이 하이어에 낸 돈(distPaid)
   function paidMany(list, on, label, btn, done) {
     const todo = list.filter(is => !!is.paidAt !== on), amt = todo.reduce((a, is) => a + billOf(is), 0);
     if (!todo.length) return alert(on ? '입금 확인할 건이 없습니다.' : '입금 취소할 건이 없습니다.');
@@ -490,10 +489,6 @@
     todo.forEach(is => { const f = is.dist ? 'distPaid' : 'paid'; upd[`issues/${is.userId}/i${is.no}/${f}At`] = at; upd[`issues/${is.userId}/i${is.no}/${f}By`] = on ? who : null; });
     busy(btn, async () => { await HI.shopUpdate(upd); done?.(); });
   }
-  window.shopPaid = (uid, no, on, btn) => {
-    const is = ISSUES.find(x => x.userId === uid && x.no === no);
-    paidMany([is], on, `#${no} ${is.dist ? `총판 ${userOf(is.dist).company}` : userOf(uid).company} `, btn);
-  };
   window.shopPaidGroup = (k, on, btn) => { const g = GROUPS[k]; if (g) paidMany(g.list, on, `${userOf(g.payer).company} ${g.date} `, btn); };
   window.shopPaidBulk = (on, btn) => {
     if (!SPICK.size) return alert('정산 건을 선택해 주세요.');
