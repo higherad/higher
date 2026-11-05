@@ -92,7 +92,7 @@
     <option value="14">14일 이내 종료</option>
   </select>
   <div style="margin-left:auto;display:flex;gap:6px;">
-    <input type="text" id="f-kw" placeholder="대행사/ID/플레이스명/MID 검색" style="width:240px;" onkeydown="if(event.key==='Enter') renderSlots()">
+    <input type="text" id="f-kw" placeholder="대행사/플레이스명/MID 검색" style="width:240px;" onkeydown="if(event.key==='Enter') renderSlots()">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderSlots()">검색</button>
     <button class="action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="resetFilter()">초기화</button>
   </div>
@@ -176,7 +176,7 @@
       else if (status) { if (s.status !== status) return false; }
       // 전체: 이미 진행됐거나 끝난 캠페인만(대기/접수/재접수대기는 제외)
       else { if (!['active','split','expired','force_stopped'].includes(s.status)) return false; }
-      if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
+      if (kw && ![s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       return true;
     });
     if (range === 'all') {
