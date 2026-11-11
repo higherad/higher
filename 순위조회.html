@@ -95,41 +95,15 @@
   #rank-page .rank-b4 { color:#ef4444; }
   #rank-page .rank-b5 { color:#94a3b8; }
 
-  /* 변동탭 */
-  #rank-page .rk-change-controls { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
-  #rank-page .rk-select { flex:1; min-width:160px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:12px; font-family:inherit; background:#fff; color:var(--text); }
-  #rank-page .rk-bucket-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; overflow-x:auto; padding-bottom:4px; }
-  #rank-page .rk-bucket-tab { padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:#fff; font-size:12px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.2s; white-space:nowrap; }
-  #rank-page .rk-bucket-tab.active { background:#1e293b; color:#fff; border-color:#1e293b; }
-  #rank-page .rk-change-section { margin-bottom:20px; }
-  #rank-page .rk-change-title { font-size:13px; font-weight:700; margin-bottom:8px; padding-left:8px; border-left:4px solid #ccc; }
-  #rank-page .rk-change-tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; max-height:400px; overflow:auto; }
-  #rank-page .rk-change-tbl { width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
-  #rank-page .rk-change-tbl thead th { position:sticky; top:0; background:#1e293b; color:#fff; padding:8px 10px; font-weight:500; text-align:center; border-right:none; z-index:1; }
-  #rank-page .rk-change-tbl thead th:nth-child(1),
-  #rank-page .rk-change-tbl thead th:nth-child(2),
-  #rank-page .rk-change-tbl thead th:nth-child(3),
-  #rank-page .rk-change-tbl thead th:nth-child(4) { text-align:left; }
-  #rank-page .rk-change-tbl tbody td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:center; }
-  #rank-page .rk-change-tbl tbody td:nth-child(1),
-  #rank-page .rk-change-tbl tbody td:nth-child(2),
-  #rank-page .rk-change-tbl tbody td:nth-child(3),
-  #rank-page .rk-change-tbl tbody td:nth-child(4) { text-align:left; }
-  #rank-page .rk-change-tbl tbody tr:last-child td { border-bottom:none; }
-  #rank-page .rk-change-tbl tbody tr:hover { background:#f8fafc; }
-  #rank-page .rk-up   { color:#ef4444; font-weight:700; }
-  #rank-page .rk-down { color:#3b82f6; font-weight:700; }
-  #rank-page .rk-eq   { color:#64748b; font-weight:700; }
 </style>
 
 <div class="rk-tab-nav">
-  <button class="rk-tab active" id="rk-tab-change" onclick="rkTab('change',this)">5일</button>
-  <button class="rk-tab" onclick="rkTab('all',this)">전체</button>
+  <button class="rk-tab active" onclick="rkTab('all',this)">전체</button>
   <button class="rk-tab"        onclick="rkTab('single',this)">검색</button>
 </div>
 
 <!-- 전체 탭 -->
-<div id="rk-all" style="display:none">
+<div id="rk-all">
   <div class="agency-filter" id="rk-agency-filter"></div>
   <div class="tbl-wrap">
     <table id="rk-tbl">
@@ -173,19 +147,6 @@
   </div>
 </div>
 
-<!-- 변동 탭 -->
-<div id="rk-change">
-  <div class="rk-change-controls">
-    <select id="rk-change-branch" class="rk-select" onchange="rkRenderChange()">
-      <option value="all">전체 영업점 보기</option>
-    </select>
-  </div>
-  <div class="rk-bucket-tabs" id="rk-bucket-tabs"></div>
-  <div id="rk-change-content">
-    <div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>
-  </div>
-</div>
-
 </div><!-- #rank-page -->
 
 <script>
@@ -198,8 +159,6 @@
     el.classList.add('active');
     document.getElementById('rk-all').style.display    = tab === 'all'    ? '' : 'none';
     document.getElementById('rk-single').style.display = tab === 'single' ? '' : 'none';
-    document.getElementById('rk-change').style.display = tab === 'change' ? '' : 'none';
-    if (tab === 'change' && !rkChangeLoaded) loadChangeData();
   };
 
   /* 순위 배지 (전일 대비 추세는 rank-popup.js의 getRankTrend와 동일 기준) */
@@ -416,136 +375,6 @@
 
     btn.disabled = false; btn.textContent = '순위 조회';
   };
-
-  /* ===== 변동 탭 ===== */
-  const RANK_FLOOR = 301; // 순위표에 없는(300위 밖) 항목을 가장 낮은 순위로 취급
-  const CHANGE_BUCKETS = [
-    { label: "전체",      min: -Infinity, max: Infinity },
-    { label: "1-10위",    min: 0,   max: 10 },
-    { label: "11-20위",   min: 10,  max: 20 },
-    { label: "21-50위",   min: 20,  max: 50 },
-    { label: "51-100위",  min: 50,  max: 100 },
-    { label: "101-200위", min: 100, max: 200 },
-    { label: "201-300위", min: 200, max: 300 },
-    { label: "300위 밖",  min: 300, max: Infinity },
-  ];
-  const CHANGE_SECTIONS = [
-    { title: "▲ 순위 상승", color: "#ef4444", match: i => i.diff > 0 },
-    { title: "▼ 순위 하락", color: "#3b82f6", match: i => i.diff < 0 },
-    { title: "◆ 보합",      color: "#64748b", match: i => i.diff === 0 },
-  ];
-
-  let rkChangeLoaded = false;
-  let rkChangeData = { branchNames: [], dateLabels: ["-","-","-","-","-"], results: [] };
-  let rkChangeBucket = "전체";
-
-  async function loadChangeData() {
-    const content = document.getElementById('rk-change-content');
-    content.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>';
-    try {
-      const data = await HI.getRankChange(); // 14시 파이프라인이 정리해 저장한 순위 변동 목록
-      if (!document.getElementById('rank-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
-      if (!data) { content.innerHTML = '<div class="rk-msg">데이터 수집중입니다. 14시 순위 수집이 끝나면 표시됩니다.</div>'; return; }
-      rkChangeData = { branchNames: [], dateLabels: ["-","-","-","-","-"], results: [], ...data };
-      rkChangeLoaded = true;
-
-      const filter = document.getElementById('rk-change-branch');
-      filter.innerHTML = '<option value="all">전체 영업점 보기</option>' +
-        rkChangeData.branchNames.map(name => `<option value="${name}">${name}</option>`).join('');
-
-      rkRenderBucketTabs();
-      rkRenderChange();
-    } catch(e) {
-      content.innerHTML = `<div class="rk-msg err">데이터 연동 실패: ${e.message}</div>`;
-    }
-  }
-
-  function rkRenderBucketTabs() {
-    const tabsArea = document.getElementById('rk-bucket-tabs');
-    tabsArea.innerHTML = CHANGE_BUCKETS.map(b =>
-      `<button class="rk-bucket-tab ${rkChangeBucket === b.label ? 'active' : ''}" onclick="rkSetBucket('${b.label}')">${b.label}</button>`
-    ).join('');
-  }
-
-  window.rkSetBucket = function(b) {
-    rkChangeBucket = b;
-    rkRenderBucketTabs();
-    rkRenderChange();
-  };
-
-  function rkRankCells(ranks, dateLabels) {
-    const cells = ranks && ranks.length > 0 ? ranks : dateLabels.map(() => '-');
-    return cells.map((v, idx) => {
-      const cNum = parseFloat(v) || RANK_FLOOR;
-      let color = '#94a3b8';
-      if (idx > 0) {
-        const pNumRaw = parseFloat(cells[idx - 1]) || RANK_FLOOR;
-        // 직전 값이 "-"(데이터 없음/300위 밖)인데 현재 값은 있으면 300위에서 진입한 것으로 간주
-        const pNum = (pNumRaw === RANK_FLOOR && cNum !== RANK_FLOOR) ? 300 : pNumRaw;
-        color = (cNum === RANK_FLOOR || pNum === RANK_FLOOR)
-          ? '#94a3b8'
-          : (cNum < pNum ? '#ef4444' : cNum > pNum ? '#3b82f6' : '#94a3b8');
-      }
-      const display = (v === '' || v === null || v === undefined || v === '-') ? '-' : v;
-      return `<td style="color:${color};${idx === cells.length - 1 ? 'font-weight:700' : ''}">${display}</td>`;
-    }).join('');
-  }
-
-  function rkDiffCell(diff) {
-    if (diff > 0) return `<td class="rk-up">↑${diff}</td>`;
-    if (diff < 0) return `<td class="rk-down">↓${Math.abs(diff)}</td>`;
-    return `<td class="rk-eq">-</td>`;
-  }
-
-  window.rkRenderChange = function() {
-    const selectedBranch = document.getElementById('rk-change-branch').value;
-    const content = document.getElementById('rk-change-content');
-    const dateLabels = rkChangeData.dateLabels || ["-","-","-","-","-"];
-    const bucket = CHANGE_BUCKETS.find(b => b.label === rkChangeBucket);
-
-    const filtered = (rkChangeData.results || []).filter(item => {
-      const r = Number(item.rankNum) || 0;
-      return (selectedBranch === "all" || item.branch === selectedBranch) &&
-        (r > bucket.min && r <= bucket.max);
-    });
-
-    const theadHtml = `<thead><tr>
-      <th>영업점</th><th>MID</th><th>업체명</th><th>키워드</th>
-      ${dateLabels.map(l => `<th class="dc">${l}</th>`).join('')}
-      <th>전날대비</th>
-    </tr></thead>`;
-
-    content.innerHTML = CHANGE_SECTIONS.map(section =>
-      rkChangeSection(section, filtered.filter(section.match), theadHtml, dateLabels)
-    ).join('');
-  };
-
-  function rkChangeSection(section, list, theadHtml, dateLabels) {
-    const { title, color } = section;
-    const colCount = 5 + dateLabels.length;
-    const rows = list.length === 0
-      ? `<tr><td colspan="${colCount}" style="font-size:11px; color:var(--muted); text-align:center; padding:14px;">데이터 없음</td></tr>`
-      : list.map(i => `<tr>
-            <td style="color:${color};font-weight:700">${i.branch}</td>
-            <td>${i.mid}</td>
-            <td>${i.company}</td>
-            <td>${i.keyword}</td>
-            ${rkRankCells(i.ranks, dateLabels)}
-            ${rkDiffCell(i.diff)}
-          </tr>`).join('');
-
-    return `
-      <div class="rk-change-section">
-        <div class="rk-change-title" style="color:${color}; border-color:${color}">${title} (${list.length})</div>
-        <div class="rk-change-tbl-wrap">
-          <table class="rk-change-tbl">${theadHtml}<tbody>${rows}</tbody></table>
-        </div>
-      </div>
-    `;
-  }
-
-  /* 메뉴 진입 시 기본 탭: 5일 */
-  loadChangeData();
 
 })();
 </script>
