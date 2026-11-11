@@ -903,17 +903,6 @@ window.toggleProdPanel = function(e) {
     try { return fn(); } finally { guideModeOn = g; }
   }
 
-  /* window.bulkApprove = async function() {
-    const keys = getCheckedKeys();
-    if (!keys.length) return alert('선택된 항목이 없습니다.');
-    await Promise.all(keys.map(k => HI.approve(k)));
-    keys.forEach(k => {
-      const idx = allSlots.findIndex(x => x._key === k);
-      if (idx !== -1) allSlots[idx].status = 'active';
-    });
-    renderReceipts(false);
-  }; */
-
   // ── 접수 처리 ─────────────────────────────────────────────
   // 승인 건을 대기·접수로 되돌리면 승인 때 붙인 배지·유입플 분류를 지움 — 다시 승인하면 그때 값으로 새로 계산(캐시 차감은 수동 처리)
   // 종료(분할 대기취소 등)에서 다시 접수할 때도 같은 값 + 예약실패·등록 완료 기록까지 지움 — 새 캠페인처럼 다시 배분·등록

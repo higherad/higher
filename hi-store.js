@@ -739,7 +739,6 @@ const HI = {
   // ════════════════════════════════════════════════════════
   // 예약 분할
   // ════════════════════════════════════════════════════════
-  onScheduleDispatchChange(cb) { return dispatchCache(cb); },
   getScheduleDispatchOnce() { return once(dispatchCache); },
   // 키 = 생성 시각 base36 + 난수(접수관리 genId와 같은 형식) — 디스패처가 $key 범위로 '방금 만든 지난 시각 예약'을
   // 찾으므로 push 키(-O…)를 쓰면 그 예약은 하루 1번 전체 조회 때까지 밀림
@@ -754,9 +753,6 @@ const HI = {
     const bad = Object.keys(patch).filter(k => !/^(dispatch|batches)\//.test(k));
     if (bad.length) throw new Error(`schedule 밖 경로: ${bad.join(', ')}`);
     return update(ref(db, `${ROOT}/schedule`), patch);
-  },
-  removeScheduleDispatch(ids) {
-    return update(ref(db), Object.fromEntries(ids.map(id => [`${P.dispatch}/${id}`, null])));
   },
   // 캠페인별 예약 조각 수(서버가 그룹 완료 판정에 씀)
   setScheduleBatch(key, { total, batchGroupId }) {
@@ -944,9 +940,6 @@ const HI = {
   getPaidSet() { return once(paidCache); },
   onPaidSetChange(cb) { return paidCache(cb); },
   setPaid(key, val) { return val ? set(ref(db, `${P.paid}/${key}`), true) : remove(ref(db, `${P.paid}/${key}`)); },
-  setPaidMany(keys, val) {
-    return update(ref(db), Object.fromEntries(keys.map(k => [`${P.paid}/${k}`, val ? true : null])));
-  },
   getRefunds() { return once(refundsCache); },
   onRefundsChange(cb) { return refundsCache(cb); },
   setRefundAmount(key, amount) {
@@ -988,7 +981,6 @@ const HI = {
     }
     await set(r, { ...data, savedAt: nowIso() });
   },
-  updateSettleSnapshot(snapKey, patch) { return update(ref(db, `${P.snapshots}/${snapKey}`), patch); },
   deleteSettleSnapshot(snapKey) { return remove(ref(db, `${P.snapshots}/${snapKey}`)); },
 
   // 정산 충전·입금 도장(실제 비즈핏 충전 없음 — 정산관리 '완료' 버튼 + 입금 처리와 같은 기록). 접수관리 승인·삭제 시 자동 처리
