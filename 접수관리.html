@@ -6545,8 +6545,8 @@ window.toggleProdPanel = function(e) {
   }
 
   // ── 🛑 강제종료 (버튼은 index.html 상단, 순위표 오른쪽) ──
-  // 엑셀(영업점/MID/Pcode, 강제종료 열이 있으면 O인 행만 — tools 임시중단_강제종료_양식 그대로 사용 가능)을 올려
-  // higherad-bizfit-stop /process-stream으로 비즈핏 강제종료(임시중단 없음). 성공한 MID는 HI.forceStopMid로
+  // 엑셀(영업점/MID, 강제종료 열이 있으면 O인 행만 — tools 임시중단_강제종료_양식 그대로 사용 가능, Pcode 열은 무시)을 올려
+  // higherad-bizfit-stop /find-campaigns로 영업점·MID가 같은 진행 캠페인을 찾아 /process-stream으로 전부 강제종료(임시중단 없음). 모두 성공한 MID는 HI.forceStopMid로
   // 진행 중 캠페인을 강제종료 상태로 바꾸고 남은 기간 재접수 캠페인 생성. 같은 MID에 예약(split)이 있으면 실행 불가
   const BIZFIT_STOP_SERVER = 'https://higherad-bizfit-stop-938928195180.asia-northeast3.run.app';
   function loadXlsx() {
@@ -6834,7 +6834,7 @@ window.toggleProdPanel = function(e) {
           <div class="modal-title" style="margin-bottom:0;">🛑 강제종료</div>
           <button type="button" id="fs-tpl" class="action-btn" style="background:#f1f5f9;color:var(--text2);">양식 받기</button>
           <label class="action-btn" style="background:#0d9488;color:#fff;cursor:pointer;">📂 엑셀 올리기<input type="file" id="fs-file" accept=".xlsx,.xls" style="display:none"></label>
-          <span style="font-size:11px;color:var(--muted);">영업점 / MID / Pcode</span>
+          <span style="font-size:11px;color:var(--muted);">영업점 / MID</span>
         </div>
         <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6;">
           · 성공한 MID의 진행 중 캠페인은 <b>강제종료</b> → 다음 날 자동 종료<br>
@@ -6843,7 +6843,7 @@ window.toggleProdPanel = function(e) {
         <table style="width:100%;font-size:12px;border-collapse:collapse;">
           <thead><tr style="background:var(--bg);">
             <th style="width:30px;padding:6px;"><input type="checkbox" id="fs-all"></th>
-            <th style="padding:6px;text-align:left;">영업점</th><th style="padding:6px;text-align:left;">MID / Pcode</th>
+            <th style="padding:6px;text-align:left;">영업점</th><th style="padding:6px;text-align:left;">MID</th>
             <th style="padding:6px;">진행 중</th><th style="padding:6px;text-align:left;">상태</th>
           </tr></thead>
           <tbody id="fs-body"></tbody>
@@ -6871,7 +6871,7 @@ window.toggleProdPanel = function(e) {
         <tr style="border-top:1px solid var(--border);${e.status==='blocked'?'opacity:.55;':''}">
           <td style="padding:6px;text-align:center;"><input type="checkbox" data-i="${i}" ${e.checked?'checked':''} ${e.status==='blocked'||running?'disabled':''}></td>
           <td style="padding:6px;font-weight:600;">${escProd(e.agency)}</td>
-          <td style="padding:6px;">${escProd(e.mid)}<div style="font-size:10px;color:var(--muted);">${escProd(e.pcode)}</div></td>
+          <td style="padding:6px;">${escProd(e.mid)}</td>
           <td style="padding:6px;text-align:center;">${fsActiveCount(e.mid)}건</td>
           <td style="padding:6px;">${ST[e.status]}${e.result?`<div style="font-size:10px;color:var(--muted);">${escProd(e.result)}</div>`:''}</td>
         </tr>`).join('') : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted);">엑셀을 올려 주세요.</td></tr>';
@@ -6896,8 +6896,8 @@ window.toggleProdPanel = function(e) {
     $('#fs-tpl').onclick = async () => {
       await loadXlsx();
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet([['영업점','MID','Pcode']]);
-      ws['!cols'] = [{wch:18},{wch:14},{wch:22}];
+      const ws = XLSX.utils.aoa_to_sheet([['영업점','MID']]);
+      ws['!cols'] = [{wch:18},{wch:14}];
       XLSX.utils.book_append_sheet(wb, ws, '강제종료');
       XLSX.writeFile(wb, '강제종료_양식.xlsx');
     };
@@ -6913,21 +6913,18 @@ window.toggleProdPanel = function(e) {
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', range });
         const hdr = (rows[0] || []).map(h => String(h || '').trim());
         const col = re => hdr.findIndex(h => re.test(h));
-        const ci = { agency: col(/영업점/), mid: col(/mid/i), pcode: col(/pcode/i), force: col(/강제종료/) };
-        const missing = [['영업점', ci.agency], ['MID', ci.mid], ['Pcode', ci.pcode]].filter(([, i]) => i < 0).map(([n]) => n);
+        const ci = { agency: col(/영업점/), mid: col(/mid/i), force: col(/강제종료/) };
+        const missing = [['영업점', ci.agency], ['MID', ci.mid]].filter(([, i]) => i < 0).map(([n]) => n);
         if (missing.length) { alert(`양식이 맞지 않습니다 — ${missing.join('/')} 열을 찾을 수 없습니다.`); return; }
         let added = 0, skipped = 0;
         for (const row of rows.slice(1)) {
           const agency = String(row[ci.agency] || '').trim(), mid = String(row[ci.mid] || '').trim();
-          const pcodes = String(row[ci.pcode] || '').split(',').map(x => x.trim()).filter(Boolean);
           if (ci.force >= 0 && String(row[ci.force] || '').trim().toUpperCase() !== 'O') { if (agency || mid) skipped++; continue; }
-          if (!agency || !mid || !pcodes.length) { if (agency || mid) skipped++; continue; }
-          for (const pcode of pcodes) {
-            if (entries.some(x => x.mid === mid && x.pcode === pcode)) { skipped++; continue; }
-            const blocked = fsSplitBlocked(mid);
-            entries.push({ agency, mid, pcode, checked: !blocked, status: blocked ? 'blocked' : 'ready', result: '' });
-            added++;
-          }
+          if (!agency || !mid) { if (agency || mid) skipped++; continue; }
+          if (entries.some(x => x.mid === mid && x.agency === agency)) { skipped++; continue; }
+          const blocked = fsSplitBlocked(mid);
+          entries.push({ agency, mid, checked: !blocked, status: blocked ? 'blocked' : 'ready', result: '' });
+          added++;
         }
         log(`엑셀: ${added}건 추가${skipped ? `, ${skipped}건 건너뜀(빈 칸·중복·강제종료 O 아님)` : ''}`);
         render();
@@ -6939,9 +6936,21 @@ window.toggleProdPanel = function(e) {
     async function fsRunChunk(chunk) {
       const okMids = new Set();
       try {
+        // 영업점·MID가 같은 진행 캠페인을 찾아 전부 종료(같은 MID 진행 캠페인을 모두 멈추는 HI.forceStopMid와 같은 범위)
+        const targets = [];
+        for (const x of chunk) {
+          const fr = await fetch(`${BIZFIT_STOP_SERVER}/find-campaigns`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mid: x.mid, agency: x.agency }) });
+          const fj = await fr.json().catch(() => ({}));
+          if (!fr.ok || !fj.success) { x.status = 'fail'; x.result = fj.message || `서버 응답 오류 (${fr.status})`; continue; }
+          if (!fj.active.length) { x.status = 'fail'; x.result = '비즈핏에 이 영업점·MID의 진행 캠페인이 없습니다'; continue; }
+          x.pending = new Set(fj.active); x.failMsg = '';
+          fj.active.forEach(pcode => targets.push({ mid: x.mid, pcode, agency: x.agency, do_pause: false, do_force: true }));
+        }
+        render();
+        if (!targets.length) return;
         const res = await fetch(`${BIZFIT_STOP_SERVER}/process-stream`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entries: chunk.map(x => ({ mid: x.mid, pcode: x.pcode, agency: x.agency, do_pause: false, do_force: true })) }),
+          body: JSON.stringify({ entries: targets }),
         });
         if (!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
         const reader = res.body.getReader(), dec = new TextDecoder();
@@ -6956,9 +6965,12 @@ window.toggleProdPanel = function(e) {
             let d; try { d = JSON.parse(line.slice(6)); } catch { continue; }
             if (d.entry_result) {
               const r = d.entry_result;
-              const x = chunk.find(e => e.mid === r.mid && e.pcode === (r.pcode || ''));
-              if (x) { x.status = r.success ? 'success' : 'fail'; x.result = r.message || ''; }
-              if (r.success) okMids.add(r.mid);
+              const x = chunk.find(e => e.mid === r.mid && e.pending?.has(r.pcode));
+              if (x) {
+                x.pending.delete(r.pcode);
+                if (!r.success) x.failMsg = r.message || '실패';
+                if (!x.pending.size) { x.status = x.failMsg ? 'fail' : 'success'; x.result = x.failMsg || r.message || ''; if (!x.failMsg) okMids.add(r.mid); }
+              }
               log(`${r.success ? '✅' : '❌'} ${r.mid} — ${r.message || ''}`);
               render();
             }
