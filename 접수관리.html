@@ -2536,12 +2536,13 @@ window.toggleProdPanel = function(e) {
   let rexDropdownOpen = false;
 
   function rexFmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  // 플레이스 주소는 https://m.place.naver.com/업종/MID 형태만 받음(업종은 아무거나) — 그 뒤(/home, ?쿼리 등)는 잘라서 저장
+  const REX_PLACE_URL_REGEX = /^https:\/\/m\.place\.naver\.com\/[a-z]+\/([0-9]+)/i;
   function rexNormalizeUrl(url) {
-    const clean = String(url||'').split('?')[0].trim();
-    const match = clean.match(/(https?:\/\/(?:m\.)?place\.naver\.com\/(?:restaurant|hospital|place|hairshop|nailshop|accommodation)\/\d+)/);
-    return match ? match[1] : clean;
+    const clean = String(url||'').trim();
+    const match = clean.match(REX_PLACE_URL_REGEX);
+    return match ? match[0] : clean.split('?')[0];
   }
-  const REX_PLACE_URL_REGEX = /(?:place\.naver\.com|m\.place\.naver\.com)\/(?:restaurant|hospital|place|hairshop|nailshop|accommodation)\/([0-9]+)/;
   function rexExtractMid(url) {
     const m = rexNormalizeUrl(url).match(REX_PLACE_URL_REGEX);
     return m ? m[1] : '';
