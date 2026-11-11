@@ -4116,13 +4116,6 @@ window.toggleProdPanel = function(e) {
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
             </button>
-            <button id="kwa-fixed-toggle" type="button" title="켜면 A급 키워드는 모든 상품에 고정으로 넣고, B급 키워드만 상품별로 나눔"
-              style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
-              <span id="kwa-fixed-toggle-label" style="font-size:12px;color:${kwAFixedOn?'#2563eb':'var(--text2)'};font-weight:600;">A급 고정</span>
-              <span id="kwa-fixed-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${kwAFixedOn?'#2563eb':'#94a3b8'};flex-shrink:0;">
-                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              </span>
-            </button>
             <button id="schedule-toggle-btn" type="button" onclick="toggleScheduleEditor()"
               style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
               <span id="schedule-toggle-label" style="font-size:12px;color:${scheduleConfig?'#f59e0b':'var(--text2)'};font-weight:600;">⏰ 분할 예약</span>
@@ -4151,6 +4144,11 @@ window.toggleProdPanel = function(e) {
             <span class="ha-switch"><input type="checkbox" id="sch-kwsplit-on" ${scheduleKwSplitDraft.on?'checked':''} onchange="onScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           <div id="sch-kwsplit-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${scheduleKwSplitDraft.on?'block':'none'};">※ 각 캠페인의 검색키워드를 [일수×시간대 수]만큼 자동으로 나눠 배정</div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
+            <span>📌 A급 고정</span>
+            <span class="ha-switch"><input type="checkbox" id="kwa-fixed-on" ${kwAFixedOn?'checked':''}><span class="ha-switch-track"></span></span>
+          </label>
+          <div id="kwa-fixed-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${kwAFixedOn?'block':'none'};">※ A급 키워드는 모든 상품에 고정, B급 키워드만 상품별로 나눠 배정(바로 적용)</div>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
@@ -4735,12 +4733,11 @@ window.toggleProdPanel = function(e) {
 
 
     // A급 고정 토글 — 검색키워드 배분이 바뀌므로 접수 데이터를 다시 계산해 미리보기도 갱신
-    const kwaBtn = overlay.querySelector('#kwa-fixed-toggle');
-    if (kwaBtn) kwaBtn.onclick = () => {
-      if (window.bizfitSubmitting) return;
-      kwAFixedOn = !kwAFixedOn;
-      overlay.querySelector('#kwa-fixed-toggle-icon').style.background = kwAFixedOn ? '#2563eb' : '#94a3b8';
-      overlay.querySelector('#kwa-fixed-toggle-label').style.color = kwAFixedOn ? '#2563eb' : 'var(--text2)';
+    const kwaBox = overlay.querySelector('#kwa-fixed-on');
+    if (kwaBox) kwaBox.onchange = () => {
+      if (window.bizfitSubmitting) { kwaBox.checked = kwAFixedOn; return; }
+      kwAFixedOn = kwaBox.checked;
+      overlay.querySelector('#kwa-fixed-note').style.display = kwAFixedOn ? 'block' : 'none';
       const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
       data = computeSubmitData(target);
       scheduleValidationRows = flattenScheduleRows(data);
