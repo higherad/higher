@@ -768,8 +768,6 @@ const HI = {
   onProdGroupsChange(cb) { return prodGroupsCache(cb); },
   saveProds(prods) { return set(ref(db, `${P.products}/prods`), prods); },
   saveProdGroups(groups) { return set(ref(db, `${P.products}/groups`), groups && groups.length ? groups : null); },
-  // ver만 단일 필드로 — 배열 전체 PUT은 다른 세션의 설정 변경을 덮음
-  setProdVer(index, ver) { return set(ref(db, `${P.products}/prods/${index}/ver`), ver); },
 
   // ════════════════════════════════════════════════════════
   // 등급·순위·파이프라인·광고분류
