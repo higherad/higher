@@ -2173,7 +2173,8 @@ window.toggleProdPanel = function(e) {
   // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(approveReadySlots)에서 애드로그 자동등록을 스킵.
   // 행 단위 단건 승인 버튼(approveOne)은 이 토글과 무관하게 항상 자동등록.
   let adlogAutoOn = true;
-  let kwAFixedOn = false; // 접수 확인 팝업 'A급 고정' — 켜면 A급 키워드는 모든 상품에 그대로, B급만 상품별로 나눔
+  // 분할 예약 'A급 고정'(키워드 분할 켰을 때만) — 적용하면 A급 키워드는 모든 상품·시간대 조각에 그대로, B급만 나눔. Draft = 적용 전 스위치
+  let kwAFixedOn = false, kwAFixedDraft = false;
 
 
   // ── 시간대 분할 예약 접수 (캐시차감은 예약 시점에 클라이언트가) ──
@@ -2213,6 +2214,13 @@ window.toggleProdPanel = function(e) {
 
   // 일목표를 schedule 비율로 쪼갠 뒤 일수(_days)만큼 하루 1건씩 반복 생성(비즈핏 자체 반복에 안 맡김).
   // daysMultiplied 상품(찰리/델타)은 "일수" 칸이 총목표라 그날 portionTotal 그대로 넣음(곱하지 않음).
+  // 행의 검색키워드 중 그 캠페인 A급 키워드(A·B 안 나뉜 캠페인은 전부 A급)
+  function rowKwA(row) {
+    const s = allSlots.find(x => x._key === row._slotKey);
+    const a = s ? kwSplit(detailKwAB(s).a) : [];
+    return kwSplit(row.검색키워드).filter(k => a.includes(k));
+  }
+
   function splitRowBySchedule(row, schedule) {
     const portions = lrm(schedule.map((s, i) => ({ id: i, ratio: s.pct })), row.일목표 || 0);
     const minPortion = row._daysMultiplied ? 100 : 10; // 비즈핏 최소 수량 — NP위치저장은 전체목표 100, 그 외는 10
@@ -2220,9 +2228,13 @@ window.toggleProdPanel = function(e) {
     // 키워드 분할 켜져 있으면 검색키워드를 (일수×시간대 수)만큼 그룹 개수를 역산해 잘라 매일·매
     // 시간대 조합마다 하나씩 배정. 키워드가 필요 그룹 수보다 적으면 처음부터 순환 재사용.
     const neededGroups = schedule.length * days;
-    const kwGroups = scheduleKwSplit
-      ? chunkKeywords(row.검색키워드, Math.max(1, Math.ceil((row.검색키워드||'').split(',').filter(k=>k.trim()).length / neededGroups) || 1))
-      : null;
+    // A급 고정이면 A급은 조각마다 앞에 그대로 붙이고 B급만 나눔
+    const aFixed = scheduleKwSplit && kwAFixedOn ? rowKwA(row) : [];
+    const splitKw = aFixed.length ? kwSplit(row.검색키워드).filter(k => !aFixed.includes(k)).join(',') : row.검색키워드;
+    const kwGroups = !scheduleKwSplit ? null : (() => {
+      const g = chunkKeywords(splitKw, Math.max(1, Math.ceil(kwSplit(splitKw).length / neededGroups) || 1));
+      return aFixed.length ? (g.length ? g : [[]]).map(c => [...aFixed, ...c]) : g;
+    })();
     const out = [];
     // 예약일이 오늘이면 그날은 지난 시간대를 못 쓰니 나누지 않고 일목표 전체를 지금 바로 보냄(디스패처가 5분 안에 등록)
     const today = scheduleDateForOffset(null, 0);
@@ -3702,7 +3714,7 @@ window.toggleProdPanel = function(e) {
   // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 애드로그는 켬으로 초기화
   async function openSubmitModal(target) {
     adlogAutoOn = true;
-    kwAFixedOn = false;
+    kwAFixedOn = false; kwAFixedDraft = false;
     scheduleConfig = null;
     // 가이드_접수면 시간 분할 편집기 기본값 = 가이드 시간 분배
     scheduleDraftRows = guideModeOn && guideTimes.length ? guideTimes.map(t => ({ ...t })) : [{ time: '10:00', pct: 100 }];
@@ -4144,11 +4156,13 @@ window.toggleProdPanel = function(e) {
             <span class="ha-switch"><input type="checkbox" id="sch-kwsplit-on" ${scheduleKwSplitDraft.on?'checked':''} onchange="onScheduleKwSplitToggle(this.checked)"><span class="ha-switch-track"></span></span>
           </label>
           <div id="sch-kwsplit-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${scheduleKwSplitDraft.on?'block':'none'};">※ 각 캠페인의 검색키워드를 [일수×시간대 수]만큼 자동으로 나눠 배정</div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
-            <span>📌 A급 고정</span>
-            <span class="ha-switch"><input type="checkbox" id="kwa-fixed-on" ${kwAFixedOn?'checked':''}><span class="ha-switch-track"></span></span>
-          </label>
-          <div id="kwa-fixed-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${kwAFixedOn?'block':'none'};">※ A급 키워드는 모든 상품에 고정, B급 키워드만 상품별로 나눠 배정(바로 적용)</div>
+          <div id="kwa-fixed-wrap" style="display:${scheduleKwSplitDraft.on?'block':'none'};">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;margin-top:8px;">
+              <span>📌 A급 고정</span>
+              <span class="ha-switch"><input type="checkbox" id="kwa-fixed-on" ${kwAFixedDraft?'checked':''} onchange="onKwAFixedToggle(this.checked)"><span class="ha-switch-track"></span></span>
+            </label>
+            <div id="kwa-fixed-note" style="font-size:11px;color:var(--text2);margin-top:4px;display:${kwAFixedDraft?'block':'none'};">※ A급 키워드는 모든 상품·시간대에 고정, B급 키워드만 나눠 배정</div>
+          </div>
         </div>
         <div id="deduct-fail-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
@@ -4732,12 +4746,8 @@ window.toggleProdPanel = function(e) {
     };
 
 
-    // A급 고정 토글 — 검색키워드 배분이 바뀌므로 접수 데이터를 다시 계산해 미리보기도 갱신
-    const kwaBox = overlay.querySelector('#kwa-fixed-on');
-    if (kwaBox) kwaBox.onchange = () => {
-      if (window.bizfitSubmitting) { kwaBox.checked = kwAFixedOn; return; }
-      kwAFixedOn = kwaBox.checked;
-      overlay.querySelector('#kwa-fixed-note').style.display = kwAFixedOn ? 'block' : 'none';
+    // 분할 예약 적용·끄기로 A급 고정이 바뀌면 상품별 검색키워드가 달라지므로 접수 데이터 재계산(미리보기 갱신)
+    submitRecompute = () => {
       const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
       data = computeSubmitData(target);
       scheduleValidationRows = flattenScheduleRows(data);
@@ -4944,7 +4954,20 @@ window.toggleProdPanel = function(e) {
     scheduleKwSplitDraft.on = checked;
     const note = document.getElementById('sch-kwsplit-note');
     if (note) note.style.display = checked ? 'block' : 'none';
+    const wrap = document.getElementById('kwa-fixed-wrap');
+    if (wrap) wrap.style.display = checked ? 'block' : 'none';
   };
+  window.onKwAFixedToggle = function(checked) {
+    kwAFixedDraft = checked;
+    const note = document.getElementById('kwa-fixed-note');
+    if (note) note.style.display = checked ? 'block' : 'none';
+  };
+  let submitRecompute = null; // renderSubmitModal이 채움
+  function setKwAFixed(on) {
+    if (kwAFixedOn === on) return;
+    kwAFixedOn = on;
+    submitRecompute?.();
+  }
 
   window.applyScheduleConfig = function() {
     const sum = scheduleDraftRows.reduce((a,r) => a + (Number(r.pct)||0), 0);
@@ -4965,6 +4988,7 @@ window.toggleProdPanel = function(e) {
     }
     scheduleConfig = scheduleDraftRows.map(r => ({ time: r.time, pct: Number(r.pct)||0 }));
     scheduleKwSplit = scheduleKwSplitDraft.on;
+    setKwAFixed(scheduleKwSplit && kwAFixedDraft);
     const icon = document.getElementById('schedule-toggle-icon');
     if (icon) icon.style.background = '#f59e0b';
     const label = document.getElementById('schedule-toggle-label');
@@ -4972,12 +4996,14 @@ window.toggleProdPanel = function(e) {
     alert(['⏰ 분할 예약 설정 완료', '',
       `· 매일 ${scheduleConfig.map(r => `${r.time}(${r.pct}%)`).join(' / ')}`,
       '· 접수 신청 → 예약 저장',
-      ...(scheduleKwSplit ? ['· 키워드도 시간대별로 나눔'] : [])].join('\n'));
+      ...(scheduleKwSplit ? ['· 키워드도 시간대별로 나눔'] : []),
+      ...(kwAFixedOn ? ['· A급 키워드는 모든 상품·시간대에 고정'] : [])].join('\n'));
   };
 
   window.clearScheduleConfig = function() {
     scheduleConfig = null;
     scheduleKwSplit = false;
+    setKwAFixed(false);
     const icon = document.getElementById('schedule-toggle-icon');
     if (icon) icon.style.background = '#94a3b8';
     const label = document.getElementById('schedule-toggle-label');
