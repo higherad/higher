@@ -295,7 +295,7 @@
         });
 
         thead.querySelectorAll('th.dc').forEach(th => th.remove());
-        (startView ? ['기준일', '기준순위', '비교', shortDate(refDate)] : ['전날대비', ...shown.map(shortDate)]).forEach(label => {
+        (startView ? ['비교', '기준일', '기준순위', shortDate(refDate)] : ['전날대비', ...shown.map(shortDate)]).forEach(label => {
           const th = document.createElement('th');
           th.className = 'dc';
           th.textContent = label;
@@ -321,9 +321,9 @@
             <td class="st st-2" style="font-size:11px;color:var(--muted)">${s.mid}</td>
             <td class="st st-3">${s.rankKeyword}</td>
             ${startView ? `
+              <td class="dc">${base ? rankDiff(latest ?? '-', base.rank) : rankDiff()}</td>
               <td class="dc">${base ? shortDate(base.date) : '-'}</td>
               <td class="dc">${rb(base?.rank)}</td>
-              <td class="dc">${base ? rankDiff(latest ?? '-', base.rank) : rankDiff()}</td>
               <td class="dc">${rb(latest, base?.rank)}</td>
             ` : `
               <td class="dc">${rankDiff(rd[dates[0]]?.rank, rd[dates[1]]?.rank)}</td>
