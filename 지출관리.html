@@ -88,7 +88,9 @@
   let slots = [], costs = { reward: [], yupfl: {} }, snaps = {}, prods = [], paidSet = new Set(), settleSnaps = {}, users = [], refunds = {}, page = 1, rows = [], allRows = [], vendors = [], guideVendors = [];
   const esc = HI.esc;
   const won = n => `${Math.round(n).toLocaleString()}원`;
-  const ymdOf = HI.ymd, minuteKey = HI.minuteKey;
+  const pad = n => String(n).padStart(2, '0');
+  const ymdOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const minuteKey = iso => { if (!iso) return 'unknown'; const d = new Date(iso); return `${ymdOf(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const todayStr = ymdOf(new Date()), curYM = todayStr.slice(0, 7);
   const yupSum = r => Object.values(r.yupfl || {}).reduce((a, v) => a + v, 0);
 
