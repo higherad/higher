@@ -295,7 +295,7 @@
         });
 
         thead.querySelectorAll('th.dc').forEach(th => th.remove());
-        (startView ? ['기준일', '기준순위', shortDate(refDate), '비교'] : [...shown.map(shortDate), '전날대비']).forEach(label => {
+        (startView ? ['기준일', '기준순위', '비교', shortDate(refDate)] : ['전날대비', ...shown.map(shortDate)]).forEach(label => {
           const th = document.createElement('th');
           th.className = 'dc';
           th.textContent = label;
@@ -323,15 +323,15 @@
             ${startView ? `
               <td class="dc">${base ? shortDate(base.date) : '-'}</td>
               <td class="dc">${rb(base?.rank)}</td>
-              <td class="dc">${rb(latest, base?.rank)}</td>
               <td class="dc">${base ? rankDiff(latest ?? '-', base.rank) : rankDiff()}</td>
+              <td class="dc">${rb(latest, base?.rank)}</td>
             ` : `
+              <td class="dc">${rankDiff(rd[dates[0]]?.rank, rd[dates[1]]?.rank)}</td>
               ${shown.map((d, di) => {
                 const prevDate = dates[di + 1];
                 const prevRank = prevDate ? rd[prevDate]?.rank : null;
                 return `<td class="dc">${rb(rd[d]?.rank, prevRank)}</td>`;
               }).join('')}
-              <td class="dc">${rankDiff(rd[dates[0]]?.rank, rd[dates[1]]?.rank)}</td>
             `}
           `;
           tbody.appendChild(tr);
