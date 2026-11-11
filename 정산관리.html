@@ -194,12 +194,11 @@
   }
   let filteredRows=[];
   const selectedSnapKeys=new Set();
-  const todayStr=(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const todayStr=HI.ymd(new Date());
   // 오늘(로컬 날짜) 접수된 정산 대상 슬롯 — 오늘분은 스냅샷 대신 실시간 계산
   const isTodayBillable = s => {
     if(!isBillableSlot(s)) return false;
-    const d=new Date(s.createdAt||'');
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` === todayStr;
+    return HI.ymd(new Date(s.createdAt||'')) === todayStr;
   };
   // 정산 대상 — 재접수·휴지통 제외, split(시간대 분할 예약)은 비즈핏 캐시 차감이 예약 시점에 이미 실행돼 포함.
   // 사이드바 배지·텔레그램 봇과 같은 기준이어야 해서 hi-store 한 곳에 둠
@@ -230,24 +229,12 @@
   const groupMissing = slots => [...new Set(slots.flatMap(s => HI.slotBill(s, userOf(s)).missing))];
 
   // 분 단위 키
-  function getMinuteKey(isoStr){
-    if(!isoStr) return 'unknown';
-    const d=new Date(isoStr);
-    const yyyy=d.getFullYear();
-    const mo=String(d.getMonth()+1).padStart(2,'0');
-    const dd=String(d.getDate()).padStart(2,'0');
-    const hh=String(d.getHours()).padStart(2,'0');
-    const mn=String(d.getMinutes()).padStart(2,'0');
-    return `${yyyy}-${mo}-${dd} ${hh}:${mn}`;
-  }
+  function getMinuteKey(isoStr){ return HI.minuteKey(isoStr); }
 
   function fmtDatetime(isoStr){
     if(!isoStr) return '-';
     const d=new Date(isoStr);
-    const yyyy=d.getFullYear();
-    const mo=String(d.getMonth()+1).padStart(2,'0');
-    const dd=String(d.getDate()).padStart(2,'0');
-    const date=`${yyyy}-${mo}-${dd}`;
+    const date=HI.ymd(d);
     const hh=String(d.getHours()).padStart(2,'0');
     const mm=String(d.getMinutes()).padStart(2,'0');
     const ss=String(d.getSeconds()).padStart(2,'0');
@@ -287,11 +274,7 @@
       if(paid==='paid'&&!paidSet.has(s._key))return false;
       if(paid==='unpaid'&&paidSet.has(s._key))return false;
       if(from||to){
-        const d=new Date(s.createdAt||'');
-        const yyyy=d.getFullYear();
-        const mo=String(d.getMonth()+1).padStart(2,'0');
-        const dd=String(d.getDate()).padStart(2,'0');
-        const sDate=`${yyyy}-${mo}-${dd}`;
+        const sDate=HI.ymd(new Date(s.createdAt||''));
         if(from&&sDate<from)return false;
         if(to&&sDate>to)return false;
       }

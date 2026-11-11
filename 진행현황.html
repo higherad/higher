@@ -134,7 +134,7 @@
   // 시작일이 오늘 이후인 active 캠페인 = 예약중 (실제 status 값은 그대로 active 유지)
   function todayYMD() {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return HI.ymd(d);
   }
   function isReserved(s, todayStr) { return s.status === 'active' && s.startDate > todayStr; }
   // 진행중 계열 — 승인(active) + 예약 등록 중(split, 매일 등록이 나가는 중). D-Day·종료 예정 요약·종료임박 필터 공통
@@ -385,7 +385,7 @@
     const label = btn?.querySelector('span') || btn;
     const original = label ? label.textContent : '';
     if (btn) { btn.disabled = true; label.textContent = '다운로드 중...'; }
-    const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const ymd = d => HI.ymd(d);
     try {
       const all = await HI.getAll();
       const midEntries = all.filter(s => s.mid).map(s => ({
@@ -467,7 +467,7 @@
   function _fmtDateOnly(iso) {
     if (!iso) return '-';
     const d = new Date(iso);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return HI.ymd(d);
   }
 
   window.openTrashView = async function() {

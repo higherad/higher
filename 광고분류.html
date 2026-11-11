@@ -785,11 +785,7 @@
   function dlCSV(csv,prefix){
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mo = String(now.getMonth()+1).padStart(2,'0');
-    const dd = String(now.getDate()).padStart(2,'0');
-    const dateStr = `${yyyy}-${mo}-${dd}`;
+    const dateStr = HI.ymd(new Date());
     a.download=prefix+dateStr+'.csv'; a.click();
   }
 
@@ -886,11 +882,7 @@
       // 다운로드
       const a=document.createElement('a');
       a.href=out.toDataURL('image/png');
-      const now = new Date();
-      const yyyy = now.getFullYear();
-      const mo = String(now.getMonth()+1).padStart(2,'0');
-      const dd = String(now.getDate()).padStart(2,'0');
-      const dateStr = `${yyyy}-${mo}-${dd}`;
+      const dateStr = HI.ymd(new Date());
       a.download='광고분류_'+dateStr+'.png';
       a.click();
 

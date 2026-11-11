@@ -516,7 +516,7 @@ window.toggleProdPanel = function(e) {
       ? html.replace('<span ', '<span title="강제종료 후 남은 기간 재접수 — 정산 제외" ').replace(/>([^<]+)<\/span>$/, '>재접수 | $1</span>') : html;
   };
 
-  const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const ymd = d => HI.ymd(d);
   const sanitizeFbKey = s => s.replace(/[.#$[\]/]/g, '_');
 
   // ── 비즈핏 직접 접수 ─────────────────────────────────────────
@@ -2198,7 +2198,7 @@ window.toggleProdPanel = function(e) {
   function scheduleDateForOffset(baseDateStr, dayOffset = 0) {
     const d = scheduleParseBaseDate(baseDateStr);
     d.setDate(d.getDate() + dayOffset);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return HI.ymd(d);
   }
 
   // 일목표를 schedule 비율로 쪼갠 뒤 일수(_days)만큼 하루 1건씩 반복 생성(비즈핏 자체 반복에 안 맡김).
@@ -2547,7 +2547,7 @@ window.toggleProdPanel = function(e) {
   let rexRows     = [];
   let rexDropdownOpen = false;
 
-  function rexFmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  function rexFmt(d) { return HI.ymd(d); }
   // 플레이스 주소는 https://m.place.naver.com/업종/MID 형태만 받음(업종은 아무거나) — 그 뒤(/home, ?쿼리 등)는 잘라서 저장
   const REX_PLACE_URL_REGEX = /^https:\/\/m\.place\.naver\.com\/[a-z]+\/([0-9]+)/i;
   function rexNormalizeUrl(url) {

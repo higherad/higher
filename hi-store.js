@@ -403,6 +403,9 @@ const HI = {
   },
   authReady,
   ROOT,
+  // 로컬(브라우저 KST) 날짜 'YYYY-MM-DD' / 정산 묶음 분 키 'YYYY-MM-DD HH:mm'(빈 값이면 'unknown')
+  ymd,
+  minuteKey,
 
   // ── 로그인 ────────────────────────────────────────────────
   getCurrentUser() {
