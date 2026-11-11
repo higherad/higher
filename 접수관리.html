@@ -2173,6 +2173,7 @@ window.toggleProdPanel = function(e) {
   // 접수 확인 팝업 토글(기본 on) — 끄면 이 팝업발 승인(approveReadySlots)에서 애드로그 자동등록을 스킵.
   // 행 단위 단건 승인 버튼(approveOne)은 이 토글과 무관하게 항상 자동등록.
   let adlogAutoOn = true;
+  let kwAFixedOn = false; // 접수 확인 팝업 'A급 고정' — 켜면 A급 키워드는 모든 상품에 그대로, B급만 상품별로 나눔
 
 
   // ── 시간대 분할 예약 접수 (캐시차감은 예약 시점에 클라이언트가) ──
@@ -2316,6 +2317,16 @@ window.toggleProdPanel = function(e) {
   }
 
   // kwForProd와 동일한 largest-remainder 방식이지만, 전역 활성상품 kwPct 대신 매칭된 등급끼리 ratio대로(가이드 비율) 나눈다.
+  // 슬롯·상품별 검색키워드 — A급 고정이 켜져 있으면 A급은 모든 상품에 넣고 B급만 배분 규칙대로 나눔
+  function kwForSlot(r, prod, gradeProds) {
+    const split = kw => gradeProds ? kwForGradeProd(kw, prod, gradeProds) : kwForProd(kw, prod);
+    if (!kwAFixedOn) return split(r.searchKeyword || '');
+    const { a, b } = detailKwAB(r);
+    const aList = kwSplit(a);
+    const bOnly = kwSplit(b).filter(k => !aList.includes(k)).join(',');
+    return [...new Set([...aList, ...kwSplit(split(bOnly))])].join(',');
+  }
+
   function kwForGradeProd(keywords, prod, gradeProds) {
     if (!keywords) return '';
     const parts = keywords.split(',').map(k => k.trim()).filter(k => k);
@@ -3460,7 +3471,7 @@ window.toggleProdPanel = function(e) {
         const pp = alloc[prod.id] ?? 0;
         if (pp <= 0) return;
         const daysVal = prod.daysMultiplied ? pp*(r.days||0) : (r.days||0);
-        const kw = gradeProds ? kwForGradeProd(r.searchKeyword||'', prod, gradeProds) : kwForProd(r.searchKeyword||'', prod);
+        const kw = kwForSlot(r, prod, gradeProds);
         rows.push({
           _slotKey:   r._key,
           _doneKey:   prod.name,
@@ -3507,7 +3518,7 @@ window.toggleProdPanel = function(e) {
       if (pp <= 0) return;
       const urls = (r.deltaBlogUrl||'').split(',').map(u=>u.trim()).filter(Boolean);
       // 델타는 검색키워드를 별도로 나누지 않고 순위키워드와 동일한 값을 그대로 쓴다(사용자 지정 규칙) — 네이비는 일반 검색키워드 그대로 사용.
-      const kw = prodId === 'delta' ? (r.rankKeyword||'') : (gradeProds ? kwForGradeProd(r.searchKeyword||'', prod, gradeProds) : kwForProd(r.searchKeyword||'', prod));
+      const kw = prodId === 'delta' ? (r.rankKeyword||'') : kwForSlot(r, prod, gradeProds);
       splitEven(pp, n).forEach((partTarget, i) => {
         if (partTarget <= 0) return;
         const doneKey = `${prod.name}#${i+1}`;
@@ -3691,6 +3702,7 @@ window.toggleProdPanel = function(e) {
   // 진짜 신규 오픈("접수" 버튼)만 이 진입점을 타서 애드로그는 켬으로 초기화
   async function openSubmitModal(target) {
     adlogAutoOn = true;
+    kwAFixedOn = false;
     scheduleConfig = null;
     // 가이드_접수면 시간 분할 편집기 기본값 = 가이드 시간 분배
     scheduleDraftRows = guideModeOn && guideTimes.length ? guideTimes.map(t => ({ ...t })) : [{ time: '10:00', pct: 100 }];
@@ -4101,6 +4113,13 @@ window.toggleProdPanel = function(e) {
               style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
               <span id="adlog-auto-toggle-label" style="font-size:12px;color:${adlogAutoOn?'#16a34a':'var(--text2)'};font-weight:600;">애드로그</span>
               <span id="adlog-auto-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${adlogAutoOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </span>
+            </button>
+            <button id="kwa-fixed-toggle" type="button" title="켜면 A급 키워드는 모든 상품에 고정으로 넣고, B급 키워드만 상품별로 나눔"
+              style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
+              <span id="kwa-fixed-toggle-label" style="font-size:12px;color:${kwAFixedOn?'#2563eb':'var(--text2)'};font-weight:600;">A급 고정</span>
+              <span id="kwa-fixed-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${kwAFixedOn?'#2563eb':'#94a3b8'};flex-shrink:0;">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
             </button>
@@ -4714,6 +4733,20 @@ window.toggleProdPanel = function(e) {
       if (adlogLabel) adlogLabel.style.color = adlogAutoOn ? '#16a34a' : 'var(--text2)';
     };
 
+
+    // A급 고정 토글 — 검색키워드 배분이 바뀌므로 접수 데이터를 다시 계산해 미리보기도 갱신
+    const kwaBtn = overlay.querySelector('#kwa-fixed-toggle');
+    if (kwaBtn) kwaBtn.onclick = () => {
+      if (window.bizfitSubmitting) return;
+      kwAFixedOn = !kwAFixedOn;
+      overlay.querySelector('#kwa-fixed-toggle-icon').style.background = kwAFixedOn ? '#2563eb' : '#94a3b8';
+      overlay.querySelector('#kwa-fixed-toggle-label').style.color = kwAFixedOn ? '#2563eb' : 'var(--text2)';
+      const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+      data = computeSubmitData(target);
+      scheduleValidationRows = flattenScheduleRows(data);
+      applyTabState(keepTab);
+      fillBody();
+    };
 
     // 블로그URL 미입력 슬롯만 골라 applyDeltaBlogUrls와 동일한 프록시로 자동조회해 채움(기존 값은 안 건드림).
     const bsubBulkBtn = overlay.querySelector('#bsub-bulk-blogurl-btn');
