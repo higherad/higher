@@ -105,7 +105,7 @@
 <!-- 전체 탭 -->
 <div id="rk-all">
   <div class="agency-filter" id="rk-period-filter"></div>
-  <div class="agency-filter" id="rk-agency-filter" style="display:none"></div>
+  <div class="agency-filter" id="rk-agency-filter"></div>
   <div class="tbl-wrap">
     <table id="rk-tbl">
       <thead>
@@ -242,28 +242,19 @@
         renderTable();
       };
 
-      /* 기간 필터(어제·5일은 전날대비 열 표시) + 업체별 토글 */
+      /* 기간 필터(어제·5일은 전날대비 열 표시) */
       const PERIODS = { '전체': Infinity, '어제': 2, '5일': 5 };
-      let period = '전체', byAgency = false;
+      let period = '전체';
       const periodWrap = document.getElementById('rk-period-filter');
 
       function renderPeriodFilter() {
         periodWrap.innerHTML = Object.keys(PERIODS).map(p =>
           `<button class="af-btn ${period === p ? 'active' : ''}" onclick="rkPeriod('${p}')">${p}</button>`
-        ).join('') + `<button class="af-btn ${byAgency ? 'active' : ''}" onclick="rkByAgency()">업체별</button>`;
-        filterWrap.style.display = byAgency ? '' : 'none';
+        ).join('');
       }
 
       window.rkPeriod = function(p) {
         period = p;
-        renderPeriodFilter();
-        renderTable();
-      };
-
-      window.rkByAgency = function() {
-        byAgency = !byAgency;
-        if (!byAgency) currentAgency = '';
-        renderFilter();
         renderPeriodFilter();
         renderTable();
       };
