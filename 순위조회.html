@@ -172,7 +172,7 @@
     return `<span class="rb${trendCls}">${r}위</span>`;
   }
 
-  /* 전날대비 — 순위권 밖('-')은 순위표와 같이 300위로 계산, 어느 한쪽 기록이 없으면 비교 안 함 */
+  /* 순위 차이 — 순위권 밖('-')은 순위표와 같이 300위로 계산, 어느 한쪽 기록이 없으면 비교 안 함 */
   function rankDiff(rank, prevRank) {
     const num = v => (v == null || v === '') ? null : (Number(v) > 0 ? Number(v) : 300);
     const r = num(rank), p = num(prevRank);
@@ -206,7 +206,10 @@
         return;
       }
 
-      const rankDataArr = await Promise.all(active.map(s => HI.getRanks(s.mid).catch(() => ({}))));
+      const [rankDataArr, rankBase] = await Promise.all([
+        Promise.all(active.map(s => HI.getRanks(s.mid).catch(() => ({})))),
+        HI.getRankBase().catch(() => ({})),
+      ]);
       if (!document.getElementById('rank-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
 
       /* 전체 날짜 수집 → 최신순 */
@@ -242,9 +245,14 @@
         renderTable();
       };
 
-      /* 기간 필터(어제·5일은 전날대비 열 표시) */
-      const PERIODS = { '전체': Infinity, '어제': 2, '5일': 5 };
-      let period = '전체';
+      /* 기간 필터 — 어제·7일은 최근 날짜와 전날대비, 시작일은 순위표와 같은 기준순위와 비교 */
+      const PERIODS = { '어제': 2, '7일': 7, '시작일': 0 };
+      let period = '어제';
+      // 애드로그 순위 갱신이 14시 전후라 그 전엔 어제를 최신 순위로 봄(순위표와 동일)
+      const refDay = new Date();
+      if (refDay.getHours() < 14) refDay.setDate(refDay.getDate() - 1);
+      const refDate = refDay.toLocaleDateString('sv-SE');
+      const shortDate = d => d.slice(5).replace('-', '/');
       const periodWrap = document.getElementById('rk-period-filter');
 
       function renderPeriodFilter() {
@@ -260,11 +268,11 @@
       };
 
       function renderTable() {
+        const startView = period === '시작일';
         const shown = dates.slice(0, PERIODS[period]);
-        const compare = period !== '전체';
 
         thead.querySelectorAll('th.dc').forEach(th => th.remove());
-        [...shown.map(d => d.slice(5).replace('-', '/')), ...(compare ? ['전날대비'] : [])].forEach(label => {
+        (startView ? ['기준일', '기준순위', shortDate(refDate), '비교'] : [...shown.map(shortDate), '전날대비']).forEach(label => {
           const th = document.createElement('th');
           th.className = 'dc';
           th.textContent = label;
@@ -275,18 +283,27 @@
         active.forEach((s, i) => {
           if (currentAgency && (s.agencyId || '-') !== currentAgency) return;
           const rd = rankDataArr[i];
+          const base = rankBase[String(s.mid).trim()];
+          const latest = rd[refDate]?.rank;
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td class="st st-0">${s.agencyId || '-'}</td>
             <td class="st st-1" style="font-weight:600">${s.storeName || '-'}</td>
             <td class="st st-2" style="font-size:11px;color:var(--muted)">${s.mid}</td>
             <td class="st st-3">${s.rankKeyword}</td>
-            ${shown.map((d, di) => {
-              const prevDate = dates[di + 1];
-              const prevRank = prevDate ? rd[prevDate]?.rank : null;
-              return `<td class="dc">${rb(rd[d]?.rank, prevRank)}</td>`;
-            }).join('')}
-            ${compare ? `<td class="dc">${rankDiff(rd[dates[0]]?.rank, rd[dates[1]]?.rank)}</td>` : ''}
+            ${startView ? `
+              <td class="dc">${base ? shortDate(base.date) : '-'}</td>
+              <td class="dc">${rb(base?.rank)}</td>
+              <td class="dc">${rb(latest, base?.rank)}</td>
+              <td class="dc">${base ? rankDiff(latest ?? '-', base.rank) : rankDiff()}</td>
+            ` : `
+              ${shown.map((d, di) => {
+                const prevDate = dates[di + 1];
+                const prevRank = prevDate ? rd[prevDate]?.rank : null;
+                return `<td class="dc">${rb(rd[d]?.rank, prevRank)}</td>`;
+              }).join('')}
+              <td class="dc">${rankDiff(rd[dates[0]]?.rank, rd[dates[1]]?.rank)}</td>
+            `}
           `;
           tbody.appendChild(tr);
         });

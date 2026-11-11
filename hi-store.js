@@ -83,6 +83,7 @@ const P = {
   ranks:          `${ROOT}/ranks`,
   adClassify:     `${ROOT}/ad_classify`,
   kwCategories:   `${ROOT}/kw_categories`,  // 순위키워드 분류 [{name, keywords:[...]}] — 접수 시 캠페인 category로 저장
+  rankBase:       `${ROOT}/rank_base`,       // MID별 시작일 기준순위 {date, rank} — google-pipeline이 14시에 통째로 저장
   pipeline:       `${ROOT}/pipeline`,
   claims:         `${ROOT}/claims`,
   chargeClaims:   `${ROOT}/charge_claims`,
@@ -790,6 +791,7 @@ const HI = {
   // ════════════════════════════════════════════════════════
   getLiveKeywordsOnce() { return once(liveKeywordsCache); },
   async getRanks(mid) { return (await get(ref(db, `${P.ranks}/${safeKey(mid)}`))).val() || {}; },
+  async getRankBase() { return (await get(ref(db, P.rankBase))).val() || {}; },
   // 구글시트 '접수 가이드' 전 탭 원본 값 {sheets:[{title, values}]}(higherad-auto /guide-sheet, 직원만)
   getGuideSheet() { return callServer('/guide-sheet'); },
   // 플레이스 키워드 구글시트에 A급·B급 검색키워드 기입 — 같은 MID는 그 행 갱신(higherad-auto /place-keywords, 직원만)
