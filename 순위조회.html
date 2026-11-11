@@ -173,11 +173,15 @@
   }
 
   /* 순위 차이 — 순위권 밖('-')은 순위표와 같이 300위로 계산, 어느 한쪽 기록이 없으면 비교 안 함 */
-  function rankDiff(rank, prevRank) {
+  function rankDelta(rank, prevRank) {
     const num = v => (v == null || v === '') ? null : (Number(v) > 0 ? Number(v) : 300);
     const r = num(rank), p = num(prevRank);
-    if (r === null || p === null || r === p) return '<span class="rb nd">-</span>';
-    return r < p ? `<span class="rb up">↑${p - r}</span>` : `<span class="rb down">↓${r - p}</span>`;
+    return r === null || p === null ? null : p - r;
+  }
+  function rankDiff(rank, prevRank) {
+    const d = rankDelta(rank, prevRank);
+    if (!d) return '<span class="rb nd">-</span>';
+    return d > 0 ? `<span class="rb up">↑${d}</span>` : `<span class="rb down">↓${-d}</span>`;
   }
 
   /* 전체 탭 로드 */
@@ -248,6 +252,7 @@
       /* 기간 필터 — 어제·7일은 최근 날짜와 전날대비, 시작일은 순위표와 같은 기준순위와 비교 */
       const PERIODS = { '어제': 2, '7일': 7, '시작일': 0 };
       let period = '어제';
+      let sortDir = 0; // 비교 열 정렬: 0 기본, 1 큰 값(상승)부터, -1 작은 값(하락)부터
       // 애드로그 순위 갱신이 14시 전후라 그 전엔 어제를 최신 순위로 봄(순위표와 동일)
       const refDay = new Date();
       if (refDay.getHours() < 14) refDay.setDate(refDay.getDate() - 1);
@@ -267,21 +272,45 @@
         renderTable();
       };
 
+      window.rkSortDiff = function() {
+        sortDir = sortDir === 0 ? 1 : sortDir === 1 ? -1 : 0;
+        renderTable();
+      };
+
       function renderTable() {
         const startView = period === '시작일';
         const shown = dates.slice(0, PERIODS[period]);
+        const deltaOf = i => {
+          const rd = rankDataArr[i];
+          if (!startView) return rankDelta(rd[dates[0]]?.rank, rd[dates[1]]?.rank);
+          const base = rankBase[String(active[i].mid).trim()];
+          return base ? rankDelta(rd[refDate]?.rank ?? '-', base.rank) : null;
+        };
+        const order = active.map((_, i) => i).filter(i => !currentAgency || (active[i].agencyId || '-') === currentAgency);
+        // 비교할 수 없는 행은 정렬 방향과 상관없이 맨 아래
+        if (sortDir) order.sort((a, b) => {
+          const x = deltaOf(a), y = deltaOf(b);
+          if (x === null || y === null) return (x === null) - (y === null);
+          return sortDir * (y - x);
+        });
 
         thead.querySelectorAll('th.dc').forEach(th => th.remove());
         (startView ? ['기준일', '기준순위', shortDate(refDate), '비교'] : [...shown.map(shortDate), '전날대비']).forEach(label => {
           const th = document.createElement('th');
           th.className = 'dc';
           th.textContent = label;
+          if (label === '비교' || label === '전날대비') {
+            th.textContent += sortDir === 1 ? ' ▼' : sortDir === -1 ? ' ▲' : ' ↕';
+            th.style.cursor = 'pointer';
+            th.title = '클릭해서 정렬';
+            th.onclick = rkSortDiff;
+          }
           thead.appendChild(th);
         });
 
         tbody.innerHTML = '';
-        active.forEach((s, i) => {
-          if (currentAgency && (s.agencyId || '-') !== currentAgency) return;
+        order.forEach(i => {
+          const s = active[i];
           const rd = rankDataArr[i];
           const base = rankBase[String(s.mid).trim()];
           const latest = rd[refDate]?.rank;
