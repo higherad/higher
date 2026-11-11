@@ -509,17 +509,6 @@ const HI = {
     need.forEach((c, i) => Object.assign(c, got[i]));
     return campaigns;
   },
-  // 같은 MID의 키워드 이력(현재값 + 변경 이력, 날짜 내림차순) — 접수 시 "이전 키워드" 제안용
-  async getKeywordHistoryByMid(mid, field = 'search') {
-    const camps = await HI.getByMid(mid);
-    const kws = await Promise.all(camps.map(c => HI.getKeywords(c._key)));
-    const out = [];
-    camps.forEach((c, i) => {
-      if (kws[i][field]) out.push({ keyword: kws[i][field], date: c.createdAt || null, key: c._key });
-      (kws[i].history?.[field] || []).forEach(h => out.push({ keyword: h.keyword, date: h.date, key: c._key, source: h.source }));
-    });
-    return out.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  },
 
   // ════════════════════════════════════════════════════════
   // 캠페인 — 쓰기
