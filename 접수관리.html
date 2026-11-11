@@ -4102,6 +4102,14 @@ window.toggleProdPanel = function(e) {
   async function renderSubmitModal(target) {
     let data = computeSubmitData(target);
     scheduleValidationRows = flattenScheduleRows(data);
+    // 탭은 그대로 두고 접수 데이터만 다시 계산해 본문을 다시 그림(초기화·분할 예약·블로그URL 조회 뒤)
+    const recompute = () => {
+      const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
+      data = computeSubmitData(target);
+      scheduleValidationRows = flattenScheduleRows(data);
+      applyTabState(keepTab);
+      fillBody();
+    };
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -4337,11 +4345,7 @@ window.toggleProdPanel = function(e) {
 
         // 팝업은 닫지 않고 데이터만 재계산해 이 탭 상태만 갱신
         renderReceipts(false);
-        const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
-        data = computeSubmitData(target);
-        scheduleValidationRows = flattenScheduleRows(data);
-        applyTabState(keepTab);
-        fillBody();
+        recompute();
         const stillFailed = failedSlots.length - logOnlySlots.length;
         alert(`초기화 완료: ${resetSlots.length}건` + (logOnlySlots.length ? ` (로그만 ${logOnlySlots.length}건)` : '')
           + (stillFailed > 0 ? `\n실패: ${stillFailed}건` : ''));
@@ -4397,11 +4401,7 @@ window.toggleProdPanel = function(e) {
           }));
 
           renderReceipts(false);
-          const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
-          data = computeSubmitData(target);
-          scheduleValidationRows = flattenScheduleRows(data);
-          applyTabState(keepTab);
-          fillBody();
+          recompute();
           alert(`풀스택 초기화 완료: ${resetSlots.length}건` + (errors.length ? `\n취소 실패(기록 남김):\n${errors.join('\n')}` : ''));
         } finally {
           window.bizfitSubmitting = false;
@@ -4442,11 +4442,7 @@ window.toggleProdPanel = function(e) {
             updateLocalSlot(s._key, patch);
           }));
           renderReceipts(false);
-          const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
-          data = computeSubmitData(target);
-          scheduleValidationRows = flattenScheduleRows(data);
-          applyTabState(keepTab);
-          fillBody();
+          recompute();
           alert(`${tab.vendor} 초기화 완료: ${resetSlots.length}건` + (errors.length ? `\n실패(기록 남김):\n${errors.join('\n')}` : ''));
         } finally {
           window.bizfitSubmitting = false;
@@ -4736,13 +4732,7 @@ window.toggleProdPanel = function(e) {
 
 
     // 분할 예약 적용·끄기로 A급 고정이 바뀌면 상품별 검색키워드가 달라지므로 접수 데이터 재계산(미리보기 갱신)
-    submitRecompute = () => {
-      const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
-      data = computeSubmitData(target);
-      scheduleValidationRows = flattenScheduleRows(data);
-      applyTabState(keepTab);
-      fillBody();
-    };
+    submitRecompute = recompute;
 
     // 블로그URL 미입력 슬롯만 골라 applyDeltaBlogUrls와 동일한 프록시로 자동조회해 채움(기존 값은 안 건드림).
     const bsubBulkBtn = overlay.querySelector('#bsub-bulk-blogurl-btn');
@@ -4772,11 +4762,7 @@ window.toggleProdPanel = function(e) {
         } catch (e) { fail++; }
       }
       bsubBulkBtn.disabled = false; bsubBulkBtn.textContent = '🔗 블로그URL 일괄조회';
-      const keepTab = SUBMIT_TAB_KEYS.find(k => overlay.querySelector(`#stab-panel-${k}`)?.style.display === 'block');
-      data = computeSubmitData(target);
-      scheduleValidationRows = flattenScheduleRows(data);
-      applyTabState(keepTab);
-      fillBody();
+      recompute();
     };
 
     applyTabState(data.defaultTab);
