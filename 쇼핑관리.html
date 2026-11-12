@@ -142,7 +142,7 @@
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-fs-user"></select>
       <input id="sh-fs-q" style="flex:1;min-width:200px" placeholder="키워드, MID 검색">
-      <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 슬롯</option><option value="refund">환불 요청</option><option value="stop">중단</option><option value="end">종료</option></select>
+      <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 슬롯</option><option value="refund">환불 요청</option><option value="stop">환불</option><option value="end">종료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
         <button class="act act-edit" style="padding:7px 12px" onclick="shopExcel()">엑셀 다운로드</button>
@@ -261,7 +261,7 @@
   const running = is => SLOTS.some(x => x.userId === is.userId && x.issueNo === is.no && x.runAt);
   const canRevoke = is => !is.revokedAt && is.start >= today() && !running(is);
   // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
-  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 슬롯', 'w'], refund: ['환불 요청', 'r'], stop: ['중단', 'r'], end: ['종료', 'n'] };
+  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 슬롯', 'w'], refund: ['환불 요청', 'r'], stop: ['환불', 'r'], end: ['종료', 'n'] };
   const slotState = sl => sl.stoppedAt ? 'stop' : sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.refundAt ? 'refund' : sl.runAt ? 'run' : 'wait';
   const closedState = st => st === 'end' || st === 'stop';
 
