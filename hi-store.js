@@ -538,6 +538,7 @@ const HI = {
       memo: data.memo || '',
       ...(data.yupflRatio ? { yupflRatio: data.yupflRatio } : {}),  // 엑셀 비고 리워드:유입플 비율(접수관리 parseRatioNote)
       ...(data.fullstackFix ? { fullstackFix: data.fullstackFix } : {}),  // 엑셀 '상품' 열 고정 풀스택 상품(접수관리 parseFixNote)
+      ...(data.fullstackTune ? { fullstackTune: data.fullstackTune } : {}),  // 엑셀 세부조정 열(풀스택[개별] 행) — 없으면 가이드 행 세부조정
       ...(category ? { category } : {}),  // 순위키워드 분류 — 대기부터 표시(이후 설정이 바뀌어도 유지)
       days: Number(data.days) || 0, dailyTarget: Number(data.dailyTarget) || 0,
       unitPrice,

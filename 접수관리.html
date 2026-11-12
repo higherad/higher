@@ -2174,9 +2174,10 @@ window.toggleProdPanel = function(e) {
     const cat = r.category || HI.kwCategoryOf(r.rankKeyword, guideCats);
     return fixRule(r, cat ? pickGuideRule(guideRules, cat, r.dailyTarget || 0) : null);
   }
-  // 엑셀 '상품' 열로 접수 때 고정한 풀스택 상품(fullstackFix [{name, ratio}]) — 있으면 가이드 행 상품 대신 이 상품(전부 풀스택, 세부조정만 가이드 행)
+  // 엑셀 '상품' 열로 접수 때 고정한 풀스택 상품(fullstackFix [{name, ratio}]) — 있으면 가이드 행 상품 대신 이 상품(전부 풀스택)
+  // 세부조정 = 엑셀 세부조정 열(fullstackTune, 한 칸이라도 적은 행만), 없으면 가이드 행
   const fixRule = (s, rule) => s?.fullstackFix
-    ? { ...(rule || {}), reward: [], vendors: { 풀스택: asList(s.fullstackFix) }, full: asList(s.fullstackFix), tune: rule?.tune || {} } : rule;
+    ? { ...(rule || {}), reward: [], vendors: { 풀스택: asList(s.fullstackFix) }, full: asList(s.fullstackFix), tune: s.fullstackTune || rule?.tune || {} } : rule;
   // 비고 '풀스택[개별]' 행의 상품N·분할N 열 쌍 [[상품, 일 수량], …] → 고정 풀스택 상품. 분할 합 = 일 목표, 저장은 비율(수량 ÷ 일 목표)
   // — 차감이 켜져 있으면 차감 뒤 남은 수량을 이 비율로 나눔. 풀스택 사이트엔 정수 %로 반올림해 넘어감(fullstackVariants)
   const FS_FIX_NOTE = '풀스택[개별]';
@@ -2990,6 +2991,8 @@ window.toggleProdPanel = function(e) {
         // 선택 — 비고 '풀스택[개별]' 행만 쓰는 상품N·분할N 열(어드민 양식), 순서대로 짝
         const colsOf = re => hdr.map((h, i) => re.test(h) ? i : -1).filter(i => i >= 0);
         const fixProdCols = colsOf(/^상품\d*$/), fixPctCols = colsOf(/^분할\d*$/);
+        // 선택 — 풀스택[개별] 행의 세부조정 열(어드민 양식, 헤더 '세부조정(언제 오나)' 등 = 가이드 풀스택 탭과 같은 이름·값)
+        const tuneCols = Object.entries(FS_TUNE_COLS).map(([k, w]) => [k, hdr.findIndex(h => h.startsWith('세부조정') && h.includes(w))]).filter(([, c]) => c >= 0);
         const missing = [];
         if (storeCol  < 0) missing.push('업체명/상호명');
         if (urlCol    < 0) missing.push('URL');
@@ -3026,8 +3029,12 @@ window.toggleProdPanel = function(e) {
           const fix          = note === FS_FIX_NOTE ? parseFixNote(fixProdCols.map((c, i) => [r[c], r[fixPctCols[i]]]), dailyTarget) : null;
           const yupflRatio   = fix ? { reward: 0, yupfl: 100, vendor: '풀스택' } : parseRatioNote(note, vendors);
           const fullstackFix = fix?.list || null;
+          const tuneCells = fix ? tuneCols.map(([k, c]) => [k, r[c]]).filter(([, v]) => String(v ?? '').trim() !== '') : [];
+          const fullstackTune = tuneCells.length ? Object.fromEntries(tuneCells) : null;
           const errors = [];
           if (fix?.err) errors.push(fix.err);
+          const tuneErr = fullstackTune && fsTuneOf(fullstackTune).err;
+          if (tuneErr) errors.push(tuneErr.replace('가이드 ', ''));
           const urlMid = url ? rexExtractMid(url) : null;
           if (!storeName)       errors.push('업체명 누락');
           if (!url)             errors.push('URL 누락'); else if (!urlMid) errors.push('유효하지 않은 플레이스 주소');
@@ -3042,7 +3049,7 @@ window.toggleProdPanel = function(e) {
           if (unitErr) errors.push(unitErr);
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
-          return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, fullstackFix, valid: errors.length===0, error: errors.join(' / ') };
+          return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, fullstackFix, fullstackTune, valid: errors.length===0, error: errors.join(' / ') };
         });
         rexRows.noNoteCol = noteCol < 0;  // 헤더에 '비고' 열 자체가 없음 → 접수 때 확인
         HI.markSameRows(rexRows);
@@ -3074,7 +3081,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.days ?? '-'}</td>
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
-        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.note === FS_FIX_NOTE) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * r.dailyTarget)}`).join(' / '))}</div>` : ''}</td>
+        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.note === FS_FIX_NOTE) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * r.dailyTarget)}`).join(' / '))}</div>` : ''}${r.fullstackTune ? `<div style="font-size:10px;color:#64748b">세부조정: ${escProd(Object.values(r.fullstackTune).join(' / '))}</div>` : ''}</td>
         <td>${r.valid ? `<span class="rex-row-status rex-row-ok">정상</span>${r.sameCount ? ` <span class="rex-row-status" style="background:#fef3c7;color:#b45309;" title="MID·순위키워드·시작일·일수·일 목표·비고가 모두 같은 행 — 붙여넣기 실수가 아닌지 확인">⚠ 같은 행 ${r.sameCount}개</span>` : ''}` : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';
@@ -3111,6 +3118,7 @@ window.toggleProdPanel = function(e) {
       startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget, memo: '',
       ...(row.yupflRatio ? { yupflRatio: row.yupflRatio } : {}),
       ...(row.fullstackFix ? { fullstackFix: row.fullstackFix } : {}),
+      ...(row.fullstackTune ? { fullstackTune: row.fullstackTune } : {}),
       createdAt: new Date(excelBaseTs + i).toISOString(),
     })));
 
@@ -3133,13 +3141,23 @@ window.toggleProdPanel = function(e) {
     XLSX.writeFile(wb, '엑셀접수_양식.xlsx');
   }
 
-  // 어드민 양식(풀스택[개별]) — 기본 양식 + 상품·분할 4쌍, 2~101행 선택창(비고·상품)·정수 검사(분할). 비고 '풀스택[개별]' 행만 상품·분할을 씀
+  // 어드민 양식(풀스택[개별]) — 기본 양식 + 상품·분할 4쌍 + 세부조정 5열, 2~101행 선택창(비고·상품·세부조정)·정수 검사(분할).
+  // 비고 '풀스택[개별]' 행만 상품·분할·세부조정을 씀. 세부조정을 다 비우면 가이드 풀스택 탭 행 세부조정
+  // 세부조정 헤더·값 = 가이드 풀스택 탭 G~K열·드롭다운과 같음(FS_TUNE_COLS·FS_TUNE_OPTS가 읽음) — 가이드 드롭다운을 바꾸면 같이 고칠 것
   const FS_FORM_PAIRS = 4, FS_FORM_ROWS = 101;
+  const FS_HOURS = Array.from({ length: 24 }, (_, h) => `${h}시`);
+  const FS_FORM_TUNE = [['세부조정(언제 오나)', ['방식대로', '사람들이 검색하는 시간대로', '낮 영업시간에 몰아서', '하루 종일 고르게', '시간대 직접 고르기'], 22],
+    ['세부조정(시작 시각)', FS_HOURS, 10], ['세부조정(끝 시각)', FS_HOURS, 10],
+    ['세부조정(얼마나 머무나)', ['방식대로', '잠깐 (3초쯤)', '보통 (5초쯤)', '오래 (9초쯤)'], 16],
+    ['세부조정(건수를 어디에 쓰나)', ['방식대로', '키워드마다 고르게', '롱테일 키워드로 넓게', '필터 검색어로'], 20]];
   function downloadFullstackTemplate() {
     const head = ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고'];
     for (let i = 1; i <= FS_FORM_PAIRS; i++) head.push(`상품${i}`, `분할${i}`);
+    const tune0 = head.length;
+    head.push(...FS_FORM_TUNE.map(([h]) => h));
     const ws = XLSX.utils.aoa_to_sheet([head]);
-    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}])];
+    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}]),
+      ...FS_FORM_TUNE.map(([, , w]) => ({ wch: w }))];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '접수');
     const col = i => XLSX.utils.encode_col(i), rng = i => `${col(i)}2:${col(i)}${FS_FORM_ROWS}`;
@@ -3150,7 +3168,8 @@ window.toggleProdPanel = function(e) {
     const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;
     const whole = sqref => `<dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" error="1 이상 정수(일 수량)" sqref="${sqref}"><formula1>0</formula1></dataValidation>`;
     const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, '부산', '제이엔', '프리미엄', ...ratios], false),
-      ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(8 + i * 2), names, true), whole(rng(9 + i * 2))])];
+      ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(8 + i * 2), names, true), whole(rng(9 + i * 2))]),
+      ...FS_FORM_TUNE.map(([, list], i) => dv(rng(tune0 + i), list, true))];
     // SheetJS(무료판)는 데이터 유효성을 못 써서 만든 xlsx(zip)의 시트 XML에 직접 넣음
     const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' })), { type: 'buffer' });
     const f = zip.FileIndex[zip.FullPaths.findIndex(p => p.endsWith('xl/worksheets/sheet1.xml'))];
