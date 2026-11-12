@@ -4053,7 +4053,7 @@ window.toggleProdPanel = function(e) {
       // 오류 행(풀스택만 받는 캠페인 — 섞인 캠페인 오류면 버튼이 이미 막힘)은 보내지 않고 실패로
       const errRows = rows.filter(r => !r._fsSubmitted && r.err);
       errRows.forEach(r => { r._statusTd.innerHTML = `<span style="color:var(--danger);cursor:help" title="${escProd(r.err)}">❌ 실패</span>`; });
-      let okTotal = 0, failTotal = blocked + errRows.length;
+      let okTotal = 0, failTotal = blocked + errRows.length, regTotal = 0;
       const doneKeys = new Set(rows.filter(r => r._fsSubmitted).map(r => r._slotKey));
       for (const r of claimed) { // 한 줄씩 — 서버가 줄마다 보내기 직전에 사이트를 다시 확인
         let x;
@@ -4068,6 +4068,10 @@ window.toggleProdPanel = function(e) {
           r._slot.fullstackOrder = rec; updateLocalSlot(r._slotKey, { fullstackOrder: rec, fullstackShown: null });
           r._fsSubmitted = true; doneKeys.add(r._slotKey); okTotal++;
           r._statusTd.innerHTML = '<span style="color:var(--accent);">✅ 완료</span>';
+        } else if (x.result === '등록중') {
+          // 새 플레이스 첫 접수(풀스택[개별]) — 플레이스 등록은 됐고 사이트가 키워드 찾는 중. 1~3분 뒤 다시 접수 신청(실패 아님)
+          regTotal++;
+          r._statusTd.innerHTML = `<span style="color:#b45309;cursor:help" title="${escProd(x.memo || '')}">⏳ 등록중</span>`;
         } else {
           failTotal++;
           // '확인 필요' = 응답 지연으로 사이트 반영을 못 봄(들어갔을 수 있음) — 다시 누르면 들어간 건은 건너뛰고 완료 기록
@@ -4082,7 +4086,7 @@ window.toggleProdPanel = function(e) {
         const failed = await finishReadySlots([...doneKeys].filter(k => allSlots.find(s => s._key === k)?.status !== 'active'), new Map(allSlots.map(s => [s._key, s])));
         if (failed.length) { overlay._deductFailures.push(...failed); overlay._renderDeductFailures(); }
       }
-      finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okTotal, failTotal);
+      finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okTotal, failTotal, regTotal);
       if (onDone) onDone();
     };
     return { anyFail };
@@ -6686,10 +6690,11 @@ window.toggleProdPanel = function(e) {
     otherBtns.forEach(b => { b.disabled = false; });
   }
 
-  function finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okTotal, failTotal) {
+  // regTotal = 풀스택 새 플레이스 '등록중'(실패 아님, 잠시 뒤 다시 접수)
+  function finishSubmitUI(overlay, applyBtn, closeBtn, otherBtns, gate, okTotal, failTotal, regTotal = 0) {
     finishTabUI(overlay, applyBtn, closeBtn, otherBtns, {
-      text: failTotal ? `완료 — 성공 ${okTotal} / 실패 ${failTotal}` : `✅ 전체 완료 (${okTotal}건)`,
-      color: failTotal ? '#b91c1c' : '#475569',
+      text: failTotal || regTotal ? `완료 — 성공 ${okTotal}${failTotal ? ` / 실패 ${failTotal}` : ''}${regTotal ? ` / 등록중 ${regTotal}` : ''}` : `✅ 전체 완료 (${okTotal}건)`,
+      color: failTotal ? '#b91c1c' : regTotal ? '#b45309' : '#475569',
       onClose: () => { overlay.remove(); if (!gate) renderReceipts(false); },
     });
   }
