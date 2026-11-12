@@ -3083,7 +3083,7 @@ window.toggleProdPanel = function(e) {
     // 비고는 다른 업체명도 쓸 수 있게 경고만, 상품은 목록 밖이면 막음
     const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;
     const whole = sqref => `<dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" error="1 이상 정수(일 수량)" sqref="${sqref}"><formula1>0</formula1></dataValidation>`;
-    const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, ...ratios], false),
+    const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, '부산', '제이엔', '프리미엄', ...ratios], false),
       ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(8 + i * 2), names, true), whole(rng(9 + i * 2))])];
     // SheetJS(무료판)는 데이터 유효성을 못 써서 만든 xlsx(zip)의 시트 XML에 직접 넣음
     const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' })), { type: 'buffer' });

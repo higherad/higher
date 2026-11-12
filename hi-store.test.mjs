@@ -240,4 +240,13 @@ assert.equal(tree.hi.cost_snapshots.g1.total, 100, '고정 금액 유지');
   assert.equal(o.length, 6, '행 수 그대로');
 }
 assert.equal(HI.esc('<a href="x">&</a>'), '&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;');
+// 일 목표 분할 표시 — 전부 유입플이면 상품별 수량(풀스택[개별]은 고정 비율, 그 밖은 캠페인 타입 상품 이름), 섞이면 일반·유입플
+{
+  const base = { createdAt: '2026-11-12T00:00:00.000Z', dailyTarget: 100, days: 7 };
+  const txt = s => HI.dailySplitHtml({ ...base, ...s }).replace(/<[^>]+>/g, '');
+  assert.equal(txt({ yupflTarget: 100, yupflByVendor: { 풀스택: 100 }, fullstackFix: [{ name: '기본(로그인O)', ratio: 0.55 }, { name: '카톡(길찾기)', ratio: 0.45 }] }), '기본 55 · 카톡(길찾기) 45');
+  assert.equal(txt({ yupflTarget: 100, yupflByVendor: { 부산: 100 }, vendorProducts: { 부산: ['부산'] } }), '부산 100');
+  assert.equal(txt({ yupflTarget: 90, yupflByVendor: { 제이엔: 90 }, vendorProducts: { 제이엔: ['저장'] }, deductTarget: 70 }), '저장 90 · 차감 10');
+  assert.equal(txt({ yupflTarget: 50, yupflByVendor: { 풀스택: 50 } }), '일반 50 · 유입플 50');
+}
 console.log('hi-store 자가검사 통과');

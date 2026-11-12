@@ -600,7 +600,25 @@ const HI = {
     const normal = Math.max(0, s.dailyTarget - yup - ded);
     const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
     const vendTxt = vend.length > 1 ? `(${vend.map(([k, n]) => `${k} ${n.toLocaleString()}`).join('·')})` : '';
-    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">일반 ${normal.toLocaleString()} · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}${vendTxt}</span>${ded ? ` · 차감 ${ded.toLocaleString()}` : ''}</div>`;
+    const dedTxt = ded ? ` · 차감 ${ded.toLocaleString()}` : '';
+    // 일반 없이 전부 유입플(비고 업체명·풀스택[개별])이면 일반 대신 들어간 상품별 수량 — 풀스택[개별]은 고정 비율(fullstackFix)로 나누고,
+    // 그 밖은 캠페인 타입의 업체 상품(vendorProducts) 이름에 업체 수량(상품이 여럿이면 이름을 묶어서)
+    if (!normal && yup > 0) {
+      const list = v => Array.isArray(v) ? v : v ? Object.values(v) : [];
+      const parts = (vend.length ? vend : [['', yup]]).flatMap(([v, n]) => {
+        if (v === '풀스택' && s.fullstackFix) {
+          const fix = list(s.fullstackFix), q = fix.map(p => Math.floor(n * p.ratio));
+          for (let i = 0, left = n - q.reduce((a, b) => a + b, 0); left > 0; i = (i + 1) % q.length, left--) q[i]++;
+          const byName = {};
+          fix.forEach((p, i) => { const k = String(p.name).replace(/\(로그인O\)$/, ''); byName[k] = (byName[k] || 0) + q[i]; });
+          return Object.entries(byName).filter(([, c]) => c > 0);
+        }
+        const names = list(s.vendorProducts?.[v]);
+        return [[names.length ? names.join('·') : v || '유입플', n]];
+      });
+      return `<div style="font-size:11px;color:#d97706;font-weight:600;white-space:nowrap;">${parts.map(([k, n]) => `${k} ${n.toLocaleString()}`).join(' · ')}<span style="color:var(--muted);font-weight:400;">${dedTxt}</span></div>`;
+    }
+    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">일반 ${normal.toLocaleString()} · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}${vendTxt}</span>${dedTxt}</div>`;
   },
   // 자동 종료 대상 — 종료일 지난 승인 건, 강제종료일 다음 날부터의 강제종료 건(higherad-auto _expire_live와 같은 규칙)
   shouldExpire(s, today) {
