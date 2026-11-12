@@ -543,10 +543,8 @@
     } catch {}
   }
   const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
-  // 노트 한 줄 = 첫 줄 제목 + 나머지 줄(
-)은 하위 글머리
-  const noteLi = m => { const [head, ...sub] = m.split('
-'); return `<li>${esc(head)}${sub.length ? `<ul style="margin:2px 0 4px;padding-left:16px;color:var(--text2,#6b7280);font-size:.95em">${sub.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</li>`; };
+  // 노트 한 줄 = 첫 줄 제목 + 나머지 줄(\n)은 하위 글머리
+  const noteLi = m => { const [head, ...sub] = m.split('\n'); return `<li>${esc(head)}${sub.length ? `<ul style="margin:2px 0 4px;padding-left:16px;color:var(--text2,#6b7280);font-size:.95em">${sub.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</li>`; };
   function showReloadNotice() {
     if (document.getElementById('reload-notice')) return;
     const el = document.createElement('div');
