@@ -157,8 +157,8 @@
   <section class="pane" id="sh-t-users">
     <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="광고주, 아이디 검색">
       <button class="btn-go" style="margin-left:auto;padding:7px 16px" onclick="openShopUser()">+ 광고주 추가</button></div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:140px"><col style="width:100px"><col style="width:150px"><col style="width:160px"><col style="width:100px"><col style="width:100px"><col style="width:80px"><col style="width:120px"><col style="width:110px"><col><col style="width:70px"><col style="width:80px"></colgroup>
-      <thead><tr><th>가입일</th><th>최종 접수일</th><th>구분</th><th>대행사</th><th>단가(원)</th><th>아이디</th><th>캠페인 수</th><th>누적 정산(VAT 별도)</th><th>미입금(VAT 별도)</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:140px"><col style="width:100px"><col style="width:150px"><col style="width:160px"><col style="width:100px"><col style="width:100px"><col style="width:80px"><col><col style="width:70px"><col style="width:80px"></colgroup>
+      <thead><tr><th>가입일</th><th>최종 접수일</th><th>구분</th><th>대행사</th><th>단가(원)</th><th>아이디</th><th>캠페인 수</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
       <tbody id="sh-user-rows"></tbody>
     </table></div>
   </section>
@@ -835,17 +835,46 @@
     });
     $('sh-user-rows').innerHTML = list.map(({ u, subs, open, child }) => {
       // 하이어 청구 대상 건: 직속·총판 본인 발급(dist 없음) + 총판이면 하부점 발급분(dist = 이 총판). 하부점은 총판이 정산
-      const iss = ISSUES.filter(x => (x.userId === u.id && !x.dist) || x.dist === u.id), last = iss.reduce((a, x) => x.at > a ? x.at : a, '');
+      const last = shopIssuesOf(u).reduce((a, x) => x.at > a ? x.at : a, '');
       const own = SLOTS.filter(x => x.userId === u.id && !closedState(slotState(x))).length;
-      const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
       return `<tr${child ? ' class="child"' : subs ? ` class="grp" data-g="u|${esc(u.id)}"` : ''}><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td>
         <td>${gradePill(u)}</td>
-        <td><b>${esc(u.company)}</b>${subs ? `<br><span class="tg">${open ? '▾' : '▸'} 하부점 ${subs}</span>` : ''}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td><td>${esc(u.id)}</td>
-        <td>${own}</td>${u.parent ? '<td title="총판이 정산">-</td><td title="총판이 정산">-</td>' : `<td style="font-weight:700;color:var(--accent)">${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td style="${unpaid ? 'font-weight:700;color:var(--danger)' : ''}">${won(unpaid)}</td>`}
+        <td><b class="price-link" style="color:inherit" onclick="shopUserPopup('${esc(u.id)}')" title="정산 요약">${esc(u.company)}</b>${subs ? `<br><span class="tg">${open ? '▾' : '▸'} 하부점 ${subs}</span>` : ''}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td><td>${esc(u.id)}</td>
+        <td>${own}</td>
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
         <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button></td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '광고주가 없습니다. 오른쪽 위 \'광고주 추가\'로 계정을 만드세요.' : '불러오는 중…'}</td></tr>`;
   }
+  // 하이어 청구 대상 건 — 일반·총판 본인 발급(dist 없음) + 총판이면 하부점 발급분(dist = 이 총판), 하부점은 자기 건(총판 단가 기준)
+  const shopIssuesOf = u => ISSUES.filter(x => u.parent ? x.userId === u.id : (x.userId === u.id && !x.dist) || x.dist === u.id);
+  // 대행사 클릭 팝업 — 회원관리 대행사 팝업과 같은 구성(진행중 캠페인·전체 목표·누적 정산·누적 입금액 + 월별 정산 현황)
+  window.shopUserPopup = id => {
+    const u = USERS.find(x => x.id === id); if (!u) return;
+    const ids = new Set([u.id, ...(u.role === 'dist' ? USERS.filter(x => x.parent === u.id).map(x => x.id) : [])]);
+    const active = SLOTS.filter(x => ids.has(x.userId) && slotState(x) === 'run');
+    const totalTarget = active.reduce((a, x) => a + termDays(x) * dailyOf(x), 0);
+    const live = shopIssuesOf(u).filter(x => !x.revokedAt), total = live.reduce((a, x) => a + billOf(x), 0), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
+    const byMonth = {};
+    live.forEach(x => { const m = x.at.slice(0, 7), v = byMonth[m] = byMonth[m] || { count: 0, target: 0, amt: 0 }; v.count += x.qty; v.target += x.qty * termDays(x) * dailyOf(x); v.amt += billOf(x); });
+    const card = (c, l, v, unit, col) => `<div class="sp-card ${c}"><div class="sp-card-label">${l}</div><div class="sp-card-value" style="color:${col}">${v.toLocaleString()}<small style="font-size:12px;font-weight:400;color:var(--muted)"> ${unit}</small></div></div>`;
+    const ov = document.createElement('div');
+    ov.className = 'sp-overlay';
+    ov.innerHTML = `<div class="total-popup-box" style="width:860px;max-width:calc(100vw - 32px)">
+      <div class="sp-title">${esc(u.company)}${u.role === 'dist' ? ' (총판)' : u.parent ? ` (${esc(userOf(u.parent).company)} 하부점)` : ''}</div>
+      <div class="sp-sub">아이디: ${esc(u.id)} · 단가: ${won(u.price)}원/개${u.parent ? ' · 금액은 총판 청구 기준' : ''}</div>
+      <div class="sp-cards" style="grid-template-columns:repeat(5,1fr)">
+        ${card('c-green', '진행중 캠페인', active.length, '건', 'var(--accent)')}${card('c-green', '전체 목표', totalTarget, '개', 'var(--accent)')}
+        ${card('c-blue', '누적 정산 금액(VAT 별도)', total, '원', 'var(--info)')}${card('c-blue', '누적 입금액(VAT 포함)', Math.round(total * VAT), '원', 'var(--info)')}
+        ${card('', '미입금(VAT 별도)', unpaid, '원', unpaid ? 'var(--danger)' : 'var(--text)')}
+      </div>
+      <div class="sp-section">월별 정산 현황</div>
+      <table class="sp-tbl"><thead><tr><th>월</th><th>캠페인 수</th><th>월별 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th></tr></thead>
+        <tbody>${Object.keys(byMonth).sort().reverse().map(m => `<tr><td style="font-weight:600">${m}</td><td>${byMonth[m].count}</td><td>${byMonth[m].target.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${won(byMonth[m].amt)}원</td><td style="font-weight:700;color:var(--info)">${won(Math.round(byMonth[m].amt * VAT))}원</td></tr>`).join('')
+          || '<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
+      <div class="sp-footer"><button class="btn-close-sp">닫기</button></div></div>`;
+    ov.addEventListener('click', e => { if (e.target === ov || e.target.classList.contains('btn-close-sp')) ov.remove(); });
+    $('shop-page').appendChild(ov);
+  };
   window.openShopUser = id => {
     if (!$('shop-page')) return;
     editId = id || null;
