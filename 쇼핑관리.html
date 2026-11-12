@@ -133,8 +133,8 @@
         <button class="act act-del" style="padding:7px 12px" title="진행 전 = 바로 삭제(전액) / 진행중·환불 요청 = 비즈핏 강제종료 후 남은 일수 금액 차감" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px;display:inline-flex;align-items:center;gap:6px" onclick="shopOrderOpen()"><i data-lucide="clipboard-plus" style="width:15px;height:15px"></i>접수</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:76px"><col style="width:150px"><col style="width:160px"><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>구분</th><th>광고주</th><th>순위 키워드</th><th>상품 MID</th><th>상품 URL</th><th>세팅일시</th><th>시작일</th><th>종료일</th><th>상태</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:72px"><col style="width:100px"><col style="width:130px"><col style="width:150px"><col style="width:150px"><col style="width:120px"><col><col style="width:56px"><col style="width:80px"><col style="width:80px"><col style="width:76px"><col style="width:90px"></colgroup>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>구분</th><th>대행사</th><th>순위 키워드</th><th>MID</th><th>URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -459,11 +459,11 @@
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
       const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund' || st === 'empty';
       return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
-        <td><b>${x.no}</b><br><span style="font-size:10px;color:var(--text2)" title="발급번호(취소 단위)">#${x.issueNo}</span></td><td>${gradePill(userOf(x.userId))}</td><td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
+        <td><b>#${x.no}</b></td><td>${md(x.setAt)}</td><td>${gradePill(userOf(x.userId))}</td><td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
-        <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
+        <td>${termDays(x)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td><td>${dailyOf(x).toLocaleString()}</td>
         <td><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="11">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="13">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   /* ── 정산 ── */
