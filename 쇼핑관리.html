@@ -47,6 +47,7 @@
   .pg-btn.active { background:var(--info);color:#fff;border-color:var(--info); }
   #shop-page .stat-bar { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; }
   #shop-page .sb { background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px; text-align:center; position:relative; overflow:hidden; }
+  #shop-page #sh-slot-stats .sb { cursor:pointer; } #shop-page #sh-slot-stats .sb:hover { background:#f8fafc; } #shop-page #sh-slot-stats .sb.on { border-color:var(--text); box-shadow:0 0 0 1px var(--text) inset; }
   #shop-page .sb::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--border); }
   #shop-page .sb.g::after { background:var(--accent); } #shop-page .sb.w::after { background:var(--warn); } #shop-page .sb.r::after { background:var(--danger); } #shop-page .sb.b::after { background:var(--info); }
   #shop-page .sb-l { font-size:11px; color:var(--text2); font-weight:600; } #shop-page .sb-v { font-size:22px; font-weight:800; margin-top:6px; }
@@ -69,7 +70,7 @@
   #shop-page .empty-row td { height:140px; color:var(--muted); }
   #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .st-g { color:#059669; font-weight:600; } #shop-page .st-n { color:#64748b; font-weight:600; } #shop-page .st-r { color:var(--danger); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
   #shop-page .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
-  #shop-page .p-g { background:#ecfdf5; color:#059669; } #shop-page .p-n { background:#f1f5f9; color:#64748b; } #shop-page .p-w { background:#fffbeb; color:#b45309; } #shop-page .p-r { background:#fef2f2; color:var(--danger); } #shop-page .p-b { background:#eff6ff; color:#1d4ed8; }
+  #shop-page .p-g { background:#ecfdf5; color:#059669; } #shop-page .p-n { background:#f1f5f9; color:#64748b; } #shop-page .p-w { background:#fffbeb; color:#b45309; } #shop-page .p-r { background:#fef2f2; color:var(--danger); } #shop-page .p-rd { background:var(--danger); color:#fff; } #shop-page .p-b { background:#eff6ff; color:#1d4ed8; }
   #shop-page .act { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
   #shop-page .act-edit { background:#eff6ff; color:#1d4ed8; } #shop-page .act-del { background:#fef2f2; color:var(--danger); } #shop-page .act-ok { background:#ecfdf5; color:#059669; }
   #shop-page .act:disabled, #shop-page .btn-go:disabled { opacity:.5; cursor:default; }
@@ -126,12 +127,12 @@
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-fs-user"></select>
       <input id="sh-fs-q" style="flex:1;min-width:200px" placeholder="키워드, MID 검색">
-      <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 캠페인</option><option value="refund">환불 요청</option><option value="stop">환불</option><option value="end">종료</option></select>
+      <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="refund">환불 요청</option><option value="stop">환불</option><option value="end">종료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
-        <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(this)">진행중 전환</button>
+        <button class="act act-ok" style="padding:7px 12px;display:inline-flex;align-items:center;gap:5px" onclick="shopOrderOpen()"><i data-lucide="clipboard-plus" style="width:13px;height:13px"></i>접수</button>
         <button class="act act-del" style="padding:7px 12px" title="진행 전 = 바로 삭제(전액) / 진행중·환불 요청 = 비즈핏 강제종료 후 남은 일수 금액 차감" onclick="shopStop(this)">환불</button>
-        <button class="btn-go" style="padding:7px 18px;display:inline-flex;align-items:center;gap:6px" onclick="shopOrderOpen()"><i data-lucide="clipboard-plus" style="width:15px;height:15px"></i>접수</button></span>
+        <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:100px"><col style="width:130px"><col style="width:150px"><col style="width:150px"><col style="width:120px"><col><col style="width:56px"><col style="width:80px"><col style="width:80px"><col style="width:76px"><col style="width:90px"></colgroup>
       <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>접수일</th><th>구분</th><th>대행사</th><th>순위 키워드</th><th>MID</th><th>URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th></tr></thead>
@@ -234,7 +235,7 @@
   const refundOf = is => (is.refund || 0) + (is.adj || 0) + (is.autoAdj || 0);
   const billOf = is => is.qty * is.price - refundOf(is);
   // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
-  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 캠페인', 'w'], refund: ['환불 요청', 'r'], stop: ['환불', 'r'], end: ['종료', 'n'] };
+  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 캠페인', 'w'], refund: ['환불 요청', 'r'], stop: ['환불', 'rd'], end: ['종료', 'n'] };
   const slotState = sl => sl.stoppedAt ? 'stop' : sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.refundAt ? 'refund' : sl.runAt ? 'run' : 'wait';
   const closedState = st => st === 'end' || st === 'stop';
 
@@ -431,6 +432,13 @@
     alert(`${[removed && `진행 전 ${removed}개 삭제`, list.length && `${done}개 환불 처리`].filter(Boolean).join(' · ')}${fails.length ? `, ${fails.length}개 실패\n\n${fails.join('\n')}` : ''}`);
   });
   // 접수 현황 필터(광고주·검색·상태·종료 제외)
+  $('sh-slot-stats').onclick = e => {
+    const k = e.target.closest('[data-st]')?.dataset.st; if (!k) return;
+    const on = $('sh-fs-st').value !== k;
+    $('sh-fs-st').value = on ? k : '';
+    if (on && closedState(k)) $('sh-fs-noend').checked = false;  // 환불·종료는 '종료 제외'에 걸리므로 풀어줌
+    renderSlots();
+  };
   function slotShown(x) {
     const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked, fst = $('sh-fs-st').value;
     return (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
@@ -450,8 +458,10 @@
   };
   function renderSlots() {
     const cnt = k => SLOTS.filter(x => slotState(x) === k).length;
-    $('sh-slot-stats').innerHTML = [['진행중', cnt('run'), 'g'], ['접수 (진행 대기)', cnt('wait'), 'b'], ['빈 캠페인 (미입력)', cnt('empty'), 'w'], ['환불 요청', cnt('refund'), 'r'], ['종료', cnt('end'), '']]
-      .map(([l, v, c]) => `<div class="sb ${c}"><div class="sb-l">${l}</div><div class="sb-v">${v}</div></div>`).join('');
+    // 카드 클릭 = 그 상태로 필터(다시 누르면 해제)
+    const fst = $('sh-fs-st').value;
+    $('sh-slot-stats').innerHTML = [['wait', '접수 (진행 대기)', 'b'], ['run', '진행중', 'g'], ['refund', '환불 요청', 'r'], ['stop', '환불', 'r'], ['end', '종료', '']]
+      .map(([k, l, c]) => `<div class="sb ${c}${fst === k ? ' on' : ''}" data-st="${k}"><div class="sb-l">${l}</div><div class="sb-v">${cnt(k)}</div></div>`).join('');
     const rows = SLOTS.filter(slotShown).sort((a, b) => b.no - a.no);
     const live = new Set(SLOTS.map(slotKey));
     [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
