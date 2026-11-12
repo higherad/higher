@@ -5690,8 +5690,12 @@ window.toggleProdPanel = function(e) {
                       style="width:100%;font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;text-align:center;box-sizing:border-box;${done?'background:#f8fafc;color:var(--text2);':''}">
                   </td>
                   <td style="text-align:center"><span id="ss-kwcnt-${e._key}">${ssKwCountBadge(row.검색키워드)}</span></td>
-                  <td style="text-align:center">${(row.일목표||0).toLocaleString()}</td>
-                  <td style="text-align:center">${row.일수||0}</td>
+                  <td style="text-align:center">
+                    <input type="number" min="1" value="${row.일목표||0}" ${done?'disabled':''}
+                      onblur="saveScheduleTarget('${e._key}',this)" onkeydown="if(event.key==='Enter')this.blur()"
+                      style="width:100%;font-size:12px;font-family:inherit;padding:3px 4px;border:1px solid var(--border);border-radius:5px;text-align:center;box-sizing:border-box;${done?'background:#f8fafc;color:var(--text2);':''}">
+                  </td>
+                  <td id="ss-days-${e._key}" style="text-align:center">${row.일수||0}</td>
                   <td style="text-align:center">${escProd(row.예약일||'-')}</td>
                   <td style="text-align:center">
                     ${scheduleStatusLabel(e.status)}
@@ -6434,6 +6438,32 @@ window.toggleProdPanel = function(e) {
       setTimeout(() => { inputEl.style.borderColor = 'var(--border)'; }, 800);
     } catch(e) {
       alert('키워드 저장 실패: ' + (e.message||e));
+    } finally {
+      inputEl.disabled = false;
+    }
+  };
+
+  // 대기 조각 일 목표 수정 — 총목표 방식(찰리/델타)은 일수 칸도 같은 값, 비즈핏 최소 수량(일반 10·총목표 100) 미만은 거절
+  window.saveScheduleTarget = async function(key, inputEl) {
+    const entry = _ssEntries[key];
+    const row = (entry?.payload?.rowData || [])[0];
+    if (!row || isScheduleDone(entry.status)) { inputEl.disabled = true; return; }
+    const val = Math.floor(Number(inputEl.value));
+    if (val === row.일목표) return;
+    const dm = gradeStructKey(entry.payload?.gradeName || row.상품등급명, prods, entry.adrole).includes('D');
+    const min = dm ? 100 : 10;
+    if (!(val >= min)) { alert(`일 목표는 ${min} 이상이어야 합니다.`); inputEl.value = row.일목표 || 0; return; }
+    const patch = dm ? { 일목표: val, 일수: val } : { 일목표: val };
+    inputEl.disabled = true;
+    try {
+      await HI.updateScheduleDispatch(`${key}/payload/rowData/0`, patch);
+      Object.assign(row, patch);
+      if (dm) { const c = document.getElementById(`ss-days-${key}`); if (c) c.textContent = val; }
+      inputEl.style.borderColor = 'var(--accent)';
+      setTimeout(() => { inputEl.style.borderColor = 'var(--border)'; }, 800);
+    } catch(e) {
+      alert('일 목표 저장 실패: ' + (e.message||e));
+      inputEl.value = row.일목표 || 0;
     } finally {
       inputEl.disabled = false;
     }
