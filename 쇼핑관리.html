@@ -449,14 +449,16 @@
       && !(noEnd && closedState(slotState(x))) && (!fst || slotState(x) === fst);
   }
   // 확장(키워드 추출·캠페인 등록) 업로드용 — 쇼핑 접수 가이드 양식. 선택한 슬롯, 없으면 화면에 보이는 접수·진행중 슬롯
-  // 영업점 = 슬롯 주인의 총판 회사명(확장 파트너키 이름과 같아야 함, 총판 없는 일반 광고주는 빈칸) · 등급 스모키 · 일수·일목표 = 슬롯 발급값
+  // 확장 업로드용 엑셀 — 영업점 = srAgency(업체명[SR]) · 등급 스모키 · 일수·일목표 = 캠페인 값(없는 옛 건 7·100)
   const distOf = u => u.role === 'dist' ? u.company : u.parent ? userOf(u.parent).company : '';
+  // 엑셀 다운로드 전용 영업점 = 대행사 업체명 + '[SR]'(매크로가 영업점[SR]로 등록) — 하부점은 총판, 그 밖은 본인 업체명. 이미 [SR]로 끝나면 그대로
+  const srAgency = u => { const n = u.parent ? userOf(u.parent).company : u.company; return n && !n.endsWith('[SR]') ? n + '[SR]' : n; };
   window.shopExcel = () => {
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
-      .sort((a, b) => b.no - a.no).map(x => [distOf(userOf(x.userId)), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x), x.no]);
+      .sort((a, b) => b.no - a.no).map(x => [srAgency(userOf(x.userId)), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
     if (!rows.length) return alert('내보낼 접수·진행중 캠페인이 없습니다.');
-    const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)', '슬롯번호'], ...rows]);
-    ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }, { wch: 10 }];
+    const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
+    ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '접수');
     XLSX.writeFile(wb, `쇼핑접수_${today()}.xlsx`);
   };
