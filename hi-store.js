@@ -79,7 +79,6 @@ const P = {
   products:       `${ROOT}/products`,
   users:          `${ROOT}/users`,
   staff:          `${ROOT}/staff`,
-  liveKeywords:   `${ROOT}/live_keywords`,   // MID별 찾기 키워드(google-dandok 매시간 동기화)
   ranks:          `${ROOT}/ranks`,
   adClassify:     `${ROOT}/ad_classify`,
   kwCategories:   `${ROOT}/kw_categories`,  // 순위키워드 분류 [{name, keywords:[...]}] — 접수 시 캠페인 category로 저장
@@ -260,7 +259,6 @@ const snapshotsCache      = makeValueCache(P.snapshots, v => v || {});
 const dispatchCache       = makeValueCache(P.dispatch, v => v || {});
 const prodsCache          = makeValueCache(`${P.products}/prods`, v => v || null);
 const prodGroupsCache     = makeValueCache(`${P.products}/groups`, v => v || null);
-const liveKeywordsCache   = makeValueCache(P.liveKeywords, v => v || {});
 const usersCache          = makeValueCache(P.users, v => Object.entries(v || {}).map(([k, u]) => ({ ...u, _key: k })));
 
 // 종료·휴지통 전체 — 정산·진행현황·검색처럼 과거 기록이 필요한 화면만 세션당 1회 받음(실시간 아님)
@@ -799,7 +797,8 @@ const HI = {
   // ════════════════════════════════════════════════════════
   // 등급·순위·파이프라인·광고분류
   // ════════════════════════════════════════════════════════
-  getLiveKeywordsOnce() { return once(liveKeywordsCache); },
+  // 플레이스 키워드 시트 메인 탭 그 MID 줄(higherad-auto가 매일 01:10 복사) — {store, a, b, at} 또는 null
+  async getPlaceKeyword(mid) { return (await get(ref(db, `hi/place_keywords/${safeKey(mid)}`))).val(); },
   async getRanks(mid) { return (await get(ref(db, `${P.ranks}/${safeKey(mid)}`))).val() || {}; },
   async getRankBase() { return (await get(ref(db, P.rankBase))).val() || {}; },
   // 구글시트 '접수 가이드' 전 탭 원본 값 {sheets:[{title, values}]}(higherad-auto /guide-sheet, 직원만)
