@@ -123,8 +123,10 @@
       <div class="issue-grid">
         <div class="fld"><label>대상 광고주</label><select id="sh-is-user" style="width:200px"></select></div>
         <div class="fld"><label>수량<em>1회 최대 500개</em></label><div class="qty"><button data-q="-1">-</button><input id="sh-is-qty" type="number" value="1"><button data-q="1">+</button><button data-q="10">+10</button><button data-q="100">+100</button><button data-q="max">최대</button></div></div>
-        <div class="fld"><label>시작일<em>당일 22시 마감</em></label><input id="sh-is-start" type="date"></div>
-        <div class="fld"><label>종료 예정일<em>7일</em></label><input id="sh-is-end" type="date" disabled></div>
+        <div class="fld"><label>시작일<em>17시 마감</em></label><input id="sh-is-start" type="date"></div>
+        <div class="fld"><label>일수<em>1~7일</em></label><select id="sh-is-days"></select></div>
+        <div class="fld"><label>일 목표<em>최소 10개</em></label><input id="sh-is-daily" type="number" value="100" style="width:80px;text-align:center"></div>
+        <div class="fld"><label>종료 예정일</label><input id="sh-is-end" type="date" disabled></div>
         <div class="fld"><label>정산 금액<em>VAT 별도</em></label><div id="sh-is-amt" style="padding:9px 0;font-weight:800;font-size:15px">-</div></div>
         <button class="btn-go" id="sh-is-go">슬롯 발급</button>
       </div>
@@ -175,7 +177,7 @@
         <button class="btn-go" style="padding:7px 16px" onclick="shopSettleReg()">정산 등록</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:120px"><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col style="width:100px"><col style="width:120px"><col style="width:110px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-sc-all"></th><th>발급일시</th><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>정산상태</th><th>입금 확인일시</th><th>액션</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="sh-sc-all"></th><th>발급일시</th><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>슬롯 금액(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>정산상태</th><th>입금 확인일시</th><th>액션</th></tr></thead>
       <tbody id="sh-settle-rows"></tbody>
     </table></div>
   </section>
@@ -185,7 +187,7 @@
     <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="광고주, 아이디 검색">
       <button class="btn-go" style="margin-left:auto;padding:7px 16px" onclick="openShopUser()">+ 광고주 추가</button></div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:140px"><col style="width:100px"><col style="width:150px"><col style="width:160px"><col style="width:100px"><col style="width:100px"><col style="width:80px"><col style="width:120px"><col style="width:110px"><col><col style="width:70px"><col style="width:80px"></colgroup>
-      <thead><tr><th>가입일</th><th>최종 발급일</th><th>구분</th><th>광고주</th><th>아이디</th><th>슬롯 단가(원)</th><th>보유 슬롯</th><th>누적 정산(VAT 별도)</th><th>미입금(VAT 별도)</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
+      <thead><tr><th>가입일</th><th>최종 발급일</th><th>구분</th><th>광고주</th><th>아이디</th><th>단가(1개, 원)</th><th>보유 슬롯</th><th>누적 정산(VAT 별도)</th><th>미입금(VAT 별도)</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
       <tbody id="sh-user-rows"></tbody>
     </table></div>
   </section>
@@ -209,7 +211,7 @@
       <div class="f"><label>아이디<span class="req">*</span></label><input id="sh-um-id" maxlength="20" placeholder="영문+숫자 3~20자" autocomplete="off"></div>
       <div class="f"><label id="sh-um-pw-l">비밀번호<span class="req">*</span></label><input id="sh-um-pw" maxlength="64" autocomplete="new-password"></div>
     </div>
-    <div class="f"><label>슬롯 단가 (원, 7일 1슬롯 · VAT 별도)<span class="req">*</span></label><input id="sh-um-price" type="number" style="text-align:center"></div>
+    <div class="f"><label>단가 (원, 1개 · VAT 별도 — 슬롯 금액 = 단가 × 일수 × 일 목표)<span class="req">*</span></label><input id="sh-um-price" type="number" style="text-align:center"></div>
     <div class="f"><label>메모</label><input id="sh-um-memo" maxlength="200"></div>
     <div class="foot"><button class="act" id="sh-um-block" style="padding:9px 16px"></button><button class="act act-del" id="sh-um-del" style="margin-right:auto;padding:9px 16px">삭제</button><button style="border:1px solid var(--border);background:#fff" id="sh-um-cancel">취소</button><button class="btn-go" id="sh-um-save">저장</button></div>
   </div></div>
@@ -217,7 +219,7 @@
 
 <script>
 (() => {
-  const TERM_DAYS = 7, MAX_QTY = 500, CUTOFF_HOUR = 22, VAT = 1.1;
+  const TERM_DAYS = 7, MAX_QTY = 500, CUTOFF_HOUR = 17, MIN_DAILY = 10, VAT = 1.1;
   const $ = id => document.getElementById(id);
   // 잘린 칸은 마우스 올리면 전체 글자
   $('shop-page').addEventListener('mouseover', e => { const td = e.target.closest('td'); if (td && !td.title && td.scrollWidth > td.clientWidth) td.title = td.innerText; });
@@ -226,8 +228,11 @@
   const today = () => kstNow().toISOString().slice(0, 10);
   const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5);
-  const minStart = () => kstNow().getUTCHours() >= CUTOFF_HOUR ? addDays(today(), 1) : today();
-  const endOf = s => addDays(s, TERM_DAYS - 1);
+  // 접수 마감 = 17시~자정엔 발급 불가(서버 closed_now와 같음)
+  const closedNow = () => kstNow().getUTCHours() >= CUTOFF_HOUR;
+  const endOf = (s, days) => addDays(s, days - 1);
+  // 발급 건 price = 단가 × 일수 × 일 목표(슬롯 1개 금액). days·daily 없는 옛 건·슬롯 = 7일·100개
+  const termDays = x => x.days || TERM_DAYS, dailyOf = x => x.daily || 100;
   const md = s => s ? s.slice(5) : '-';
   const safeUrl = u => /^https:\/\/([a-z0-9-]+\.)*naver\.com\//i.test((u || '').trim());
   // 정산 금액 = 발급 금액 - 중단 슬롯 환불액
@@ -262,23 +267,27 @@
 
 
   /* ── 슬롯 발급 ── */
+  $('sh-is-days').innerHTML = Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === TERM_DAYS ? ' selected' : ''}>${i + 1}일</option>`).join('');
   function syncIssue() {
     const q = $('sh-is-qty'); q.value = Math.min(MAX_QTY, Math.max(1, parseInt(q.value) || 1));
-    const st = $('sh-is-start'); if (!st.value || st.value < minStart()) st.value = minStart();
-    $('sh-is-end').value = endOf(st.value);
-    const u = USERS.find(x => x.id === $('sh-is-user').value);
-    $('sh-is-amt').textContent = u ? `${won(u.price * +q.value)}원` : '-';
+    const st = $('sh-is-start'); if (!st.value || st.value < today()) st.value = today();
+    const dl = $('sh-is-daily'); dl.value = Math.max(MIN_DAILY, parseInt(dl.value) || MIN_DAILY);
+    const days = +$('sh-is-days').value, daily = +dl.value;
+    $('sh-is-end').value = endOf(st.value, days);
+    const u = USERS.find(x => x.id === $('sh-is-user').value), amt = u ? u.price * days * daily * +q.value : 0;
+    $('sh-is-amt').textContent = u ? `${won(amt)}원` : '-';
+    return { u, qty: +q.value, start: st.value, days, daily, amt };
   }
   document.querySelectorAll('#shop-page [data-q]').forEach(b => b.onclick = () => {
     const q = $('sh-is-qty'); q.value = b.dataset.q === 'max' ? MAX_QTY : (parseInt(q.value) || 0) + +b.dataset.q; syncIssue();
   });
-  ['sh-is-qty', 'sh-is-start', 'sh-is-user'].forEach(id => $(id).onchange = syncIssue);
+  ['sh-is-qty', 'sh-is-start', 'sh-is-user', 'sh-is-days', 'sh-is-daily'].forEach(id => $(id).onchange = syncIssue);
   $('sh-is-go').onclick = () => busy($('sh-is-go'), async () => {
-    syncIssue();
-    const u = USERS.find(x => x.id === $('sh-is-user').value), qty = +$('sh-is-qty').value, start = $('sh-is-start').value;
+    if (closedNow()) throw new Error(`접수는 ${CUTOFF_HOUR}시에 마감됩니다. 내일 0시부터 발급할 수 있습니다.`);
+    const { u, qty, start, days, daily, amt } = syncIssue();
     if (!u) throw new Error('대상 광고주를 선택해 주세요.');
-    if (!confirm(`${u.company}에 슬롯 ${qty}개를 발급합니다. (${start} ~ ${endOf(start)}, ${won(u.price * qty)}원)`)) return;
-    await HI.shopCall('/shop-issue', { userId: u.id, qty, start, reqId: crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2) });
+    if (!confirm(`${u.company}에 슬롯 ${qty}개를 발급합니다. (${start} ~ ${endOf(start, days)}, ${days}일 · 일 ${daily}개, ${won(amt)}원)`)) return;
+    await HI.shopCall('/shop-issue', { userId: u.id, qty, start, days, daily, reqId: crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2) });
   });
   window.shopRevoke = (uid, no, btn) => busy(btn, async () => {
     const is = ISSUES.find(x => x.userId === uid && x.no === no);
@@ -286,8 +295,8 @@
     if (!confirm(`발급번호 #${no} 슬롯 ${is.qty}개를 취소합니다.${set ? ` 세팅된 ${set}개도 함께 지워집니다.` : ''}`)) return;
     await HI.shopCall('/shop-revoke', { userId: uid, issueNo: no });
   });
-  // 진행 = 시작일부터 오늘(종료 후엔 종료일)까지 일수, 시작일 당일 = 1일, 최대 TERM_DAYS
-  const ranDays = is => is.revokedAt ? 0 : Math.min(TERM_DAYS, Math.max(0, daysBetween(is.start, today()) + 1));
+  // 진행 = 시작일부터 오늘(종료 후엔 종료일)까지 일수, 시작일 당일 = 1일, 최대 발급 일수
+  const ranDays = is => is.revokedAt ? 0 : Math.min(termDays(is), Math.max(0, daysBetween(is.start, today()) + 1));
   function renderIssues() {
     const uid = $('sh-fi-user').value, noRev = $('sh-fi-norevoke').checked, age = parseInt($('sh-fi-age').value) || 0, from = $('sh-fi-from').value, to = $('sh-fi-to').value;
     const rows = ISSUES.filter(is => (!uid || is.userId === uid) && !(noRev && is.revokedAt) && (!from || is.start >= from) && (!to || is.start <= to)
@@ -296,7 +305,7 @@
       const set = SLOTS.filter(x => x.userId === is.userId && x.issueNo === is.no && x.mid).length, el = ranDays(is);
       return `<tr><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}개</td>
-        <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${TERM_DAYS}일</td><td>${is.revokedAt ? '-' : `${el}일`}</td>
+        <td>${is.revokedAt ? '-' : `${set} / ${is.qty}`}</td><td>${md(is.at)}</td><td>${is.start} ~ ${is.end}</td><td>${termDays(is)}일<br><span style="font-size:11px;color:var(--text2)">일 ${dailyOf(is).toLocaleString()}개</span></td><td>${is.revokedAt ? '-' : `${el}일`}</td>
         <td>${md(is.revokedAt)}</td>
         <td>${is.revokedAt ? `<span class="st-r">${is.revokedRole === 'user' ? '광고주 취소' : is.revokedRole === 'dist' ? '총판 취소' : '관리자 취소'}</span>` : canRevoke(is) ? `<button class="act act-del" onclick="shopRevoke('${esc(is.userId)}',${is.no},this)">취소</button>` : (is.end < today() ? '<span class="st-n">종료</span>' : running(is) ? '<span class="st-g" title="진행중인 슬롯이 있어 취소할 수 없습니다">진행중</span>' : '<span class="st-n" title="시작일이 지나 취소할 수 없습니다">-</span>')}</td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '발급 내역이 없습니다.' : '불러오는 중…'}</td></tr>`;
@@ -346,11 +355,11 @@
     if (!res.ok || !j.success) throw new Error(j.message || `서버 응답 오류 (${res.status})`);
     return j;
   }
-  const stopDays = x => Math.max(0, Math.min(TERM_DAYS, daysBetween([addDays(today(), 1), x.start].sort()[1], x.end) + 1));
+  const stopDays = x => Math.max(0, daysBetween([addDays(today(), 1), x.start].sort()[1], x.end) + 1);
   window.shopStop = btn => busy(btn, async () => {
     const list = SLOTS.filter(x => PICKED.has(slotKey(x)) && slotState(x) === 'refund');
     if (!list.length) throw new Error('환불 요청 슬롯을 선택해 주세요.');
-    const amt = list.reduce((a, x) => { const is = ISSUES.find(i => i.userId === x.userId && i.no === x.issueNo); return a + Math.round((is?.price || 0) * stopDays(x) / TERM_DAYS); }, 0);
+    const amt = list.reduce((a, x) => { const is = ISSUES.find(i => i.userId === x.userId && i.no === x.issueNo); return a + Math.round((is?.price || 0) * stopDays(x) / termDays(is || {})); }, 0);
     if (!confirm(`슬롯 ${list.length}개를 비즈핏에서 강제종료하고 중단합니다.\n환불 ${won(amt)}원(VAT 별도)이 정산에서 차감됩니다. 되돌릴 수 없습니다.`)) return;
     const groups = {}, fails = []; let done = 0;
     list.forEach(x => { const agency = distOf(userOf(x.userId)), mid = x.bizMid || x.mid, k = `${agency}|${mid}`; (groups[k] = groups[k] || { agency, mid, slots: [] }).slots.push(x); });
@@ -387,11 +396,11 @@
       && !(noEnd && closedState(slotState(x))) && (!fst || slotState(x) === fst);
   }
   // 확장(키워드 추출·캠페인 등록) 업로드용 — 쇼핑 접수 가이드 양식. 선택한 슬롯, 없으면 화면에 보이는 접수·진행중 슬롯
-  // 영업점 = 슬롯 주인의 총판 회사명(확장 파트너키 이름과 같아야 함, 총판 없는 일반 광고주는 빈칸) · 등급 스모키 · 일수 7 · 일목표 100(슬롯 1개당) 고정
+  // 영업점 = 슬롯 주인의 총판 회사명(확장 파트너키 이름과 같아야 함, 총판 없는 일반 광고주는 빈칸) · 등급 스모키 · 일수·일목표 = 슬롯 발급값
   const distOf = u => u.role === 'dist' ? u.company : u.parent ? userOf(u.parent).company : '';
   window.shopExcel = () => {
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
-      .sort((a, b) => b.no - a.no).map(x => [distOf(userOf(x.userId)), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', TERM_DAYS, 100, x.no]);
+      .sort((a, b) => b.no - a.no).map(x => [distOf(userOf(x.userId)), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x), x.no]);
     if (!rows.length) return alert('내보낼 접수·진행중 슬롯이 없습니다.');
     const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)', '슬롯번호'], ...rows]);
     ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }, { wch: 10 }];
@@ -483,12 +492,12 @@
       const block = document.createElement('div');
       block.className = 'agency-block';
       block.innerHTML = `<div class="agency-hd"><div><div class="aname">${esc(userOf(p).company)}${userOf(p).role === 'dist' ? ' (총판)' : ''}</div><div class="ameta">발급 ${list.length}건 · 슬롯 ${qty.toLocaleString()}개</div></div><button class="agency-copy-btn">복사</button></div>
-        <div style="overflow-x:auto"><table class="ag-table"><thead><tr><th>발급일시</th><th>발급번호</th><th>광고주</th><th>수량</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>상태</th></tr></thead><tbody>
+        <div style="overflow-x:auto"><table class="ag-table"><thead><tr><th>발급일시</th><th>발급번호</th><th>광고주</th><th>수량</th><th>슬롯 금액(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>상태</th></tr></thead><tbody>
         ${list.map(is => `<tr><td>${esc(is.at)}</td><td>#${is.no}</td><td>${esc(userOf(is.userId).company)}</td><td>${is.qty}</td><td>${won(is.price)}</td><td><b>${won(billOf(is))}</b></td><td style="color:var(--info);font-weight:700">${won(Math.round(billOf(is) * VAT))}</td><td>${is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>'}</td></tr>`).join('')}
         </tbody></table></div>
         <div class="agency-ft"><span>정산 합계 <b>${won(amt)}원</b></span><span>입금 합계 <b>${won(dep)}원</b></span></div>`;
       block.querySelector('.agency-copy-btn').onclick = function () {
-        const msg = `• 발급 건수: ${list.length}건\n• 슬롯 수: ${qty.toLocaleString()}개\n\n• 단가: ${prices.map(v => won(v) + '원').join(' / ')}\n• 금액: ${won(amt)}원 (VAT 별도)\n\n• 입금액: ${won(dep)}원 (VAT 포함)`
+        const msg = `• 발급 건수: ${list.length}건\n• 슬롯 수: ${qty.toLocaleString()}개\n\n• 슬롯 금액: ${prices.map(v => won(v) + '원').join(' / ')}\n• 금액: ${won(amt)}원 (VAT 별도)\n\n• 입금액: ${won(dep)}원 (VAT 포함)`
           + '\n\n주식회사 하이어애드\n666-045450-04-013\nIBK기업은행\n\n확인 후 입금 부탁드립니다.';
         navigator.clipboard.writeText(msg).then(() => { this.classList.add('ok'); this.textContent = '✓ 복사됨'; setTimeout(() => { this.classList.remove('ok'); this.textContent = '복사'; }, 1500); });
       };
@@ -651,7 +660,7 @@
     document.querySelectorAll('#shop-page .tab').forEach(x => x.classList.toggle('on', x === t));
     document.querySelectorAll('#shop-page .pane').forEach(p => p.classList.toggle('on', p.id === 'sh-t-' + t.dataset.t));
   });
-  $('sh-is-start').value = minStart();
+  $('sh-is-start').value = today();
   syncIssue();
 
   // 공유 캐시 구독 — 맨 끝에 둠: 다시 들어오면 캐시가 있어 콜백이 즉시(동기) 실행되므로 위 선언이 다 끝난 뒤여야 함
