@@ -468,7 +468,8 @@
   });
 
   // ── 쇼핑 관리 배지 — 접수(진행중 전환 전) 보라 · 환불 요청 빨강. 상태 판정 = 쇼핑관리 slotState와 같음
-  HI.onShopSlotsChange(v => {
+  // hi-store.js는 브라우저가 10분 캐시 — 새 index + 옛 hi-store 조합이면 함수가 없어 페이지 전체가 멈추므로 ?. 로 호출
+  HI.onShopSlotsChange?.(v => {
     const t = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
     const live = Object.values(v).flatMap(o => Object.values(o || {})).filter(x => !x.stoppedAt && x.end >= t && x.mid);
     [['shop-wait-badge', live.filter(x => !x.refundAt && !x.runAt).length], ['shop-refund-badge', live.filter(x => x.refundAt).length]].forEach(([id, n]) => {
