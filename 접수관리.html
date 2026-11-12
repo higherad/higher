@@ -597,7 +597,10 @@ window.toggleProdPanel = function(e) {
   // 유입플 상품 배지 — 업체별 색(풀스택 청록·제이엔 주황·그 밖 보라). vendorProducts {업체: [상품]} 없는 옛 캠페인은 fullstackType(풀스택)
   const VENDOR_BADGE = { 풀스택: 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4', 제이엔: 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa' };
   const OTHER_VENDOR_BADGE = 'background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe';
-  const recordVendorProducts = s => s?.vendorProducts ? Object.entries(s.vendorProducts).map(([v, l]) => [v, Array.isArray(l) ? l : Object.values(l)]) : fullstackLabels(s).length ? [['풀스택', fullstackLabels(s)]] : [];
+  // 승인 전 '풀스택[개별]' 캠페인은 접수 때 고정한 상품(fullstackFix)을 바로 배지로 — 승인하면 같은 상품이 vendorProducts로 저장됨
+  const recordVendorProducts = s => s?.vendorProducts ? Object.entries(s.vendorProducts).map(([v, l]) => [v, Array.isArray(l) ? l : Object.values(l)])
+    : fullstackLabels(s).length ? [['풀스택', fullstackLabels(s)]]
+    : s?.fullstackFix ? [['풀스택', [...asList(s.fullstackFix)].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name))]] : [];
   // 풀스택 표시 = 서버가 매일 09시 사이트 진행 주문으로 맞춘 fullstackShown(false = 진행 주문 없음, 숨김), 없으면 기록 그대로
   const vendorProductsOf = s => {
     const rec = recordVendorProducts(s);
