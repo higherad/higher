@@ -133,7 +133,7 @@
       <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
         <button class="act act-ok" style="padding:7px 12px;display:inline-flex;align-items:center;gap:5px" onclick="shopOrderOpen()"><i data-lucide="clipboard-plus" style="width:13px;height:13px"></i>접수</button>
-        <button class="act act-del" style="padding:7px 12px" title="진행 전 = 바로 삭제(전액) / 진행중·환불 요청 = 비즈핏 강제종료 후 남은 일수 금액 차감" onclick="shopStop(this)">환불</button>
+        <button class="act act-del" style="padding:7px 12px" title="진행 전: 바로 취소(전액 환불) / 진행중·환불 요청: 비즈핏 강제종료 후 남은 일수만큼 환불" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:100px"><col style="width:130px"><col style="width:150px"><col style="width:150px"><col style="width:120px"><col><col style="width:56px"><col style="width:80px"><col style="width:80px"><col style="width:76px"><col style="width:90px"></colgroup>
@@ -197,7 +197,7 @@
       <div class="f"><label>아이디<span class="req">*</span></label><input id="sh-um-id" maxlength="20" placeholder="영문+숫자 3~20자" autocomplete="off"></div>
       <div class="f"><label id="sh-um-pw-l">비밀번호<span class="req">*</span></label><input id="sh-um-pw" maxlength="64" class="pw-masked" autocomplete="off"></div>
     </div>
-    <div class="f"><label>단가 (원, 1개 · VAT 별도 — 캠페인 금액 = 단가 × 일수 × 일 목표)<span class="req">*</span></label><input id="sh-um-price" type="number" style="text-align:center"></div>
+    <div class="f"><label>단가 (1개당 원, VAT 별도)<span class="req">*</span></label><input id="sh-um-price" type="number" style="text-align:center"></div>
     <div class="row" id="sh-um-charge-f">
       <div class="f"><label>비즈핏 충전 아이디 <span style="font-weight:400;color:var(--muted)">(정산 충전용)</span></label><input id="sh-um-cid" maxlength="60" placeholder="BizFit 아이디" autocomplete="off"></div>
       <div class="f"><label>비즈핏 충전 비밀번호</label><input id="sh-um-cpw" maxlength="64" class="pw-masked" placeholder="BizFit 비밀번호" autocomplete="off"></div>
@@ -209,7 +209,7 @@
   <!-- 접수(개별·엑셀) — 광고주 사이트 접수와 같음 -->
   <div id="shop-or"><div class="box">
     <div class="ttl">접수</div>
-    <div class="sub">시작일은 당일·익일 중 선택 · 일수 1~7일 · 일 목표 최소 10개 · 매일 17시 마감</div>
+    <div class="sub">시작일 당일·익일 · 일수 1~7일 · 일 목표 10개 이상 · 매일 17시 마감</div>
     <select id="sh-or-user" style="width:280px"></select>
     <div class="tabs"><button data-t="one" class="on">개별 접수</button><button data-t="xlsx">엑셀 접수</button></div>
     <div id="sh-or-one">
@@ -367,7 +367,7 @@
     orSync();
   };
   window.shopOrderOpen = () => {
-    if (closedNow()) return alert(`접수는 ${CUTOFF_HOUR}시에 마감됩니다. 내일 0시부터 발급할 수 있습니다.`);
+    if (closedNow()) return alert(`오늘 접수는 ${CUTOFF_HOUR}시에 마감되었습니다. 내일 0시부터 접수할 수 있습니다.`);
     $('sh-or-user').innerHTML = '<option value="">-- 영업점 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
     xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab('one');
     $('shop-or').classList.add('show');
@@ -375,12 +375,12 @@
   $('sh-or-user').onchange = orSync;
   document.querySelectorAll('#shop-or .tabs button').forEach(b => b.onclick = () => orTab(b.dataset.t));
   $('sh-or-go').onclick = () => busy($('sh-or-go'), async () => {
-    if (closedNow()) throw new Error(`접수는 ${CUTOFF_HOUR}시에 마감됩니다. 내일 0시부터 발급할 수 있습니다.`);
+    if (closedNow()) throw new Error(`오늘 접수는 ${CUTOFF_HOUR}시에 마감되었습니다. 내일 0시부터 접수할 수 있습니다.`);
     const u = orUser(), rows = orderRows(), bad = rows.findIndex(orderErr);
     if (!u) throw new Error('영업점을 선택해 주세요.');
     if (!rows.length) throw new Error('접수할 줄이 없습니다.');
     if (bad >= 0) throw new Error(`${bad + 1}번째 줄: ${orderErr(rows[bad])}`);
-    if (!confirm(`${u.company}에 캠페인 ${rows.length}개를 접수합니다. (정산 금액 ${won(rows.reduce((a, r) => a + orderAmt(r), 0))}원, VAT 별도)`)) return;
+    if (!confirm(`${u.company}에 캠페인 ${rows.length}개를 접수합니다. 금액 ${won(rows.reduce((a, r) => a + orderAmt(r), 0))}원(VAT 별도)`)) return;
     const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, start, days, daily }) => ({ kw, url, start, days, daily })), reqId: newReqId() });
     $('shop-or').classList.remove('show');
     alert(`${r.count}개 캠페인이 접수되었습니다.`);
@@ -394,11 +394,11 @@
   window.shopRun = btn => busy(btn, async () => {
     // 체크는 접수·진행중(엑셀용) 둘 다 — 전환 대상은 접수만
     const items = SLOTS.filter(x => PICKED.has(slotKey(x)) && slotState(x) === 'wait').map(x => ({ userId: x.userId, no: x.no }));
-    if (!items.length) throw new Error('접수 상태 캠페인을 선택해 주세요.');
-    if (!confirm(`선택한 캠페인 ${items.length}개를 진행중으로 전환합니다. 되돌릴 수 없고, 진행중 캠페인이 있는 발급 건은 취소할 수 없게 됩니다.`)) return;
+    if (!items.length) throw new Error('진행중으로 바꿀 접수 캠페인을 선택해 주세요.');
+    if (!confirm(`캠페인 ${items.length}개를 진행중으로 전환합니다. 되돌릴 수 없고, 이후엔 수정 없이 환불만 됩니다.`)) return;
     const r = await HI.shopCall('/shop-run', { items });
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
-    if (r.skipped) alert(`${r.changed}개 변경, ${r.skipped}개는 정보가 없거나 종료·취소돼 건너뛰었습니다.`);
+    if (r.skipped) alert(`${r.changed}개 전환, ${r.skipped}개는 이미 진행중·환불·종료라 건너뛰었습니다.`);
   });
   // 환불 요청 슬롯 중단 — 영업점(업체명[SR], 하부점은 총판)·MID로 비즈핏 진행 캠페인을 찾아 강제종료, 재접수는 만들지 않음
   // 찾은 캠페인 수가 슬롯 수와 다르면 어느 캠페인인지 정할 수 없어 자동 종료하지 않음(직원이 비즈핏에서 직접 종료 후 슬롯만 중단 가능)
@@ -417,7 +417,7 @@
     const list = picked.filter(x => ['run', 'refund'].includes(slotState(x)));
     if (!pre.length && !list.length) throw new Error('환불할 캠페인을 선택해 주세요.');
     const amt = list.reduce((a, x) => { const is = ISSUES.find(i => i.userId === x.userId && i.no === x.issueNo); return a + Math.round((is?.price || 0) * stopDays(x) / termDays(is || {})); }, 0);
-    if (!confirm([pre.length && `진행 전 ${pre.length}개는 바로 삭제(전액 환불)`, list.length && `진행중 ${list.length}개는 비즈핏에서 강제종료 후 남은 일수 ${won(amt)}원(VAT 별도)을 정산에서 차감`]
+    if (!confirm([pre.length && `진행 전 ${pre.length}개: 바로 취소, 전액 환불`, list.length && `진행중 ${list.length}개: 비즈핏 강제종료 후 남은 일수 ${won(amt)}원(VAT 별도) 환불`]
       .filter(Boolean).join('\n') + '\n\n되돌릴 수 없습니다.')) return;
     const removed = pre.length || run.length ? (await HI.shopCall('/shop-refund', { items: [...pre, ...run].map(x => ({ userId: x.userId, no: x.no })) })).removed : 0;
     const groups = {}, fails = []; let done = 0;
@@ -446,7 +446,7 @@
       catch (e) { failAll(ok, `비즈핏은 종료됐지만 반영 실패(${e.message}) — 비즈핏 확인 후 다시 실행해 주세요`); }
     }
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
-    alert(`${[removed && `진행 전 ${removed}개 삭제`, list.length && `${done}개 환불 처리`].filter(Boolean).join(' · ')}${fails.length ? `, ${fails.length}개 실패\n\n${fails.join('\n')}` : ''}`);
+    alert(`${[removed && `진행 전 ${removed}개 취소`, list.length && `${done}개 환불 처리`].filter(Boolean).join(' · ')}${fails.length ? `, ${fails.length}개 실패\n\n${fails.join('\n')}` : ''}`);
   });
   // 접수 현황 필터(광고주·검색·상태·종료 제외)
   $('sh-slot-stats').onclick = e => {
@@ -539,7 +539,7 @@
       const S = SETTLE[settleKey(it.payer, it.date)] || {}, ek = esc(it.k);
       const tgl = on => on ? 'background:#f1f5f9;color:var(--text2);box-shadow:inset 0 2px 4px rgba(0,0,0,.15)' : '';
       return `<tr class="grp" data-g="s|${esc(it.k)}"><td>${box(L.map(slotKey))}</td><td>${md(it.date)}<br><span class="tg" style="font-size:11px">${L.length}건 ${open ? '▾' : '▸'}</span></td>
-        <td>${agencyCell(userOf(it.payer))}</td><td>${units(L)}</td><td>${L.reduce((a, x) => a + x.qty, 0)}건</td><td><b>${L.reduce((a, x) => a + goalOf(x), 0).toLocaleString()}</b></td>
+        <td>${agencyCell(userOf(it.payer))}</td><td>${units(L)}</td><td>${L.reduce((a, x) => a + x.qty, 0)}건</td><td>${L.reduce((a, x) => a + goalOf(x), 0).toLocaleString()}</td>
         <td style="font-weight:700;color:var(--accent)">${won(b)}원</td><td style="font-weight:700;color:var(--info)">${won(Math.round(b * VAT))}원</td>
         <td style="color:var(--danger);font-weight:700">${rf ? won(rf) + '원' : '-'}</td>
         <td>${allPaid ? '<span class="pill p-g">정산완료</span>' : '<span class="pill p-w">미정산</span>'}</td>
@@ -578,7 +578,7 @@
       block.className = 'agency-block';
       block.innerHTML = `<div class="agency-hd"><div><div class="aname">${esc(userOf(p).company)}${userOf(p).role === 'dist' ? ' (총판)' : ''}</div><div class="ameta">총 ${qty.toLocaleString()}건 · 전체 목표 ${totalGoal.toLocaleString()}건</div></div><button class="agency-copy-btn">복사</button></div>
         <div style="overflow-x:auto"><table class="ag-table"><thead><tr><th>접수일시</th><th>영업점</th><th>캠페인 수</th><th>전체 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>상태</th></tr></thead><tbody>
-        ${list.map(is => `<tr><td>${esc(is.at)}</td><td>${esc(userOf(is.userId).company)}</td><td>${is.qty}</td><td><b>${goal(is).toLocaleString()}</b></td><td>${is.unitShown ? won(is.unitShown) : '-'}</td><td><b>${won(billOf(is))}</b></td><td style="color:var(--info);font-weight:700">${won(Math.round(billOf(is) * VAT))}</td><td style="${refundOf(is) ? 'color:#dc2626;font-weight:700' : ''}">${refundOf(is) ? won(refundOf(is)) : '-'}</td><td>${is.paidAt ? '<span class="pill p-g">정산완료</span>' : '<span class="pill p-w">미정산</span>'}</td></tr>`).join('')}
+        ${list.map(is => `<tr><td>${esc(is.at)}</td><td>${esc(userOf(is.userId).company)}</td><td>${is.qty}</td><td>${goal(is).toLocaleString()}</td><td>${is.unitShown ? won(is.unitShown) : '-'}</td><td><b>${won(billOf(is))}</b></td><td style="color:var(--info);font-weight:700">${won(Math.round(billOf(is) * VAT))}</td><td style="${refundOf(is) ? 'color:#dc2626;font-weight:700' : ''}">${refundOf(is) ? won(refundOf(is)) : '-'}</td><td>${is.paidAt ? '<span class="pill p-g">정산완료</span>' : '<span class="pill p-w">미정산</span>'}</td></tr>`).join('')}
         </tbody></table></div>
         <div class="agency-ft"><span>정산 합계 <b>${won(amt)}원</b></span><span>입금 합계 <b>${won(dep)}원</b></span>${rf ? `<span style="color:var(--danger)">환불 <b style="color:var(--danger)">${won(rf)}원</b></span>` : ''}<span class="charge-cell" style="margin-left:auto"></span></div>`;
       block.dataset.payer = p; block.dataset.amount = amt;
@@ -874,7 +874,7 @@
         <td>${own}</td>
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
         <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '영업점이 없습니다. 오른쪽 위 \'영업점 추가\'로 계정을 만드세요.' : '불러오는 중…'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '영업점이 없습니다. 영업점 추가 버튼으로 계정을 만드세요.' : '불러오는 중…'}</td></tr>`;
   }
   // 하이어 청구 대상 건 — 일반·총판 본인 발급(dist 없음) + 총판이면 하부점 발급분(dist = 이 총판), 하부점은 자기 건(총판 단가 기준)
   const shopIssuesOf = u => ISSUES.filter(x => u.parent ? x.userId === u.id : (x.userId === u.id && !x.dist) || x.dist === u.id);
