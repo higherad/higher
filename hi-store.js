@@ -251,6 +251,8 @@ const recentClosedCache = makeCollectionCache(() => {
 const paidCache           = makeValueCache(P.paid, v => new Set(v ? Object.keys(v) : []));
 // 쇼핑슬롯(hireward.co.kr) 전체 — 쇼핑 관리 화면에서만 구독(광고주·발급·슬롯). 발급·회수·계정 저장은 higherad-shop 서버
 const shopCache           = makeValueCache('shop', v => v || {});
+// 사이드바 쇼핑 관리 배지용 — 캠페인만(shop 전체 구독 중이면 SDK가 같은 데이터를 재사용)
+const shopSlotsCache      = makeValueCache('shop/slots', v => v || {});
 const SHOP_API = 'https://higherad-shop-938928195180.asia-northeast3.run.app';
 const refundsCache        = makeValueCache(P.refunds, v => v || {});
 const pendingRefundsCache = makeValueCache(P.pendingRefunds, v => v || {});
@@ -1073,6 +1075,7 @@ const HI = {
 
   // ── 쇼핑슬롯 ──────────────────────────────────────────────
   onShopChange: shopCache,
+  onShopSlotsChange: shopSlotsCache,
   // 입금 확인·접수 확인·차단 같은 직원 직접 쓰기(shop/ 기준 상대 경로 멀티패스)
   shopUpdate(patch) { return update(ref(db, 'shop'), patch); },
   async shopCall(path, body) {
