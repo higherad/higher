@@ -2109,13 +2109,16 @@ window.toggleProdPanel = function(e) {
   // 엑셀 '상품' 열로 접수 때 고정한 풀스택 상품(fullstackFix [{name, ratio}]) — 있으면 가이드 행 상품 대신 이 상품(전부 풀스택, 세부조정만 가이드 행)
   const fixRule = (s, rule) => s?.fullstackFix
     ? { ...(rule || {}), reward: [], vendors: { 풀스택: asList(s.fullstackFix) }, full: asList(s.fullstackFix), tune: rule?.tune || {} } : rule;
-  // 엑셀 '상품' 열 — '길찾기 60 / 기본 40'(풀스택 상품 %, 합 100, '기본 로그인O 40'처럼 로그인 표기 가능). 빈칸 null
-  function parseFixNote(t) {
-    t = String(t ?? '').trim();
-    if (!t) return null;
-    const list = t.split(/[\/,]/).map(x => x.trim()).filter(Boolean)
-      .map(x => { const m = x.match(/^(.+?)\s*(\d{1,3})\s*%?$/); return m && +m[2] > 0 ? { name: m[1].trim(), ratio: +m[2] / 100 } : null; });
-    if (!list.length || list.some(x => !x)) return { err: '상품은 "이름 비율 / 이름 비율"(예 길찾기 60 / 기본 40)' };
+  // 비고 '풀스택[개별]' 행의 상품N·비율N 열 쌍 [[상품, 비율], …] → 고정 풀스택 상품(합 100). 비율 = 50·'50%'·엑셀 % 서식(0.5)
+  const FS_FIX_NOTE = '풀스택[개별]';
+  function parseFixNote(pairs) {
+    const list = pairs.filter(([n, v]) => String(n ?? '').trim() || String(v ?? '').trim()).map(([n, v]) => {
+      const name = String(n ?? '').trim(), x = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace('%', ''));
+      const pct = x > 0 && x <= 1 && typeof v === 'number' ? x * 100 : x;
+      return name && pct > 0 ? { name, ratio: Math.round(pct) / 100 } : null;
+    });
+    if (!list.length) return { err: '풀스택[개별]은 상품·비율 필요' };
+    if (list.some(x => !x)) return { err: '상품·비율 짝이 안 맞음' };
     const unknown = unknownFull({ full: list });
     if (unknown.length) return { err: `풀스택 상품 이름 모름: ${unknown.join(', ')}` };
     if (Math.round(list.reduce((a, x) => a + x.ratio, 0) * 100) !== 100) return { err: '상품 비율 합 100 아님' };
@@ -2680,7 +2683,7 @@ window.toggleProdPanel = function(e) {
         <div id="rex-mode-excel" class="rex-card">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
             <div class="rex-card-title" style="margin-bottom:0;">엑셀 일괄 업로드</div>
-            <button class="rex-btn-template" id="rex-tmpl-btn">양식 다운로드</button>
+            <div style="display:flex;gap:6px;"><button class="rex-btn-template" id="rex-tmpl-btn">양식 다운</button><button class="rex-btn-template" id="rex-fs-tmpl-btn" style="background:#0f766e;">어드민 양식 다운</button></div>
           </div>
           <div class="rex-zone" id="rex-zone">
             <input type="file" id="rex-file" accept=".xlsx,.xls">
@@ -2719,6 +2722,7 @@ window.toggleProdPanel = function(e) {
     overlay.querySelector('#rex-tab-excel').onclick  = () => rexSwitchTab(overlay, 'excel');
     overlay.querySelector('#rex-s-submit-btn').onclick = () => rexSubmitSingle(overlay);
     overlay.querySelector('#rex-tmpl-btn').onclick     = () => downloadRexTemplate();
+    overlay.querySelector('#rex-fs-tmpl-btn').onclick  = () => downloadFullstackTemplate();
     overlay.querySelector('#rex-e-reset-btn').onclick  = () => rexResetExcel(overlay);
     overlay.querySelector('#rex-e-submit-btn').onclick = () => rexSubmitExcel(overlay);
     overlay.querySelector('#rex-file').onchange = function() { if (this.files[0]) rexProcessExcel(overlay, this.files[0]); };
@@ -2914,7 +2918,9 @@ window.toggleProdPanel = function(e) {
         const targetCol = hdr.findIndex(h => /일목표/.test(h));
         const startCol  = hdr.findIndex(h => /시작일/.test(h));
         const noteCol   = hdr.findIndex(h => /비고/.test(h));  // 선택 — 리워드:유입플 비율(parseRatioNote)
-        const fixCol    = hdr.findIndex(h => /^(풀스택)?상품$/.test(h));  // 선택 — 고정 풀스택 상품(parseFixNote)
+        // 선택 — 비고 '풀스택[개별]' 행만 쓰는 상품N·비율N 열(풀스택 양식), 순서대로 짝
+        const colsOf = re => hdr.map((h, i) => re.test(h) ? i : -1).filter(i => i >= 0);
+        const fixProdCols = colsOf(/^상품\d*$/), fixPctCols = colsOf(/^비율\d*$/);
         const missing = [];
         if (storeCol  < 0) missing.push('업체명/상호명');
         if (urlCol    < 0) missing.push('URL');
@@ -2947,13 +2953,12 @@ window.toggleProdPanel = function(e) {
           const noteRaw      = noteCol >= 0 ? r[noteCol] : '';
           const noteMin      = typeof noteRaw === 'number' && noteRaw > 0 && !Number.isInteger(noteRaw) ? Math.round(noteRaw * 1440) : null;
           const note         = noteMin != null ? `${Math.floor(noteMin / 60)}:${noteMin % 60}` : String(noteRaw ?? '').trim();
-          const fix          = parseFixNote(fixCol >= 0 ? r[fixCol] : '');
-          // 상품 열을 쓰면 전부 풀스택 — 비고는 비우거나 '풀스택'만
-          const yupflRatio   = fix && !note ? { reward: 0, yupfl: 100, vendor: '풀스택' } : parseRatioNote(note, vendors);
+          // 비고 '풀스택[개별]'만 상품·비율 열로 전부 풀스택(고정 상품), 그 밖 비고는 상품 열 무시
+          const fix          = note === FS_FIX_NOTE ? parseFixNote(fixProdCols.map((c, i) => [r[c], r[fixPctCols[i]]])) : null;
+          const yupflRatio   = fix ? { reward: 0, yupfl: 100, vendor: '풀스택' } : parseRatioNote(note, vendors);
           const fullstackFix = fix?.list || null;
           const errors = [];
           if (fix?.err) errors.push(fix.err);
-          else if (fix && yupflRatio?.vendor !== '풀스택') errors.push("상품 열을 쓰면 비고는 비우거나 '풀스택'");
           const urlMid = url ? rexExtractMid(url) : null;
           if (!storeName)       errors.push('업체명 누락');
           if (!url)             errors.push('URL 누락'); else if (!urlMid) errors.push('유효하지 않은 플레이스 주소');
@@ -2963,7 +2968,7 @@ window.toggleProdPanel = function(e) {
           if (!startDate)       errors.push('시작일 형식 오류');
           else if (startDate < uploadTodayStr) errors.push('오늘 이전 시작일');
           if (!mid)             errors.push('MID 누락');
-          if (note && !yupflRatio) errors.push(`비고는 리워드/${vendors.join('/')}/비율(예 50:50)만`);
+          if (note && !yupflRatio) errors.push(`비고는 리워드/${vendors.join('/')}/${FS_FIX_NOTE}/비율(예 50:50)만`);
           const unitErr = UNIT_VENDORS.includes(yupflRatio?.vendor) && unitVendorErr(yupflRatio.vendor, dailyTarget || 0, days);
           if (unitErr) errors.push(unitErr);
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
@@ -3051,12 +3056,40 @@ window.toggleProdPanel = function(e) {
     const wb = XLSX.utils.book_new();
     const todayStr = rexFmt(new Date());
     const ws = XLSX.utils.aoa_to_sheet([
-      ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고','상품'],
-      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,'',''],
+      ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고'],
+      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,''],
     ]);
-    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:10},{wch:24}];
+    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:10}];
     XLSX.utils.book_append_sheet(wb, ws, '접수');
     XLSX.writeFile(wb, '엑셀접수_양식.xlsx');
+  }
+
+  // 어드민 양식(풀스택[개별]) — 기본 양식 + 상품·비율 4쌍, 2~101행 선택창(비고·상품·비율). 비고 '풀스택[개별]' 행만 상품·비율을 씀
+  const FS_FORM_PAIRS = 4, FS_FORM_ROWS = 101;
+  function downloadFullstackTemplate() {
+    const head = ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고'];
+    for (let i = 1; i <= FS_FORM_PAIRS; i++) head.push(`상품${i}`, `비율${i}`);
+    const ws = XLSX.utils.aoa_to_sheet([head]);
+    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}])];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '접수');
+    const col = i => XLSX.utils.encode_col(i), rng = i => `${col(i)}2:${col(i)}${FS_FORM_ROWS}`;
+    const names = FULL_PRODS.flatMap(([k, , login]) => login ? [k, `${k}(로그인O)`] : [k]);
+    const ratios = ['90:10','80:20','70:30','60:40','50:50','40:60','30:70','20:80','10:90'];
+    const pcts = Array.from({ length: 20 }, (_, i) => (i + 1) * 5);
+    // 비고는 다른 업체명도 쓸 수 있게 경고만, 상품은 목록 밖이면 막음
+    const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;
+    const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, ...ratios], false),
+      ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(8 + i * 2), names, true), dv(rng(9 + i * 2), pcts, false)])];
+    // SheetJS(무료판)는 데이터 유효성을 못 써서 만든 xlsx(zip)의 시트 XML에 직접 넣음
+    const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' })), { type: 'buffer' });
+    const f = zip.FileIndex[zip.FullPaths.findIndex(p => p.endsWith('xl/worksheets/sheet1.xml'))];
+    const xml = new TextDecoder().decode(f.content).replace(/(<\/sheetData>(?:<mergeCells[\s\S]*?<\/mergeCells>)?)/,
+      `$1<dataValidations count="${rules.length}">${rules.join('')}</dataValidations>`);
+    f.content = new TextEncoder().encode(xml); f.size = f.content.length;
+    const blob = new Blob([XLSX.CFB.write(zip, { type: 'array', fileType: 'zip' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: '엑셀접수_어드민양식.xlsx' });
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   // ── 애드로그 대량등록 접수 (그룹/키워드/URL/메모) ────────────
