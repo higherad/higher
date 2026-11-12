@@ -129,12 +129,11 @@
       <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 캠페인</option><option value="refund">환불 요청</option><option value="stop">환불</option><option value="end">종료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
-        <button class="act act-edit" style="padding:7px 12px" onclick="shopExcel()">엑셀 다운로드</button>
         <button class="act act-edit" style="padding:7px 12px" title="run.py 결과 파일 또는 캠페인번호·MID 열이 있는 엑셀" onclick="document.getElementById('sh-mid-file').click()">MID 업로드</button>
         <input type="file" id="sh-mid-file" accept=".csv,.xlsx" style="display:none" onchange="shopMidFile(this)">
         <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(this)">진행중 전환</button>
         <button class="act act-del" style="padding:7px 12px" title="선택한 캠페인의 발급 건 전체 취소(진행 전 + 시작일 당일까지)" onclick="shopCancel(this)">취소</button>
-        <button class="act act-del" style="padding:7px 12px" onclick="shopStop(this)">중단</button>
+        <button class="act act-del" style="padding:7px 12px" title="환불 요청 캠페인을 비즈핏에서 강제종료하고 남은 일수 금액을 정산에서 차감" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px;display:inline-flex;align-items:center;gap:6px" onclick="shopOrderOpen()"><i data-lucide="clipboard-plus" style="width:15px;height:15px"></i>접수</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:76px"><col style="width:150px"><col style="width:160px"><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
@@ -429,7 +428,7 @@
     });
     if (!items.length) throw new Error('저장할 MID가 없습니다. 캠페인번호·MID를 확인해 주세요.');
     const r = await HI.shopCall('/shop-mid', { items });
-    alert(`${r.changed}개 저장${bad + r.skipped ? `, ${bad + r.skipped}개는 캠페인이 없거나 이미 중단돼 건너뛰었습니다` : ''}.`);
+    alert(`${r.changed}개 저장${bad + r.skipped ? `, ${bad + r.skipped}개는 캠페인이 없거나 이미 환불 처리돼 건너뛰었습니다` : ''}.`);
   });
   // 환불 요청 슬롯 중단 — 영업점(총판 회사명)·MID로 비즈핏 진행 캠페인을 찾아 강제종료, 재접수는 만들지 않음
   // 찾은 캠페인 수가 슬롯 수와 다르면 어느 캠페인인지 정할 수 없어 자동 종료하지 않음(직원이 비즈핏에서 직접 종료 후 슬롯만 중단 가능)
@@ -445,7 +444,7 @@
     const list = SLOTS.filter(x => PICKED.has(slotKey(x)) && slotState(x) === 'refund');
     if (!list.length) throw new Error('환불 요청 캠페인을 선택해 주세요.');
     const amt = list.reduce((a, x) => { const is = ISSUES.find(i => i.userId === x.userId && i.no === x.issueNo); return a + Math.round((is?.price || 0) * stopDays(x) / termDays(is || {})); }, 0);
-    if (!confirm(`캠페인 ${list.length}개를 비즈핏에서 강제종료하고 중단합니다.\n환불 ${won(amt)}원(VAT 별도)이 정산에서 차감됩니다. 되돌릴 수 없습니다.`)) return;
+    if (!confirm(`캠페인 ${list.length}개를 비즈핏에서 강제종료하고 환불 처리합니다.\n환불 ${won(amt)}원(VAT 별도)이 정산에서 차감됩니다. 되돌릴 수 없습니다.`)) return;
     const groups = {}, fails = []; let done = 0;
     list.forEach(x => { const agency = distOf(userOf(x.userId)), mid = x.bizMid || x.mid, k = `${agency}|${mid}`; (groups[k] = groups[k] || { agency, mid, slots: [] }).slots.push(x); });
     for (const g of Object.values(groups)) {
@@ -455,8 +454,8 @@
       try {
         const { active } = await bizPost('/find-campaigns', { mid: g.mid, agency: g.agency });
         if (active.length !== g.slots.length) {
-          const msg = `영업점 ${g.agency} · MID ${g.mid}\n비즈핏 진행 캠페인 ${active.length}건 / 중단할 접수 ${g.slots.length}개로 수가 달라 자동 종료할 수 없습니다.`;
-          if (!confirm(`${msg}\n\n비즈핏에서 직접 강제종료했으면 [확인]을 눌러 여기 접수 건만 중단 처리합니다.`)) { failAll(g.slots, `비즈핏 진행 캠페인 ${active.length}건, 접수 ${g.slots.length}개로 수가 다름${g.mid === g.slots[0].mid && !g.slots[0].bizMid ? ' — MID 업로드 필요' : ''}`); continue; }
+          const msg = `영업점 ${g.agency} · MID ${g.mid}\n비즈핏 진행 캠페인 ${active.length}건 / 환불할 접수 ${g.slots.length}개로 수가 달라 자동 종료할 수 없습니다.`;
+          if (!confirm(`${msg}\n\n비즈핏에서 직접 강제종료했으면 [확인]을 눌러 여기 접수 건만 환불 처리합니다.`)) { failAll(g.slots, `비즈핏 진행 캠페인 ${active.length}건, 접수 ${g.slots.length}개로 수가 다름${g.mid === g.slots[0].mid && !g.slots[0].bizMid ? ' — MID 업로드 필요' : ''}`); continue; }
         } else {
           const results = [];
           for (let i = 0; i < active.length; i += STOP_CHUNK)
@@ -472,7 +471,7 @@
       catch (e) { failAll(ok, `비즈핏은 종료됐지만 반영 실패(${e.message}) — 비즈핏 확인 후 다시 실행해 주세요`); }
     }
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
-    alert(`${done}개 중단${fails.length ? `, ${fails.length}개 실패\n\n${fails.join('\n')}` : ''}`);
+    alert(`${done}개 환불 처리${fails.length ? `, ${fails.length}개 실패\n\n${fails.join('\n')}` : ''}`);
   });
   // 접수 현황 필터(광고주·검색·상태·종료 제외)
   function slotShown(x) {
@@ -809,7 +808,7 @@
     const cur = g.list.reduce((a, is) => a + (is.adj || 0), 0), auto = g.list.reduce((a, is) => a + (is.refund || 0) + (is.autoAdj || 0), 0);
     const m = miniModal('환불 금액 입력', `${esc(userOf(g.payer).company)} · ${g.date}`,
       `<div style="background:#f8fafc;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:12px;color:var(--text2);display:grid;grid-template-columns:1fr auto;gap:6px">
-         <span>현재 추가 환불</span><b style="color:var(--danger)">${won(cur)}원</b><span>중단·환불 등록 차감(자동)</span><b>${won(auto)}원</b></div>
+         <span>현재 추가 환불</span><b style="color:var(--danger)">${won(cur)}원</b><span>환불 처리·환불 등록 차감(자동)</span><b>${won(auto)}원</b></div>
        <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">추가 환불 금액 (VAT 별도, 0 입력 시 삭제)</label>
        <input class="rf-v" type="text" inputmode="numeric" value="${cur || ''}" style="${inCss}margin-bottom:18px">
        <div style="display:flex;gap:8px"><button class="rf-x" style="${btnCss('#fff', 'var(--text2)')}">취소</button><button class="rf-go" style="${btnCss('var(--danger)')}">저장</button></div>`);
