@@ -172,7 +172,7 @@
           <td><button class="action-btn btn-edit" onclick="openUserPricePopup('${u._key}')">보기</button></td>
           <td style="font-weight:700">${escHtml(chargeIdOf(u)) || '-'}</td>
           <td>${getUserSlotCount(u.username)}</td>
-          ${(b => `<td>${b.total.toLocaleString()}</td><td style="color:${b.unpaid ? 'var(--warn)' : 'inherit'}">${b.unpaid.toLocaleString()}</td>`)(getUserBill(u))}
+          ${(b => `<td style="font-weight:700;color:var(--accent)">${b.total.toLocaleString()}</td><td style="${b.unpaid ? 'font-weight:700;color:var(--danger)' : ''}">${b.unpaid.toLocaleString()}</td>`)(getUserBill(u))}
           <td style="color:var(--text2);font-size:11px">${u.memo||'-'}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
