@@ -387,7 +387,7 @@
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
     if (r.skipped) alert(`${r.changed}개 변경, ${r.skipped}개는 정보가 없거나 종료·취소돼 건너뛰었습니다.`);
   });
-  // 환불 요청 슬롯 중단 — 영업점(총판 회사명)·MID로 비즈핏 진행 캠페인을 찾아 강제종료, 재접수는 만들지 않음
+  // 환불 요청 슬롯 중단 — 영업점(업체명[SR], 하부점은 총판)·MID로 비즈핏 진행 캠페인을 찾아 강제종료, 재접수는 만들지 않음
   // 찾은 캠페인 수가 슬롯 수와 다르면 어느 캠페인인지 정할 수 없어 자동 종료하지 않음(직원이 비즈핏에서 직접 종료 후 슬롯만 중단 가능)
   const BIZFIT_STOP_SERVER = 'https://higherad-bizfit-stop-938928195180.asia-northeast3.run.app', STOP_CHUNK = 3;
   async function bizPost(path, body) {
@@ -408,10 +408,10 @@
       .filter(Boolean).join('\n') + '\n\n되돌릴 수 없습니다.')) return;
     const removed = pre.length || run.length ? (await HI.shopCall('/shop-refund', { items: [...pre, ...run].map(x => ({ userId: x.userId, no: x.no })) })).removed : 0;
     const groups = {}, fails = []; let done = 0;
-    list.forEach(x => { const agency = distOf(userOf(x.userId)), mid = x.bizMid || x.mid, k = `${agency}|${mid}`; (groups[k] = groups[k] || { agency, mid, slots: [] }).slots.push(x); });
+    list.forEach(x => { const agency = srAgency(userOf(x.userId)), mid = x.bizMid || x.mid, k = `${agency}|${mid}`; (groups[k] = groups[k] || { agency, mid, slots: [] }).slots.push(x); });
     for (const g of Object.values(groups)) {
       const failAll = (slots, m) => slots.forEach(x => fails.push(`${x.no}번: ${m}`));
-      if (!g.agency) { failAll(g.slots, '총판이 없어 영업점을 알 수 없습니다 — 비즈핏에서 직접 처리해 주세요'); continue; }
+      if (!g.agency) { failAll(g.slots, '업체명이 없어 영업점을 알 수 없습니다 — 비즈핏에서 직접 처리해 주세요'); continue; }
       let ok = g.slots;
       try {
         const { active } = await bizPost('/find-campaigns', { mid: g.mid, agency: g.agency });
@@ -450,9 +450,11 @@
   }
   // 확장(키워드 추출·캠페인 등록) 업로드용 — 쇼핑 접수 가이드 양식. 선택한 슬롯, 없으면 화면에 보이는 접수·진행중 슬롯
   // 확장 업로드용 엑셀 — 영업점 = srAgency(업체명[SR]) · 등급 스모키 · 일수·일목표 = 캠페인 값(없는 옛 건 7·100)
-  const distOf = u => u.role === 'dist' ? u.company : u.parent ? userOf(u.parent).company : '';
-  // 엑셀 다운로드 전용 영업점 = 대행사 업체명 + '[SR]'(매크로가 영업점[SR]로 등록) — 하부점은 총판, 그 밖은 본인 업체명. 이미 [SR]로 끝나면 그대로
-  const srAgency = u => { const n = u.parent ? userOf(u.parent).company : u.company; return n && !n.endsWith('[SR]') ? n + '[SR]' : n; };
+  // 비즈핏 영업점 이름 = 대행사 업체명 + '[SR]'(매크로가 영업점[SR]로 등록) — 하부점은 총판, 그 밖은 본인 업체명. 이미 [SR]로 끝나면 그대로
+  // 쓰는 곳: 접수 엑셀 영업점 · 환불(비즈핏 캠페인 조회) · 충전 입금완료 확정. 화면·다른 엑셀은 업체명 그대로
+  // 공백 없이 붙여 씀(코로나[SR]) — 업체명 끝 공백·이미 붙은 '[SR]'/' [SR]'은 떼고 다시 붙임
+  const srName = n => { n = String(n || '').replace(/\s*\[SR\]\s*$/i, '').trim(); return n ? n + '[SR]' : ''; };
+  const srAgency = u => srName(u.parent ? userOf(u.parent).company : u.company);
   window.shopExcel = () => {
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
       .sort((a, b) => b.no - a.no).map(x => [srAgency(userOf(x.userId)), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
@@ -658,7 +660,7 @@
   const claimKeysOf = keys => keys.map(k => `shop__${k}`);
   // 비즈핏 실제 충전 — 정산관리 chargeAgency와 같음(계정 조회 → 충전 스트림 → 입금완료 자동 확정)
   async function chargeAgency(payer, amount) {
-    const acct = CHARGE[payer], company = userOf(payer).company;
+    const acct = CHARGE[payer], company = srName(userOf(payer).company);  // 입금완료 확정은 비즈핏 영업점명(업체명[SR])으로 찾음
     if (!acct?.id) return { ok: false, noAccount: true, resultMsg: '충전 계정 미입력(광고주 관리에서 입력)' };
     let ok = false, resultMsg = '';
     try {
