@@ -89,6 +89,7 @@
   #shop-um .ttl { font-size:17px; font-weight:700; margin-bottom:20px; }
   #shop-um .f { margin-bottom:14px; } #shop-um .f label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
   #shop-um .f label .req { color:var(--danger); margin-left:2px; }
+  #shop-um .pw-masked { -webkit-text-security:disc; }  /* 크롬 비밀번호 저장 팝업 방지 — type=password 대신 글자만 가림 */
   #shop-um .f select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box; }
   #shop-um .f input { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; outline:none; font-family:inherit; box-sizing:border-box; }
   /* 총판 토글(제목 옆) — 체크박스는 숨기고 알약 버튼 전체가 클릭 영역, 켜면 주황 */
@@ -181,10 +182,13 @@
     <div class="f"><label>광고주(업체명)<span class="req">*</span></label><input id="sh-um-company" maxlength="30" placeholder="예: 하이어애드"></div>
     <div class="row">
       <div class="f"><label>아이디<span class="req">*</span></label><input id="sh-um-id" maxlength="20" placeholder="영문+숫자 3~20자" autocomplete="off"></div>
-      <div class="f"><label id="sh-um-pw-l">비밀번호<span class="req">*</span></label><input id="sh-um-pw" maxlength="64" autocomplete="new-password"></div>
+      <div class="f"><label id="sh-um-pw-l">비밀번호<span class="req">*</span></label><input id="sh-um-pw" maxlength="64" class="pw-masked" autocomplete="off"></div>
     </div>
     <div class="f"><label>단가 (원, 1개 · VAT 별도 — 캠페인 금액 = 단가 × 일수 × 일 목표)<span class="req">*</span></label><input id="sh-um-price" type="number" style="text-align:center"></div>
-    <div class="f" id="sh-um-charge-f"><label>비즈핏 충전 계정 <span style="font-weight:400;color:var(--muted)">(정산 충전에 사용 — 회원관리 충전 계정 중 선택)</span></label><select id="sh-um-charge"></select></div>
+    <div class="row" id="sh-um-charge-f">
+      <div class="f"><label>비즈핏 충전 아이디 <span style="font-weight:400;color:var(--muted)">(정산 충전용)</span></label><input id="sh-um-cid" maxlength="60" placeholder="BizFit 아이디" autocomplete="off"></div>
+      <div class="f"><label>비즈핏 충전 비밀번호</label><input id="sh-um-cpw" maxlength="64" class="pw-masked" placeholder="BizFit 비밀번호" autocomplete="off"></div>
+    </div>
     <div class="f"><label>메모</label><input id="sh-um-memo" maxlength="200"></div>
     <div class="foot"><button class="act" id="sh-um-block" style="padding:9px 16px"></button><button class="act act-del" id="sh-um-del" style="margin-right:auto;padding:9px 16px">삭제</button><button style="border:1px solid var(--border);background:#fff" id="sh-um-cancel">취소</button><button class="btn-go" id="sh-um-save">저장</button></div>
   </div></div>
@@ -239,7 +243,7 @@
   const slotState = sl => sl.stoppedAt ? 'stop' : sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.refundAt ? 'refund' : sl.runAt ? 'run' : 'wait';
   const closedState = st => st === 'end' || st === 'stop';
 
-  let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, SETTLE = {}, PENDING = {}, PENDING_DRAW = null, loaded = false, editId = null;
+  let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, SETTLE = {}, PENDING = {}, CHARGE = {}, PENDING_DRAW = null, loaded = false, editId = null;
   // 접수 현황 체크 — 실시간 갱신으로 표를 다시 그려도 유지(구독 콜백보다 먼저 선언)
   const PICKED = new Set(), slotKey = x => `${x.userId}|${x.no}`;
   // 정산 체크(정산 등록 팝업 대상) — 같은 이유로 여기서 선언
@@ -651,9 +655,9 @@
   const nowStr = () => kstNow().toISOString().slice(0, 16).replace('T', ' ');
   const claimKeysOf = keys => keys.map(k => `shop__${k}`);
   // 비즈핏 실제 충전 — 정산관리 chargeAgency와 같음(계정 조회 → 충전 스트림 → 입금완료 자동 확정)
-  async function chargeAgency(acctKey, amount) {
-    const acct = acctKey && await HI.getBizfitCharge(acctKey);
-    if (!acct) return { ok: false, noAccount: true, resultMsg: '충전 계정 미지정(광고주 관리에서 지정)' };
+  async function chargeAgency(payer, amount) {
+    const acct = CHARGE[payer], company = userOf(payer).company;
+    if (!acct?.id) return { ok: false, noAccount: true, resultMsg: '충전 계정 미입력(광고주 관리에서 입력)' };
     let ok = false, resultMsg = '';
     try {
       const res = await fetch(`${CHARGE_SERVER}/charge-stream`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: acct.id, pw: acct.pw, amount }), signal: AbortSignal.timeout(120000) });
@@ -678,7 +682,7 @@
     if (!ok) return { ok: false, resultMsg };
     let confirmOk = false, confirmMsg = '';
     try {
-      const cres = await fetch(`${BIZFIT_DIRECT_PROXY}/bizfit-charge-confirm`, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify({ company: acctKey, amount, newStatus: '3' }) });
+      const cres = await fetch(`${BIZFIT_DIRECT_PROXY}/bizfit-charge-confirm`, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify({ company, amount, newStatus: '3' }) });
       const cj = await cres.json(); confirmOk = !!cj.success; confirmMsg = cj.message || '';
     } catch (e) { confirmMsg = `서버 연결 실패: ${e.message}`; }
     return { ok: true, resultMsg, confirmOk, confirmMsg };
@@ -705,8 +709,8 @@
       if (!confirm(`${label} 충전 기록을 지웁니다. (비즈핏 충전은 취소되지 않습니다)`)) return;
       return busy(btn, () => HI.shopUpdate({ [`settle/${sk}/chargedAt`]: null, [`settle/${sk}/chargedBy`]: null, [`settle/${sk}/chargeAmt`]: null }));
     }
-    const acct = userOf(g.payer).chargeAcct || '';
-    const m = miniModal('충전 금액 입력', `${esc(label)} · 충전 계정 ${acct ? esc(acct) : '<b style="color:var(--danger)">미지정</b>'}`,
+    const acct = CHARGE[g.payer]?.id || '';
+    const m = miniModal('충전 금액 입력', `${esc(label)} · 충전 아이디 ${acct ? esc(acct) : '<b style="color:var(--danger)">미입력</b>'}`,
       `<label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">충전 금액 (VAT 별도)</label>
        <input class="cg-amt" type="text" inputmode="numeric" value="${groupAmt(g)}" style="${inCss}margin-bottom:12px">
        <div class="cg-st" style="font-size:12px;color:var(--danger);margin-bottom:12px;display:none"></div>
@@ -721,11 +725,11 @@
     };
     $m('.cg-go').onclick = async () => {
       const amount = amtOf(); if (amount <= 0) return fail('금액을 입력해 주세요.');
-      if (!confirm(`${label}\n충전 계정 ${acct || '-'}로 ${won(amount)}원을 비즈핏에 충전합니다.`)) return;
+      if (!confirm(`${label}\n충전 아이디 ${acct || '-'}로 ${won(amount)}원을 비즈핏에 충전합니다.`)) return;
       lock(true); $m('.cg-go').textContent = '처리 중...';
       const keys = claimKeysOf([sk]), claim = await HI.claimCharge(keys, staffName());
       if (!claim.ok) { lock(false); $m('.cg-go').textContent = '충전'; return fail(`${claim.by || '다른 직원'}님이 이 항목을 충전 중입니다.`); }
-      const r = await chargeAgency(acct, amount);
+      const r = await chargeAgency(g.payer, amount);
       if (!r.ok) {
         if (!r.unknown) await HI.releaseCharge(keys);  // 확실한 실패만 선점 해제 — 결과 불명이면 유지해 재충전 차단
         lock(false); $m('.cg-go').textContent = '충전'; fail(r.resultMsg);
@@ -749,7 +753,7 @@
       const ck = claimKeysOf(keys), claim = await HI.claimCharge(ck, staffName());
       if (!claim.ok) { cell.innerHTML = badge('#fee2e2', '#991b1b', `${claim.by || '다른 직원'}님이 충전 중`); continue; }
       cell.innerHTML = badge('#dbeafe', '#1d4ed8', `충전 중... ${won(amount)}원`);
-      const r = await chargeAgency(userOf(payer).chargeAcct || '', amount);
+      const r = await chargeAgency(payer, amount);
       if (!r.ok) {
         if (!r.unknown) await HI.releaseCharge(ck);
         cell.innerHTML = r.noAccount ? badge('#fef9c3', '#854d0e', r.resultMsg) : badge('#fee2e2', '#991b1b', esc(r.resultMsg));
@@ -895,8 +899,7 @@
     $('sh-um-dist').checked = u.role === 'dist'; $('sh-um-dist-f').style.display = u.parent ? 'none' : '';  // 하부점은 총판 불가(2단계까지)
     $('sh-um-pw').value = ''; $('sh-um-price').value = u.price; $('sh-um-memo').value = u.memo || '';
     $('sh-um-charge-f').style.display = u.parent ? 'none' : '';
-    $('sh-um-charge').innerHTML = `<option value="">${u.chargeAcct ? esc(u.chargeAcct) : '-- 선택 안 함 --'}</option>`;
-    HI.getBizfitCharges().then(c => { $('sh-um-charge').innerHTML = '<option value="">-- 선택 안 함 --</option>' + Object.keys(c).sort().map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join(''); $('sh-um-charge').value = u.chargeAcct || ''; });
+    $('sh-um-cid').value = CHARGE[u.id]?.id || ''; $('sh-um-cpw').value = CHARGE[u.id]?.pw || '';
     const bl = $('sh-um-block');  // 차단·해제는 수정 팝업 안에서만(추가할 땐 숨김)
     bl.style.display = $('sh-um-del').style.display = id ? '' : 'none'; bl.textContent = u.blocked ? '차단 해제' : '차단'; bl.className = `act ${u.blocked ? 'act-ok' : 'act-del'}`;
     $('shop-um').classList.add('show');
@@ -904,10 +907,12 @@
   $('sh-um-cancel').onclick = () => $('shop-um').classList.remove('show');
   $('sh-um-save').onclick = () => busy($('sh-um-save'), async () => {
     const d = { isNew: !editId, dist: $('sh-um-dist').checked, id: $('sh-um-id').value.trim(), company: $('sh-um-company').value.trim(), pw: $('sh-um-pw').value,
-      price: parseInt($('sh-um-price').value), memo: $('sh-um-memo').value.trim() };
+      price: parseInt($('sh-um-price').value), memo: $('sh-um-memo').value.trim(), cid: $('sh-um-cid').value.trim(), cpw: $('sh-um-cpw').value };
+    if (!d.cid !== !d.cpw) throw new Error('비즈핏 충전 아이디·비밀번호를 둘 다 입력하거나 둘 다 비워 주세요.');
     if (!d.company || !d.id || !(d.price > 0) || (!editId && !d.pw)) throw new Error('필수 항목을 입력해 주세요.');
     await HI.shopCall('/shop-user', d);
-    if ($('sh-um-charge-f').style.display !== 'none') await HI.shopUpdate({ [`users/${d.id}/chargeAcct`]: $('sh-um-charge').value || null });
+    // 비즈핏 충전 계정(하부점은 총판 계정으로 충전) — shop/charge_accts/{아이디}, 직원 전용 경로(광고주는 못 읽음)
+    if ($('sh-um-charge-f').style.display !== 'none') await HI.shopUpdate({ [`charge_accts/${d.id}`]: d.cid ? { id: d.cid, pw: d.cpw } : null });
     $('shop-um').classList.remove('show');
   });
   // 단가 변경 이력 팝업 — 기록은 서버(/shop-user)가 단가가 바뀔 때만 남김
@@ -965,7 +970,7 @@
     ISSUES = Object.entries(v.issues || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid,
       subPrice: x.price, price: x.dist ? x.distPrice : x.price, refund: (x.dist ? x.distRefund : x.refund) || 0, paidAt: x.dist ? x.distPaidAt || '' : x.paidAt || '',
       paidBy: x.dist ? x.distPaidBy : x.paidBy, unitShown: x.dist ? x.distUnit : x.unit })));
-    PRICE_LOG = v.price_log || {}; SETTLE = v.settle || {}; PENDING = v.pending_refunds || {}; PENDING_DRAW?.();
+    PRICE_LOG = v.price_log || {}; SETTLE = v.settle || {}; PENDING = v.pending_refunds || {}; CHARGE = v.charge_accts || {}; PENDING_DRAW?.();
     SLOTS = Object.entries(v.slots || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
     loaded = true;
     renderAll();
