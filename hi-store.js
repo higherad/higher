@@ -582,11 +582,16 @@ const HI = {
   },
   // 종료일 지난 진행 캠페인 일괄 종료(expired) — 한 번의 update로 live→closed 이동
   // 일 목표 칸 아래 일반/유입플(/차감) 분할 표시 — 승인·예약 때 캠페인에 고정한 값(yupflTarget, 리워드만이면 0)이 있을 때만(접수관리·진행현황 공용)
-  // 엑셀 비고 비율 배지(yupflRatio) — 업체명·'리워드'·'리워드%:유입플%'(접수관리·진행현황 공용)
-  ratioBadgeHtml(r) {
+  // 엑셀 비고 비율 배지(yupflRatio) — 업체명·'리워드'·'리워드%:유입플%', 고정 상품(fix = fullstackFix)이면 '풀스택[개별]'(접수관리·진행현황 공용)
+  // 색: 리워드 파랑 · 풀스택 청록 · 부산 분홍 · 제이엔 주황 · 비율 노랑 · 그 밖 업체(여러 업체 포함) 보라 · 풀스택[개별] 진한 청록
+  ratioBadgeHtml(r, fix) {
     if (!r) return '<span style="color:#cbd5e1">-</span>';
-    const label = r.vendor || (!r.yupfl ? '리워드' : `${r.reward}:${r.yupfl}`);
-    return `<span title="리워드:유입플 (${r.auto ? '승인 때 나뉜 일 목표' : '엑셀 비고'})" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">${label}</span>`;
+    const label = fix ? '풀스택[개별]' : r.vendor || (!r.yupfl ? '리워드' : `${r.reward}:${r.yupfl}`);
+    const color = fix ? 'background:#0f766e;color:#fff;border:1px solid #0f766e'
+      : { 리워드: 'background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe', 풀스택: 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4',
+          부산: 'background:#fce7f3;color:#be185d;border:1px solid #fbcfe8', 제이엔: 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa' }[label]
+      || (r.vendor ? 'background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe' : 'background:#fef3c7;color:#b45309;border:1px solid #fde68a');
+    return `<span title="리워드:유입플 (${r.auto ? '승인 때 나뉜 일 목표' : '엑셀 비고'})" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;${color}">${label}</span>`;
   },
   dailySplitHtml(s) {
     if (s.yupflTarget == null || !s.dailyTarget || legacySplit(s)) return '';

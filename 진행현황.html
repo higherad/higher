@@ -320,7 +320,7 @@
         return `
         <tr>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
-          <td>${HI.ratioBadgeHtml(s.yupflRatio)}</td>
+          <td>${HI.ratioBadgeHtml(s.yupflRatio, s.fullstackFix)}</td>
           <td>${typeCellHtml(s)}</td>
           <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : `<span style="font-weight:500">${s.storeName||'-'}</span>`}</td>
           <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
@@ -542,7 +542,7 @@
             return `<tr style="border-bottom:1px solid var(--border);">
               <td style="padding:10px;text-align:center;color:var(--text2);">${_fmtDateOnly(s.createdAt)}</td>
               <td style="padding:10px;text-align:center;font-weight:600;">${s.agencyId||'-'}</td>
-              <td style="padding:10px;text-align:center;">${HI.ratioBadgeHtml(s.yupflRatio)}</td>
+              <td style="padding:10px;text-align:center;">${HI.ratioBadgeHtml(s.yupflRatio, s.fullstackFix)}</td>
               <td style="padding:10px;text-align:center;">${s.storeName||'-'}</td>
               <td style="padding:10px;text-align:center;font-size:11px;color:var(--text2);">${s.mid||'-'}</td>
               <td style="padding:10px;text-align:center;color:var(--text2);">${_fmtDateOnly(s.deletedAt)}</td>

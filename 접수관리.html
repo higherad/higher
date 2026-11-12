@@ -787,7 +787,7 @@ window.toggleProdPanel = function(e) {
           <td><input type="checkbox" class="row-check" data-key="${s._key}"></td>
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
-          <td>${HI.ratioBadgeHtml(s.yupflRatio)}</td>
+          <td>${HI.ratioBadgeHtml(s.yupflRatio, s.fullstackFix)}</td>
           <td>${typeBadgesHtml(s)}</td>
           <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
@@ -3008,7 +3008,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.days ?? '-'}</td>
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
-        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * 100)}`).join(' / '))}</div>` : ''}</td>
+        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.fullstackFix) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * 100)}`).join(' / '))}</div>` : ''}</td>
         <td>${r.valid ? `<span class="rex-row-status rex-row-ok">정상</span>${r.sameCount ? ` <span class="rex-row-status" style="background:#fef3c7;color:#b45309;" title="MID·순위키워드·시작일·일수·일 목표·비고가 모두 같은 행 — 붙여넣기 실수가 아닌지 확인">⚠ 같은 행 ${r.sameCount}개</span>` : ''}` : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';
