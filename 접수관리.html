@@ -1942,34 +1942,68 @@ window.toggleProdPanel = function(e) {
     await userBizfitUidReady;
     const list = users.map(u => ({ name: u.agency || u.username, uid: userBizfitUidMap.get(u.username), price: Number(u.unitPrice) || 0 }))
       .filter(a => a.uid && !NO_CASH_DEDUCT_AGENCIES.has(a.name)).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    let sel = null;  // 선택한 대행사
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'cd-modal';
     overlay.innerHTML = `
-      <div class="modal-box" style="width:min(96vw,420px);">
-        <div class="modal-title">💳 자동 차감</div>
+      <div class="modal-box" style="width:min(94vw,440px);padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <div class="rex-branch-icon"><i data-lucide="wallet" size="18"></i></div>
+          <div style="flex:1;font-size:16px;font-weight:800;">자동 차감</div>
+          <button id="cd-x" title="닫기" style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;">×</button>
+        </div>
         <div class="modal-field"><label>대행사</label>
-          <select id="cd-agency" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;">
-            <option value="">선택</option>${list.map((a, i) => `<option value="${i}">${escProd(a.name)}</option>`).join('')}
-          </select></div>
-        <div class="modal-field"><label>차감 수량(줄인 수량 합)</label>
-          <input type="number" id="cd-qty" min="1" placeholder="예: 300" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;box-sizing:border-box;"></div>
-        <div id="cd-calc" style="font-size:13px;font-weight:700;margin-bottom:10px;">차감 금액 -</div>
-        <div id="cd-log" style="margin-top:10px;font-size:12px;"></div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
-          <button class="btn-cancel" id="cd-close">닫기</button>
-          <button id="cd-run" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">차감 실행</button>
+          <div class="rex-branch-input-wrap">
+            <i data-lucide="search" size="15" style="color:var(--muted);margin-left:12px;flex-shrink:0;"></i>
+            <input id="cd-search" type="text" placeholder="영업점명 또는 아이디 검색" autocomplete="off">
+          </div>
+          <div id="cd-list" style="margin-top:6px;border:1px solid var(--border);border-radius:9px;max-height:180px;overflow-y:auto;"></div>
+        </div>
+        <div class="modal-field"><label>차감 수량</label>
+          <div class="rex-branch-input-wrap">
+            <input id="cd-qty" type="number" min="1" placeholder="분할에서 줄인 수량 합">
+            <span style="padding:0 14px;color:var(--muted);font-size:13px;">개</span>
+          </div>
+        </div>
+        <div id="cd-calc" style="background:#f8fafc;border-radius:10px;padding:14px 16px;font-size:13px;"></div>
+        <div id="cd-log" style="margin-top:10px;font-size:12px;line-height:1.7;"></div>
+        <div style="display:flex;gap:8px;margin-top:18px;">
+          <button class="btn-cancel" id="cd-close" style="flex:1;">닫기</button>
+          <button id="cd-run" style="flex:2;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">차감 실행</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
-    const $ = sel => overlay.querySelector(sel);
-    $('#cd-close').onclick = () => overlay.remove();
-    const calc = () => { const a = list[$('#cd-agency').value], q = Math.floor(Number($('#cd-qty').value)) || 0; return { a, q, amount: a ? q * a.price : 0 }; };
-    $('#cd-agency').onchange = $('#cd-qty').oninput = () => {
+    const $ = q => overlay.querySelector(q);
+    $('#cd-close').onclick = $('#cd-x').onclick = () => overlay.remove();
+    const qty = () => Math.floor(Number($('#cd-qty').value)) || 0;
+    const calc = () => ({ a: sel, q: qty(), amount: sel ? qty() * sel.price : 0 });
+    const line = (k, v, strong) => `<div style="display:flex;justify-content:space-between;${strong ? 'margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:15px;font-weight:800;' : 'color:var(--text2);margin-bottom:4px;'}"><span>${k}</span><span>${v}</span></div>`;
+    const renderCalc = () => {
       const { a, q, amount } = calc();
-      $('#cd-calc').textContent = !a ? '차감 금액 -' : !a.price ? '⚠️ 회원관리에 이 대행사 단가가 없습니다'
-        : `차감 금액 ${q.toLocaleString()} × ${a.price.toLocaleString()}원 = ${amount.toLocaleString()}원`;
+      $('#cd-calc').innerHTML = a && !a.price
+        ? '<span style="color:var(--danger);font-weight:600;">⚠️ 회원관리에 이 대행사 단가가 없습니다</span>'
+        : line('단가', a ? `${a.price.toLocaleString()}원` : '-') + line('수량', q ? `${q.toLocaleString()}개` : '-')
+          + line('차감 금액', `<span style="color:#dc2626;">${amount ? amount.toLocaleString() + '원' : '-'}</span>`, true);
     };
+    const renderList = () => {
+      const q = $('#cd-search').value.trim().toLowerCase();
+      const rows = sel && $('#cd-search').value === sel.name ? list : list.filter(a => !q || rexMatchSearch(a.name, q) || rexMatchSearch(a.uid, q));
+      $('#cd-list').innerHTML = rows.length ? rows.map(a => `
+        <div class="rex-branch-option" data-i="${list.indexOf(a)}" style="${a === sel ? 'background:rgba(16,185,129,.08);color:var(--accent);font-weight:700;' : ''}">
+          <span>${escProd(a.name)} <span style="color:var(--muted);font-weight:400;font-size:12px;">(${escProd(a.uid)})</span></span>
+          ${a === sel ? '<i data-lucide="check" size="14"></i>' : `<span style="color:var(--muted);font-size:12px;">${a.price ? a.price.toLocaleString() + '원' : '단가 없음'}</span>`}
+        </div>`).join('') : '<div style="padding:14px;text-align:center;font-size:13px;color:var(--muted);">검색 결과가 없습니다.</div>';
+      if (window.lucide) lucide.createIcons();
+    };
+    $('#cd-search').oninput = () => { sel = null; renderList(); renderCalc(); };
+    $('#cd-list').onclick = ev => {
+      const opt = ev.target.closest('[data-i]'); if (!opt) return;
+      sel = list[opt.dataset.i]; $('#cd-search').value = sel.name;
+      renderList(); renderCalc(); $('#cd-qty').focus();
+    };
+    $('#cd-qty').oninput = renderCalc;
+    renderList(); renderCalc();
     $('#cd-run').onclick = async () => {
       const { a, q, amount } = calc();
       if (!a) return alert('대행사를 선택해 주세요.');
