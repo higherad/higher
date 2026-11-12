@@ -3078,7 +3078,8 @@ window.toggleProdPanel = function(e) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '접수');
     const col = i => XLSX.utils.encode_col(i), rng = i => `${col(i)}2:${col(i)}${FS_FORM_ROWS}`;
-    const names = FULL_PRODS.flatMap(([k, , login]) => login ? [k, `${k}(로그인O)`] : [k]);
+    // 로그인 가능한 상품은 O/X를 골라야 함(이름에 '로그인O'가 없으면 로그인 안 함 — fullstackVariants)
+    const names = FULL_PRODS.flatMap(([k, , login]) => login ? [`${k}(로그인O)`, `${k}(로그인X)`] : [k]);
     const ratios = ['90:10','80:20','70:30','60:40','50:50','40:60','30:70','20:80','10:90'];
     // 비고는 다른 업체명도 쓸 수 있게 경고만, 상품은 목록 밖이면 막음
     const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;

@@ -610,7 +610,7 @@ const HI = {
           const fix = list(s.fullstackFix), q = fix.map(p => Math.floor(n * p.ratio));
           for (let i = 0, left = n - q.reduce((a, b) => a + b, 0); left > 0; i = (i + 1) % q.length, left--) q[i]++;
           const byName = {};
-          fix.forEach((p, i) => { const k = String(p.name).replace(/\(로그인O\)$/, ''); byName[k] = (byName[k] || 0) + q[i]; });
+          fix.forEach((p, i) => { const k = String(p.name).replace(/\(로그인[OX]\)$/, ''); byName[k] = (byName[k] || 0) + q[i]; });
           return Object.entries(byName).filter(([, c]) => c > 0);
         }
         const names = list(s.vendorProducts?.[v]);
