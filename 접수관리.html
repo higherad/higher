@@ -2539,9 +2539,9 @@ window.toggleProdPanel = function(e) {
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,440px);">
         <div class="modal-title" style="display:flex;align-items:center;gap:6px;">🔁 대기 히스토리 재접수<span id="reaccept-help-btn" title="도움말" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text2);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer;flex-shrink:0;position:relative;top:1px;">i</span></div>
-        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">검색키워드가 ①일 이내 이력이 있으면 그 키워드로 채우고 접수로 전환합니다.</div>
+        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">플레이스 키워드 시트의 최근 수정일이 ①일 이내면 그 키워드(A급+B급)로 채우고 접수로 전환합니다.</div>
         <div class="pmf" style="margin-bottom:12px;">
-          <label>① 검색키워드 히스토리 검색 일자 (일)</label>
+          <label>① 키워드 수정일 기준 (최근 N일)</label>
           <input type="number" id="reaccept-days-kw" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
         </div>
         <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
@@ -2565,42 +2565,35 @@ window.toggleProdPanel = function(e) {
     const resultEl = overlay.querySelector('#reaccept-result');
     const daysKw = parseInt(overlay.querySelector('#reaccept-days-kw').value, 10);
     if (!Number.isInteger(daysKw) || daysKw < 1) {
-      alert('검색키워드 히스토리 검색 일자를 1 이상의 숫자로 입력해주세요.');
+      alert('수정일 기준 일수를 1 이상의 숫자로 입력해주세요.');
       return;
     }
 
     const pending = allSlots.filter(s => s.status === 'pending' && s.mid);
     if (!pending.length) { resultEl.innerHTML = '<span style="color:var(--muted)">대기 상태인 슬롯이 없습니다.</span>'; return; }
 
-    runBtn.disabled = true; runBtn.textContent = '⏳ 히스토리 조회 중...';
+    runBtn.disabled = true; runBtn.textContent = '⏳ 키워드 조회 중...';
     closeBtn.disabled = true;
     window.reacceptRunning = true;
     resultEl.innerHTML = '';
 
-    // 같은 MID는 한 번만 조회 (엑셀 다운로드의 키워드 히스토리 시트와 동일 방식)
+    // 플레이스 키워드 시트 MID 줄(hi/place_keywords, 매일 01:10) — 같은 MID는 한 번만 조회. 최근 수정일(at)이 기준일 이후면 A급+B급(중복 제거)으로
+    if (!HI.getPlaceKeyword) { alert('새 버전이 아직 반영되지 않았습니다. Ctrl+F5로 새로고침해 주세요'); runBtn.disabled = false; runBtn.textContent = '실행'; closeBtn.disabled = false; window.reacceptRunning = false; return; }
     const uniqueMids = [...new Set(pending.map(s => s.mid))];
-    const histMap = new Map();
-    await Promise.all(uniqueMids.map(async mid => { histMap.set(mid, await fullKeywordHistory(mid)); }));
+    const kwMap = new Map();
+    await Promise.all(uniqueMids.map(async mid => { kwMap.set(mid, await HI.getPlaceKeyword(mid).catch(() => null)); }));
 
     const cutoffDayKw = ymd(new Date(Date.now() - daysKw * 24 * 3600 * 1000));
-    const withinCutoff = (h, cutoffDay) => !!(h && h.createdAt && ymd(new Date(h.createdAt)) >= cutoffDay);
-    // 히스토리 원본(과거 수기입력·외부연동 등)엔 "1, 2, 3"처럼 콤마 뒤 공백이 섞여있을 수 있어
-    // 재접수로 새로 채우는 시점에 정규화 — "1,2,3" 형태로 고정
-    const normKw = kw => (kw || '').split(',').map(k => k.trim()).filter(Boolean).join(',');
     const rows = pending.map(s => {
-      const kwTop = (histMap.get(s.mid) || [])[0];
-      const kwMatched = withinCutoff(kwTop, cutoffDayKw);
-      return {
-        slot: s,
-        matched: kwMatched,
-        newStatus: 'accepted',
-        matchKeyword: kwMatched ? normKw(kwTop.searchKeyword) : '',
-      };
+      const k = kwMap.get(s.mid);
+      const kw = k ? [...new Set([...kwSplit(k.a), ...kwSplit(k.b)])].join(',') : '';  // 시트 수기 입력의 콤마 뒤 공백도 정리
+      const matched = !!kw && /^\d{4}-\d{2}-\d{2}$/.test(k.at || '') && k.at >= cutoffDayKw;
+      return { slot: s, matched, newStatus: 'accepted', matchKeyword: matched ? kw : '' };
     });
     const matched = rows.filter(r => r.matched);
 
     if (!matched.length) {
-      resultEl.innerHTML = `<span style="color:var(--muted)">대기 ${pending.length}건 중 최근 ${daysKw}일 검색키워드 히스토리가 있는 건이 없습니다.</span>`;
+      resultEl.innerHTML = `<span style="color:var(--muted)">대기 ${pending.length}건 중 최근 ${daysKw}일 안에 키워드를 수정한 건이 없습니다.</span>`;
       runBtn.disabled = false; runBtn.textContent = '실행';
       closeBtn.disabled = false;
       window.reacceptRunning = false;
