@@ -206,7 +206,7 @@
     <div class="foot"><button class="act" id="sh-um-block" style="padding:9px 16px"></button><button class="act act-del" id="sh-um-del" style="margin-right:auto;padding:9px 16px">삭제</button><button style="border:1px solid var(--border);background:#fff" id="sh-um-cancel">취소</button><button class="btn-go" id="sh-um-save">저장</button></div>
   </div></div>
 
-  <!-- 접수(개별·엑셀) — 한 줄 = 정보가 들어간 슬롯 1개, 광고주 사이트 접수와 같음 -->
+  <!-- 접수(개별·엑셀) — 광고주 사이트 접수와 같음 -->
   <div id="shop-or"><div class="box">
     <div class="ttl">접수</div>
     <div class="sub">시작일은 당일·익일 중 선택 · 일수 1~7일 · 일 목표 최소 10개 · 매일 17시 마감</div>
@@ -278,7 +278,7 @@
   const parseMid = v => { v = (v || '').trim(); if (/^\d{6,}$/.test(v)) return v; if (!safeUrl(v)) return ''; const m = v.match(/(?:products|catalog)\/(\d{6,})/) || v.match(/[?&](?:nvMid|nv_mid)=(\d{6,})/); return m ? m[1] : ''; };
   const termOpts = (v = TERM_DAYS) => Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === v ? ' selected' : ''}>${i + 1}</option>`).join('');
   const orUser = () => USERS.find(u => u.id === $('sh-or-user').value);
-  /* ── 접수(개별·엑셀) — 한 줄 = 정보가 들어간 슬롯 1개. 서버 /shop-order가 같은 시작일·일수·일 목표끼리 발급 건 1개로 묶음
+  /* ── 접수(개별·엑셀) — 서버 /shop-order가 같은 시작일·일수·일 목표끼리 발급 건 1개로 묶음
      광고주 사이트(higher_shop index.html)·어드민(쇼핑관리.html)이 같은 로직 — 한쪽을 고치면 같이 고칠 것 ── */
   let orderTab = 'one', xRows = [];
   const newReqId = () => crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2);
