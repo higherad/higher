@@ -873,12 +873,13 @@ window.toggleProdPanel = function(e) {
   window.approveOne = async function(key, btn) {
     const targetSlot = allSlots.find(s => s._key === key);
     // 배분·배지 = 가이드_접수 켜짐이면 가이드만(상품 유형 설정 on/off 안 봄, 차감만 적용), 꺼짐이면 상품 유형 설정 — 엑셀 비고 비율은 안 봄
-    const base = targetSlot && { ...targetSlot, yupflRatio: null };
+    // 단 '상품' 열 고정 캠페인(fullstackFix)은 비고(풀스택)·고정 상품 그대로
+    const base = targetSlot && (targetSlot.fullstackFix ? targetSlot : { ...targetSlot, yupflRatio: null });
     const useGuide = guideModeOn;
     const calc = fn => useGuide ? fn() : withoutGuide(fn);
     // 배분할 곳이 없으면 리워드 배지·빈 캠페인 타입으로 승인됨 → 막음
     if (useGuide && !(base && guideAllocOf(base))) { alert('가이드에서 분류·구간을 못 찾은 캠페인입니다.'); return; }
-    if (!useGuide && !ap().length) { alert('활성화된 상품이 없습니다.'); return; }
+    if (!useGuide && !base?.fullstackFix && !ap().length) { alert('활성화된 상품이 없습니다.'); return; }
     if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
     await userBizfitUidReady; // 유입플 업체 단가(userById) 로드 후 금액 계산
     const extra = calc(() => allocFieldsFor(base));
@@ -1849,7 +1850,7 @@ window.toggleProdPanel = function(e) {
     // 유입플 몫만큼 캐시가 남으므로 그만큼 빼서 잔액을 맞춤(업체 실제 단가와 무관). 정산관리 유입플 열은 업체 단가로 따로 계산(HI.slotBill)
     const unitPrice = (slot.unitPrice!=null && slot.unitPrice>0) ? slot.unitPrice : (userPriceMap.get(slot.userId)||0);
     // 가이드_접수로 승인하면 수량이 있는 업체의 가이드 상품을 배지(vendorProducts)로 같이 기록
-    const rule = guideModeOn ? guideRuleFor(slot) : null;
+    const rule = guideModeOn || slot.fullstackFix ? guideRuleFor(slot) : null;
     return { yupflTarget: target, yupflByVendor, yupflAmount: slot.isRequeue ? 0 : target * (slot.days||0) * unitPrice, ...(rule ? vendorProductFields(rule, yupflByVendor) : {}) };
   }
   // 수량 있는 업체마다 가이드 그 업체 탭 상품(짧은 이름) — vendorProducts {업체: [상품]}, 풀스택은 fullstackType에도(시트 분류 엑셀·풀스택 매크로)
@@ -2103,7 +2104,22 @@ window.toggleProdPanel = function(e) {
   const fullstackOf = rule => [...rule.full].sort((a, b) => fullRank(a.name) - fullRank(b.name)).map(p => shortFull(p.name));
   function guideRuleFor(r) {
     const cat = r.category || HI.kwCategoryOf(r.rankKeyword, guideCats);
-    return cat ? pickGuideRule(guideRules, cat, r.dailyTarget || 0) : null;
+    return fixRule(r, cat ? pickGuideRule(guideRules, cat, r.dailyTarget || 0) : null);
+  }
+  // 엑셀 '상품' 열로 접수 때 고정한 풀스택 상품(fullstackFix [{name, ratio}]) — 있으면 가이드 행 상품 대신 이 상품(전부 풀스택, 세부조정만 가이드 행)
+  const fixRule = (s, rule) => s?.fullstackFix
+    ? { ...(rule || {}), reward: [], vendors: { 풀스택: asList(s.fullstackFix) }, full: asList(s.fullstackFix), tune: rule?.tune || {} } : rule;
+  // 엑셀 '상품' 열 — '길찾기 60 / 기본 40'(풀스택 상품 %, 합 100, '기본 로그인O 40'처럼 로그인 표기 가능). 빈칸 null
+  function parseFixNote(t) {
+    t = String(t ?? '').trim();
+    if (!t) return null;
+    const list = t.split(/[\/,]/).map(x => x.trim()).filter(Boolean)
+      .map(x => { const m = x.match(/^(.+?)\s*(\d{1,3})\s*%?$/); return m && +m[2] > 0 ? { name: m[1].trim(), ratio: +m[2] / 100 } : null; });
+    if (!list.length || list.some(x => !x)) return { err: '상품은 "이름 비율 / 이름 비율"(예 길찾기 60 / 기본 40)' };
+    const unknown = unknownFull({ full: list });
+    if (unknown.length) return { err: `풀스택 상품 이름 모름: ${unknown.join(', ')}` };
+    if (Math.round(list.reduce((a, x) => a + x.ratio, 0) * 100) !== 100) return { err: '상품 비율 합 100 아님' };
+    return { list };
   }
   function guideProdsFor(r) {
     const rule = guideRuleFor(r);
@@ -2119,7 +2135,7 @@ window.toggleProdPanel = function(e) {
   }
   // 리워드·유입플 두 묶음 합계를 주어진 비율로 맞춤 — 묶음 안 상품끼리 비율은 가이드 그대로
   // 가이드_접수로 나눈 캠페인인지(유입플 몫은 전부 A1 비율 업체 — vendorSplit)
-  const guideAllocOf = slot => guideModeOn && guideProdsFor(slot).length > 0;
+  const guideAllocOf = slot => guideModeOn && (!!slot?.fullstackFix || guideProdsFor(slot).length > 0);
   function applyGuideRatio(items, { reward, yupfl }) {
     const isY = p => p.classifyOnly;
     const rSum = items.filter(p => !isY(p)).reduce((a, p) => a + p.ratio, 0);
@@ -2898,6 +2914,7 @@ window.toggleProdPanel = function(e) {
         const targetCol = hdr.findIndex(h => /일목표/.test(h));
         const startCol  = hdr.findIndex(h => /시작일/.test(h));
         const noteCol   = hdr.findIndex(h => /비고/.test(h));  // 선택 — 리워드:유입플 비율(parseRatioNote)
+        const fixCol    = hdr.findIndex(h => /^(풀스택)?상품$/.test(h));  // 선택 — 고정 풀스택 상품(parseFixNote)
         const missing = [];
         if (storeCol  < 0) missing.push('업체명/상호명');
         if (urlCol    < 0) missing.push('URL');
@@ -2930,8 +2947,13 @@ window.toggleProdPanel = function(e) {
           const noteRaw      = noteCol >= 0 ? r[noteCol] : '';
           const noteMin      = typeof noteRaw === 'number' && noteRaw > 0 && !Number.isInteger(noteRaw) ? Math.round(noteRaw * 1440) : null;
           const note         = noteMin != null ? `${Math.floor(noteMin / 60)}:${noteMin % 60}` : String(noteRaw ?? '').trim();
-          const yupflRatio   = parseRatioNote(note, vendors);
+          const fix          = parseFixNote(fixCol >= 0 ? r[fixCol] : '');
+          // 상품 열을 쓰면 전부 풀스택 — 비고는 비우거나 '풀스택'만
+          const yupflRatio   = fix && !note ? { reward: 0, yupfl: 100, vendor: '풀스택' } : parseRatioNote(note, vendors);
+          const fullstackFix = fix?.list || null;
           const errors = [];
+          if (fix?.err) errors.push(fix.err);
+          else if (fix && yupflRatio?.vendor !== '풀스택') errors.push("상품 열을 쓰면 비고는 비우거나 '풀스택'");
           const urlMid = url ? rexExtractMid(url) : null;
           if (!storeName)       errors.push('업체명 누락');
           if (!url)             errors.push('URL 누락'); else if (!urlMid) errors.push('유효하지 않은 플레이스 주소');
@@ -2946,7 +2968,7 @@ window.toggleProdPanel = function(e) {
           if (unitErr) errors.push(unitErr);
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
-          return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, valid: errors.length===0, error: errors.join(' / ') };
+          return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, fullstackFix, valid: errors.length===0, error: errors.join(' / ') };
         });
         rexRows.noNoteCol = noteCol < 0;  // 헤더에 '비고' 열 자체가 없음 → 접수 때 확인
         HI.markSameRows(rexRows);
@@ -2978,7 +3000,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.days ?? '-'}</td>
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
-        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio) : '-'}</td>
+        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * 100)}`).join(' / '))}</div>` : ''}</td>
         <td>${r.valid ? `<span class="rex-row-status rex-row-ok">정상</span>${r.sameCount ? ` <span class="rex-row-status" style="background:#fef3c7;color:#b45309;" title="MID·순위키워드·시작일·일수·일 목표·비고가 모두 같은 행 — 붙여넣기 실수가 아닌지 확인">⚠ 같은 행 ${r.sameCount}개</span>` : ''}` : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';
@@ -3014,6 +3036,7 @@ window.toggleProdPanel = function(e) {
       storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
       startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget, memo: '',
       ...(row.yupflRatio ? { yupflRatio: row.yupflRatio } : {}),
+      ...(row.fullstackFix ? { fullstackFix: row.fullstackFix } : {}),
       createdAt: new Date(excelBaseTs + i).toISOString(),
     })));
 
@@ -3028,10 +3051,10 @@ window.toggleProdPanel = function(e) {
     const wb = XLSX.utils.book_new();
     const todayStr = rexFmt(new Date());
     const ws = XLSX.utils.aoa_to_sheet([
-      ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고'],
-      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,''],
+      ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고','상품'],
+      ['예시: 테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,'',''],
     ]);
-    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:10}];
+    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:10},{wch:24}];
     XLSX.utils.book_append_sheet(wb, ws, '접수');
     XLSX.writeFile(wb, '엑셀접수_양식.xlsx');
   }
@@ -3362,7 +3385,7 @@ window.toggleProdPanel = function(e) {
       const rules = parseGuide(sheets || []);
       // 분류가 빈 캠페인(접수 뒤 키워드를 추가한 경우 등)은 지금 분류 설정으로 채워서 같이 저장
       const cats = await HI.getKwCategories();
-      const fullNames = [...new Set(rules.flatMap(r => r.full.map(p => p.name)))].sort((a, b) => fullRank(a) - fullRank(b));
+      const fullNames = [...new Set([...rules, ...target.map(s => fixRule(s)).filter(Boolean)].flatMap(r => r.full.map(p => p.name)))].sort((a, b) => fullRank(a) - fullRank(b));
       const rewardNames = [...new Set(rules.flatMap(r => r.reward.map(p => p.name)))];
       const pct = (items, name) => { const it = items.find(p => p.name === name); return it ? `${Math.round(it.ratio * 100)}%` : ''; };
       // A~F 캠페인·분류·구간 → 리워드 하루 수량 + 리워드 상품 % → 유입플 하루 수량 + 풀스텍 상품 %(승인 때 나눈 값) → 일수·시작일(풀스텍 자동 접수 매크로가 씀)
@@ -3372,7 +3395,7 @@ window.toggleProdPanel = function(e) {
       const rows = target.map(s => {
         const live = !['expired', 'deleted'].includes(s.status);
         const cat = s.category || HI.kwCategoryOf(s.rankKeyword, cats);
-        const rule = cat ? pickGuideRule(rules, cat, s.dailyTarget || 0) : null;
+        const rule = fixRule(s, cat ? pickGuideRule(rules, cat, s.dailyTarget || 0) : null);
         const fs = rule ? fullstackOf(rule) : [];
         const patch = {};
         if (live && cat && !s.category) patch.category = cat;
@@ -3775,8 +3798,7 @@ window.toggleProdPanel = function(e) {
       const daily = f.yupflByVendor ? (f.yupflByVendor['풀스택'] || 0) : (f.yupflTarget || 0);
       if (daily <= 0) return [];
       const onlyFs = onlyVendorOf(s, f, '풀스택');
-      const cat = s.category || HI.kwCategoryOf(s.rankKeyword, guideCats);
-      const rule = cat ? pickGuideRule(guideRules, cat, s.dailyTarget || 0) : null;
+      const rule = guideRuleFor(s);
       const variants = rule ? fullstackVariants(rule) : [];
       return [{ _slotKey: s._key, _slot: s, _fsSubmitted: !!s.fullstackOrder, agencyId: s.agencyId || '', storeName: s.storeName || '', mid: s.mid || '',
         url: s.url || '', rankKeyword: s.rankKeyword || '',
