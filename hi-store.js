@@ -591,7 +591,7 @@ const HI = {
       : { 리워드: 'background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe', 풀스택: 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4',
           제이엔: 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa' }[label]
       || (r.vendor ? 'background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe' : 'background:#fef3c7;color:#b45309;border:1px solid #fde68a');
-    return `<span title="리워드:유입플 (${r.auto ? '승인 때 나뉜 일 목표' : '엑셀 비고'})" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;${color}">${label}</span>`;
+    return `<span title="리워드:유입플 (${r.auto ? '승인 때 나뉜 일 목표' : '엑셀 비고'})" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;white-space:nowrap;${color}">${label}</span>`;
   },
   dailySplitHtml(s) {
     if (s.yupflTarget == null || !s.dailyTarget || legacySplit(s)) return '';

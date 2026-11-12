@@ -2700,7 +2700,7 @@ window.toggleProdPanel = function(e) {
               <table class="rex-preview-table">
                 <thead><tr>
                   <th style="width:30px">#</th><th>업체명</th><th>URL</th><th style="width:100px">MID</th>
-                  <th>순위키워드</th><th style="width:50px">일수</th><th style="width:86px">시작일</th><th style="width:70px">일목표</th><th style="width:60px">비고</th><th style="width:160px">상태</th>
+                  <th>순위키워드</th><th style="width:50px">일수</th><th style="width:86px">시작일</th><th style="width:70px">일목표</th><th style="width:96px">비고</th><th style="width:160px">상태</th>
                 </tr></thead>
                 <tbody id="rex-preview-body"></tbody>
               </table>
@@ -3009,7 +3009,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.days ?? '-'}</td>
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
-        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.fullstackFix) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * r.dailyTarget)}`).join(' / '))}</div>` : ''}</td>
+        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.note === FS_FIX_NOTE) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * r.dailyTarget)}`).join(' / '))}</div>` : ''}</td>
         <td>${r.valid ? `<span class="rex-row-status rex-row-ok">정상</span>${r.sameCount ? ` <span class="rex-row-status" style="background:#fef3c7;color:#b45309;" title="MID·순위키워드·시작일·일수·일 목표·비고가 모두 같은 행 — 붙여넣기 실수가 아닌지 확인">⚠ 같은 행 ${r.sameCount}개</span>` : ''}` : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';
