@@ -129,11 +129,8 @@
       <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="empty">빈 캠페인</option><option value="refund">환불 요청</option><option value="stop">환불</option><option value="end">종료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
-        <button class="act act-edit" style="padding:7px 12px" title="run.py 결과 파일 또는 캠페인번호·MID 열이 있는 엑셀" onclick="document.getElementById('sh-mid-file').click()">MID 업로드</button>
-        <input type="file" id="sh-mid-file" accept=".csv,.xlsx" style="display:none" onchange="shopMidFile(this)">
         <button class="act act-ok" style="padding:7px 12px" onclick="shopRun(this)">진행중 전환</button>
-        <button class="act act-del" style="padding:7px 12px" title="선택한 캠페인의 발급 건 전체 취소(진행 전 + 시작일 당일까지)" onclick="shopCancel(this)">취소</button>
-        <button class="act act-del" style="padding:7px 12px" title="환불 요청 캠페인을 비즈핏에서 강제종료하고 남은 일수 금액을 정산에서 차감" onclick="shopStop(this)">환불</button>
+        <button class="act act-del" style="padding:7px 12px" title="진행 전 = 바로 삭제(전액) / 진행중·환불 요청 = 비즈핏 강제종료 후 남은 일수 금액 차감" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px;display:inline-flex;align-items:center;gap:6px" onclick="shopOrderOpen()"><i data-lucide="clipboard-plus" style="width:15px;height:15px"></i>접수</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:76px"><col style="width:150px"><col style="width:160px"><col><col style="width:130px"><col><col style="width:120px"><col style="width:100px"><col style="width:100px"><col style="width:90px"></colgroup>
@@ -242,9 +239,6 @@
   const billOf = is => is.qty * is.price - refundOf(is);
   const refundVat = (b, refund) => Math.round((b + refund) * VAT) - Math.round(b * VAT);
   const refundNote = (b, refund) => refund ? `<br><span style="font-size:11px;color:var(--danger);font-weight:600">환불 ${won(refundVat(b, refund))}</span>` : '';
-  // 취소 = 진행중 전환 슬롯 없음 + 시작일 당일까지 (서버 can_cancel과 같음, 입금·정보 입력 무관)
-  const running = is => SLOTS.some(x => x.userId === is.userId && x.issueNo === is.no && x.runAt);
-  const canRevoke = is => !is.revokedAt && is.start >= today() && !running(is);
   // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
   const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 캠페인', 'w'], refund: ['환불 요청', 'r'], stop: ['환불', 'r'], end: ['종료', 'n'] };
   const slotState = sl => sl.stoppedAt ? 'stop' : sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.refundAt ? 'refund' : sl.runAt ? 'run' : 'wait';
@@ -268,21 +262,6 @@
     try { await fn(); } catch (e) { alert(e.message); } finally { if (btn) btn.disabled = false; }
   }
 
-
-  /* ── 취소 — 체크한 슬롯이 속한 발급 건 전체를 취소(서버 can_cancel: 진행중 슬롯 없음 + 시작일 당일까지) ── */
-  window.shopCancel = btn => {
-    const keys = new Set(SLOTS.filter(x => PICKED.has(slotKey(x))).map(x => `${x.userId}|${x.issueNo}`));
-    if (!keys.size) return alert('취소할 캠페인을 선택해 주세요.');
-    const list = ISSUES.filter(is => keys.has(`${is.userId}|${is.no}`)), ok = list.filter(canRevoke);
-    if (!ok.length) return alert('취소할 수 있는 건이 없습니다. 진행중 캠페인이 있거나 시작일이 지난 건은 취소할 수 없습니다.');
-    const n = ok.reduce((a, is) => a + is.qty, 0);
-    if (!confirm(`발급 건 ${ok.length}개 · 캠페인 ${n}개를 취소합니다. 같은 발급 건의 캠페인은 함께 지워집니다.\n\n${ok.map(is => `#${is.no} ${userOf(is.userId).company} 캠페인 ${is.qty}개`).join('\n')}`
-      + (ok.length < list.length ? `\n\n(진행중이거나 시작일이 지난 ${list.length - ok.length}건은 제외)` : ''))) return;
-    busy(btn, async () => {
-      for (const is of ok) await HI.shopCall('/shop-revoke', { userId: is.userId, issueNo: is.no });
-      PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
-    });
-  };
 
   const parseMid = v => { v = (v || '').trim(); if (/^\d{6,}$/.test(v)) return v; if (!safeUrl(v)) return ''; const m = v.match(/(?:products|catalog)\/(\d{6,})/) || v.match(/[?&](?:nvMid|nv_mid)=(\d{6,})/); return m ? m[1] : ''; };
   const termOpts = (v = TERM_DAYS) => Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === v ? ' selected' : ''}>${i + 1}</option>`).join('');
@@ -409,27 +388,6 @@
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
     if (r.skipped) alert(`${r.changed}개 변경, ${r.skipped}개는 정보가 없거나 종료·취소돼 건너뛰었습니다.`);
   });
-  // 비즈핏 등록 MID 저장 — run.py 결과 CSV 또는 슬롯번호·MID 열이 있는 엑셀. 비즈핏 MID(nvMid)는 상품 URL의 번호와 다를 수 있음. MID가 빈 행은 무시
-  window.shopMidFile = input => busy(null, async () => {
-    const file = input.files[0]; input.value = '';
-    if (!file) return;
-    const buf = await file.arrayBuffer();
-    const wb = /\.csv$/i.test(file.name) ? XLSX.read(new TextDecoder().decode(buf), { type: 'string', raw: true }) : XLSX.read(buf, { type: 'array' });
-    const [head = [], ...data] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
-    const col = re => head.findIndex(h => re.test(String(h).trim()));
-    const cNo = col(/^(슬롯|캠페인)\s*번호/), cMid = col(/^mid/i);
-    if (cNo < 0 || cMid < 0) throw new Error('캠페인번호·MID 열이 필요합니다.');
-    const items = []; let bad = 0;
-    data.forEach(r => {
-      const no = +r[cNo], mid = String(r[cMid]).trim(), sl = SLOTS.find(x => x.no === no);
-      if (!mid) return;
-      if (!sl) { bad++; return; }
-      items.push({ userId: sl.userId, no, mid });
-    });
-    if (!items.length) throw new Error('저장할 MID가 없습니다. 캠페인번호·MID를 확인해 주세요.');
-    const r = await HI.shopCall('/shop-mid', { items });
-    alert(`${r.changed}개 저장${bad + r.skipped ? `, ${bad + r.skipped}개는 캠페인이 없거나 이미 환불 처리돼 건너뛰었습니다` : ''}.`);
-  });
   // 환불 요청 슬롯 중단 — 영업점(총판 회사명)·MID로 비즈핏 진행 캠페인을 찾아 강제종료, 재접수는 만들지 않음
   // 찾은 캠페인 수가 슬롯 수와 다르면 어느 캠페인인지 정할 수 없어 자동 종료하지 않음(직원이 비즈핏에서 직접 종료 후 슬롯만 중단 가능)
   const BIZFIT_STOP_SERVER = 'https://higherad-bizfit-stop-938928195180.asia-northeast3.run.app', STOP_CHUNK = 3;
@@ -440,11 +398,16 @@
     return j;
   }
   const stopDays = x => Math.max(0, daysBetween([addDays(today(), 1), x.start].sort()[1], x.end) + 1);
+  // 환불 — 진행 전(접수) = 바로 삭제(전액, /shop-refund) / 진행중 = 환불 요청을 넣은 뒤 강제종료 / 환불 요청 = 강제종료(/shop-stop, 남은 일수)
   window.shopStop = btn => busy(btn, async () => {
-    const list = SLOTS.filter(x => PICKED.has(slotKey(x)) && slotState(x) === 'refund');
-    if (!list.length) throw new Error('환불 요청 캠페인을 선택해 주세요.');
+    const picked = SLOTS.filter(x => PICKED.has(slotKey(x)));
+    const pre = picked.filter(x => ['wait', 'empty'].includes(slotState(x))), run = picked.filter(x => slotState(x) === 'run');
+    const list = picked.filter(x => ['run', 'refund'].includes(slotState(x)));
+    if (!pre.length && !list.length) throw new Error('환불할 캠페인을 선택해 주세요.');
     const amt = list.reduce((a, x) => { const is = ISSUES.find(i => i.userId === x.userId && i.no === x.issueNo); return a + Math.round((is?.price || 0) * stopDays(x) / termDays(is || {})); }, 0);
-    if (!confirm(`캠페인 ${list.length}개를 비즈핏에서 강제종료하고 환불 처리합니다.\n환불 ${won(amt)}원(VAT 별도)이 정산에서 차감됩니다. 되돌릴 수 없습니다.`)) return;
+    if (!confirm([pre.length && `진행 전 ${pre.length}개는 바로 삭제(전액 환불)`, list.length && `진행중 ${list.length}개는 비즈핏에서 강제종료 후 남은 일수 ${won(amt)}원(VAT 별도)을 정산에서 차감`]
+      .filter(Boolean).join('\n') + '\n\n되돌릴 수 없습니다.')) return;
+    const removed = pre.length || run.length ? (await HI.shopCall('/shop-refund', { items: [...pre, ...run].map(x => ({ userId: x.userId, no: x.no })) })).removed : 0;
     const groups = {}, fails = []; let done = 0;
     list.forEach(x => { const agency = distOf(userOf(x.userId)), mid = x.bizMid || x.mid, k = `${agency}|${mid}`; (groups[k] = groups[k] || { agency, mid, slots: [] }).slots.push(x); });
     for (const g of Object.values(groups)) {
@@ -455,7 +418,7 @@
         const { active } = await bizPost('/find-campaigns', { mid: g.mid, agency: g.agency });
         if (active.length !== g.slots.length) {
           const msg = `영업점 ${g.agency} · MID ${g.mid}\n비즈핏 진행 캠페인 ${active.length}건 / 환불할 접수 ${g.slots.length}개로 수가 달라 자동 종료할 수 없습니다.`;
-          if (!confirm(`${msg}\n\n비즈핏에서 직접 강제종료했으면 [확인]을 눌러 여기 접수 건만 환불 처리합니다.`)) { failAll(g.slots, `비즈핏 진행 캠페인 ${active.length}건, 접수 ${g.slots.length}개로 수가 다름${g.mid === g.slots[0].mid && !g.slots[0].bizMid ? ' — MID 업로드 필요' : ''}`); continue; }
+          if (!confirm(`${msg}\n\n비즈핏에서 직접 강제종료했으면 [확인]을 눌러 여기 접수 건만 환불 처리합니다.`)) { failAll(g.slots, `비즈핏 진행 캠페인 ${active.length}건, 접수 ${g.slots.length}개로 수가 다름`); continue; }
         } else {
           const results = [];
           for (let i = 0; i < active.length; i += STOP_CHUNK)
@@ -471,7 +434,7 @@
       catch (e) { failAll(ok, `비즈핏은 종료됐지만 반영 실패(${e.message}) — 비즈핏 확인 후 다시 실행해 주세요`); }
     }
     PICKED.clear(); $('sh-cb-all').checked = false; pickedN();
-    alert(`${done}개 환불 처리${fails.length ? `, ${fails.length}개 실패\n\n${fails.join('\n')}` : ''}`);
+    alert(`${[removed && `진행 전 ${removed}개 삭제`, list.length && `${done}개 환불 처리`].filter(Boolean).join(' · ')}${fails.length ? `, ${fails.length}개 실패\n\n${fails.join('\n')}` : ''}`);
   });
   // 접수 현황 필터(광고주·검색·상태·종료 제외)
   function slotShown(x) {
@@ -505,7 +468,7 @@
         <td><b>${x.no}</b><br><span style="font-size:10px;color:var(--text2)" title="발급번호(취소 단위)">#${x.issueNo}</span></td><td>${gradePill(userOf(x.userId))}</td><td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${md(x.setAt)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td>
-        <td><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span>${st === 'refund' && !x.bizMid ? '<br><span class="st-r" style="font-size:10px">MID 미업로드</span>' : ''}</td></tr>`;
+        <td><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="11">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
