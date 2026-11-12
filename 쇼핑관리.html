@@ -158,7 +158,7 @@
     <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="광고주, 아이디 검색">
       <button class="btn-go" style="margin-left:auto;padding:7px 16px" onclick="openShopUser()">+ 광고주 추가</button></div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:140px"><col style="width:100px"><col style="width:150px"><col style="width:160px"><col style="width:100px"><col style="width:100px"><col style="width:80px"><col style="width:120px"><col style="width:110px"><col><col style="width:70px"><col style="width:80px"></colgroup>
-      <thead><tr><th>가입일</th><th>최종 발급일</th><th>구분</th><th>광고주</th><th>아이디</th><th>단가(1개, 원)</th><th>보유 캠페인</th><th>누적 정산(VAT 별도)</th><th>미입금(VAT 별도)</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
+      <thead><tr><th>가입일</th><th>최종 접수일</th><th>구분</th><th>대행사</th><th>단가(원)</th><th>아이디</th><th>캠페인 수</th><th>누적 정산(VAT 별도)</th><th>미입금(VAT 별도)</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
       <tbody id="sh-user-rows"></tbody>
     </table></div>
   </section>
@@ -840,7 +840,7 @@
       const live = iss.filter(x => !x.revokedAt), unpaid = live.reduce((a, x) => a + (x.paidAt ? 0 : billOf(x)), 0);
       return `<tr${child ? ' class="child"' : subs ? ` class="grp" data-g="u|${esc(u.id)}"` : ''}><td>${esc(u.createdAt)}</td><td>${last ? last.slice(0, 10) : '-'}</td>
         <td>${gradePill(u)}</td>
-        <td><b>${esc(u.company)}</b>${subs ? `<br><span class="tg">${open ? '▾' : '▸'} 하부점 ${subs}</span>` : ''}</td><td>${esc(u.id)}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td>
+        <td><b>${esc(u.company)}</b>${subs ? `<br><span class="tg">${open ? '▾' : '▸'} 하부점 ${subs}</span>` : ''}</td><td><span class="price-link" onclick="shopPriceLog('${esc(u.id)}')" title="단가 변경 이력">${won(u.price)}</span></td><td>${esc(u.id)}</td>
         <td>${own}</td>${u.parent ? '<td title="총판이 정산">-</td><td title="총판이 정산">-</td>' : `<td>${won(live.reduce((a, x) => a + billOf(x), 0))}</td><td style="color:${unpaid ? 'var(--warn)' : 'inherit'}">${won(unpaid)}</td>`}
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
         <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button></td></tr>`;
