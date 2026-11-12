@@ -1954,15 +1954,16 @@ window.toggleProdPanel = function(e) {
           <button id="cd-x" title="닫기" style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;">×</button>
         </div>
         <div class="modal-field"><label>대행사</label>
-          <div class="rex-branch-input-wrap">
+          <div class="rex-branch-input-wrap" id="cd-wrap">
             <i data-lucide="search" size="15" style="color:var(--muted);margin-left:12px;flex-shrink:0;"></i>
-            <input id="cd-search" type="text" placeholder="영업점명 또는 아이디 검색" autocomplete="off">
+            <input id="cd-search" type="text" placeholder="영업점명 또는 아이디 검색..." autocomplete="off">
+            <div id="cd-clear" style="display:none;padding:0 12px;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;">×</div>
+            <i data-lucide="chevron-down" id="cd-chev" size="16" style="color:var(--muted);margin-right:12px;flex-shrink:0;transition:.2s;"></i>
           </div>
-          <div id="cd-list" style="margin-top:6px;border:1px solid var(--border);border-radius:9px;max-height:180px;overflow-y:auto;"></div>
         </div>
         <div class="modal-field"><label>차감 수량</label>
           <div class="rex-branch-input-wrap">
-            <input id="cd-qty" type="number" min="1" placeholder="분할에서 줄인 수량 합">
+            <input id="cd-qty" type="number" min="1">
             <span style="padding:0 14px;color:var(--muted);font-size:13px;">개</span>
           </div>
         </div>
@@ -1972,7 +1973,8 @@ window.toggleProdPanel = function(e) {
           <button class="btn-cancel" id="cd-close" style="flex:1;">닫기</button>
           <button id="cd-run" style="flex:2;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">차감 실행</button>
         </div>
-      </div>`;
+      </div>
+      <div id="cd-list" class="rex-branch-list"></div>`;
     document.body.appendChild(overlay);
     const $ = q => overlay.querySelector(q);
     $('#cd-close').onclick = $('#cd-x').onclick = () => overlay.remove();
@@ -1988,7 +1990,7 @@ window.toggleProdPanel = function(e) {
     };
     const renderList = () => {
       const q = $('#cd-search').value.trim().toLowerCase();
-      const rows = sel && $('#cd-search').value === sel.name ? list : list.filter(a => !q || rexMatchSearch(a.name, q) || rexMatchSearch(a.uid, q));
+      const rows = sel ? list : list.filter(a => !q || rexMatchSearch(a.name, q) || rexMatchSearch(a.uid, q));
       $('#cd-list').innerHTML = rows.length ? rows.map(a => `
         <div class="rex-branch-option" data-i="${list.indexOf(a)}" style="${a === sel ? 'background:rgba(16,185,129,.08);color:var(--accent);font-weight:700;' : ''}">
           <span>${escProd(a.name)} <span style="color:var(--muted);font-weight:400;font-size:12px;">(${escProd(a.uid)})</span></span>
@@ -1996,14 +1998,34 @@ window.toggleProdPanel = function(e) {
         </div>`).join('') : '<div style="padding:14px;text-align:center;font-size:13px;color:var(--muted);">검색 결과가 없습니다.</div>';
       if (window.lucide) lucide.createIcons();
     };
-    $('#cd-search').oninput = () => { sel = null; renderList(); renderCalc(); };
-    $('#cd-list').onclick = ev => {
-      const opt = ev.target.closest('[data-i]'); if (!opt) return;
-      sel = list[opt.dataset.i]; $('#cd-search').value = sel.name;
-      renderList(); renderCalc(); $('#cd-qty').focus();
+    // 영업점 드롭다운 — 엑셀 접수와 같음(클릭·포커스에 열고, 고르거나 바깥 클릭에 닫힘)
+    const wrap = $('#cd-wrap'), listEl = $('#cd-list');
+    const setOpen = open => {
+      if (open) {
+        const r = wrap.getBoundingClientRect();
+        Object.assign(listEl.style, { top: r.bottom + 4 + 'px', left: r.left + 'px', width: r.width + 'px' });
+        renderList();
+      }
+      listEl.style.display = open ? 'block' : 'none';
+      wrap.style.borderColor = open ? 'var(--accent)' : 'var(--border)';
+      wrap.style.boxShadow = open ? '0 0 0 3px rgba(16,185,129,.1)' : 'none';
+      $('#cd-chev').style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
     };
+    wrap.onclick = () => setOpen(true);
+    $('#cd-search').onfocus = () => setOpen(true);
+    $('#cd-search').oninput = () => { sel = null; $('#cd-clear').style.display = 'none'; setOpen(true); renderCalc(); };
+    $('#cd-clear').onclick = ev => {
+      ev.stopPropagation(); sel = null; $('#cd-search').value = ''; $('#cd-clear').style.display = 'none'; setOpen(false); renderCalc();
+    };
+    listEl.onclick = ev => {
+      const opt = ev.target.closest('[data-i]'); if (!opt) return;
+      sel = list[opt.dataset.i]; $('#cd-search').value = `${sel.name}  (${sel.uid})`; $('#cd-clear').style.display = 'block';
+      setOpen(false); renderCalc(); $('#cd-qty').focus();
+    };
+    overlay.addEventListener('click', ev => { if (!wrap.contains(ev.target) && !listEl.contains(ev.target)) setOpen(false); });
     $('#cd-qty').oninput = renderCalc;
-    renderList(); renderCalc();
+    renderCalc();
+    if (window.lucide) lucide.createIcons();
     $('#cd-run').onclick = async () => {
       const { a, q, amount } = calc();
       if (!a) return alert('대행사를 선택해 주세요.');
