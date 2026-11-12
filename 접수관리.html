@@ -2112,20 +2112,21 @@ window.toggleProdPanel = function(e) {
   // 엑셀 '상품' 열로 접수 때 고정한 풀스택 상품(fullstackFix [{name, ratio}]) — 있으면 가이드 행 상품 대신 이 상품(전부 풀스택, 세부조정만 가이드 행)
   const fixRule = (s, rule) => s?.fullstackFix
     ? { ...(rule || {}), reward: [], vendors: { 풀스택: asList(s.fullstackFix) }, full: asList(s.fullstackFix), tune: rule?.tune || {} } : rule;
-  // 비고 '풀스택[개별]' 행의 상품N·비율N 열 쌍 [[상품, 비율], …] → 고정 풀스택 상품(합 100). 비율 = 50·'50%'·엑셀 % 서식(0.5)
+  // 비고 '풀스택[개별]' 행의 상품N·분할N 열 쌍 [[상품, 일 수량], …] → 고정 풀스택 상품. 분할 합 = 일 목표, 저장은 비율(수량 ÷ 일 목표)
+  // — 차감이 켜져 있으면 차감 뒤 남은 수량을 이 비율로 나눔. 풀스택 사이트엔 정수 %로 반올림해 넘어감(fullstackVariants)
   const FS_FIX_NOTE = '풀스택[개별]';
-  function parseFixNote(pairs) {
+  function parseFixNote(pairs, target) {
     const list = pairs.filter(([n, v]) => String(n ?? '').trim() || String(v ?? '').trim()).map(([n, v]) => {
-      const name = String(n ?? '').trim(), x = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace('%', ''));
-      const pct = x > 0 && x <= 1 && typeof v === 'number' ? x * 100 : x;
-      return name && pct > 0 ? { name, ratio: Math.round(pct) / 100 } : null;
+      const name = String(n ?? '').trim(), x = Number(String(v ?? '').trim());
+      return name && Number.isInteger(x) && x > 0 ? { name, n: x } : null;
     });
-    if (!list.length) return { err: '풀스택[개별]은 상품·비율 필요' };
-    if (list.some(x => !x)) return { err: '상품·비율 짝이 안 맞음' };
+    if (!list.length) return { err: '풀스택[개별]은 상품·분할 필요' };
+    if (list.some(x => !x)) return { err: '상품·분할 짝이 안 맞음(분할은 1 이상 정수)' };
     const unknown = unknownFull({ full: list });
     if (unknown.length) return { err: `풀스택 상품 이름 모름: ${unknown.join(', ')}` };
-    if (Math.round(list.reduce((a, x) => a + x.ratio, 0) * 100) !== 100) return { err: '상품 비율 합 100 아님' };
-    return { list };
+    const sum = list.reduce((a, x) => a + x.n, 0);
+    if (!(target > 0) || sum !== target) return { err: `분할 합 ${sum} ≠ 일 목표 ${target || 0}` };
+    return { list: list.map(({ name, n }) => ({ name, ratio: n / target })) };
   }
   function guideProdsFor(r) {
     const rule = guideRuleFor(r);
@@ -2921,9 +2922,9 @@ window.toggleProdPanel = function(e) {
         const targetCol = hdr.findIndex(h => /일목표/.test(h));
         const startCol  = hdr.findIndex(h => /시작일/.test(h));
         const noteCol   = hdr.findIndex(h => /비고/.test(h));  // 선택 — 리워드:유입플 비율(parseRatioNote)
-        // 선택 — 비고 '풀스택[개별]' 행만 쓰는 상품N·비율N 열(풀스택 양식), 순서대로 짝
+        // 선택 — 비고 '풀스택[개별]' 행만 쓰는 상품N·분할N 열(어드민 양식), 순서대로 짝
         const colsOf = re => hdr.map((h, i) => re.test(h) ? i : -1).filter(i => i >= 0);
-        const fixProdCols = colsOf(/^상품\d*$/), fixPctCols = colsOf(/^비율\d*$/);
+        const fixProdCols = colsOf(/^상품\d*$/), fixPctCols = colsOf(/^분할\d*$/);
         const missing = [];
         if (storeCol  < 0) missing.push('업체명/상호명');
         if (urlCol    < 0) missing.push('URL');
@@ -2957,7 +2958,7 @@ window.toggleProdPanel = function(e) {
           const noteMin      = typeof noteRaw === 'number' && noteRaw > 0 && !Number.isInteger(noteRaw) ? Math.round(noteRaw * 1440) : null;
           const note         = noteMin != null ? `${Math.floor(noteMin / 60)}:${noteMin % 60}` : String(noteRaw ?? '').trim();
           // 비고 '풀스택[개별]'만 상품·비율 열로 전부 풀스택(고정 상품), 그 밖 비고는 상품 열 무시
-          const fix          = note === FS_FIX_NOTE ? parseFixNote(fixProdCols.map((c, i) => [r[c], r[fixPctCols[i]]])) : null;
+          const fix          = note === FS_FIX_NOTE ? parseFixNote(fixProdCols.map((c, i) => [r[c], r[fixPctCols[i]]]), dailyTarget) : null;
           const yupflRatio   = fix ? { reward: 0, yupfl: 100, vendor: '풀스택' } : parseRatioNote(note, vendors);
           const fullstackFix = fix?.list || null;
           const errors = [];
@@ -3008,7 +3009,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.days ?? '-'}</td>
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
-        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.fullstackFix) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * 100)}`).join(' / '))}</div>` : ''}</td>
+        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.fullstackFix) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * r.dailyTarget)}`).join(' / '))}</div>` : ''}</td>
         <td>${r.valid ? `<span class="rex-row-status rex-row-ok">정상</span>${r.sameCount ? ` <span class="rex-row-status" style="background:#fef3c7;color:#b45309;" title="MID·순위키워드·시작일·일수·일 목표·비고가 모두 같은 행 — 붙여넣기 실수가 아닌지 확인">⚠ 같은 행 ${r.sameCount}개</span>` : ''}` : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';
@@ -3067,11 +3068,11 @@ window.toggleProdPanel = function(e) {
     XLSX.writeFile(wb, '엑셀접수_양식.xlsx');
   }
 
-  // 어드민 양식(풀스택[개별]) — 기본 양식 + 상품·비율 4쌍, 2~101행 선택창(비고·상품·비율). 비고 '풀스택[개별]' 행만 상품·비율을 씀
+  // 어드민 양식(풀스택[개별]) — 기본 양식 + 상품·분할 4쌍, 2~101행 선택창(비고·상품)·정수 검사(분할). 비고 '풀스택[개별]' 행만 상품·분할을 씀
   const FS_FORM_PAIRS = 4, FS_FORM_ROWS = 101;
   function downloadFullstackTemplate() {
     const head = ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고'];
-    for (let i = 1; i <= FS_FORM_PAIRS; i++) head.push(`상품${i}`, `비율${i}`);
+    for (let i = 1; i <= FS_FORM_PAIRS; i++) head.push(`상품${i}`, `분할${i}`);
     const ws = XLSX.utils.aoa_to_sheet([head]);
     ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}])];
     const wb = XLSX.utils.book_new();
@@ -3079,11 +3080,11 @@ window.toggleProdPanel = function(e) {
     const col = i => XLSX.utils.encode_col(i), rng = i => `${col(i)}2:${col(i)}${FS_FORM_ROWS}`;
     const names = FULL_PRODS.flatMap(([k, , login]) => login ? [k, `${k}(로그인O)`] : [k]);
     const ratios = ['90:10','80:20','70:30','60:40','50:50','40:60','30:70','20:80','10:90'];
-    const pcts = Array.from({ length: 20 }, (_, i) => (i + 1) * 5);
     // 비고는 다른 업체명도 쓸 수 있게 경고만, 상품은 목록 밖이면 막음
     const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;
+    const whole = sqref => `<dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" error="1 이상 정수(일 수량)" sqref="${sqref}"><formula1>0</formula1></dataValidation>`;
     const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, ...ratios], false),
-      ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(8 + i * 2), names, true), dv(rng(9 + i * 2), pcts, false)])];
+      ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(8 + i * 2), names, true), whole(rng(9 + i * 2))])];
     // SheetJS(무료판)는 데이터 유효성을 못 써서 만든 xlsx(zip)의 시트 XML에 직접 넣음
     const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' })), { type: 'buffer' });
     const f = zip.FileIndex[zip.FullPaths.findIndex(p => p.endsWith('xl/worksheets/sheet1.xml'))];
