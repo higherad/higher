@@ -945,10 +945,14 @@
   bind(['sh-fs-user', 'sh-fs-q', 'sh-fs-noend', 'sh-fs-st'], renderSlots);
   bind(['sh-ft-user', 'sh-ft-st', 'sh-ft-from', 'sh-ft-to'], renderSettle);
   bind(['sh-fu-q'], renderUsers);
+  // 상단 버튼 중 탭 전용 묶음(index.html PAGE_ACTIONS의 tab 옵션 → data-tab)은 그 탭에서만 보임
+  const syncTopActions = t => document.querySelectorAll('#page-actions [data-tab]').forEach(el => el.style.display = el.dataset.tab === t ? '' : 'none');
   document.querySelectorAll('#shop-page .tab').forEach(t => t.onclick = () => {
     document.querySelectorAll('#shop-page .tab').forEach(x => x.classList.toggle('on', x === t));
     document.querySelectorAll('#shop-page .pane').forEach(p => p.classList.toggle('on', p.id === 'sh-t-' + t.dataset.t));
+    syncTopActions(t.dataset.t);
   });
+  setTimeout(() => syncTopActions(document.querySelector('#shop-page .tab.on')?.dataset.t));  // 상단 버튼이 이 스크립트 뒤에 그려질 수 있어 한 틱 뒤
 
   // 공유 캐시 구독 — 맨 끝에 둠: 다시 들어오면 캐시가 있어 콜백이 즉시(동기) 실행되므로 위 선언이 다 끝난 뒤여야 함
   // 이 화면이 사라지면(다른 메뉴 또는 다시 들어와 새 화면) 다음 변경 때 해제 — 옛 구독이 새 화면을 덮어 그리지 않게
