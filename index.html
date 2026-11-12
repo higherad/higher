@@ -543,6 +543,10 @@
     } catch {}
   }
   const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  // 노트 한 줄 = 첫 줄 제목 + 나머지 줄(
+)은 하위 글머리
+  const noteLi = m => { const [head, ...sub] = m.split('
+'); return `<li>${esc(head)}${sub.length ? `<ul style="margin:2px 0 4px;padding-left:16px;color:var(--text2,#6b7280);font-size:.95em">${sub.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</li>`; };
   function showReloadNotice() {
     if (document.getElementById('reload-notice')) return;
     const el = document.createElement('div');
@@ -550,7 +554,7 @@
     el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center';
     el.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px 28px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px;line-height:1.6">
       <b style="font-size:16px">새 버전이 배포되었습니다</b>${changes.length ? '' : '<br>업데이트를 적용하려면 새로고침해 주세요.'}<br>
-      ${changes.length ? `<ul style="text-align:left;margin:12px 0 0;padding-left:18px;max-height:240px;overflow:auto;max-width:480px;color:#374151">${changes.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
+      ${changes.length ? `<ul style="text-align:left;margin:12px 0 0;padding-left:18px;max-height:240px;overflow:auto;max-width:480px;color:#374151">${changes.map(noteLi).join('')}</ul>` : ''}
       <button onclick="location.replace('/?v=' + Date.now())" style="margin-top:14px;padding:8px 20px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">새로고침</button></div>`;
     document.body.appendChild(el);
   }
@@ -570,7 +574,7 @@
         byDay.has(day) ? byDay.get(day).push(text) : byDay.set(day, [text]);
       });
       body.innerHTML = byDay.size ? [...byDay].map(([day, msgs]) => `<div style="margin-bottom:14px"><div style="font-weight:700;color:var(--text);margin-bottom:4px">${day}</div>
-        <ul style="margin:0;padding-left:18px">${msgs.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>`).join('') : '업데이트 내역이 없습니다.';
+        <ul style="margin:0;padding-left:18px">${msgs.map(noteLi).join('')}</ul></div>`).join('') : '업데이트 내역이 없습니다.';
     } catch { body.textContent = '업데이트 노트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'; }
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
