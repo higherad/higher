@@ -3119,14 +3119,19 @@ window.toggleProdPanel = function(e) {
   function rexRenderPreview(overlay) {
     const validCount = rexRows.filter(r => r.valid).length;
     const errorCount = rexRows.length - validCount;
+    if (!errorCount) overlay._rexErrOnly = false;
+    const errOnly = !!overlay._rexErrOnly;  // 오류 N건 클릭 = 오류 행만 보기 토글(번호는 원래 순서)
     overlay.querySelector('#rex-preview-info').innerHTML =
-      `총 <strong>${rexRows.length}건</strong> 중 <strong style="color:var(--accent)">${validCount}건</strong> 접수 가능 / <strong style="color:var(--danger)">${errorCount}건</strong> 오류`;
+      `총 <strong>${rexRows.length}건</strong> 중 <strong style="color:var(--accent)">${validCount}건</strong> 접수 가능 / `
+      + (errorCount ? `<strong id="rex-err-filter" title="${errOnly ? '전체 보기' : '오류 행만 보기'}" style="color:var(--danger);cursor:pointer;text-decoration:underline;text-underline-offset:3px;${errOnly ? 'background:#fee2e2;padding:1px 6px;border-radius:6px;' : ''}">${errorCount}건 오류${errOnly ? ' ✕' : ''}</strong>` : '<strong>0건</strong> 오류');
+    const errBtn = overlay.querySelector('#rex-err-filter');
+    if (errBtn) errBtn.onclick = () => { overlay._rexErrOnly = !errOnly; rexRenderPreview(overlay); };
     const submitBtn = overlay.querySelector('#rex-e-submit-btn');
     submitBtn.disabled = errorCount > 0;
     submitBtn.innerHTML = errorCount > 0
       ? `<i data-lucide="alert-triangle" size="15"></i> 오류를 수정해주세요 (${errorCount}건)`
       : `<i data-lucide="upload" size="15"></i> 일괄 접수하기`;
-    overlay.querySelector('#rex-preview-body').innerHTML = rexRows.map((r,i) => `
+    overlay.querySelector('#rex-preview-body').innerHTML = rexRows.map((r,i) => errOnly && r.valid ? '' : `
       <tr>
         <td style="color:var(--muted)">${i+1}</td>
         <td style="font-weight:500">${escProd(r.storeName)||'-'}</td>
@@ -3146,6 +3151,7 @@ window.toggleProdPanel = function(e) {
 
   window.rexResetExcel = function(overlay) {
     rexRows = [];
+    overlay._rexErrOnly = false;
     overlay.querySelector('#rex-file').value = '';
     overlay.querySelector('#rex-zone').style.display = 'block';
     overlay.querySelector('#rex-preview').style.display = 'none';
