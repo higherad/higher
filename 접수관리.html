@@ -2546,9 +2546,9 @@ window.toggleProdPanel = function(e) {
         </div>
         <div class="pmf" style="margin-bottom:12px;">
           <label>② 불러올 키워드</label>
-          <div style="display:flex;gap:16px;font-size:13px;">
-            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:500;"><input type="checkbox" id="reaccept-kw-a" checked> A급</label>
-            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:500;"><input type="checkbox" id="reaccept-kw-b" checked> B급</label>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="reaccept-kw-btn" id="reaccept-kw-a" data-on="1">A급</button>
+            <button type="button" class="reaccept-kw-btn" id="reaccept-kw-b" data-on="1">B급</button>
           </div>
         </div>
         <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
@@ -2560,6 +2560,15 @@ window.toggleProdPanel = function(e) {
     document.body.appendChild(overlay);
     overlay.querySelector('#reaccept-close-btn').onclick = () => { if (!window.reacceptRunning) overlay.remove(); };
     overlay.querySelector('#reaccept-run-btn').onclick = () => runReaccept(overlay);
+    // A급·B급 켜고 끄는 버튼(기본 둘 다 켬) — 켜짐 = 보라 채움, 꺼짐 = 테두리만
+    const paintKwBtn = b => {
+      const on = b.dataset.on === '1';
+      b.style.cssText = `flex:1;padding:7px 0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid ${on ? '#7c3aed' : 'var(--border)'};background:${on ? '#7c3aed' : '#fff'};color:${on ? '#fff' : 'var(--text2)'};`;
+    };
+    overlay.querySelectorAll('.reaccept-kw-btn').forEach(b => {
+      paintKwBtn(b);
+      b.onclick = () => { b.dataset.on = b.dataset.on === '1' ? '0' : '1'; paintKwBtn(b); };
+    });
     overlay.querySelector('#reaccept-help-btn').onclick = () => {
       const el = overlay.querySelector('#reaccept-help');
       el.style.display = el.style.display === 'none' ? 'block' : 'none';
@@ -2575,7 +2584,7 @@ window.toggleProdPanel = function(e) {
       alert('수정일 기준 일수를 1 이상의 숫자로 입력해주세요.');
       return;
     }
-    const useA = overlay.querySelector('#reaccept-kw-a').checked, useB = overlay.querySelector('#reaccept-kw-b').checked;
+    const useA = overlay.querySelector('#reaccept-kw-a').dataset.on === '1', useB = overlay.querySelector('#reaccept-kw-b').dataset.on === '1';
     if (!useA && !useB) { alert('불러올 키워드를 A급·B급 중 하나 이상 선택해주세요.'); return; }
 
     const pending = allSlots.filter(s => s.status === 'pending' && s.mid);
