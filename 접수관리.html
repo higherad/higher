@@ -3838,10 +3838,12 @@ window.toggleProdPanel = function(e) {
       const onlyFs = onlyVendorOf(s, f, '풀스택');
       const rule = guideRuleFor(s);
       const variants = rule ? fullstackVariants(rule) : [];
+      // 풀스택[개별]은 상세 검색키워드(A·B)만 사이트에 보냄(사이트가 찾은 키워드 안 씀), 그 밖은 사이트 키워드 전부
+      const keywords = s.fullstackFix ? kwSplit(s.searchKeyword) : null;
       return [{ _slotKey: s._key, _slot: s, _fsSubmitted: !!s.fullstackOrder, agencyId: s.agencyId || '', storeName: s.storeName || '', mid: s.mid || '',
         url: s.url || '', rankKeyword: s.rankKeyword || '',
-        daily, days: s.days || 0, start: s.startDate || '', variants, _onlyFs: onlyFs,
-        err: !rule ? '가이드 분류·구간 없음' : unknownFull(rule).length ? `가이드 풀스택 상품 이름 모름: ${unknownFull(rule).join(', ')}`
+        daily, days: s.days || 0, start: s.startDate || '', variants, _onlyFs: onlyFs, ...(keywords ? { keywords } : {}),
+        err: keywords && !keywords.length ? '풀스택[개별] 상세 키워드 없음' : !rule ? '가이드 분류·구간 없음' : unknownFull(rule).length ? `가이드 풀스택 상품 이름 모름: ${unknownFull(rule).join(', ')}`
           : fsTuneOf(rule.tune).err || (!variants.length ? '가이드 풀스택 비율 없음' : fsPctOf(rule) !== 100 ? `가이드 풀스택 비율 합계 ${fsPctOf(rule)}%` : '') }];
     });
   }
@@ -3852,7 +3854,7 @@ window.toggleProdPanel = function(e) {
   // (같은 업체를 순위키워드별로 여러 캠페인 받는 경우 두 번째도 접수되게). 최신 allSlots 기준(이번 접수 중 앞 행 기록 포함)
   const fsAllowed = r => allSlots.filter(c => c._key !== r._slotKey && c.mid === r.mid && c.fullstackOrder && c.status !== 'deleted'
     && (c.startDate === r.start || (c.endDate && c.endDate === r._slot.endDate))).length;
-  const fsReq = r => ({ mid: r.mid, daily: r.daily, days: r.days, start: r.start, variants: r.variants });
+  const fsReq = r => ({ mid: r.mid, daily: r.daily, days: r.days, start: r.start, variants: r.variants, ...(r.keywords ? { keywords: r.keywords } : {}) });
 
   // 표 + 미리보기(사이트에 commit:false — 접수 안 됨) + 접수 신청(행마다 1건씩 실제 접수). 같은 MID·기간이 이미 사이트에 있으면 건너뛰고 완료로 침(사이트에서 직접 넣은 것 포함)
   function wireFullstackTab({ rows, bodyEl, subEl, applyBtn, closeBtn, overlay, gate, onDone }) {
