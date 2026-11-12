@@ -1180,7 +1180,11 @@ window.toggleProdPanel = function(e) {
 
     // 플레이스 키워드 시트 메인 탭의 그 MID 줄(매일 01:10 DB로 복사) — A급·B급 칸에 각각 적용
     let row;
-    try { row = await HI.getPlaceKeyword(mid); }
+    try {
+      // hi-store.js는 브라우저 캐시(10분)·SPA 세션 동안 옛 버전이 남을 수 있음 — 함수가 없으면 새로고침 안내
+      if (!HI.getPlaceKeyword) throw new Error('새 버전이 아직 반영되지 않았습니다. Ctrl+F5로 새로고침해 주세요');
+      row = await HI.getPlaceKeyword(mid);
+    }
     catch (e) {
       area.innerHTML = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;">⚠️ 키워드를 불러오지 못했습니다: ${escProd(e.message||e)}</div>`;
       return;
