@@ -127,7 +127,7 @@
       <label><input id="sh-fi-norevoke" type="checkbox">취소 제외</label>
       <span class="lb">진행</span><input id="sh-fi-age" type="number" style="width:56px;text-align:center" placeholder="일수"><span class="lb">일 이상</span>
       <span class="lb">시작일</span><input id="sh-fi-from" type="date"> ~ <input id="sh-fi-to" type="date">
-      <button class="btn-go" style="margin-left:auto;padding:7px 18px" onclick="shopOrderOpen()">접수 (개별·엑셀)</button>
+      <button class="btn-go" style="margin-left:auto;padding:7px 18px" onclick="shopOrderOpen()">접수</button>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:120px"><col style="width:190px"><col style="width:60px"><col style="width:60px"><col style="width:100px"><col style="width:100px"></colgroup>
       <thead><tr><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 종료일</th><th>기간</th><th>진행</th><th>취소일</th><th>관리</th></tr></thead>
@@ -305,15 +305,14 @@
   }
 
   const parseMid = v => { v = (v || '').trim(); if (/^\d{6,}$/.test(v)) return v; if (!safeUrl(v)) return ''; const m = v.match(/(?:products|catalog)\/(\d{6,})/) || v.match(/[?&](?:nvMid|nv_mid)=(\d{6,})/); return m ? m[1] : ''; };
-  const termOpts = (v = TERM_DAYS) => Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === v ? ' selected' : ''}>${i + 1}일</option>`).join('');
+  const termOpts = (v = TERM_DAYS) => Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === v ? ' selected' : ''}>${i + 1}</option>`).join('');
   const orUser = () => USERS.find(u => u.id === $('sh-or-user').value);
   /* ── 접수(개별·엑셀) — 한 줄 = 정보가 들어간 슬롯 1개. 서버 /shop-order가 같은 시작일·일수·일 목표끼리 발급 건 1개로 묶음
      광고주 사이트(higher_shop index.html)·어드민(쇼핑관리.html)이 같은 로직 — 한쪽을 고치면 같이 고칠 것 ── */
   let orderTab = 'one', xRows = [];
   const newReqId = () => crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2);
-  // 시작일 = 당일·익일 둘 중 하나(접수하면 그 날짜로 저장), 표시는 '당일 (11/12)'
-  const slash = d => d.slice(5).replace('-', '/');
-  const whenOpts = (v = 0) => [0, 1].map(n => `<option value="${n}"${n === v ? ' selected' : ''}>${n ? '익일' : '당일'} (${slash(addDays(today(), n))})</option>`).join('');
+  // 시작일 = 당일·익일 둘 중 하나(접수하면 그 날짜로 저장)
+  const whenOpts = (v = 0) => [0, 1].map(n => `<option value="${n}"${n === v ? ' selected' : ''}>${n ? '익일' : '당일'}</option>`).join('');
   const WHEN = { '당일': 0, '익일': 1 };
   // 한 줄 검사(서버 shop_order와 같음) → 오류 문구, 없으면 ''
   function orderErr(r) {
@@ -334,7 +333,7 @@
     tr.innerHTML = `<td class="or-n"></td><td><input class="or-kw" maxlength="50" placeholder="키워드"></td><td><input class="or-url" maxlength="500" placeholder="상품 URL"></td>
       <td><select class="or-when">${whenOpts(base.off)}</select></td><td><select class="or-days">${termOpts(base.days)}</select></td><td><input class="or-daily" type="number" style="text-align:center"></td>
       <td class="or-amt"></td><td><button class="act act-del or-del" title="줄 삭제">✕</button></td>`;
-    tr.querySelector('.or-daily').value = base.daily || 100;
+    tr.querySelector('.or-daily').value = base.daily || MIN_DAILY;
     $('sh-or-rows').append(tr);
   }
   // 줄별 슬롯 금액·합계 다시 그림 — 틀린 칸은 빨간 테두리, 한 줄이라도 틀리면 접수 버튼 막음
@@ -348,7 +347,7 @@
       tr.querySelector('.or-amt').textContent = errs[i] || !ok ? '-' : won(orderAmt(r)) + '원';
     });
     else $('sh-or-xrows').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.kw) || '-'}</td><td style="text-align:left;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url) || '-'}</td>
-        <td>${r.start ? `${r.raw} (${slash(r.start)})` : esc(r.raw) || '-'}</td><td>${esc(r.daysRaw) || '-'}</td><td>${esc(r.dailyRaw) || '-'}</td>
+        <td>${esc(r.raw) || '-'}</td><td>${esc(r.daysRaw) || '-'}</td><td>${esc(r.dailyRaw) || '-'}</td>
         <td>${errs[i] || !ok ? '-' : won(orderAmt(r)) + '원'}</td><td>${errs[i] ? `<span class="pill p-r">${errs[i]}</span>` : '<span class="pill p-g">정상</span>'}</td></tr>`).join('')
       || '<tr><td colspan="8" style="height:100px;text-align:center;color:var(--muted)">양식에 맞춰 작성한 엑셀을 선택해 주세요.</td></tr>';
     const bad = errs.filter(Boolean).length, amt = rows.reduce((a, r, i) => a + (errs[i] ? 0 : orderAmt(r)), 0);
