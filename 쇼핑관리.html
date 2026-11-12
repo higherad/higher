@@ -73,14 +73,6 @@
   #shop-page .act { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
   #shop-page .act-edit { background:#eff6ff; color:#1d4ed8; } #shop-page .act-del { background:#fef2f2; color:var(--danger); } #shop-page .act-ok { background:#ecfdf5; color:#059669; }
   #shop-page .act:disabled, #shop-page .btn-go:disabled { opacity:.5; cursor:default; }
-  #shop-page .issue-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
-  #shop-page .issue-card h4 { margin:0 0 14px; font-size:14px; }
-  #shop-page .issue-grid { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; }
-  #shop-page .fld label { display:block; font-size:11px; color:var(--text2); font-weight:600; margin-bottom:5px; }
-  #shop-page .fld label em { color:var(--danger); font-style:normal; margin-left:4px; }
-  #shop-page .fld input, #shop-page .fld select { padding:8px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; outline:none; font-family:inherit; }
-  #shop-page .qty { display:flex; gap:4px; } #shop-page .qty input { width:70px; text-align:center; }
-  #shop-page .qty button { padding:0 10px; border:1px solid var(--border); background:#fff; border-radius:7px; cursor:pointer; font-weight:700; font-family:inherit; }
   #shop-page .btn-go { padding:9px 20px; border:none; border-radius:7px; background:var(--accent); color:#fff; font-weight:700; cursor:pointer; font-family:inherit; }
   #shop-page .btn-go:hover { background:var(--accent2); }
   #shop-page .price-link { color:var(--info); font-weight:700; cursor:pointer; text-decoration:underline; }
@@ -130,24 +122,12 @@
 
   <!-- 슬롯 발급 -->
   <section class="pane on" id="sh-t-issue">
-    <div class="issue-card">
-      <h4 style="display:flex;align-items:center">빈 슬롯 발급<button class="btn-go" style="margin-left:auto;padding:7px 18px" onclick="shopOrderOpen()">접수 (개별·엑셀)</button></h4>
-      <div class="issue-grid">
-        <div class="fld"><label>대상 광고주</label><select id="sh-is-user" style="width:200px"></select></div>
-        <div class="fld"><label>수량<em>1회 최대 500개</em></label><div class="qty"><button data-q="-1">-</button><input id="sh-is-qty" type="number" value="1"><button data-q="1">+</button><button data-q="10">+10</button><button data-q="100">+100</button><button data-q="max">최대</button></div></div>
-        <div class="fld"><label>시작일<em>17시 마감</em></label><input id="sh-is-start" type="date"></div>
-        <div class="fld"><label>일수<em>1~7일</em></label><select id="sh-is-days"></select></div>
-        <div class="fld"><label>일 목표<em>최소 10개</em></label><input id="sh-is-daily" type="number" value="100" style="width:80px;text-align:center"></div>
-        <div class="fld"><label>종료 예정일</label><input id="sh-is-end" type="date" disabled></div>
-        <div class="fld"><label>정산 금액<em>VAT 별도</em></label><div id="sh-is-amt" style="padding:9px 0;font-weight:800;font-size:15px">-</div></div>
-        <button class="btn-go" id="sh-is-go">슬롯 발급</button>
-      </div>
-    </div>
     <div class="filter-bar">
       <span class="lb">광고주</span><select id="sh-fi-user"></select>
       <label><input id="sh-fi-norevoke" type="checkbox">취소 제외</label>
       <span class="lb">진행</span><input id="sh-fi-age" type="number" style="width:56px;text-align:center" placeholder="일수"><span class="lb">일 이상</span>
       <span class="lb">시작일</span><input id="sh-fi-from" type="date"> ~ <input id="sh-fi-to" type="date">
+      <button class="btn-go" style="margin-left:auto;padding:7px 18px" onclick="shopOrderOpen()">접수 (개별·엑셀)</button>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:120px"><col style="width:190px"><col style="width:60px"><col style="width:60px"><col style="width:100px"><col style="width:100px"></colgroup>
       <thead><tr><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 종료일</th><th>기간</th><th>진행</th><th>취소일</th><th>관리</th></tr></thead>
@@ -266,7 +246,6 @@
   const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5);
   // 접수 마감 = 17시~자정엔 발급 불가(서버 closed_now와 같음)
   const closedNow = () => kstNow().getUTCHours() >= CUTOFF_HOUR;
-  const endOf = (s, days) => addDays(s, days - 1);
   // 발급 건 price = 단가 × 일수 × 일 목표(슬롯 1개 금액). days·daily 없는 옛 건·슬롯 = 7일·100개
   const termDays = x => x.days || TERM_DAYS, dailyOf = x => x.daily || 100;
   const md = s => s ? s.slice(5) : '-';
@@ -302,29 +281,7 @@
   }
 
 
-  /* ── 슬롯 발급 ── */
-  $('sh-is-days').innerHTML = Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === TERM_DAYS ? ' selected' : ''}>${i + 1}일</option>`).join('');
-  function syncIssue() {
-    const q = $('sh-is-qty'); q.value = Math.min(MAX_QTY, Math.max(1, parseInt(q.value) || 1));
-    const st = $('sh-is-start'); if (!st.value || st.value < today()) st.value = today();
-    const dl = $('sh-is-daily'); dl.value = Math.max(MIN_DAILY, parseInt(dl.value) || MIN_DAILY);
-    const days = +$('sh-is-days').value, daily = +dl.value;
-    $('sh-is-end').value = endOf(st.value, days);
-    const u = USERS.find(x => x.id === $('sh-is-user').value), amt = u ? u.price * days * daily * +q.value : 0;
-    $('sh-is-amt').textContent = u ? `${won(amt)}원` : '-';
-    return { u, qty: +q.value, start: st.value, days, daily, amt };
-  }
-  document.querySelectorAll('#shop-page [data-q]').forEach(b => b.onclick = () => {
-    const q = $('sh-is-qty'); q.value = b.dataset.q === 'max' ? MAX_QTY : (parseInt(q.value) || 0) + +b.dataset.q; syncIssue();
-  });
-  ['sh-is-qty', 'sh-is-start', 'sh-is-user', 'sh-is-days', 'sh-is-daily'].forEach(id => $(id).onchange = syncIssue);
-  $('sh-is-go').onclick = () => busy($('sh-is-go'), async () => {
-    if (closedNow()) throw new Error(`접수는 ${CUTOFF_HOUR}시에 마감됩니다. 내일 0시부터 발급할 수 있습니다.`);
-    const { u, qty, start, days, daily, amt } = syncIssue();
-    if (!u) throw new Error('대상 광고주를 선택해 주세요.');
-    if (!confirm(`${u.company}에 슬롯 ${qty}개를 발급합니다. (${start} ~ ${endOf(start, days)}, ${days}일 · 일 ${daily}개, ${won(amt)}원)`)) return;
-    await HI.shopCall('/shop-issue', { userId: u.id, qty, start, days, daily, reqId: crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2) });
-  });
+  /* ── 발급 내역 ── */
   window.shopRevoke = (uid, no, btn) => busy(btn, async () => {
     const is = ISSUES.find(x => x.userId === uid && x.no === no);
     const set = SLOTS.filter(x => x.userId === uid && x.issueNo === no && x.mid).length;
@@ -442,7 +399,6 @@
   window.shopOrderOpen = () => {
     if (closedNow()) return alert(`접수는 ${CUTOFF_HOUR}시에 마감됩니다. 내일 0시부터 발급할 수 있습니다.`);
     $('sh-or-user').innerHTML = '<option value="">-- 광고주 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
-    $('sh-or-user').value = $('sh-is-user').value;
     xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab('one');
     $('shop-or').classList.add('show');
   };
@@ -793,11 +749,10 @@
     if (!$('shop-page')) return;
     const opts = all => (all ? `<option value="">${all}</option>` : '') + USERS.map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})${u.deleted ? ' · 삭제' : ''}</option>`).join('');
     const keep = (id, html) => { const el = $(id), v = el.value; el.innerHTML = html; el.value = v; if (el.selectedIndex < 0) el.selectedIndex = 0; };
-    keep('sh-is-user', '<option value="">-- 광고주 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join(''));
     ['sh-fi-user', 'sh-fs-user', 'sh-ft-user'].forEach(id => keep(id, opts('전체 광고주')));
     const nUnpaid = ISSUES.filter(x => !x.paidAt && !x.revokedAt).length;
     [['sh-tab-unpaid', nUnpaid]].forEach(([id, n]) => { $(id).textContent = n; $(id).style.display = n ? '' : 'none'; });
-    syncIssue(); renderIssues(); renderSlots(); renderSettle(); renderUsers();
+    renderIssues(); renderSlots(); renderSettle(); renderUsers();
   }
 
   const bind = (ids, fn) => ids.forEach(id => { $(id).oninput = fn; $(id).onchange = fn; });
@@ -809,8 +764,6 @@
     document.querySelectorAll('#shop-page .tab').forEach(x => x.classList.toggle('on', x === t));
     document.querySelectorAll('#shop-page .pane').forEach(p => p.classList.toggle('on', p.id === 'sh-t-' + t.dataset.t));
   });
-  $('sh-is-start').value = today();
-  syncIssue();
 
   // 공유 캐시 구독 — 맨 끝에 둠: 다시 들어오면 캐시가 있어 콜백이 즉시(동기) 실행되므로 위 선언이 다 끝난 뒤여야 함
   // 이 화면이 사라지면(다른 메뉴 또는 다시 들어와 새 화면) 다음 변경 때 해제 — 옛 구독이 새 화면을 덮어 그리지 않게
