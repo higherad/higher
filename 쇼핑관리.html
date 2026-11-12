@@ -119,14 +119,15 @@
   <div class="tabs">
     <div class="tab on" data-t="slots"><i data-lucide="layout-list"></i>접수 현황</div>
     <div class="tab" data-t="settle"><i data-lucide="receipt"></i>정산 <span class="cnt" id="sh-tab-unpaid" style="display:none"></span></div>
-    <div class="tab" data-t="users"><i data-lucide="users-round"></i>광고주 관리</div>
+    <div class="tab" data-t="users"><i data-lucide="users-round"></i>영업점 관리</div>
+    <div class="tab" data-t="hist"><i data-lucide="history"></i>변경 이력</div>
   </div>
 
   <!-- 접수 현황 -->
   <section class="pane on" id="sh-t-slots">
     <div class="stat-bar" id="sh-slot-stats" style="grid-template-columns:repeat(5,1fr)"></div>
     <div class="filter-bar">
-      <span class="lb">광고주</span><select id="sh-fs-user"></select>
+      <span class="lb">영업점</span><select id="sh-fs-user"></select>
       <input id="sh-fs-q" style="flex:1;min-width:200px" placeholder="키워드, MID 검색">
       <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="refund">환불 요청</option><option value="stop">환불</option><option value="end">종료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
@@ -136,7 +137,7 @@
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:100px"><col style="width:130px"><col style="width:150px"><col style="width:150px"><col style="width:120px"><col><col style="width:56px"><col style="width:80px"><col style="width:80px"><col style="width:76px"><col style="width:90px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>접수일</th><th>구분</th><th>대행사</th><th>순위 키워드</th><th>MID</th><th>URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>접수일</th><th>구분</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -145,23 +146,35 @@
   <section class="pane" id="sh-t-settle">
     <div class="sum-grid" id="sh-settle-stats"></div>
     <div class="filter-bar">
-      <span class="lb">광고주</span><select id="sh-ft-user"></select>
+      <span class="lb">영업점</span><select id="sh-ft-user"></select>
       <select id="sh-ft-st"><option value="">정산 전체</option><option value="paid">정산완료</option><option value="unpaid">미정산</option><option value="uncharged">미충전</option></select>
       <span class="lb">접수일</span><input id="sh-ft-from" type="date"> ~ <input id="sh-ft-to" type="date">
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:120px"><col style="width:190px"><col style="width:80px"><col style="width:80px"><col style="width:110px"><col style="width:130px"><col style="width:130px"><col style="width:100px"><col style="width:90px"><col style="width:110px"><col style="width:110px"><col style="width:240px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-sc-all"></th><th>접수일시</th><th>대행사</th><th>단가(원)</th><th>캠페인 수</th><th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="sh-sc-all"></th><th>접수일시</th><th>영업점</th><th>단가(원)</th><th>캠페인 수</th><th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th></tr></thead>
       <tbody id="sh-settle-rows"></tbody>
     </table></div>
   </section>
 
-  <!-- 광고주 관리 -->
+  <!-- 영업점 관리 -->
   <section class="pane" id="sh-t-users">
-    <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="광고주, 아이디 검색">
-      <button class="btn-go" style="margin-left:auto;padding:7px 16px" onclick="openShopUser()">+ 광고주 추가</button></div>
+    <div class="filter-bar"><input id="sh-fu-q" style="width:240px" placeholder="영업점, 아이디 검색">
+      <button class="btn-go" style="margin-left:auto;padding:7px 16px" onclick="openShopUser()">+ 영업점 추가</button></div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:140px"><col style="width:100px"><col style="width:150px"><col style="width:160px"><col style="width:100px"><col style="width:100px"><col style="width:80px"><col><col style="width:70px"><col style="width:80px"></colgroup>
-      <thead><tr><th>가입일</th><th>최종 접수일</th><th>구분</th><th>대행사</th><th>단가(원)</th><th>아이디</th><th>캠페인 수</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
+      <thead><tr><th>가입일</th><th>최종 접수일</th><th>구분</th><th>영업점</th><th>단가(원)</th><th>아이디</th><th>캠페인 수</th><th>메모</th><th>상태</th><th>액션</th></tr></thead>
       <tbody id="sh-user-rows"></tbody>
+    </table></div>
+  </section>
+
+  <!-- 변경 이력 — 전체 영업점 통합(광고주 사이트 변경 이력과 같은 항목) -->
+  <section class="pane" id="sh-t-hist">
+    <div class="filter-bar">
+      <span class="lb">영업점</span><select id="sh-fh-user"></select>
+      <span class="lb">구분</span><select id="sh-fh-type"><option value="">전체</option><option>접수</option><option>정보 수정</option><option>환불 요청</option><option>환불</option><option>취소</option><option>입금 확인</option></select>
+    </div>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:120px"><col style="width:100px"><col style="width:150px"><col style="width:160px"><col style="width:130px"><col></colgroup>
+      <thead><tr><th>일시</th><th>구분</th><th>계정 구분</th><th>영업점</th><th>대상</th><th>내용</th></tr></thead>
+      <tbody id="sh-hist-rows"></tbody>
     </table></div>
   </section>
 
@@ -175,11 +188,11 @@
     <div class="foot"><button style="border:1px solid var(--border);background:#fff" onclick="document.getElementById('shop-pl').classList.remove('show')">닫기</button></div>
   </div></div>
 
-  <!-- 광고주 추가/수정 -->
+  <!-- 영업점 추가/수정 -->
   <div id="shop-um"><div class="box">
-    <div class="ttl" style="display:flex;align-items:center;gap:12px"><span id="sh-um-title">광고주 추가</span>
+    <div class="ttl" style="display:flex;align-items:center;gap:12px"><span id="sh-um-title">영업점 추가</span>
       <label id="sh-um-dist-f" title="총판 권한"><input type="checkbox" id="sh-um-dist">총판</label></div>
-    <div class="f"><label>광고주(업체명)<span class="req">*</span></label><input id="sh-um-company" maxlength="30" placeholder="예: 하이어애드"></div>
+    <div class="f"><label>영업점(업체명)<span class="req">*</span></label><input id="sh-um-company" maxlength="30" placeholder="예: 하이어애드"></div>
     <div class="row">
       <div class="f"><label>아이디<span class="req">*</span></label><input id="sh-um-id" maxlength="20" placeholder="영문+숫자 3~20자" autocomplete="off"></div>
       <div class="f"><label id="sh-um-pw-l">비밀번호<span class="req">*</span></label><input id="sh-um-pw" maxlength="64" class="pw-masked" autocomplete="off"></div>
@@ -355,7 +368,7 @@
   };
   window.shopOrderOpen = () => {
     if (closedNow()) return alert(`접수는 ${CUTOFF_HOUR}시에 마감됩니다. 내일 0시부터 발급할 수 있습니다.`);
-    $('sh-or-user').innerHTML = '<option value="">-- 광고주 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
+    $('sh-or-user').innerHTML = '<option value="">-- 영업점 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
     xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab('one');
     $('shop-or').classList.add('show');
   };
@@ -364,7 +377,7 @@
   $('sh-or-go').onclick = () => busy($('sh-or-go'), async () => {
     if (closedNow()) throw new Error(`접수는 ${CUTOFF_HOUR}시에 마감됩니다. 내일 0시부터 발급할 수 있습니다.`);
     const u = orUser(), rows = orderRows(), bad = rows.findIndex(orderErr);
-    if (!u) throw new Error('광고주를 선택해 주세요.');
+    if (!u) throw new Error('영업점을 선택해 주세요.');
     if (!rows.length) throw new Error('접수할 줄이 없습니다.');
     if (bad >= 0) throw new Error(`${bad + 1}번째 줄: ${orderErr(rows[bad])}`);
     if (!confirm(`${u.company}에 캠페인 ${rows.length}개를 접수합니다. (정산 금액 ${won(rows.reduce((a, r) => a + orderAmt(r), 0))}원, VAT 별도)`)) return;
@@ -554,7 +567,7 @@
     rows.forEach(is => { const p = is.dist || is.userId; if (!groups[p]) { groups[p] = []; order.push(p); } groups[p].push(is); });
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
-    ov.innerHTML = `<div class="reg-box"><div class="sp-title">정산 등록 — 광고주별 분류</div><div class="sp-sub">${SPICK.size ? '선택' : '전체'} ${rows.length}건</div><div class="reg-body"></div>
+    ov.innerHTML = `<div class="reg-box"><div class="sp-title">정산 등록 — 영업점별 분류</div><div class="sp-sub">${SPICK.size ? '선택' : '전체'} ${rows.length}건</div><div class="reg-body"></div>
       <div class="sp-footer"><button class="btn-go sh-reg-charge" style="padding:8px 16px">충전 신청</button><button class="btn-close-sp">닫기</button></div></div>`;
     const body = ov.querySelector('.reg-body');
     order.forEach(p => {
@@ -564,7 +577,7 @@
       const block = document.createElement('div');
       block.className = 'agency-block';
       block.innerHTML = `<div class="agency-hd"><div><div class="aname">${esc(userOf(p).company)}${userOf(p).role === 'dist' ? ' (총판)' : ''}</div><div class="ameta">총 ${qty.toLocaleString()}건 · 전체 목표 ${totalGoal.toLocaleString()}건</div></div><button class="agency-copy-btn">복사</button></div>
-        <div style="overflow-x:auto"><table class="ag-table"><thead><tr><th>접수일시</th><th>광고주</th><th>캠페인 수</th><th>전체 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>상태</th></tr></thead><tbody>
+        <div style="overflow-x:auto"><table class="ag-table"><thead><tr><th>접수일시</th><th>영업점</th><th>캠페인 수</th><th>전체 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>상태</th></tr></thead><tbody>
         ${list.map(is => `<tr><td>${esc(is.at)}</td><td>${esc(userOf(is.userId).company)}</td><td>${is.qty}</td><td><b>${goal(is).toLocaleString()}</b></td><td>${is.unitShown ? won(is.unitShown) : '-'}</td><td><b>${won(billOf(is))}</b></td><td style="color:var(--info);font-weight:700">${won(Math.round(billOf(is) * VAT))}</td><td style="${refundOf(is) ? 'color:#dc2626;font-weight:700' : ''}">${refundOf(is) ? won(refundOf(is)) : '-'}</td><td>${is.paidAt ? '<span class="pill p-g">정산완료</span>' : '<span class="pill p-w">미정산</span>'}</td></tr>`).join('')}
         </tbody></table></div>
         <div class="agency-ft"><span>정산 합계 <b>${won(amt)}원</b></span><span>입금 합계 <b>${won(dep)}원</b></span>${rf ? `<span style="color:var(--danger)">환불 <b style="color:var(--danger)">${won(rf)}원</b></span>` : ''}<span class="charge-cell" style="margin-left:auto"></span></div>`;
@@ -632,7 +645,7 @@
   window.shopTotalPopup = () => {
     const byMonth = groupBy(is => is.at.slice(0, 7));
     const sum = Object.values(byMonth).reduce((a, v) => a + v.amt, 0);
-    popup('전체 정산 합산', '전체 기간 · 모든 광고주 합산',
+    popup('전체 정산 합산', '전체 기간 · 모든 영업점 합산',
       [['c-green', '총 매출액(VAT 별도)', sum, 'var(--accent)'], ['c-blue', '총 입금액(VAT 포함)', Math.round(sum * VAT), 'var(--info)']],
       '월별 합산', ['월', '발급 건수', '캠페인 수', '정산 금액(VAT 별도)', '입금액(VAT 포함)'],
       Object.keys(byMonth).sort().reverse().map(m => amtRow(m, byMonth[m])), 1000);
@@ -650,7 +663,7 @@
 
   /* ── 충전·메모·환불·환불 등록(정산관리와 같은 구성) ──
      정산 묶음 = 입금할 쪽(하부점 발급 건은 총판) + 발급일. 충전·메모는 shop/settle/{입금할 쪽}__{발급일}(직원 전용)에 기록
-     충전 = 입금할 쪽의 '비즈핏 충전 계정'(광고주 관리에서 지정 = hi/bizfit_charge 키)으로 비즈핏 캐시 충전 → 입금완료 자동 확정
+     충전 = 입금할 쪽의 '비즈핏 충전 계정'(영업점 관리에서 지정 = hi/bizfit_charge 키)으로 비즈핏 캐시 충전 → 입금완료 자동 확정
      환불 버튼 = 묶음 추가 환불(묶음 첫 발급 건 adj), 환불 등록 = shop/pending_refunds — 서버가 등록 다음 날 이후 발급 건에 autoAdj로 자동 차감 */
   const CHARGE_SERVER = 'https://higherad-bizfit-charge-938928195180.asia-northeast3.run.app';
   const BIZFIT_DIRECT_PROXY = 'https://higherad-direct-proxy-938928195180.asia-northeast3.run.app';
@@ -661,7 +674,7 @@
   // 비즈핏 실제 충전 — 정산관리 chargeAgency와 같음(계정 조회 → 충전 스트림 → 입금완료 자동 확정)
   async function chargeAgency(payer, amount) {
     const acct = CHARGE[payer], company = srName(userOf(payer).company);  // 입금완료 확정은 비즈핏 영업점명(업체명[SR])으로 찾음
-    if (!acct?.id) return { ok: false, noAccount: true, resultMsg: '충전 계정 미입력(광고주 관리에서 입력)' };
+    if (!acct?.id) return { ok: false, noAccount: true, resultMsg: '충전 계정 미입력(영업점 관리에서 입력)' };
     let ok = false, resultMsg = '';
     try {
       const res = await fetch(`${CHARGE_SERVER}/charge-stream`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: acct.id, pw: acct.pw, amount }), signal: AbortSignal.timeout(120000) });
@@ -804,7 +817,7 @@
     if (!$('shop-page')) return;
     const payers = USERS.filter(u => !u.parent && !u.deleted);
     const m = miniModal('환불 등록', '익일 발급분부터 자동 차감됩니다.',
-      `<label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">광고주 (총판·일반)</label>
+      `<label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">영업점 (총판·일반)</label>
        <select class="pr-u" style="${inCss}margin-bottom:12px"><option value="">-- 선택 --</option>${payers.map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('')}</select>
        <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">환불 금액 (VAT 별도)</label>
        <input class="pr-v" type="text" inputmode="numeric" style="${inCss}margin-bottom:16px">
@@ -816,7 +829,7 @@
     const draw = () => {
       m.querySelectorAll('.pr-tab').forEach(t => { const on = t.dataset.t === tab; t.style.cssText = `border:none;background:none;padding:6px 2px;margin-bottom:-1px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border-bottom:2px solid ${on ? 'var(--danger)' : 'transparent'};color:${on ? 'var(--danger)' : 'var(--text2)'}`; });
       const done = tab === 'done', rows = Object.entries(PENDING).filter(([, p]) => done ? !(p.remaining > 0) : p.remaining > 0).sort((a, b) => b[1].createdAt.localeCompare(a[1].createdAt));
-      const head = done ? ['광고주', '등록 금액', '등록일', '완료일'] : ['광고주', '등록 금액', '남은 금액', '등록일', ''];
+      const head = done ? ['영업점', '등록 금액', '등록일', '완료일'] : ['영업점', '등록 금액', '남은 금액', '등록일', ''];
       m.querySelector('.pr-list').innerHTML = `<table class="sp-tbl" style="width:100%"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(([id, p]) => `<tr><td>${esc(userOf(p.payer).company)}</td><td>${won(p.amount)}원</td>${done
         ? `<td style="font-size:11px">${esc(p.createdAt.slice(0, 10))}</td><td style="font-size:11px">${esc((p.completedAt || '').slice(0, 10))}</td>`
         : `<td style="color:var(--danger);font-weight:700">${won(p.remaining)}원</td><td style="font-size:11px">${esc(p.createdAt.slice(0, 10))}</td><td><button class="act act-del" data-del="${esc(id)}">삭제</button></td>`}</tr>`).join('')
@@ -833,7 +846,7 @@
     };
     m.querySelector('.pr-go').onclick = () => busy(m.querySelector('.pr-go'), async () => {
       const payer = m.querySelector('.pr-u').value, amt = Number(m.querySelector('.pr-v').value.replace(/[^\d]/g, '')) || 0;
-      if (!payer) throw new Error('광고주를 선택해 주세요.');
+      if (!payer) throw new Error('영업점을 선택해 주세요.');
       if (amt <= 0) throw new Error('환불 금액을 입력해 주세요.');
       const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await HI.shopUpdate({ [`pending_refunds/${id}`]: { payer, amount: amt, remaining: amt, createdAt: nowStr(), createdBy: staffName() } });
@@ -841,7 +854,7 @@
     });
   };
 
-  /* ── 광고주 관리 ── */
+  /* ── 영업점 관리 ── */
   function renderUsers() {
     const q = $('sh-fu-q').value.trim();
     // 하부점은 총판 줄 아래에 접어 둠(총판 줄 클릭 = 펼침). 검색이 하부점에 걸리면 그 총판을 펼쳐서 보여줌
@@ -861,7 +874,7 @@
         <td>${own}</td>
         <td>${esc(u.memo)}</td><td>${u.blocked ? '<span class="pill p-r">차단</span>' : '<span class="pill p-g">사용</span>'}</td>
         <td><button class="act act-edit" onclick="openShopUser('${esc(u.id)}')">수정</button></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '광고주가 없습니다. 오른쪽 위 \'광고주 추가\'로 계정을 만드세요.' : '불러오는 중…'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="12">${loaded ? '영업점이 없습니다. 오른쪽 위 \'영업점 추가\'로 계정을 만드세요.' : '불러오는 중…'}</td></tr>`;
   }
   // 하이어 청구 대상 건 — 일반·총판 본인 발급(dist 없음) + 총판이면 하부점 발급분(dist = 이 총판), 하부점은 자기 건(총판 단가 기준)
   const shopIssuesOf = u => ISSUES.filter(x => u.parent ? x.userId === u.id : (x.userId === u.id && !x.dist) || x.dist === u.id);
@@ -897,7 +910,7 @@
     if (!$('shop-page')) return;
     editId = id || null;
     const u = USERS.find(x => x.id === id) || { company: '', id: '', price: '', memo: '' };
-    $('sh-um-title').textContent = id ? '광고주 정보 수정' : '광고주 추가';
+    $('sh-um-title').textContent = id ? '영업점 정보 수정' : '영업점 추가';
     $('sh-um-pw-l').innerHTML = id ? '비밀번호 <span style="font-weight:400;color:var(--muted)">(바꿀 때만 입력)</span>' : '비밀번호<span class="req">*</span>';
     $('sh-um-company').value = u.company; $('sh-um-id').value = u.id; $('sh-um-id').disabled = !!id;
     $('sh-um-dist').checked = u.role === 'dist'; $('sh-um-dist-f').style.display = u.parent ? 'none' : '';  // 하부점은 총판 불가(2단계까지)
@@ -940,20 +953,46 @@
     busy($('sh-um-del'), async () => { await HI.shopCall('/shop-user-delete', { id: u.id }); $('shop-um').classList.remove('show'); });
   };
 
+  /* ── 변경 이력 ── 광고주 사이트 historyHtml과 같은 항목, 금액은 하이어 청구 기준(하부점 건 = 총판 단가) */
+  function renderHistory() {
+    const uid = $('sh-fh-user').value, type = $('sh-fh-type').value, ev = [];
+    const issueOf = new Map(ISSUES.map(is => [`${is.userId}|${is.no}`, is]));
+    const add = (at, t, cls, userId, tg, txt) => { if ((!type || type === t) && (!uid || userId === uid || userOf(userId).parent === uid)) ev.push([at, t, cls, userId, tg, txt, ev.length]); };
+    ISSUES.forEach(is => {
+      const span = `${md(is.start)} ~ ${md(is.end)}`, tg = `발급번호 #${is.no}`;
+      add(is.at, '접수', 'b', is.userId, tg, `캠페인 ${is.qty0 || is.qty}건 접수 / ${span} (${termDays(is)}일 · 일 ${dailyOf(is).toLocaleString()}개)`);
+      if (is.qty0 && is.qty0 > is.qty && !is.revokedAt) add(is.droppedAt || is.at, '환불', 'rd', is.userId, tg, `진행 전 ${is.qty0 - is.qty}건 삭제(전액)`);
+      if (is.revokedAt) add(is.revokedAt, is.qty0 ? '환불' : '취소', is.qty0 ? 'rd' : 'n', is.userId, tg, `캠페인 ${is.qty0 || is.qty}건 ${is.qty0 ? '삭제(전액)' : '취소'} / ${span}`);
+      if (is.paidAt) add(is.paidAt, '입금 확인', 'g', is.userId, tg, `${won(Math.round(billOf(is) * VAT))}원`);
+    });
+    SLOTS.forEach(x => {
+      const tg = `캠페인 ${x.no}`, dist = issueOf.get(`${x.userId}|${x.issueNo}`)?.dist;
+      if (x.setAt) add(x.setAt, '정보 수정', 'w', x.userId, tg, x.mid ? `키워드 '${esc(x.kw)}' · MID ${esc(x.mid)}` : '정보 비움');
+      if (x.refundAt) add(x.refundAt, '환불 요청', 'r', x.userId, tg, `키워드 '${esc(x.kw)}'`);
+      if (x.stoppedAt) add(x.stoppedAt, '환불', 'rd', x.userId, tg, `남은 ${x.refundDays}일 환불 ${won(dist ? x.distRefundAmt : x.refundAmt)}원 (VAT 별도)`);
+    });
+    // 시각이 분 단위라 같은 분이면 나중에 넣은(접수→환불→입금) 이벤트가 위로
+    ev.sort((a, b) => b[0].localeCompare(a[0]) || b[6] - a[6]);
+    $('sh-hist-rows').innerHTML = ev.slice(0, 1000).map(([at, t, cls, userId, tg, txt]) => `<tr><td>${md(at)}</td><td><span class="pill p-${cls}">${t}</span></td>
+      <td>${gradePill(userOf(userId))}</td><td>${esc(userOf(userId).company)}</td><td>${tg}</td><td style="text-align:left">${txt}</td></tr>`).join('')
+      || `<tr class="empty-row"><td colspan="6">${loaded ? '이력이 없습니다.' : '불러오는 중…'}</td></tr>`;
+  }
+
   function renderAll() {
     if (!$('shop-page')) return;
     const opts = all => (all ? `<option value="">${all}</option>` : '') + USERS.map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})${u.deleted ? ' · 삭제' : ''}</option>`).join('');
     const keep = (id, html) => { const el = $(id), v = el.value; el.innerHTML = html; el.value = v; if (el.selectedIndex < 0) el.selectedIndex = 0; };
-    ['sh-fs-user', 'sh-ft-user'].forEach(id => keep(id, opts('전체 광고주')));
+    ['sh-fs-user', 'sh-ft-user', 'sh-fh-user'].forEach(id => keep(id, opts('전체 영업점')));
     const nUnpaid = ISSUES.filter(x => !x.paidAt && !x.revokedAt).length;
     [['sh-tab-unpaid', nUnpaid]].forEach(([id, n]) => { $(id).textContent = n; $(id).style.display = n ? '' : 'none'; });
-    renderSlots(); renderSettle(); renderUsers();
+    renderSlots(); renderSettle(); renderUsers(); renderHistory();
   }
 
   const bind = (ids, fn) => ids.forEach(id => { $(id).oninput = fn; $(id).onchange = fn; });
   bind(['sh-fs-user', 'sh-fs-q', 'sh-fs-noend', 'sh-fs-st'], renderSlots);
   bind(['sh-ft-user', 'sh-ft-st', 'sh-ft-from', 'sh-ft-to'], renderSettle);
   bind(['sh-fu-q'], renderUsers);
+  bind(['sh-fh-user', 'sh-fh-type'], renderHistory);
   // 상단 버튼 중 탭 전용 묶음(index.html PAGE_ACTIONS의 tab 옵션 → data-tab)은 그 탭에서만 보임
   const syncTopActions = t => document.querySelectorAll('#page-actions [data-tab]').forEach(el => el.style.display = el.dataset.tab === t ? '' : 'none');
   document.querySelectorAll('#shop-page .tab').forEach(t => t.onclick = () => {
