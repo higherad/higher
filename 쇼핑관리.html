@@ -88,6 +88,7 @@
   #shop-um .ttl { font-size:17px; font-weight:700; margin-bottom:20px; }
   #shop-um .f { margin-bottom:14px; } #shop-um .f label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
   #shop-um .f label .req { color:var(--danger); margin-left:2px; }
+  #shop-um .f select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box; }
   #shop-um .f input { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; outline:none; font-family:inherit; box-sizing:border-box; }
   /* 총판 토글(제목 옆) — 체크박스는 숨기고 알약 버튼 전체가 클릭 영역, 켜면 주황 */
   #sh-um-dist-f { display:inline-flex; align-items:center; gap:4px; padding:5px 14px; border:1.5px solid #fdba74; border-radius:999px; font-size:13px; font-weight:700; color:#ea580c; background:#fff; cursor:pointer; user-select:none; transition:background .15s, color .15s; }
@@ -127,7 +128,7 @@
       <label><input id="sh-fi-norevoke" type="checkbox">취소 제외</label>
       <span class="lb">진행</span><input id="sh-fi-age" type="number" style="width:56px;text-align:center" placeholder="일수"><span class="lb">일 이상</span>
       <span class="lb">시작일</span><input id="sh-fi-from" type="date"> ~ <input id="sh-fi-to" type="date">
-      <button class="btn-go" style="margin-left:auto;padding:7px 18px" onclick="shopOrderOpen()">접수</button>
+      <button class="btn-go" style="margin-left:auto;padding:7px 18px;display:inline-flex;align-items:center;gap:6px" onclick="shopOrderOpen()"><i data-lucide="clipboard-plus" style="width:15px;height:15px"></i>접수</button>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:120px"><col style="width:190px"><col style="width:60px"><col style="width:60px"><col style="width:100px"><col style="width:100px"></colgroup>
       <thead><tr><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>세팅 완료</th><th>발급일시</th><th>시작일 ~ 종료일</th><th>기간</th><th>진행</th><th>취소일</th><th>관리</th></tr></thead>
@@ -168,8 +169,8 @@
         <button class="act act-edit" style="padding:7px 12px" onclick="shopPaidBulk(false,this)">입금 취소</button>
         <button class="btn-go" style="padding:7px 16px" onclick="shopSettleReg()">정산 등록</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:120px"><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col style="width:100px"><col style="width:120px"><col style="width:110px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-sc-all"></th><th>발급일시</th><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>슬롯 금액(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>정산상태</th><th>입금 확인일시</th><th>액션</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:120px"><col style="width:80px"><col style="width:150px"><col style="width:160px"><col style="width:110px"><col style="width:60px"><col style="width:80px"><col style="width:140px"><col style="width:130px"><col style="width:90px"><col style="width:110px"><col style="width:110px"><col style="width:250px"></colgroup>
+      <thead><tr><th><input type="checkbox" id="sh-sc-all"></th><th>발급일시</th><th>발급번호</th><th>구분</th><th>광고주</th><th>아이디</th><th>수량</th><th>슬롯 금액(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>정산상태</th><th>충전 담당자</th><th>입금 확인일시</th><th>액션</th></tr></thead>
       <tbody id="sh-settle-rows"></tbody>
     </table></div>
   </section>
@@ -204,6 +205,7 @@
       <div class="f"><label id="sh-um-pw-l">비밀번호<span class="req">*</span></label><input id="sh-um-pw" maxlength="64" autocomplete="new-password"></div>
     </div>
     <div class="f"><label>단가 (원, 1개 · VAT 별도 — 슬롯 금액 = 단가 × 일수 × 일 목표)<span class="req">*</span></label><input id="sh-um-price" type="number" style="text-align:center"></div>
+    <div class="f" id="sh-um-charge-f"><label>비즈핏 충전 계정 <span style="font-weight:400;color:var(--muted)">(정산 충전에 사용 — 회원관리 충전 계정 중 선택)</span></label><select id="sh-um-charge"></select></div>
     <div class="f"><label>메모</label><input id="sh-um-memo" maxlength="200"></div>
     <div class="foot"><button class="act" id="sh-um-block" style="padding:9px 16px"></button><button class="act act-del" id="sh-um-del" style="margin-right:auto;padding:9px 16px">삭제</button><button style="border:1px solid var(--border);background:#fff" id="sh-um-cancel">취소</button><button class="btn-go" id="sh-um-save">저장</button></div>
   </div></div>
@@ -250,8 +252,9 @@
   const termDays = x => x.days || TERM_DAYS, dailyOf = x => x.daily || 100;
   const md = s => s ? s.slice(5) : '-';
   const safeUrl = u => /^https:\/\/([a-z0-9-]+\.)*naver\.com\//i.test((u || '').trim());
-  // 정산 금액 = 발급 금액 - 중단 슬롯 환불액
-  const billOf = is => is.qty * is.price - (is.refund || 0);
+  // 정산 금액 = 발급 금액 - 중단 슬롯 환불액(refund) - 추가 환불(adj = 정산 '환불' 버튼, autoAdj = 환불 등록 자동 차감, 하이어 청구 쪽)
+  const refundOf = is => (is.refund || 0) + (is.adj || 0) + (is.autoAdj || 0);
+  const billOf = is => is.qty * is.price - refundOf(is);
   const refundVat = (b, refund) => Math.round((b + refund) * VAT) - Math.round(b * VAT);
   const refundNote = (b, refund) => refund ? `<br><span style="font-size:11px;color:var(--danger);font-weight:600">환불 ${won(refundVat(b, refund))}</span>` : '';
   // 취소 = 진행중 전환 슬롯 없음 + 시작일 당일까지 (서버 can_cancel과 같음, 입금·정보 입력 무관)
@@ -262,7 +265,7 @@
   const slotState = sl => sl.stoppedAt ? 'stop' : sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.refundAt ? 'refund' : sl.runAt ? 'run' : 'wait';
   const closedState = st => st === 'end' || st === 'stop';
 
-  let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, loaded = false, editId = null;
+  let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, SETTLE = {}, PENDING = {}, PENDING_DRAW = null, loaded = false, editId = null;
   // 접수 현황 체크 — 실시간 갱신으로 표를 다시 그려도 유지(구독 콜백보다 먼저 선언)
   const PICKED = new Set(), slotKey = x => `${x.userId}|${x.no}`;
   // 정산 체크(정산 등록 팝업 대상) — 같은 이유로 여기서 선언
@@ -558,18 +561,25 @@
     // 펼친 개별 건은 상태 없음(입금은 묶음 단위)
     const issueCells = is => { const b = billOf(is); return `<td>${md(is.at)}</td><td>#${is.no}</td><td>${gradePill(userOf(is.userId))}</td>
         <td>${esc(userOf(is.userId).company)}</td><td>${esc(is.userId)}</td><td>${is.qty}</td>
-        <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}${refundNote(b, is.refund || 0)}</td><td></td><td></td>`; };
+        <td>${won(is.price)}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}${refundNote(b, refundOf(is))}</td><td></td><td></td><td></td>`; };
     const box = keys => `<input type="checkbox" class="sh-sc" data-k="${esc(keys.join(','))}"${keys.every(k => SPICK.has(k)) ? ' checked' : ''}>`;
     $('sh-settle-rows').innerHTML = items.map(it => {
       const L = it.list, b = L.reduce((a, x) => a + billOf(x), 0), paid = L.filter(x => x.paidAt).length, open = OPEN.has('s|' + it.k);
       const prices = [...new Set(L.map(x => x.price))], last = L.reduce((a, x) => (x.paidAt || '') > a ? x.paidAt : a, '');
       const st = paid === L.length ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>';
+      const S = SETTLE[settleKey(it.payer, it.date)] || {}, ek = esc(it.k);
+      // 충전 담당자 — 충전한 뒤 금액이 바뀌었으면(같은 날 추가 발급·환불) 충전액을 빨갛게 같이 보여줌
+      const chargeCell = S.chargedBy ? `<span style="font-size:11px;font-weight:700;color:var(--info)">${esc(S.chargedBy)}</span><br><span style="font-size:10px;color:var(--muted)">${md(S.chargedAt)}</span>${S.chargeAmt !== b ? `<br><span class="st-r" style="font-size:10px" title="충전액과 지금 정산 금액이 다름">충전 ${won(S.chargeAmt)}</span>` : ''}` : '<span class="muted">-</span>';
+      const tgl = on => on ? 'background:#f1f5f9;color:var(--text2);box-shadow:inset 0 2px 4px rgba(0,0,0,.15)' : '';
       return `<tr class="grp" data-g="s|${esc(it.k)}"><td>${box(L.map(slotKey))}</td><td>${md(it.date)}</td><td>${L.length}건 <span class="tg">${open ? '▾' : '▸'}</span></td><td>${gradePill(userOf(it.payer))}</td>
         <td><b>${esc(userOf(it.payer).company)}</b></td><td>${esc(it.payer)}</td><td>${L.reduce((a, x) => a + x.qty, 0)}</td>
-        <td>${prices.length === 1 ? won(prices[0]) : '-'}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}${refundNote(b, L.reduce((a, x) => a + (x.refund || 0), 0))}</td><td>${st}</td><td>${md(last)}</td>
-        <td>${paid === L.length ? `<button class="act act-edit" onclick="shopPaidGroup('${esc(it.k)}',false,this)">입금 취소</button>` : `<button class="act act-ok" onclick="shopPaidGroup('${esc(it.k)}',true,this)">입금 확인</button>`}</td></tr>`
+        <td>${prices.length === 1 ? won(prices[0]) : '-'}</td><td>${won(b)}</td><td>${won(Math.round(b * VAT))}${refundNote(b, L.reduce((a, x) => a + refundOf(x), 0))}</td><td>${st}</td><td>${chargeCell}</td><td>${md(last)}</td>
+        <td style="white-space:nowrap"><button class="act" style="background:var(--info);color:#fff;${tgl(S.chargedBy)}" onclick="shopChargeGroup('${ek}',this)">충전</button>
+          <button class="act" style="background:var(--accent);color:#fff;${tgl(paid === L.length)}" onclick="shopPaidGroup('${ek}',${paid !== L.length},this)">입금</button>
+          <button class="act" style="${S.memo ? 'background:rgba(239,68,68,.12);color:var(--danger);border:1.5px solid var(--danger)' : 'background:#f1f5f9;color:var(--text2);border:1.5px solid var(--border)'}" title="${esc(S.memo || '')}" onclick="shopMemoGroup('${ek}')">메모</button>
+          <button class="act act-del" onclick="shopRefundGroup('${ek}')">환불</button></td></tr>`
         + (open ? L.map(is => `<tr class="child"><td></td>${issueCells(is)}<td></td></tr>`).join('') : '');
-    }).join('') || (`<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
+    }).join('') || (`<tr class="empty-row"><td colspan="14">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
   const pickSet = (c, on) => c.dataset.k.split(',').forEach(k => on ? SPICK.add(k) : SPICK.delete(k));
   $('sh-settle-rows').addEventListener('change', e => { if (!e.target.classList.contains('sh-sc')) return; pickSet(e.target, e.target.checked); $('sh-reg-n').textContent = SPICK.size ? `${SPICK.size}건 선택` : ''; });
@@ -588,10 +598,10 @@
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
     ov.innerHTML = `<div class="reg-box"><div class="sp-title">정산 등록 — 광고주별 분류</div><div class="sp-sub">${SPICK.size ? '선택' : '전체'} ${rows.length}건</div><div class="reg-body"></div>
-      <div class="sp-footer"><button class="btn-close-sp">닫기</button></div></div>`;
+      <div class="sp-footer"><button class="btn-go sh-reg-charge" style="padding:8px 16px">충전 신청</button><button class="btn-close-sp">닫기</button></div></div>`;
     const body = ov.querySelector('.reg-body');
     order.forEach(p => {
-      const list = groups[p], qty = list.reduce((a, is) => a + is.qty, 0), amt = list.reduce((a, is) => a + billOf(is), 0), dep = Math.round(amt * VAT);
+      const list = groups[p], qty = list.reduce((a, is) => a + is.qty, 0), amt = list.reduce((a, is) => a + billOf(is), 0), dep = Math.round(amt * VAT), rf = list.reduce((a, is) => a + refundOf(is), 0);
       const prices = [...new Set(list.map(is => is.price))].sort((a, b) => a - b);
       const block = document.createElement('div');
       block.className = 'agency-block';
@@ -599,15 +609,20 @@
         <div style="overflow-x:auto"><table class="ag-table"><thead><tr><th>발급일시</th><th>발급번호</th><th>광고주</th><th>수량</th><th>슬롯 금액(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>상태</th></tr></thead><tbody>
         ${list.map(is => `<tr><td>${esc(is.at)}</td><td>#${is.no}</td><td>${esc(userOf(is.userId).company)}</td><td>${is.qty}</td><td>${won(is.price)}</td><td><b>${won(billOf(is))}</b></td><td style="color:var(--info);font-weight:700">${won(Math.round(billOf(is) * VAT))}</td><td>${is.paidAt ? '<span class="pill p-g">입금 완료</span>' : '<span class="pill p-w">미입금</span>'}</td></tr>`).join('')}
         </tbody></table></div>
-        <div class="agency-ft"><span>정산 합계 <b>${won(amt)}원</b></span><span>입금 합계 <b>${won(dep)}원</b></span></div>`;
+        <div class="agency-ft"><span>정산 합계 <b>${won(amt)}원</b></span><span>입금 합계 <b>${won(dep)}원</b></span>${rf ? `<span style="color:var(--danger)">환불 <b style="color:var(--danger)">${won(rf)}원</b></span>` : ''}<span class="charge-cell" style="margin-left:auto"></span></div>`;
+      block.dataset.payer = p; block.dataset.amount = amt;
+      const amts = {}; list.forEach(is => { const k = settleKey(p, is.at.slice(0, 10)); amts[k] = (amts[k] || 0) + billOf(is); }); block.dataset.amts = JSON.stringify(amts);  // 묶음별 충전액 기록용
       block.querySelector('.agency-copy-btn').onclick = function () {
-        const msg = `• 발급 건수: ${list.length}건\n• 슬롯 수: ${qty.toLocaleString()}개\n\n• 슬롯 금액: ${prices.map(v => won(v) + '원').join(' / ')}\n• 금액: ${won(amt)}원 (VAT 별도)\n\n• 입금액: ${won(dep)}원 (VAT 포함)`
+        const msg = `• 발급 건수: ${list.length}건\n• 슬롯 수: ${qty.toLocaleString()}개\n\n• 슬롯 금액: ${prices.map(v => won(v) + '원').join(' / ')}\n${rf ? `• 환불 금액: -${won(rf)}원\n` : ''}• 금액: ${won(amt)}원 (VAT 별도)\n\n• 입금액: ${won(dep)}원 (VAT 포함)`
           + '\n\n주식회사 하이어애드\n666-045450-04-013\nIBK기업은행\n\n확인 후 입금 부탁드립니다.';
         navigator.clipboard.writeText(msg).then(() => { this.classList.add('ok'); this.textContent = '✓ 복사됨'; setTimeout(() => { this.classList.remove('ok'); this.textContent = '복사'; }, 1500); });
       };
       body.appendChild(block);
     });
     ov.addEventListener('click', e => { if (e.target === ov || e.target.classList.contains('btn-close-sp')) ov.remove(); });
+    const cb = ov.querySelector('.sh-reg-charge');
+    if ([...body.children].every(bl => Object.keys(JSON.parse(bl.dataset.amts)).every(k => SETTLE[k]?.chargedBy))) { cb.disabled = true; cb.textContent = '충전 완료'; }
+    cb.onclick = () => regCharge(body, cb);
     $('shop-page').appendChild(ov);  // 페이지 안에 붙여야 .pill 스타일 적용 + 메뉴 이동 시 함께 사라짐
   };
   // 매출 팝업(정산관리와 같은 구성): 취소 제외 발급 건을 하이어 청구액 기준으로 발급일별·월별 합산
@@ -679,6 +694,199 @@
     paidMany(settleShown.filter(is => SPICK.has(slotKey(is))), on, '선택한 ', btn, () => { SPICK.clear(); $('sh-sc-all').checked = false; renderSettle(); });
   };
 
+  /* ── 충전·메모·환불·환불 등록(정산관리와 같은 구성) ──
+     정산 묶음 = 입금할 쪽(하부점 발급 건은 총판) + 발급일. 충전·메모는 shop/settle/{입금할 쪽}__{발급일}(직원 전용)에 기록
+     충전 = 입금할 쪽의 '비즈핏 충전 계정'(광고주 관리에서 지정 = hi/bizfit_charge 키)으로 비즈핏 캐시 충전 → 입금완료 자동 확정
+     환불 버튼 = 묶음 추가 환불(묶음 첫 발급 건 adj), 환불 등록 = shop/pending_refunds — 서버가 등록 다음 날 이후 발급 건에 autoAdj로 자동 차감 */
+  const CHARGE_SERVER = 'https://higherad-bizfit-charge-938928195180.asia-northeast3.run.app';
+  const BIZFIT_DIRECT_PROXY = 'https://higherad-direct-proxy-938928195180.asia-northeast3.run.app';
+  const settleKey = (payer, date) => `${payer}__${date}`;
+  const staffName = () => { const u = HI.getCurrentUser?.(); return u ? (u.name || u.username || '') : ''; };
+  const nowStr = () => kstNow().toISOString().slice(0, 16).replace('T', ' ');
+  const claimKeysOf = keys => keys.map(k => `shop__${k}`);
+  // 비즈핏 실제 충전 — 정산관리 chargeAgency와 같음(계정 조회 → 충전 스트림 → 입금완료 자동 확정)
+  async function chargeAgency(acctKey, amount) {
+    const acct = acctKey && await HI.getBizfitCharge(acctKey);
+    if (!acct) return { ok: false, noAccount: true, resultMsg: '충전 계정 미지정(광고주 관리에서 지정)' };
+    let ok = false, resultMsg = '';
+    try {
+      const res = await fetch(`${CHARGE_SERVER}/charge-stream`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: acct.id, pw: acct.pw, amount }), signal: AbortSignal.timeout(120000) });
+      if (!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
+      const reader = res.body.getReader(), decoder = new TextDecoder(); let buffer = '';
+      outer: while (true) {
+        const { done: sd, value } = await reader.read(); if (sd) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n'); buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let data; try { data = JSON.parse(line.slice(6)); } catch { continue; }
+          if (data.ping) continue;
+          if (data.done !== undefined) { ok = data.done.success; resultMsg = data.done.message || (ok ? '충전 완료' : '실패'); break outer; }
+        }
+      }
+      if (!resultMsg) throw new Error('결과 없이 연결 종료');
+    } catch (e) {
+      // 연결 끊김·타임아웃은 결과 불명 — 서버는 이미 충전했을 수 있어 그대로 재시도하면 이중 충전됨
+      return { ok: false, unknown: true, resultMsg: `연결 끊김(${e.message}) — 충전됐을 수 있으니 비즈핏 충전내역 확인 후 진행하세요` };
+    }
+    if (!ok) return { ok: false, resultMsg };
+    let confirmOk = false, confirmMsg = '';
+    try {
+      const cres = await fetch(`${BIZFIT_DIRECT_PROXY}/bizfit-charge-confirm`, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify({ company: acctKey, amount, newStatus: '3' }) });
+      const cj = await cres.json(); confirmOk = !!cj.success; confirmMsg = cj.message || '';
+    } catch (e) { confirmMsg = `서버 연결 실패: ${e.message}`; }
+    return { ok: true, resultMsg, confirmOk, confirmMsg };
+  }
+  // 충전 담당자 도장(기록만) — amount = 묶음별 충전 당시 정산 금액
+  const stampCharge = amounts => HI.shopUpdate(Object.fromEntries(Object.entries(amounts).flatMap(([k, amt]) => [[`settle/${k}/chargedAt`, nowStr()], [`settle/${k}/chargedBy`, staffName()], [`settle/${k}/chargeAmt`, amt]])));
+  const groupAmt = g => g.list.reduce((a, is) => a + billOf(is), 0);
+  function miniModal(title, sub, html) {
+    const m = document.createElement('div');
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    m.innerHTML = `<div style="background:#fff;border-radius:16px;padding:28px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${title}</div><div style="font-size:12px;color:var(--text2);margin-bottom:18px;">${sub}</div>${html}</div>`;
+    m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+    document.body.appendChild(m);
+    return m;
+  }
+  const inCss = 'width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+  const btnCss = (bg, fg = '#fff') => `flex:1;padding:9px 0;border:${bg === '#fff' ? '1px solid var(--border)' : 'none'};border-radius:8px;background:${bg};color:${fg};cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;`;
+  // 충전 — 도장이 있으면 도장만 지움(비즈핏 충전은 그대로), 없으면 금액 입력 팝업(충전 = 비즈핏 API, 완료 = 이미 직접 충전한 경우 기록만)
+  window.shopChargeGroup = (k, btn) => {
+    const g = GROUPS[k]; if (!g) return;
+    const sk = settleKey(g.payer, g.date), S = SETTLE[sk] || {}, label = `${userOf(g.payer).company} · ${g.date}`;
+    if (S.chargedBy) {
+      if (!confirm(`${label} 충전 기록을 지웁니다. (비즈핏 충전은 취소되지 않습니다)`)) return;
+      return busy(btn, () => HI.shopUpdate({ [`settle/${sk}/chargedAt`]: null, [`settle/${sk}/chargedBy`]: null, [`settle/${sk}/chargeAmt`]: null }));
+    }
+    const acct = userOf(g.payer).chargeAcct || '';
+    const m = miniModal('충전 금액 입력', `${esc(label)} · 충전 계정 ${acct ? esc(acct) : '<b style="color:var(--danger)">미지정</b>'}`,
+      `<label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">충전 금액 (VAT 별도)</label>
+       <input class="cg-amt" type="text" inputmode="numeric" value="${groupAmt(g)}" style="${inCss}margin-bottom:12px">
+       <div class="cg-st" style="font-size:12px;color:var(--danger);margin-bottom:12px;display:none"></div>
+       <div style="display:flex;gap:8px"><button class="cg-go" style="${btnCss('#4f46e5')}">충전</button><button class="cg-done" title="비즈핏에서 이미 직접 충전한 경우 — API 호출 없이 기록만" style="${btnCss('#64748b')}">완료</button><button class="cg-x" style="${btnCss('#fff', 'var(--text2)')}">취소</button></div>`);
+    const $m = c => m.querySelector(c), amtOf = () => Number(String($m('.cg-amt').value).replace(/[^\d]/g, '')) || 0;
+    const lock = on => ['.cg-amt', '.cg-go', '.cg-done', '.cg-x'].forEach(c => $m(c).disabled = on);
+    const fail = msg => { $m('.cg-st').style.display = 'block'; $m('.cg-st').textContent = msg; };
+    $m('.cg-x').onclick = () => m.remove();
+    $m('.cg-done').onclick = async () => {
+      const amount = amtOf(); if (amount <= 0) return fail('금액을 입력해 주세요.');
+      lock(true); await stampCharge({ [sk]: amount }); m.remove();
+    };
+    $m('.cg-go').onclick = async () => {
+      const amount = amtOf(); if (amount <= 0) return fail('금액을 입력해 주세요.');
+      if (!confirm(`${label}\n충전 계정 ${acct || '-'}로 ${won(amount)}원을 비즈핏에 충전합니다.`)) return;
+      lock(true); $m('.cg-go').textContent = '처리 중...';
+      const keys = claimKeysOf([sk]), claim = await HI.claimCharge(keys, staffName());
+      if (!claim.ok) { lock(false); $m('.cg-go').textContent = '충전'; return fail(`${claim.by || '다른 직원'}님이 이 항목을 충전 중입니다.`); }
+      const r = await chargeAgency(acct, amount);
+      if (!r.ok) {
+        if (!r.unknown) await HI.releaseCharge(keys);  // 확실한 실패만 선점 해제 — 결과 불명이면 유지해 재충전 차단
+        lock(false); $m('.cg-go').textContent = '충전'; fail(r.resultMsg);
+        if (r.unknown) { $m('.cg-go').disabled = true; $m('.cg-go').textContent = '확인 필요'; }
+        return;
+      }
+      await stampCharge({ [sk]: amount }); m.remove();
+      alert(r.confirmOk ? `충전+입금완료 · ${won(amount)}원` : `충전은 완료됐으나 입금완료 자동처리 실패 — 비즈핏에서 수동 확인 필요: ${r.confirmMsg}`);
+    };
+  };
+  // 정산 등록 '충전 신청' — 입금할 쪽 블록마다 합계 금액을 충전(이미 충전된 묶음이 섞이면 건너뜀)
+  async function regCharge(body, btn) {
+    const badge = (bg, fg, t) => `<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:${bg};color:${fg}">${t}</span>`;
+    if (!confirm('블록별 정산 합계를 각 충전 계정으로 비즈핏에 충전합니다.')) return;
+    btn.disabled = true; btn.textContent = '처리 중...';
+    for (const bl of body.children) {
+      const cell = bl.querySelector('.charge-cell'), payer = bl.dataset.payer, amount = +bl.dataset.amount, amts = JSON.parse(bl.dataset.amts), keys = Object.keys(amts);
+      if (keys.every(k => SETTLE[k]?.chargedBy)) { cell.innerHTML = badge('#f0fdf4', '#166534', '이미 충전 완료'); continue; }
+      if (keys.some(k => SETTLE[k]?.chargedBy)) { cell.innerHTML = badge('#fee2e2', '#991b1b', '일부 이미 충전됨 (충전 담당자 확인 필요)'); continue; }
+      if (amount <= 0) { cell.innerHTML = badge('#f1f5f9', '#475569', '충전할 금액 없음'); continue; }
+      const ck = claimKeysOf(keys), claim = await HI.claimCharge(ck, staffName());
+      if (!claim.ok) { cell.innerHTML = badge('#fee2e2', '#991b1b', `${claim.by || '다른 직원'}님이 충전 중`); continue; }
+      cell.innerHTML = badge('#dbeafe', '#1d4ed8', `충전 중... ${won(amount)}원`);
+      const r = await chargeAgency(userOf(payer).chargeAcct || '', amount);
+      if (!r.ok) {
+        if (!r.unknown) await HI.releaseCharge(ck);
+        cell.innerHTML = r.noAccount ? badge('#fef9c3', '#854d0e', r.resultMsg) : badge('#fee2e2', '#991b1b', esc(r.resultMsg));
+        continue;
+      }
+      cell.innerHTML = r.confirmOk ? badge('#dcfce7', '#166534', `충전+입금완료 · ${won(amount)}원`)
+        : badge('#fef9c3', '#854d0e', `충전은 완료됐으나 입금완료 자동처리 실패(${won(amount)}원) — 비즈핏에서 수동 확인 필요: ${esc(r.confirmMsg)}`);
+      await stampCharge(amts);  // 묶음별 충전액 = 그 묶음 정산 금액(합계 = 블록 충전액)
+    }
+    btn.textContent = '충전 완료';
+  }
+  window.shopMemoGroup = k => {
+    const g = GROUPS[k]; if (!g) return;
+    const sk = settleKey(g.payer, g.date);
+    const m = miniModal('메모', `${esc(userOf(g.payer).company)} · ${g.date}`,
+      `<textarea class="mm-v" rows="4" placeholder="메모를 입력해 주세요." style="${inCss}font-size:13px;resize:vertical">${esc(SETTLE[sk]?.memo || '')}</textarea>
+       <div style="display:flex;gap:8px;margin-top:16px"><button class="mm-x" style="${btnCss('#fff', 'var(--text2)')}">취소</button><button class="mm-go" style="${btnCss('var(--accent)')}">저장</button></div>`);
+    m.querySelector('.mm-x').onclick = () => m.remove();
+    m.querySelector('.mm-go').onclick = () => busy(m.querySelector('.mm-go'), async () => { await HI.shopUpdate({ [`settle/${sk}/memo`]: m.querySelector('.mm-v').value.trim() || null }); m.remove(); });
+    m.querySelector('.mm-v').focus();
+  };
+  // 환불 = 묶음 추가 환불 금액(0 = 삭제) — 묶음 첫 발급 건 adj에 몰아서 저장(중단 슬롯 환불·환불 등록 차감과 별도)
+  window.shopRefundGroup = k => {
+    const g = GROUPS[k]; if (!g) return;
+    const cur = g.list.reduce((a, is) => a + (is.adj || 0), 0), auto = g.list.reduce((a, is) => a + (is.refund || 0) + (is.autoAdj || 0), 0);
+    const m = miniModal('환불 금액 입력', `${esc(userOf(g.payer).company)} · ${g.date}`,
+      `<div style="background:#f8fafc;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:12px;color:var(--text2);display:grid;grid-template-columns:1fr auto;gap:6px">
+         <span>현재 추가 환불</span><b style="color:var(--danger)">${won(cur)}원</b><span>중단·환불 등록 차감(자동)</span><b>${won(auto)}원</b></div>
+       <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">추가 환불 금액 (VAT 별도, 0 입력 시 삭제)</label>
+       <input class="rf-v" type="text" inputmode="numeric" value="${cur || ''}" style="${inCss}margin-bottom:18px">
+       <div style="display:flex;gap:8px"><button class="rf-x" style="${btnCss('#fff', 'var(--text2)')}">취소</button><button class="rf-go" style="${btnCss('var(--danger)')}">저장</button></div>`);
+    m.querySelector('.rf-x').onclick = () => m.remove();
+    m.querySelector('.rf-go').onclick = () => busy(m.querySelector('.rf-go'), async () => {
+      const v = Number(String(m.querySelector('.rf-v').value).replace(/[^\d]/g, '')) || 0;
+      if (v > groupAmt(g) + cur) throw new Error('환불 금액이 정산 금액보다 큽니다.');
+      const first = [...g.list].sort((a, b) => a.no - b.no)[0];
+      await HI.shopUpdate(Object.fromEntries(g.list.map(is => [`issues/${is.userId}/i${is.no}/adj`, is === first && v ? v : null])));
+      m.remove();
+    });
+    m.querySelector('.rf-v').focus();
+  };
+  // 환불 등록 — 입금할 쪽(총판·일반 광고주)별 금액. 등록 다음 날 이후 발급 건에서 서버가 자동 차감(남으면 다음 발급으로 이월)
+  window.shopPendingRefund = () => {
+    if (!$('shop-page')) return;
+    const payers = USERS.filter(u => !u.parent && !u.deleted);
+    const m = miniModal('환불 등록', '익일 발급분부터 자동 차감됩니다.',
+      `<label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">광고주 (총판·일반)</label>
+       <select class="pr-u" style="${inCss}margin-bottom:12px"><option value="">-- 선택 --</option>${payers.map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('')}</select>
+       <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">환불 금액 (VAT 별도)</label>
+       <input class="pr-v" type="text" inputmode="numeric" style="${inCss}margin-bottom:16px">
+       <div style="display:flex;gap:8px;margin-bottom:18px"><button class="pr-x" style="${btnCss('#fff', 'var(--text2)')}">닫기</button><button class="pr-go" style="${btnCss('var(--danger)')}">등록</button></div>
+       <div style="display:flex;gap:16px;border-bottom:1px solid var(--border);margin-bottom:8px"><button class="pr-tab" data-t="open">환불 예정</button><button class="pr-tab" data-t="done">완료</button></div>
+       <div class="pr-list" style="max-height:240px;overflow:auto"></div>`);
+    m.firstElementChild.style.width = '520px';
+    let tab = 'open';
+    const draw = () => {
+      m.querySelectorAll('.pr-tab').forEach(t => { const on = t.dataset.t === tab; t.style.cssText = `border:none;background:none;padding:6px 2px;margin-bottom:-1px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border-bottom:2px solid ${on ? 'var(--danger)' : 'transparent'};color:${on ? 'var(--danger)' : 'var(--text2)'}`; });
+      const done = tab === 'done', rows = Object.entries(PENDING).filter(([, p]) => done ? !(p.remaining > 0) : p.remaining > 0).sort((a, b) => b[1].createdAt.localeCompare(a[1].createdAt));
+      const head = done ? ['광고주', '등록 금액', '등록일', '완료일'] : ['광고주', '등록 금액', '남은 금액', '등록일', ''];
+      m.querySelector('.pr-list').innerHTML = `<table class="sp-tbl" style="width:100%"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(([id, p]) => `<tr><td>${esc(userOf(p.payer).company)}</td><td>${won(p.amount)}원</td>${done
+        ? `<td style="font-size:11px">${esc(p.createdAt.slice(0, 10))}</td><td style="font-size:11px">${esc((p.completedAt || '').slice(0, 10))}</td>`
+        : `<td style="color:var(--danger);font-weight:700">${won(p.remaining)}원</td><td style="font-size:11px">${esc(p.createdAt.slice(0, 10))}</td><td><button class="act act-del" data-del="${esc(id)}">삭제</button></td>`}</tr>`).join('')
+        || `<tr><td colspan="${head.length}" style="text-align:center;color:var(--muted);padding:16px">${done ? '완료된 환불이 없습니다.' : '등록된 환불 예정이 없습니다.'}</td></tr>`}</tbody></table>`;
+    };
+    PENDING_DRAW = draw; draw();
+    const close = () => { PENDING_DRAW = null; m.remove(); };
+    m.addEventListener('click', e => { if (e.target === m) PENDING_DRAW = null; });
+    m.querySelectorAll('.pr-tab').forEach(t => t.onclick = () => { tab = t.dataset.t; draw(); });
+    m.querySelector('.pr-x').onclick = close;
+    m.querySelector('.pr-list').onclick = e => {
+      const id = e.target.dataset?.del; if (!id || !confirm('이 환불 예정을 삭제할까요?')) return;
+      busy(e.target, () => HI.shopUpdate({ [`pending_refunds/${id}`]: null }));
+    };
+    m.querySelector('.pr-go').onclick = () => busy(m.querySelector('.pr-go'), async () => {
+      const payer = m.querySelector('.pr-u').value, amt = Number(m.querySelector('.pr-v').value.replace(/[^\d]/g, '')) || 0;
+      if (!payer) throw new Error('광고주를 선택해 주세요.');
+      if (amt <= 0) throw new Error('환불 금액을 입력해 주세요.');
+      const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      await HI.shopUpdate({ [`pending_refunds/${id}`]: { payer, amount: amt, remaining: amt, createdAt: nowStr(), createdBy: staffName() } });
+      m.querySelector('.pr-u').value = ''; m.querySelector('.pr-v').value = '';
+    });
+  };
+
   /* ── 광고주 관리 ── */
   function renderUsers() {
     const q = $('sh-fu-q').value.trim();
@@ -711,6 +919,9 @@
     $('sh-um-company').value = u.company; $('sh-um-id').value = u.id; $('sh-um-id').disabled = !!id;
     $('sh-um-dist').checked = u.role === 'dist'; $('sh-um-dist-f').style.display = u.parent ? 'none' : '';  // 하부점은 총판 불가(2단계까지)
     $('sh-um-pw').value = ''; $('sh-um-price').value = u.price; $('sh-um-memo').value = u.memo || '';
+    $('sh-um-charge-f').style.display = u.parent ? 'none' : '';
+    $('sh-um-charge').innerHTML = `<option value="">${u.chargeAcct ? esc(u.chargeAcct) : '-- 선택 안 함 --'}</option>`;
+    HI.getBizfitCharges().then(c => { $('sh-um-charge').innerHTML = '<option value="">-- 선택 안 함 --</option>' + Object.keys(c).sort().map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join(''); $('sh-um-charge').value = u.chargeAcct || ''; });
     const bl = $('sh-um-block');  // 차단·해제는 수정 팝업 안에서만(추가할 땐 숨김)
     bl.style.display = $('sh-um-del').style.display = id ? '' : 'none'; bl.textContent = u.blocked ? '차단 해제' : '차단'; bl.className = `act ${u.blocked ? 'act-ok' : 'act-del'}`;
     $('shop-um').classList.add('show');
@@ -721,6 +932,7 @@
       price: parseInt($('sh-um-price').value), memo: $('sh-um-memo').value.trim() };
     if (!d.company || !d.id || !(d.price > 0) || (!editId && !d.pw)) throw new Error('필수 항목을 입력해 주세요.');
     await HI.shopCall('/shop-user', d);
+    if ($('sh-um-charge-f').style.display !== 'none') await HI.shopUpdate({ [`users/${d.id}/chargeAcct`]: $('sh-um-charge').value || null });
     $('shop-um').classList.remove('show');
   });
   // 단가 변경 이력 팝업 — 기록은 서버(/shop-user)가 단가가 바뀔 때만 남김
@@ -774,7 +986,7 @@
     // 하이어가 받을 돈 기준 — 하부점 발급 건(dist)은 총판에게 총판 단가로 청구, 입금 확인도 총판 입금(distPaidAt)
     ISSUES = Object.entries(v.issues || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid,
       subPrice: x.price, price: x.dist ? x.distPrice : x.price, refund: (x.dist ? x.distRefund : x.refund) || 0, paidAt: x.dist ? x.distPaidAt || '' : x.paidAt || '' })));
-    PRICE_LOG = v.price_log || {};
+    PRICE_LOG = v.price_log || {}; SETTLE = v.settle || {}; PENDING = v.pending_refunds || {}; PENDING_DRAW?.();
     SLOTS = Object.entries(v.slots || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
     loaded = true;
     renderAll();
