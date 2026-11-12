@@ -73,18 +73,18 @@
     .page-heading { font-size:22px; font-weight:800; color:var(--text); }
     /* 페이지별 상단 버튼 — loadPage()가 PAGE_ACTIONS로 채움. 오른쪽 흰 툴바 하나에 하는 일별 묶음, 묶음 사이만 세로선 */
     .top-bar { gap:16px; flex-wrap:wrap; }
-    #page-actions:empty { display:none; }
-    #page-actions { display:flex; align-items:center; flex-wrap:wrap; background:#fff; border:1px solid var(--border); border-radius:10px; padding:3px; }
-    #page-actions .pa-group { display:flex; align-items:center; }
-    #page-actions .pa-group + .pa-group { border-left:1px solid var(--border); margin-left:3px; padding-left:3px; }
-    #page-actions .pa-group[style*="none"] + .pa-group { border-left:none; margin-left:0; padding-left:0; }  /* 탭 전용 묶음이 숨으면 다음 묶음 구분선도 없앰 */
-    #page-actions button { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border:none; border-radius:7px; background:transparent; color:var(--text2); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; }
-    #page-actions button svg { width:15px; height:15px; flex-shrink:0; }
-    #page-actions button:hover { background:rgba(15,23,42,.06); color:var(--text); }
-    #page-actions button.danger { color:var(--danger); }
-    #page-actions button.danger:hover { background:#fef2f2; }
-    #page-actions button:disabled { opacity:.5; cursor:default; }
-    #page-actions button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .page-actions:empty { display:none; }
+    .page-actions { display:flex; align-items:center; flex-wrap:wrap; background:#fff; border:1px solid var(--border); border-radius:10px; padding:3px; }
+    .page-actions .pa-group { display:flex; align-items:center; }
+    .page-actions .pa-group + .pa-group { border-left:1px solid var(--border); margin-left:3px; padding-left:3px; }
+    .page-actions .pa-group[style*="none"] + .pa-group { border-left:none; margin-left:0; padding-left:0; }  /* 탭 전용 묶음이 숨으면 다음 묶음 구분선도 없앰 */
+    .page-actions button { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border:none; border-radius:7px; background:transparent; color:var(--text2); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; }
+    .page-actions button svg { width:15px; height:15px; flex-shrink:0; }
+    .page-actions button:hover { background:rgba(15,23,42,.06); color:var(--text); }
+    .page-actions button.danger { color:var(--danger); }
+    .page-actions button.danger:hover { background:#fef2f2; }
+    .page-actions button:disabled { opacity:.5; cursor:default; }
+    .page-actions button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
     .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px; }
     .stat-card { background:var(--card); border-radius:14px; padding:20px; border:1px solid var(--border); position:relative; overflow:hidden; text-align:center; }
@@ -235,8 +235,9 @@
         <span></span><span></span><span></span>
       </div>
       <div class="page-heading" id="page-heading">운영 현황 대시보드</div>
+      <div id="page-heading-actions" class="page-actions"></div>
     </div>
-    <div id="page-actions"></div>
+    <div id="page-actions" class="page-actions"></div>
   </div>
   <div id="content-area">
     <div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>
@@ -363,7 +364,6 @@
   const PAGE_ACTIONS = {
     '접수관리.html': [
       [['file-spreadsheet', '엑셀 접수', 'openReceiptExcelModal()'], ['history', '재접수', 'openReacceptModal()']],
-      [['ban', '강제종료', 'openForceStopModal()', { danger: true }]],
       [['tags', '분류 설정', 'openKwCategoryModal()']],
       [['download', '엑셀 다운로드', 'downloadExcelList()', { id: 'dl-single-btn' }]],
     ],
@@ -379,9 +379,16 @@
       [['download', '엑셀 다운로드', 'shopExcel()', { title: '확장 업로드용 접수 엑셀 — 체크한 캠페인, 없으면 접수 현황에 보이는 접수·진행중' }]], [['external-link', '접수 사이트', "window.open('https://hireward.co.kr/','_blank')"]]],
     '회원관리.html': [[['refresh-cw', '단가 불러오기', 'refreshYupflVendorList(this)', { title: '가이드 시트 탭 이름으로 리워드·유입플 업체 항목만 불러옴(설정된 단가는 그대로)' }], ['user-plus', '회원 추가', 'openUserModal(null)']]],
   };
+  // 타이틀 바로 오른쪽 버튼 묶음(형식 PAGE_ACTIONS와 같음)
+  const PAGE_HEADING_ACTIONS = {
+    '접수관리.html': [[['ban', '강제종료', 'openForceStopModal()', { danger: true }], ['wallet', '자동 차감', 'openCashDeductModal()', { title: '대행사 비즈핏 캐시에서 입력한 금액을 차감하고 충전 메모 유입플 금액에 더함' }]]],
+  };
   function renderPageActions(page) {
-    const el = document.getElementById('page-actions');
-    el.innerHTML = (PAGE_ACTIONS[page] || []).map(group => `<div class="pa-group"${group.every(b => b[3]?.tab) ? ` data-tab="${group[0][3].tab}"` : ''}>${group.map(([icon, label, call, o = {}]) =>
+    fillPageActions(document.getElementById('page-actions'), PAGE_ACTIONS[page]);
+    fillPageActions(document.getElementById('page-heading-actions'), PAGE_HEADING_ACTIONS[page]);
+  }
+  function fillPageActions(el, groups) {
+    el.innerHTML = (groups || []).map(group => `<div class="pa-group"${group.every(b => b[3]?.tab) ? ` data-tab="${group[0][3].tab}"` : ''}>${group.map(([icon, label, call, o = {}]) =>
       `<button type="button"${o.id ? ` id="${o.id}"` : ''}${o.danger ? ' class="danger"' : ''}${o.title ? ` title="${o.title}"` : ''} onclick="${call}"><i data-lucide="${icon}"></i><span>${label}</span></button>`
     ).join('')}</div>`).join('');
     if (window.lucide) lucide.createIcons();
