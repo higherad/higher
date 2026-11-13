@@ -1114,9 +1114,15 @@
   // 공유 캐시 구독 — 맨 끝에 둠: 다시 들어오면 캐시가 있어 콜백이 즉시(동기) 실행되므로 위 선언이 다 끝난 뒤여야 함
   // 이 화면이 사라지면(다른 메뉴 또는 다시 들어와 새 화면) 다음 변경 때 해제 — 옛 구독이 새 화면을 덮어 그리지 않게
   const pageEl = $('shop-page');
+  // 기획 확인용 데모 보기 — true면 데모 계정(zzdemo*) 데이터만 화면에 표시. 실데이터는 DB에 그대로, 화면에서만 숨김
+  // 상용 화면으로 되돌릴 땐 false (데모 데이터 넣기·지우기 = work/cloudrun/higherad-macro/higherad-shop/demo_data.py seed|clean)
+  const DEMO_ONLY = true, DEMO_PRE = 'zzdemo';
+  const demoView = v => !DEMO_ONLY ? v : Object.fromEntries(Object.entries(v || {}).map(([k, o]) =>
+    [k, o && typeof o === 'object' && k !== 'meta' ? Object.fromEntries(Object.entries(o).filter(([id]) => id.startsWith(DEMO_PRE))) : o]));
   let unsub = null;
-  unsub = HI.onShopChange(v => {
+  unsub = HI.onShopChange(raw => {
     if ($('shop-page') !== pageEl) { unsub?.(); return; }
+    const v = demoView(raw);
     USERS = Object.entries(v.users || {}).map(([id, u]) => ({ id, ...u })).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     // 하이어가 받을 돈 기준 — 하부점 발급 건(dist)은 총판에게 총판 단가로 청구, 입금 확인도 총판 입금(distPaidAt)
     ISSUES = Object.entries(v.issues || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid,
