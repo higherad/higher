@@ -2284,6 +2284,12 @@ window.toggleProdPanel = function(e) {
     return d.toISOString();
   }
 
+  // sendAt(UTC ISO)의 로컬 날짜 — ISO 앞 10자리는 UTC 날짜라 KST 09시 이전 조각이 전날로 잡힘
+  function scheduleLocalDate(iso) {
+    const d = iso ? new Date(iso) : new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
   // baseDateStr+dayOffset일의 로컬 날짜("YYYY-MM-DD") — 날짜분할 조각마다 예약일을 실제 접수일에 맞춤.
   function scheduleDateForOffset(baseDateStr, dayOffset = 0) {
     const d = scheduleParseBaseDate(baseDateStr);
@@ -6221,12 +6227,12 @@ window.toggleProdPanel = function(e) {
     if (timeRows && timeRows.length) {
       const byDate = new Map();
       items.forEach(e => {
-        const dateStr = (e.sendAt||'').slice(0,10) || scheduleDateForOffset(null,0);
+        const dateStr = scheduleLocalDate(e.sendAt);
         if (!byDate.has(dateStr)) byDate.set(dateStr, []);
         byDate.get(dateStr).push(e);
       });
       byDate.forEach((dateItems) => {
-        const dateStr = (dateItems[0].sendAt||'').slice(0,10) || scheduleDateForOffset(null,0);
+        const dateStr = scheduleLocalDate(dateItems[0].sendAt);
         const dateTotal = dateItems.reduce((s,e) => s + ((e.payload?.rowData||[])[0]?.일목표 || 0), 0);
         const sample = dateItems[0];
         const timeAmounts = lrm(timeRows.map((t,i) => ({ id:i, ratio:t.pct })), dateTotal);
