@@ -742,7 +742,7 @@
     if (!acct?.id) return { ok: false, noAccount: true, resultMsg: '충전 계정 미입력(영업점 관리에서 입력)' };
     let ok = false, resultMsg = '';
     try {
-      const res = await fetch(`${CHARGE_SERVER}/charge-stream`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: acct.id, pw: acct.pw, amount }), signal: AbortSignal.timeout(120000) });
+      const res = await fetch(`${CHARGE_SERVER}/charge-stream`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: acct.id, pw: acct.pw, amount, site: 'bizfit' }), signal: AbortSignal.timeout(120000) });
       if (!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
       const reader = res.body.getReader(), decoder = new TextDecoder(); let buffer = '';
       outer: while (true) {
