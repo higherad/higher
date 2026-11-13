@@ -259,7 +259,7 @@
   let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, SETTLE = {}, PENDING = {}, CHARGE = {}, PENDING_DRAW = null, loaded = false, editId = null;
   // 접수 현황 체크 — 실시간 갱신으로 표를 다시 그려도 유지(구독 콜백보다 먼저 선언)
   const PICKED = new Set(), slotKey = x => `${x.userId}|${x.no}`;
-  // 순위 = 스마트 리다이렉트(서버 /shop-ranks, MID+키워드 매칭) — 화면 들어올 때 한 번, 키 = slotKey
+  // 순위 = shop/ranks(서버 /shop-rank-sync가 측정 5분 뒤 스마트 리다이렉트에서 수집, MID+키워드 매칭), 키 = slotKey
   let RANKS = {};
   const rk = r => r == null ? '-' : r >= 101 ? '100+' : r;
   const delta = d => !d ? '-' : d > 0 ? `<span style="color:#059669">▲${d}</span>` : `<span style="color:var(--danger)">▼${-d}</span>`;
@@ -1017,7 +1017,6 @@
   // 공유 캐시 구독 — 맨 끝에 둠: 다시 들어오면 캐시가 있어 콜백이 즉시(동기) 실행되므로 위 선언이 다 끝난 뒤여야 함
   // 이 화면이 사라지면(다른 메뉴 또는 다시 들어와 새 화면) 다음 변경 때 해제 — 옛 구독이 새 화면을 덮어 그리지 않게
   const pageEl = $('shop-page');
-  HI.shopCall('/shop-ranks').then(r => { if ($('shop-page') !== pageEl) return; RANKS = r.ranks || {}; renderSlots(); }).catch(e => console.error('shop-ranks', e));
   let unsub = null;
   unsub = HI.onShopChange(v => {
     if ($('shop-page') !== pageEl) { unsub?.(); return; }
@@ -1027,6 +1026,7 @@
       subPrice: x.price, price: x.dist ? x.distPrice : x.price, refund: (x.dist ? x.distRefund : x.refund) || 0, paidAt: x.dist ? x.distPaidAt || '' : x.paidAt || '',
       paidBy: x.dist ? x.distPaidBy : x.paidBy, unitShown: x.dist ? x.distUnit : x.unit })));
     PRICE_LOG = v.price_log || {}; SETTLE = v.settle || {}; PENDING = v.pending_refunds || {}; CHARGE = v.charge_accts || {}; PENDING_DRAW?.();
+    RANKS = Object.fromEntries(Object.entries(v.ranks || {}).flatMap(([uid, o]) => Object.entries(o || {}).map(([k, r]) => [`${uid}|${k.slice(1)}`, r])));
     SLOTS = Object.entries(v.slots || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid })));
     loaded = true;
     renderAll();
