@@ -630,7 +630,7 @@
     const goalOf = is => is.qty * termDays(is) * dailyOf(is);
     const units = L => { const u = [...new Set(L.map(x => x.unitShown).filter(Boolean))]; return u.length ? u.map(won).join(' / ') : '-'; };
     // 펼친 개별 건(발급 건 하나씩) — 상태·담당자·액션은 묶음 줄에만
-    const issueCells = is => { const b = billOf(is); return `<td style="font-size:11px">${md(is.at)}<br><span class="muted">#${is.no}</span></td><td>${agencyCell(userOf(is.userId))}</td>
+    const issueCells = is => { const b = billOf(is); return `<td style="font-size:11px">${md(is.at)}</td><td>${agencyCell(userOf(is.userId))}</td>
         <td>${units([is])}</td><td>${is.qty}건</td><td>${goalOf(is).toLocaleString()}</td><td>${won(b)}원</td><td>${won(Math.round(b * VAT))}원</td>
         <td style="color:var(--danger)">${refundOf(is) ? won(refundOf(is)) + '원' : '-'}</td><td></td><td></td><td></td><td></td>`; };
     const box = keys => `<input type="checkbox" class="sh-sc" data-k="${esc(keys.join(','))}"${keys.every(k => SPICK.has(k)) ? ' checked' : ''}>`;
