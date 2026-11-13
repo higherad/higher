@@ -70,7 +70,7 @@
   #shop-page .empty-row td { height:140px; color:var(--muted); }
   #shop-page .mid { color:var(--info); font-weight:600; } #shop-page .st-g { color:#059669; font-weight:600; } #shop-page .st-n { color:#64748b; font-weight:600; } #shop-page .st-r { color:var(--danger); font-weight:600; } #shop-page .muted { color:#cbd5e1; }
   #shop-page .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
-  #shop-page .p-g { background:#ecfdf5; color:#059669; } #shop-page .p-n { background:#f1f5f9; color:#64748b; } #shop-page .p-w { background:#fffbeb; color:#b45309; } #shop-page .p-r { background:#fef2f2; color:var(--danger); } #shop-page .p-rd { background:var(--danger); color:#fff; } #shop-page .p-b { background:#eff6ff; color:#1d4ed8; }
+  #shop-page .p-g { background:#ecfdf5; color:#059669; } #shop-page .p-n { background:#f1f5f9; color:#64748b; } #shop-page .p-w { background:#fffbeb; color:#b45309; } #shop-page .p-r { background:#fef2f2; color:var(--danger); } #shop-page .p-rd { background:var(--danger); color:#fff; } #shop-page .p-b { background:#eff6ff; color:#1d4ed8; } #shop-page .p-i { background:#eef2ff; color:#4f46e5; }
   #shop-page .act { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
   #shop-page .act-edit { background:#eff6ff; color:#1d4ed8; } #shop-page .act-del { background:#fef2f2; color:var(--danger); } #shop-page .act-ok { background:#ecfdf5; color:#059669; }
   #shop-page .act:disabled, #shop-page .btn-go:disabled { opacity:.5; cursor:default; }
@@ -136,7 +136,7 @@
         <button class="act act-del" style="padding:7px 12px" title="진행 전: 바로 취소(전액 환불) / 진행중·환불 요청: 비즈핏 강제종료 후 남은 일수만큼 환불" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:100px"><col style="width:130px"><col style="width:150px"><col style="width:150px"><col style="width:120px"><col><col style="width:56px"><col style="width:80px"><col style="width:80px"><col style="width:76px"><col style="width:90px"></colgroup>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:40px"><col style="width:50px"><col style="width:90px"><col style="width:70px"><col style="width:120px"><col style="width:130px"><col style="width:130px"><col style="width:300px"><col style="width:50px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:100px"><col style="width:80px"></colgroup>
       <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>구분</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
@@ -1069,21 +1069,21 @@
     const add = (at, t, cls, userId, tg, txt) => { if ((!type || type === t) && (!uid || userId === uid || userOf(userId).parent === uid)) ev.push([at, t, cls, userId, tg, txt, ev.length]); };
     ISSUES.forEach(is => {
       const span = `${md(is.start)} ~ ${md(is.end)}`, tg = noLabel(slotNos.get(`${is.userId}|${is.no}`) || []);
-      add(is.at, '접수', 'b', is.userId, tg, `캠페인 ${is.qty0 || is.qty}건 접수 / ${span} (${termDays(is)}일 · 일 ${dailyOf(is).toLocaleString()}개)`);
+      add(is.at, '접수', 'i', is.userId, tg, `캠페인 ${is.qty0 || is.qty}건 접수 / ${span} (${termDays(is)}일 · 일 ${dailyOf(is).toLocaleString()}개)`);
       if (is.qty0 && is.qty0 > is.qty && !is.revokedAt) add(is.droppedAt || is.at, '환불', 'rd', is.userId, tg, `진행 전 ${is.qty0 - is.qty}건 삭제(전액)`);
-      if (is.revokedAt) add(is.revokedAt, is.qty0 ? '환불' : '취소', is.qty0 ? 'rd' : 'n', is.userId, tg, `캠페인 ${is.qty0 || is.qty}건 ${is.qty0 ? '삭제(전액)' : '취소'} / ${span}`);
+      if (is.revokedAt) add(is.revokedAt, is.qty0 ? '환불' : '취소', is.qty0 ? 'rd' : 'r', is.userId, tg, `캠페인 ${is.qty0 || is.qty}건 ${is.qty0 ? '삭제(전액)' : '취소'} / ${span}`);
       if (is.paidAt) add(is.paidAt, '입금 확인', 'g', is.userId, tg, `${won(Math.round(billOf(is) * VAT))}원`);
     });
     SLOTS.forEach(x => {
       const tg = noLabel([seqNo(x)]), dist = issueOf.get(`${x.userId}|${x.issueNo}`)?.dist;
-      if (x.setAt) add(x.setAt, '정보 수정', 'w', x.userId, tg, x.mid ? `키워드 '${esc(x.kw)}' · MID ${esc(x.mid)}` : '정보 비움');
+      if (x.setAt) add(x.setAt, '정보 수정', 'n', x.userId, tg, x.mid ? `키워드 '${esc(x.kw)}' · MID ${esc(x.mid)}` : '정보 비움');
       if (x.refundAt) add(x.refundAt, '환불 요청', 'r', x.userId, tg, `키워드 '${esc(x.kw)}'`);
       if (x.stoppedAt) add(x.stoppedAt, '환불', 'rd', x.userId, tg, `남은 ${x.refundDays}일 환불 ${won(dist ? x.distRefundAmt : x.refundAmt)}원 (VAT 별도)`);
     });
     // 시각이 분 단위라 같은 분이면 나중에 넣은(접수→환불→입금) 이벤트가 위로
     ev.sort((a, b) => b[0].localeCompare(a[0]) || b[6] - a[6]);
     $('sh-hist-rows').innerHTML = ev.slice(0, 1000).map(([at, t, cls, userId, tg, txt]) => `<tr><td>${md(at)}</td><td><span class="pill p-${cls}">${t}</span></td>
-      <td>${gradePill(userOf(userId))}</td><td>${esc(userOf(userId).company)}</td><td>${tg}</td><td style="text-align:left">${txt}</td></tr>`).join('')
+      <td>${gradePill(userOf(userId))}</td><td>${esc(userOf(userId).company)}</td><td>${tg}</td><td>${txt}</td></tr>`).join('')
       || `<tr class="empty-row"><td colspan="6">${loaded ? '이력이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
