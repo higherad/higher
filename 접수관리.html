@@ -5954,6 +5954,10 @@ window.toggleProdPanel = function(e) {
     const messages = [];
     if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
     if (_ssBulk.timeMode && timePctSum !== 100) messages.push(`시각 비율 합계는 100%여야 합니다 (현재 ${timePctSum}%)`);
+    if (timeRows) {
+      const past = [..._ssBulkSelected].flatMap(gid => computeResplitBuckets(gid, grades, null, timeRows).past);
+      if (past.length) messages.push(`이미 지난 시각은 설정할 수 없습니다: ${[...new Set(past.map(fmtScheduleTime))].join(', ')}`);
+    }
     return { grades, pctSum, timeRows, timePctSum, messages, blocked: messages.length > 0 || !grades.length };
   }
   function updateBulkResplitSum() {
@@ -6212,6 +6216,7 @@ window.toggleProdPanel = function(e) {
     const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
     const buckets = [];
     const violations = [];
+    const past = []; // 새 시각이 이미 지난 조각 — 디스패처가 즉시 보내버리므로 막음
 
     if (timeRows && timeRows.length) {
       const byDate = new Map();
@@ -6229,6 +6234,7 @@ window.toggleProdPanel = function(e) {
           const timeAmt = timeAmounts[ti] || 0;
           if (timeAmt <= 0) return;
           const sendAt = scheduleTimeToIso(t.time, dateStr, 0);
+          if (new Date(sendAt) <= new Date()) past.push(sendAt);
           const amounts = lrm(grades.map(g => ({ id: g.ckey, ratio: g.pct })), timeAmt);
           grades.forEach(g => {
             const amt = amounts[g.ckey] || 0;
@@ -6254,7 +6260,7 @@ window.toggleProdPanel = function(e) {
         buckets.push({ sendAt, sample: bucket[0], amounts });
       });
     }
-    return { buckets, violations, cancelItems: items };
+    return { buckets, violations, past, cancelItems: items };
   }
 
   // 같은 sendAt에 묶인 항목을 일부만 재분류하면 그 시각의 목표가 반쪽만 재분배돼 수량이 어긋남 —
@@ -6285,13 +6291,12 @@ window.toggleProdPanel = function(e) {
       return gg ? { ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct } : null;
     }).filter(Boolean);
     const pctSum = grades.reduce((a,g) => a+g.pct, 0);
-    // 시간 재설정 켜면 전체 잔여를 대상으로 새 날짜×시각 그리드로 다시 만들므로 부분선택 개념 자체가
-    // 없어짐 — targetKeys를 강제로 비워 "전체" 취급
+    // 선택한 항목이 있으면 시각 재설정도 그 항목만 대상. 시각 재설정은 새 시각으로 옮기므로 같은 시각 일부 선택 제한은 안 걸음
     const timeRows = st.timeMode ? st.timeRows : null;
     const timePctSum = timeRows ? timeRows.reduce((a,r) => a+(Number(r.pct)||0), 0) : null;
-    const targetKeys = st.timeMode ? null : (st.selectedKeys && st.selectedKeys.size ? st.selectedKeys : null);
-    const partialSendAts = targetKeys ? scheduleResplitPartialSendAts(slotKey, targetKeys) : [];
-    const { violations } = grades.length ? computeResplitBuckets(slotKey, grades, targetKeys, timeRows) : { violations: [] };
+    const targetKeys = st.selectedKeys && st.selectedKeys.size ? st.selectedKeys : null;
+    const partialSendAts = targetKeys && !st.timeMode ? scheduleResplitPartialSendAts(slotKey, targetKeys) : [];
+    const { violations, past } = grades.length ? computeResplitBuckets(slotKey, grades, targetKeys, timeRows) : { violations: [], past: [] };
 
     const messages = [];
     if (grades.length && pctSum !== 100) messages.push(`비율 합계는 100%여야 합니다 (현재 ${pctSum}%)`);
@@ -6305,6 +6310,7 @@ window.toggleProdPanel = function(e) {
       const detail = [...new Set(violations.map(v => `${v.gradeName}(${v.amt})`))].join(', ');
       messages.push(`최소 접수 수량(${SCHEDULE_MIN_PORTION}) 미만 조각 발생: ${detail}`);
     }
+    if (past.length) messages.push(`이미 지난 시각은 설정할 수 없습니다: ${[...new Set(past.map(fmtScheduleTime))].join(', ')}`);
     return { grades, pctSum, timeRows, timePctSum, targetKeys, partialSendAts, violations, messages, blocked: messages.length > 0 || !grades.length };
   }
 
@@ -6378,7 +6384,7 @@ window.toggleProdPanel = function(e) {
           <span>⏰ 예약 시각 재설정</span>
           <span class="ha-switch"><input type="checkbox" ${st.timeMode?'checked':''} onchange="onScheduleResplitTimeModeToggle('${slotKey}',this.checked)"><span class="ha-switch-track"></span></span>
         </label>
-        ${st.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 전체 잔여 항목을 [새 시각·비율]로 재구성</div>` : ''}
+        ${st.timeMode ? `<div style="font-size:11px;color:var(--text2);margin:-4px 0 6px;">※ 설정시 선택 항목(미선택 시 전체 잔여)을 [새 시각·비율]로 재구성</div>` : ''}
         ${st.timeMode ? `
         <div style="padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;">
           ${st.timeRows.map((r,i) => `
@@ -6427,8 +6433,9 @@ window.toggleProdPanel = function(e) {
   // kwList: 재분할할 원본 키워드 배열 — 있으면 등급×버킷(일수)별로 자동 배정해 덮어씀, 없으면 원본
   // sampleRow 값 복제. timeRows 있으면 sendAt도 새로 계산, 없으면 원래 sendAt 유지.
   async function applyScheduleResplit(slotKey, grades, targetKeys, kwList, timeRows) {
-    const { buckets, violations, cancelItems } = computeResplitBuckets(slotKey, grades, targetKeys, timeRows);
+    const { buckets, violations, past, cancelItems } = computeResplitBuckets(slotKey, grades, targetKeys, timeRows);
     if (!buckets.length) return { created: 0, removed: 0 };
+    if (past.length) throw new Error('이미 지난 시각이 있어 중단했습니다.');
     if (violations.length) throw new Error('최소 접수 수량 미만인 조각이 있어 중단했습니다.'); // applyScheduleResplitClick에서 이미 막지만 방어적으로 재확인
     // buckets(=재분류로 새로 만들 "일수")가 나온 다음에야 등급별로 몇 그룹이 필요한지 알 수 있어
     // 키워드 그룹 계산을 여기서 함(호출부에서 미리 만들어 넘기지 않음).
