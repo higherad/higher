@@ -582,7 +582,7 @@ const HI = {
     });
   },
   // 종료일 지난 진행 캠페인 일괄 종료(expired) — 한 번의 update로 live→closed 이동
-  // 일 목표 칸 아래 일반/유입플(/차감) 분할 표시 — 승인·예약 때 캠페인에 고정한 값(yupflTarget, 리워드만이면 0)이 있을 때만(접수관리·진행현황 공용)
+  // 일 목표 칸 아래 리워드/유입플(/차감) 분할 표시(유입플 0이면 리워드만) — 승인·예약 때 캠페인에 고정한 값(yupflTarget, 리워드만이면 0)이 있을 때만(접수관리·진행현황 공용)
   // 엑셀 비고 비율 배지(yupflRatio) — 업체명·'리워드'·'리워드%:유입플%', 고정 상품(fix = fullstackFix)이면 '풀스택[개별]'(접수관리·진행현황 공용)
   // 색: 업체는 캠페인 타입 배지(접수관리 VENDOR_BADGE)와 같게 풀스택 청록·제이엔 주황·그 밖(부산 등·여러 업체) 보라 · 리워드 파랑 · 비율 노랑 · 풀스택[개별] 하늘
   ratioBadgeHtml(r, fix) {
@@ -619,7 +619,8 @@ const HI = {
       });
       return `<div style="font-size:11px;color:#d97706;font-weight:600;white-space:nowrap;">${parts.map(([k, n]) => `${k} ${n.toLocaleString()}`).join(' · ')}<span style="color:var(--muted);font-weight:400;">${dedTxt}</span></div>`;
     }
-    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">일반 ${normal.toLocaleString()} · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}${vendTxt}</span>${dedTxt}</div>`;
+    const yupTxt = yup > 0 ? ` · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}${vendTxt}</span>` : '';
+    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">리워드 ${normal.toLocaleString()}${yupTxt}${dedTxt}</div>`;
   },
   // 자동 종료 대상 — 종료일 지난 승인 건, 강제종료일 다음 날부터의 강제종료 건(higherad-auto _expire_live와 같은 규칙)
   shouldExpire(s, today) {
