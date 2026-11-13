@@ -559,7 +559,7 @@
   const srAgency = u => srName(agencyOf(u).company);
   window.shopExcel = () => {
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
-      .sort((a, b) => b.no - a.no).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
+      .sort((a, b) => (b.setAt || '').localeCompare(a.setAt || '') || b.no - a.no).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
     if (!rows.length) return alert('내보낼 접수·진행중 캠페인이 없습니다.');
     const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
     ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
@@ -572,7 +572,7 @@
     const fst = $('sh-fs-st').value;
     $('sh-slot-stats').innerHTML = [['wait', '접수 (진행 대기)', 'b'], ['run', '진행중', 'g'], ['refund', '환불 요청', 'r'], ['stop', '환불', 'r'], ['end', '종료', '']]
       .map(([k, l, c]) => `<div class="sb ${c}${fst === k ? ' on' : ''}" data-st="${k}"><div class="sb-l">${l}</div><div class="sb-v">${cnt(k)}</div></div>`).join('');
-    const rows = SLOTS.filter(slotShown).sort((a, b) => b.no - a.no);
+    const rows = SLOTS.filter(slotShown).sort((a, b) => (b.setAt || '').localeCompare(a.setAt || '') || b.no - a.no);
     const live = new Set(SLOTS.map(slotKey));
     [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
     const miss = '<span class="muted">미세팅</span>';
@@ -592,7 +592,7 @@
     const uid = $('sh-ft-user').value, st = $('sh-ft-st').value, from = $('sh-ft-from').value, to = $('sh-ft-to').value;
     const rows = ISSUES.filter(is => (!uid || is.userId === uid || is.dist === uid) && !is.revokedAt
       && (!st || (st === 'uncharged' ? !SETTLE[settleKey(is.dist || is.userId, is.at.slice(0, 10))]?.chargedBy : (st === 'paid') === !!is.paidAt))
-      && (!from || is.at.slice(0, 10) >= from) && (!to || is.at.slice(0, 10) <= to)).sort((a, b) => b.no - a.no);
+      && (!from || is.at.slice(0, 10) >= from) && (!to || is.at.slice(0, 10) <= to)).sort((a, b) => (b.at || '').localeCompare(a.at || '') || b.no - a.no);
     // 카드 = 정산관리와 같은 구성(필터 무관, 취소 건 제외): 총 매출액(VAT 별도)·총 입금액(VAT 포함)·당일 매출액·당일 입금액(오늘 입금 확인분)·미입금(VAT 포함)
     const live = ISSUES.filter(is => !is.revokedAt), todays = live.filter(is => is.at.slice(0, 10) === today()), unpaid = live.filter(is => !is.paidAt);
     // 당일 입금액 = 오늘 입금 확인한 건만(VAT 포함)
@@ -1098,7 +1098,7 @@
   let unsub = null;
   unsub = HI.onShopChange(v => {
     if ($('shop-page') !== pageEl) { unsub?.(); return; }
-    USERS = Object.entries(v.users || {}).map(([id, u]) => ({ id, ...u })).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    USERS = Object.entries(v.users || {}).map(([id, u]) => ({ id, ...u })).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     // 하이어가 받을 돈 기준 — 하부점 발급 건(dist)은 총판에게 총판 단가로 청구, 입금 확인도 총판 입금(distPaidAt)
     ISSUES = Object.entries(v.issues || {}).flatMap(([uid, o]) => Object.values(o || {}).map(x => ({ ...x, userId: uid,
       subPrice: x.price, price: x.dist ? x.distPrice : x.price, refund: (x.dist ? x.distRefund : x.refund) || 0, paidAt: x.dist ? x.distPaidAt || '' : x.paidAt || '',
