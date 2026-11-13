@@ -463,6 +463,15 @@
   /* ── 접수 현황 ── */
   const pickedN = () => { $('sh-run-n').textContent = PICKED.size ? `${PICKED.size}개 선택` : ''; };
   $('sh-slot-rows').addEventListener('click', e => {
+    // 영업점 클릭 = 그 영업점으로 광고주 사이트 자동 로그인(새 탭, 팝업 차단 피하려고 먼저 빈 창)
+    const imp = e.target.closest('[data-imp]');
+    if (imp) {
+      const w = window.open('', '_blank'); if (w) w.opener = null;
+      HI.shopCall('/shop-impersonate', { userId: imp.dataset.imp })
+        .then(r => { if (w) w.location = `https://hireward.co.kr/#imp=${encodeURIComponent(r.token)}`; })
+        .catch(err => { w?.close(); alert(err.message); });
+      return;
+    }
     const td = e.target.closest('[data-rk]'); if (!td) return;
     const x = SLOTS.find(y => slotKey(y) === td.dataset.rk); if (!x) return;
     rankPopup(x.kw, `${userOf(x.userId).company} · MID ${x.mid}`, RANKS[td.dataset.rk]);
@@ -570,7 +579,7 @@
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
       const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund' || st === 'empty';
       return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
-        <td>${md(x.setAt)}</td><td>${gradePill(userOf(x.userId))}</td><td>${esc(userOf(x.userId).company)}</td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
+        <td>${md(x.setAt)}</td><td>${gradePill(userOf(x.userId))}</td><td><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${termDays(x)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td><td>${dailyOf(x).toLocaleString()}</td>
         ${(r => `<td>${rk(r?.prev)}</td><td>${rk(r?.rank)}</td><td>${delta(r?.delta)}</td><td${r ? ` data-rk="${esc(slotKey(x))}" style="cursor:pointer" title="클릭하면 순위 추이 상세"` : ''}>${spark(r?.hist)}</td>`)(RANKS[slotKey(x)])}
