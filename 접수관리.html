@@ -6439,6 +6439,15 @@ window.toggleProdPanel = function(e) {
   // kwList: 재분할할 원본 키워드 배열 — 있으면 등급×버킷(일수)별로 자동 배정해 덮어씀, 없으면 원본
   // sampleRow 값 복제. timeRows 있으면 sendAt도 새로 계산, 없으면 원래 sendAt 유지.
   async function applyScheduleResplit(slotKey, grades, targetKeys, kwList, timeRows) {
+    // 팝업을 연 뒤 서버가 이미 보낸 조각을 대기중으로 알고 지우면 등록 기록이 사라지고 같은 수량이 다시 접수됨 — 적용 직전 최신 상태로 재확인
+    // ponytail: 확인~쓰기 사이(수 초)에 디스패처가 선점하는 경우는 못 막음, 필요하면 조각별 transaction
+    const staleKeys = computeResplitBuckets(slotKey, grades, targetKeys, timeRows).cancelItems.map(e => e._key);
+    _ssEntries = scheduleEntriesFrom(await HI.getScheduleDispatchOnce());
+    const sentKeys = staleKeys.filter(k => _ssEntries[k]?.status !== 'pending');
+    if (sentKeys.length) {
+      renderSplitScheduleList();
+      throw new Error(`그사이 전송됐거나 바뀐 항목 ${sentKeys.length}건이 있어 중단했습니다. 목록을 새로 불러왔으니 다시 확인해주세요.`);
+    }
     const { buckets, violations, past, cancelItems } = computeResplitBuckets(slotKey, grades, targetKeys, timeRows);
     if (!buckets.length) return { created: 0, removed: 0 };
     if (past.length) throw new Error('이미 지난 시각이 있어 중단했습니다.');
