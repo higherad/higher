@@ -209,7 +209,7 @@
   <!-- 접수(개별·엑셀) — 광고주 사이트 접수와 같음 -->
   <div id="shop-or"><div class="box">
     <div class="ttl">접수</div>
-    <div class="sub">시작일 당일·익일 · 일수 1~7일 · 일 목표 10개 이상 · 매일 17시 마감</div>
+    <div class="sub">시작일 당일·익일 · 일수 1~7일 · 일 목표 10개 이상 · 평일 17시 마감 · 주말 접수 불가</div>
     <select id="sh-or-user" style="width:280px"></select>
     <div class="tabs"><button data-t="one" class="on">개별 접수</button><button data-t="xlsx">엑셀 접수</button></div>
     <div id="sh-or-one">
@@ -242,8 +242,11 @@
   const today = () => kstNow().toISOString().slice(0, 10);
   const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5);
-  // 접수 마감 = 17시~자정엔 발급 불가(서버 closed_now와 같음)
-  const closedNow = () => kstNow().getUTCHours() >= CUTOFF_HOUR;
+  // 접수 마감 = 평일 17시~자정 + 주말(토·일) 종일 발급 불가(서버 closed_now와 같음) — 금 17시 이후는 월요일 0시부터
+  const weekendNow = () => [0, 6].includes(kstNow().getUTCDay());
+  const closedNow = () => weekendNow() || kstNow().getUTCHours() >= CUTOFF_HOUR;
+  const closedMsg = () => { const reopen = [5, 6, 0].includes(kstNow().getUTCDay()) ? '월요일' : '내일';
+    return `${weekendNow() ? '주말(토·일)에는 접수할 수 없습니다.' : `오늘 접수는 ${CUTOFF_HOUR}시에 마감되었습니다.`} ${reopen} 0시부터 접수할 수 있습니다.`; };
   // 발급 건 price = 단가 × 일수 × 일 목표(슬롯 1개 금액). days·daily 없는 옛 건·슬롯 = 7일·100개
   const termDays = x => x.days || TERM_DAYS, dailyOf = x => x.daily || 100;
   const md = s => s ? s.slice(5) : '-';
@@ -441,7 +444,7 @@
     orSync();
   };
   window.shopOrderOpen = () => {
-    if (closedNow()) return alert(`오늘 접수는 ${CUTOFF_HOUR}시에 마감되었습니다. 내일 0시부터 접수할 수 있습니다.`);
+    if (closedNow()) return alert(closedMsg());
     $('sh-or-user').innerHTML = '<option value="">-- 영업점 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
     xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab('one');
     $('shop-or').classList.add('show');
@@ -449,7 +452,7 @@
   $('sh-or-user').onchange = orSync;
   document.querySelectorAll('#shop-or .tabs button').forEach(b => b.onclick = () => orTab(b.dataset.t));
   $('sh-or-go').onclick = () => busy($('sh-or-go'), async () => {
-    if (closedNow()) throw new Error(`오늘 접수는 ${CUTOFF_HOUR}시에 마감되었습니다. 내일 0시부터 접수할 수 있습니다.`);
+    if (closedNow()) throw new Error(closedMsg());
     const u = orUser(), rows = orderRows(), bad = rows.findIndex(orderErr);
     if (!u) throw new Error('영업점을 선택해 주세요.');
     if (!rows.length) throw new Error('접수할 줄이 없습니다.');
@@ -511,7 +514,7 @@
     const groups = {}, fails = []; let done = 0;
     list.forEach(x => { const agency = srAgency(userOf(x.userId)), mid = x.bizMid || x.mid, k = `${agency}|${mid}`; (groups[k] = groups[k] || { agency, mid, slots: [] }).slots.push(x); });
     for (const g of Object.values(groups)) {
-      const failAll = (slots, m) => slots.forEach(x => fails.push(`${x.no}번: ${m}`));
+      const failAll = (slots, m) => slots.forEach(x => fails.push(`${seqNo(x)}번: ${m}`));
       if (!g.agency) { failAll(g.slots, '업체명이 없어 영업점을 알 수 없습니다 — 비즈핏에서 직접 처리해 주세요'); continue; }
       let ok = g.slots;
       try {
@@ -544,6 +547,14 @@
     if (on && closedState(k)) $('sh-fs-noend').checked = false;  // 환불·종료는 '종료 제외'에 걸리므로 풀어줌
     renderSlots();
   };
+  // 접수일 = 발급(접수) 시각 — setAt은 정보 수정 때 바뀌어 번호와 순서가 어긋남
+  const issueAt = x => (ISSUES.find(i => i.userId === x.userId && i.no === x.issueNo) || {}).at || x.setAt || '';
+  // 순서 = 접수일 → 캠페인 번호(이관 건은 x.no와 접수일 순서가 달라서 x.no만으로 정렬 금지)
+  const orderKey = x => `${issueAt(x)}|${String(x.no).padStart(9, '0')}`;
+  const newestFirst = (a, b) => orderKey(b).localeCompare(orderKey(a));
+  // 화면 번호 = 전체 캠페인 1번부터 접수 순서(광고주 사이트는 영업점마다 따로 1번부터)
+  // ponytail: 행마다 전체를 세는 O(n²) — 캠페인이 수천 개를 넘으면 번호표 캐시로
+  const seqNo = x => { const k = orderKey(x); return SLOTS.filter(y => orderKey(y) <= k).length; };
   function slotShown(x) {
     const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked, fst = $('sh-fs-st').value;
     return (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
@@ -559,7 +570,7 @@
   const srAgency = u => srName(agencyOf(u).company);
   window.shopExcel = () => {
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
-      .sort((a, b) => (b.setAt || '').localeCompare(a.setAt || '') || b.no - a.no).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
+      .sort(newestFirst).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
     if (!rows.length) return alert('내보낼 접수·진행중 캠페인이 없습니다.');
     const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
     ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
@@ -572,14 +583,14 @@
     const fst = $('sh-fs-st').value;
     $('sh-slot-stats').innerHTML = [['wait', '접수 (진행 대기)', 'b'], ['run', '진행중', 'g'], ['refund', '환불 요청', 'r'], ['stop', '환불', 'r'], ['end', '종료', '']]
       .map(([k, l, c]) => `<div class="sb ${c}${fst === k ? ' on' : ''}" data-st="${k}"><div class="sb-l">${l}</div><div class="sb-v">${cnt(k)}</div></div>`).join('');
-    const rows = SLOTS.filter(slotShown).sort((a, b) => (b.setAt || '').localeCompare(a.setAt || '') || b.no - a.no);
+    const rows = SLOTS.filter(slotShown).sort(newestFirst);
     const live = new Set(SLOTS.map(slotKey));
     [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
     const miss = '<span class="muted">미세팅</span>';
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
       const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund' || st === 'empty';
       return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
-        <td>${x.no}</td><td>${md(x.setAt)}</td><td>${gradePill(userOf(x.userId))}</td><td><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
+        <td>${seqNo(x)}</td><td>${md(issueAt(x))}</td><td>${gradePill(userOf(x.userId))}</td><td><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${termDays(x)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td><td>${dailyOf(x).toLocaleString()}</td>
         ${(r => `<td>${rk(r?.prev)}</td><td>${rk(r?.rank)}</td><td>${delta(r?.delta)}</td><td${r ? ` data-rk="${esc(slotKey(x))}" style="cursor:pointer" title="클릭하면 순위 추이 상세"` : ''}>${spark(r?.hist)}</td>`)(RANKS[slotKey(x)])}
@@ -1054,7 +1065,7 @@
       return '접수번호 ' + (nos.length > 2 && nos.at(-1) - nos[0] + 1 === nos.length ? `${nos[0]}~${nos.at(-1)}` : nos.join(', '));
     };
     const slotNos = new Map();
-    SLOTS.forEach(x => { const k = `${x.userId}|${x.issueNo}`; slotNos.set(k, [...(slotNos.get(k) || []), x.no]); });
+    SLOTS.forEach(x => { const k = `${x.userId}|${x.issueNo}`; slotNos.set(k, [...(slotNos.get(k) || []), seqNo(x)]); });
     const add = (at, t, cls, userId, tg, txt) => { if ((!type || type === t) && (!uid || userId === uid || userOf(userId).parent === uid)) ev.push([at, t, cls, userId, tg, txt, ev.length]); };
     ISSUES.forEach(is => {
       const span = `${md(is.start)} ~ ${md(is.end)}`, tg = noLabel(slotNos.get(`${is.userId}|${is.no}`) || []);
@@ -1064,7 +1075,7 @@
       if (is.paidAt) add(is.paidAt, '입금 확인', 'g', is.userId, tg, `${won(Math.round(billOf(is) * VAT))}원`);
     });
     SLOTS.forEach(x => {
-      const tg = noLabel([x.no]), dist = issueOf.get(`${x.userId}|${x.issueNo}`)?.dist;
+      const tg = noLabel([seqNo(x)]), dist = issueOf.get(`${x.userId}|${x.issueNo}`)?.dist;
       if (x.setAt) add(x.setAt, '정보 수정', 'w', x.userId, tg, x.mid ? `키워드 '${esc(x.kw)}' · MID ${esc(x.mid)}` : '정보 비움');
       if (x.refundAt) add(x.refundAt, '환불 요청', 'r', x.userId, tg, `키워드 '${esc(x.kw)}'`);
       if (x.stoppedAt) add(x.stoppedAt, '환불', 'rd', x.userId, tg, `남은 ${x.refundDays}일 환불 ${won(dist ? x.distRefundAmt : x.refundAmt)}원 (VAT 별도)`);
