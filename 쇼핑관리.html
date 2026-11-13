@@ -137,7 +137,7 @@
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:100px"><col style="width:130px"><col style="width:150px"><col style="width:150px"><col style="width:120px"><col><col style="width:56px"><col style="width:80px"><col style="width:80px"><col style="width:76px"><col style="width:90px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>접수일</th><th>구분</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>구분</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -579,12 +579,12 @@
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
       const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund' || st === 'empty';
       return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
-        <td>${md(x.setAt)}</td><td>${gradePill(userOf(x.userId))}</td><td><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
+        <td>${x.no}</td><td>${md(x.setAt)}</td><td>${gradePill(userOf(x.userId))}</td><td><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${termDays(x)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td><td>${dailyOf(x).toLocaleString()}</td>
         ${(r => `<td>${rk(r?.prev)}</td><td>${rk(r?.rank)}</td><td>${delta(r?.delta)}</td><td${r ? ` data-rk="${esc(slotKey(x))}" style="cursor:pointer" title="클릭하면 순위 추이 상세"` : ''}>${spark(r?.hist)}</td>`)(RANKS[slotKey(x)])}
         <td><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="16">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="17">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   /* ── 정산 ── */
@@ -1047,16 +1047,24 @@
   function renderHistory() {
     const uid = $('sh-fh-user').value, type = $('sh-fh-type').value, ev = [];
     const issueOf = new Map(ISSUES.map(is => [`${is.userId}|${is.no}`, is]));
+    // 대상 = 접수 현황 번호 열과 같은 접수번호(발급 묶음은 그 안의 캠페인 번호들)
+    const noLabel = nos => {
+      nos = [...nos].sort((a, b) => a - b);
+      if (!nos.length) return '-';
+      return '접수번호 ' + (nos.length > 2 && nos.at(-1) - nos[0] + 1 === nos.length ? `${nos[0]}~${nos.at(-1)}` : nos.join(', '));
+    };
+    const slotNos = new Map();
+    SLOTS.forEach(x => { const k = `${x.userId}|${x.issueNo}`; slotNos.set(k, [...(slotNos.get(k) || []), x.no]); });
     const add = (at, t, cls, userId, tg, txt) => { if ((!type || type === t) && (!uid || userId === uid || userOf(userId).parent === uid)) ev.push([at, t, cls, userId, tg, txt, ev.length]); };
     ISSUES.forEach(is => {
-      const span = `${md(is.start)} ~ ${md(is.end)}`, tg = `발급번호 #${is.no}`;
+      const span = `${md(is.start)} ~ ${md(is.end)}`, tg = noLabel(slotNos.get(`${is.userId}|${is.no}`) || []);
       add(is.at, '접수', 'b', is.userId, tg, `캠페인 ${is.qty0 || is.qty}건 접수 / ${span} (${termDays(is)}일 · 일 ${dailyOf(is).toLocaleString()}개)`);
       if (is.qty0 && is.qty0 > is.qty && !is.revokedAt) add(is.droppedAt || is.at, '환불', 'rd', is.userId, tg, `진행 전 ${is.qty0 - is.qty}건 삭제(전액)`);
       if (is.revokedAt) add(is.revokedAt, is.qty0 ? '환불' : '취소', is.qty0 ? 'rd' : 'n', is.userId, tg, `캠페인 ${is.qty0 || is.qty}건 ${is.qty0 ? '삭제(전액)' : '취소'} / ${span}`);
       if (is.paidAt) add(is.paidAt, '입금 확인', 'g', is.userId, tg, `${won(Math.round(billOf(is) * VAT))}원`);
     });
     SLOTS.forEach(x => {
-      const tg = `캠페인 ${x.no}`, dist = issueOf.get(`${x.userId}|${x.issueNo}`)?.dist;
+      const tg = noLabel([x.no]), dist = issueOf.get(`${x.userId}|${x.issueNo}`)?.dist;
       if (x.setAt) add(x.setAt, '정보 수정', 'w', x.userId, tg, x.mid ? `키워드 '${esc(x.kw)}' · MID ${esc(x.mid)}` : '정보 비움');
       if (x.refundAt) add(x.refundAt, '환불 요청', 'r', x.userId, tg, `키워드 '${esc(x.kw)}'`);
       if (x.stoppedAt) add(x.stoppedAt, '환불', 'rd', x.userId, tg, `남은 ${x.refundDays}일 환불 ${won(dist ? x.distRefundAmt : x.refundAmt)}원 (VAT 별도)`);
