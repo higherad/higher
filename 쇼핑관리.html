@@ -63,7 +63,7 @@
   #shop-page tbody td { padding:10px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #shop-page table.fx { table-layout:fixed; min-width:1100px; } /* 열 너비 고정 — 긴 글자는 … (마우스 올리면 전체) */
   #shop-page tbody tr:hover { background:#f8fafc; }
-  #shop-page tr.void td { text-decoration:line-through; color:var(--muted); }
+  #shop-page tr.void td { text-decoration:line-through; color:var(--muted); } #shop-page tr.void td.void-keep { text-decoration:none; }
   #shop-page tr.grp { cursor:pointer; } #shop-page tr.child td { background:#f8fafc; font-size:11.5px; }
   #shop-page .tg { color:var(--muted); font-size:11px; font-weight:600; }
 
@@ -255,8 +255,8 @@
   const refundOf = is => (is.refund || 0) + (is.adj || 0) + (is.autoAdj || 0);
   const billOf = is => is.qty * is.price - refundOf(is);
   // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
-  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], empty: ['빈 캠페인', 'w'], refund: ['환불 요청', 'r'], stop: ['환불', 'rd'], end: ['종료', 'n'] };
-  const slotState = sl => sl.stoppedAt ? 'stop' : sl.end < today() ? 'end' : !sl.mid ? 'empty' : sl.refundAt ? 'refund' : sl.runAt ? 'run' : 'wait';
+  const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], refund: ['환불 요청', 'r'], stop: ['환불', 'rd'], end: ['종료', 'n'] };
+  const slotState = sl => sl.stoppedAt ? 'stop' : sl.end < today() ? 'end' : sl.refundAt ? 'refund' : sl.runAt ? 'run' : 'wait';
   const closedState = st => st === 'end' || st === 'stop';
 
   let USERS = [], ISSUES = [], SLOTS = [], PRICE_LOG = {}, SETTLE = {}, PENDING = {}, CHARGE = {}, PENDING_DRAW = null, loaded = false, editId = null;
@@ -504,7 +504,7 @@
   // 환불 — 진행 전(접수) = 바로 삭제(전액, /shop-refund) / 진행중 = 환불 요청을 넣은 뒤 강제종료 / 환불 요청 = 강제종료(/shop-stop, 남은 일수)
   window.shopStop = btn => busy(btn, async () => {
     const picked = SLOTS.filter(x => PICKED.has(slotKey(x)));
-    const pre = picked.filter(x => ['wait', 'empty'].includes(slotState(x))), run = picked.filter(x => slotState(x) === 'run');
+    const pre = picked.filter(x => slotState(x) === 'wait'), run = picked.filter(x => slotState(x) === 'run');
     const list = picked.filter(x => ['run', 'refund'].includes(slotState(x)));
     if (!pre.length && !list.length) throw new Error('환불할 캠페인을 선택해 주세요.');
     const amt = list.reduce((a, x) => { const is = ISSUES.find(i => i.userId === x.userId && i.no === x.issueNo); return a + Math.round((is?.price || 0) * stopDays(x) / termDays(is || {})); }, 0);
@@ -588,13 +588,13 @@
     [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
     const miss = '<span class="muted">미세팅</span>';
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
-      const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund' || st === 'empty';
-      return `<tr><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
+      const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund';
+      return `<tr${st === 'stop' ? ' class="void"' : ''}><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
         <td>${seqNo(x)}</td><td>${md(issueAt(x))}</td><td>${gradePill(userOf(x.userId))}</td><td><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
         <td>${termDays(x)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td><td>${dailyOf(x).toLocaleString()}</td>
         ${(r => `<td>${rk(r?.prev)}</td><td>${rk(r?.rank)}</td><td>${delta(r?.delta)}</td><td${r ? ` data-rk="${esc(slotKey(x))}" style="cursor:pointer" title="클릭하면 순위 추이 상세"` : ''}>${spark(r?.hist)}</td>`)(RANKS[slotKey(x)])}
-        <td><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
+        <td class="void-keep"><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
     }).join('') || `<tr class="empty-row"><td colspan="17">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
