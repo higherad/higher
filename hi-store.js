@@ -606,9 +606,9 @@ const HI = {
       for (let i = 0, left = n - q.reduce((a, b) => a + b, 0); left > 0 && q.length; i = (i + 1) % q.length, left--) q[i]++;
       const byName = {};
       fix.forEach((p, i) => { const k = String(p.name).replace(/\(로그인[OX]\)$/, ''); byName[k] = (byName[k] || 0) + q[i]; });
-      return Object.entries(byName).filter(([, c]) => c > 0).map(([name, c]) => ({ name, n: c, kind: 'yupfl' }));
+      return Object.entries(byName).filter(([, c]) => c > 0).map(([name, c]) => ({ name, n: c, kind: 'yupfl', vendor: '풀스택' }));
     };
-    const site = list(s.fullstackDaily).filter(d => d && d.n > 0).map(d => ({ name: d.name, n: d.n, kind: 'yupfl' }));
+    const site = list(s.fullstackDaily).filter(d => d && d.n > 0).map(d => ({ name: d.name, n: d.n, kind: 'yupfl', vendor: '풀스택' }));
     if (s.yupflTarget == null) return s.fullstackFix ? fixParts(s.dailyTarget) : [];
     const yup = s.yupflTarget, ded = Math.round((s.deductTarget || 0) / (s.days || 1));
     const normal = Math.max(0, s.dailyTarget - yup - ded);
@@ -618,7 +618,7 @@ const HI = {
     for (const [v, n] of (vend.length ? vend : yup > 0 ? [['', yup]] : [])) {
       if ((v === '풀스택' || (!v && !s.yupflByVendor)) && site.length) { yparts.push(...site); usedSite = true; }
       else if (v === '풀스택' && s.fullstackFix) yparts.push(...fixParts(n));
-      else { const names = list(s.vendorProducts?.[v]); yparts.push({ name: names.length ? names.join('·') : v || '유입플', n, kind: 'yupfl' }); }
+      else { const names = list(s.vendorProducts?.[v]); yparts.push({ name: names.length ? names.join('·') : v || '유입플', n, kind: 'yupfl', vendor: v || '풀스택' }); }
     }
     // 사이트 풀스택 수량을 썼으면 리워드 = 일 목표 − 유입플(사이트 수량 포함) − 차감 남은 만큼(접수 때 리워드 몫이 있던 캠페인만, 없던 건 풀스택만)
     const rewardN = usedSite && normal > 0 ? Math.max(0, s.dailyTarget - ded - yparts.reduce((a, p) => a + p.n, 0)) : normal;
@@ -631,8 +631,10 @@ const HI = {
   dailySplitHtml(s) {
     const parts = HI.dailySplitParts(s);
     if (!parts.length) return '';
-    const color = { reward: 'color:var(--text2);', yupfl: 'color:#d97706;font-weight:600;', ded: 'color:var(--muted);' };
-    return `<div style="font-size:11px;">${parts.map(p => `<span style="${color[p.kind]}white-space:nowrap;">${HI.esc(p.name)} ${p.n.toLocaleString()}</span>`).join('<span style="color:var(--muted);"> · </span>')}</div>`;
+    // 글자색 = 예전 캠페인타입 배지색: 리워드 회색 · 풀스택 청록 · 제이엔 주황 · 그 밖 업체 보라 · 차감 흐리게
+    const color = p => p.kind === 'reward' ? 'color:#334155;' : p.kind === 'ded' ? 'color:var(--muted);'
+      : `color:${{ 풀스택: '#0f766e', 제이엔: '#c2410c' }[p.vendor] || '#6d28d9'};`;
+    return `<div style="font-size:11px;font-weight:600;">${parts.map(p => `<span style="${color(p)}white-space:nowrap;">${HI.esc(p.name)} ${p.n.toLocaleString()}</span>`).join('<span style="color:var(--muted);"> · </span>')}</div>`;
   },
   // 자동 종료 대상 — 종료일 지난 승인 건, 강제종료일 다음 날부터의 강제종료 건(higherad-auto _expire_live와 같은 규칙)
   shouldExpire(s, today) {
