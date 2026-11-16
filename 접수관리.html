@@ -3261,17 +3261,32 @@ window.toggleProdPanel = function(e) {
     const latest = k => allSlots.find(x => x._key === k);
     const targets = (slots||[]).filter(s => s && !s.adlogSubmitted && !latest(s._key)?.adlogSubmitted && !s.isRequeue && s.rankKeyword && s.mid);
     if (!targets.length) return;
-    const rows = buildAdlogRows(targets);
+    // 일 목표를 나눠 같은 리스트가 여러 건 들어와도 애드로그 메모는 1번만 — 그룹+키워드+MID+메모가 같은 건은
+    // 첫 건만 보내고 나머지는 같이 완료 표시, 이미 등록된 건과 같으면 보내지 않고 완료 표시만
+    const sig = s => [s.agencyId||'(대행사 미지정)', s.rankKeyword, s.mid, s.adlogMemo || defaultAdlogMemo(s)].join('|');
+    const doneSigs = new Set(allSlots.filter(x => x.adlogSubmitted).map(sig));
+    const followers = new Map(); // sig → 같은 메모의 슬롯들(첫 건 포함)
+    const already = [];
+    targets.forEach(s => {
+      const k = sig(s);
+      if (doneSigs.has(k)) already.push(s);
+      else if (followers.has(k)) followers.get(k).push(s);
+      else followers.set(k, [s]);
+    });
+    const markDone = async list => {
+      await Promise.all(list.map(s => HI.updateCampaign(s._key, { adlogSubmitted: true })));
+      list.forEach(s => { s.adlogSubmitted = true; const l = latest(s._key); if (l) l.adlogSubmitted = true; });
+    };
+    const sendSlots = [...followers.values()].map(g => g[0]);
+    const rows = buildAdlogRows(sendSlots);
     try {
+      if (already.length) await markDone(already);
       for (let i = 0; i < rows.length; i += ADLOG_BATCH_SIZE) {
         const chunk = rows.slice(i, i + ADLOG_BATCH_SIZE);
         const fileBase64 = buildAdlogXlsxBase64(chunk);
         const result = await callBizfitProxy('/adlog-register', { fileBase64 });
         if (result.success) {
-          const keys = chunk.map(r => r._slotKey);
-          await Promise.all(keys.map(k => HI.updateCampaign(k, { adlogSubmitted: true })));
-          keys.forEach(k => { const s = latest(k); if (s) s.adlogSubmitted = true; });
-          targets.forEach(s => { if (keys.includes(s._key)) s.adlogSubmitted = true; });
+          await markDone(sendSlots.slice(i, i + ADLOG_BATCH_SIZE).flatMap(s => followers.get(sig(s))));
         } else {
           console.error('애드로그 자동등록 실패:', result.message);
         }
