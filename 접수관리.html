@@ -1221,7 +1221,7 @@ window.toggleProdPanel = function(e) {
 
   // 키워드 찾기 패널 — 상세 팝업 옆. higherad-np-finder 서버가 플레이스 캠페인 등록툴 엔진·설정으로 유효키워드를 찾음
   // 규칙 칸 기본값 = 등록툴 설정(/rules), 여기서 고친 값은 이번 조회에만. 끝나면 검색량 있음 → A급, 없음 → B급 칸을 덮어씀(저장은 상세 닫을 때 기존 흐름)
-  // 표에서 골라 '선택 → A급/B급'으로 다시 넣을 수 있음. 서버 엔진이 웹스토어 최신보다 옛 버전이면 안내(등록툴 깔린 PC에서 '등록툴 업데이트.bat'), 이전 버전으로 계속도 가능(force)
+  // 표에서 골라 '선택 → A급/B급'으로 다시 넣을 수 있음. 서버 엔진이 웹스토어 최신보다 옛 버전이면 진행 줄에 표시만(막지 않음 — 필요할 때 등록툴 깔린 PC에서 '등록툴 업데이트.bat')
   const NP_FINDER = 'https://higherad-np-finder-938928195180.asia-northeast3.run.app';
   const NP_KIND = { root: '뿌리', variant: '꼬리', two: '2토픽', name: '업체명', 'name-variant': '업체명 꼬리' };
   let np = null;   // { mid, panel, ac, rows, sel, busy }
@@ -1391,7 +1391,7 @@ window.toggleProdPanel = function(e) {
     const el = document.getElementById(inputId); if (!el) return;
     el.value = kws.join(','); updateKwCount();
   };
-  window.npStart = async function(force = false) {
+  window.npStart = async function() {
     if (!np) return;
     if (np.busy) { np.ac.abort(); return; }   // 진행 중이면 멈춤
     const run = np, prog = npEl('np-prog'), go = npEl('np-go');
@@ -1399,7 +1399,7 @@ window.toggleProdPanel = function(e) {
     Object.assign(run, { ac: new AbortController(), rows: [], out: [], sel: new Set(), busy: true });
     npEl('np-mat').style.display = 'none';
     go.textContent = '■ 멈춤'; prog.textContent = '시작 중…'; npRender();
-    const last = await npFindStream({ mid: run.mid, force, rules }, run.ac, m => {
+    const last = await npFindStream({ mid: run.mid, rules }, run.ac, m => {
       if (np !== run || !run.panel.isConnected) { run.ac.abort(); return; }   // 패널·상세가 닫힘
       if (m.type === 'progress') prog.textContent = m.text;
       else if (m.type === 'detail') { npEl('np-name').textContent = m.detail.name || ''; npEl('np-mat-body').innerHTML = npMat(m.detail, m.tails); npEl('np-mat').style.display = ''; }
@@ -1410,11 +1410,6 @@ window.toggleProdPanel = function(e) {
     if (!last || last.type === 'progress' || last.type === 'kw' || last.type === 'detail') { prog.textContent = '서버 연결이 끊겼습니다'; npRender(); return; }
     if (last.type === 'stopped') { prog.textContent = '멈춤'; npRender(); return; }
     if (last.type === 'error') { prog.textContent = last.message === '중단됨' ? '멈춤' : '실패: ' + last.message; npRender(); return; }
-    if (last.type === 'outdated') {
-      prog.textContent = `등록툴 새 버전 ${last.latest} — 서버는 ${last.current}`;
-      if (confirm(`등록툴 새 버전(${last.latest})이 나왔습니다. 서버는 아직 ${last.current}입니다.\n등록툴이 깔린 PC에서 크롬 확장을 업데이트한 뒤 '등록툴 업데이트'를 실행하면 반영됩니다.\n\n지금은 이전 버전(${last.current})으로 찾을까요?`)) npStart(true);
-      npRender(); return;
-    }
     run.rows = last.rows; run.out = last.out || []; run.sel = new Set();
     prog.textContent = `완료 · 유효 ${last.rows.length}개 (검색량 있음 ${last.a.length} · 없음 ${last.b.length})${last.failed ? ` · 조회 실패 ${last.failed}건` : ''}${last.nameFallback ? ' · 업체명 키워드 추가' : ''} · 등록툴 ${last.version}`;
     npRender();
@@ -2896,19 +2891,15 @@ window.toggleProdPanel = function(e) {
     if (!confirm(`MID ${todo.length}개(대기 캠페인 ${nSlots}건)를 차례로 키워드 찾기 → 접수 전환합니다.\n한 건에 수 분 걸릴 수 있고, 창을 닫으면 멈춥니다. 계속할까요?`)) return;
     kfRun = { ac: new AbortController(), stop: false };
     runBtn.textContent = '■ 멈춤'; todo.forEach(x => x.res = '대기'); paint();
-    let force = false, ok = 0;
+    let ok = 0;
     for (const x of todo) {
       if (kfRun.stop) break;
       x.res = '찾는 중…'; paint();
       let last;
-      for (;;) {   // 버전 확인·다른 사람 사용 중이면 같은 MID 다시
+      for (;;) {   // 다른 사람 사용 중이면 같은 MID 다시
         kfRun.ac = new AbortController();
-        last = await npFindStream({ mid: x.mid, force, rules: kfRules || undefined }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
+        last = await npFindStream({ mid: x.mid, rules: kfRules || undefined }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
         if (kfRun.stop) break;
-        if (last?.type === 'outdated') {
-          if (!confirm(`등록툴 새 버전(${last.latest})이 나왔습니다. 서버는 아직 ${last.current}입니다.\n등록툴이 깔린 PC에서 '등록툴 업데이트'를 실행하면 반영됩니다.\n\n지금은 이전 버전(${last.current})으로 계속 찾을까요?`)) { kfRun.stop = true; break; }
-          force = true; continue;
-        }
         if (last?.type === 'error' && /진행 중/.test(last.message)) { x.res = '다른 사람이 키워드 찾기 중 — 30초 뒤 다시'; paint(); await kfSleep(30000, kfRun.ac); if (kfRun.stop) break; continue; }
         break;
       }
