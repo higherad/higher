@@ -1219,29 +1219,40 @@ window.toggleProdPanel = function(e) {
     });
   };
 
-  // 키워드 찾기 — 「HigherAD 키워드 찾기 연결」 확장(work/np-finder-ext)이 플레이스 유효키워드를 찾아 검색량 있음 → A급, 없음 → B급 칸을 덮어씀(저장은 팝업 닫을 때 기존 흐름)
-  // 다시 누르면 중단. 팝업이 닫혀도 결과가 오면 버리고 확장 조회는 멈춤
-  let npFindListener = null;
-  window.findPlaceKeywords = function(mid) {
+  // 키워드 찾기 — higherad-np-finder 서버가 플레이스 캠페인 등록툴 엔진·설정으로 유효키워드를 찾아 검색량 있음 → A급, 없음 → B급 칸을 덮어씀(저장은 팝업 닫을 때 기존 흐름)
+  // 진행은 NDJSON 줄로 받음. 다시 누르면 중단, 팝업이 닫히면 결과 버리고 연결 끊음(서버 조회도 멈춤)
+  const NP_FINDER = 'https://higherad-np-finder-938928195180.asia-northeast3.run.app/find';
+  let npFind = null;   // { btn, ac }
+  window.findPlaceKeywords = async function(mid) {
     const btn = document.getElementById('np-find-btn');
-    const stop = () => { window.removeEventListener('message', npFindListener); npFindListener = null; window.postMessage({ src: 'hi-np', type: 'stop' }, location.origin); };
-    if (npFindListener) { const same = npFindListener.btn === btn; stop(); if (same) { btn.textContent = '키워드 찾기'; return; } }   // 같은 팝업 = 중단, 다른 팝업 = 옛 조회 끊고 새로
-    if (document.documentElement.dataset.npFinder !== '1') { alert('「HigherAD 키워드 찾기 연결」 확장이 설치돼 있지 않습니다.'); return; }
-    npFindListener = (e) => {
-      if (e.source !== window || !e.data || e.data.src !== 'np-hi') return;
-      const b = document.getElementById('np-find-btn'), aEl = document.getElementById('detail-keyword-input'), bEl = document.getElementById('detail-keyword-b-input');
-      if (b !== btn || !aEl) { stop(); return; }   // 시작한 팝업이 닫힘
-      const m = e.data;
-      if (m.type === 'progress') { b.textContent = `■ ${m.text}`; return; }
-      stop(); b.textContent = '키워드 찾기';
-      if (m.type === 'error') { if (m.message !== '중단됨') alert('키워드 찾기 실패: ' + m.message); return; }
-      if (!m.a.length && !m.b.length) { alert('유효키워드가 없습니다.' + (m.failed ? ` (조회 실패 ${m.failed}건)` : '')); return; }
-      aEl.value = m.a.join(','); if (bEl) bEl.value = m.b.join(','); updateKwCount();
-    };
-    npFindListener.btn = btn;
-    window.addEventListener('message', npFindListener);
-    if (btn) btn.textContent = '■ 시작 중…';
-    window.postMessage({ src: 'hi-np', type: 'find', mid }, location.origin);
+    if (npFind) { const same = npFind.btn === btn; npFind.ac.abort(); npFind = null; if (same) { btn.textContent = '키워드 찾기'; return; } }   // 같은 팝업 = 중단, 다른 팝업 = 옛 조회 끊고 새로
+    const run = npFind = { btn, ac: new AbortController() };
+    const alive = () => npFind === run && document.getElementById('np-find-btn') === btn;   // 시작한 팝업이 아직 열려 있음
+    btn.textContent = '■ 시작 중…';
+    let last = null;
+    try {
+      const res = await fetch(NP_FINDER, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify({ mid }), signal: run.ac.signal });
+      const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n'); buf = lines.pop();
+        for (const ln of lines) {
+          if (!ln.trim()) continue;
+          last = JSON.parse(ln);
+          if (!alive()) { run.ac.abort(); return; }
+          if (last.type === 'progress') btn.textContent = `■ ${last.text}`;
+        }
+      }
+    } catch (e) { if (run.ac.signal.aborted) return; last = { type: 'error', message: e.message || String(e) }; }
+    if (!alive()) return;
+    npFind = null; btn.textContent = '키워드 찾기';
+    if (!last || last.type === 'progress') { alert('키워드 찾기 실패: 서버 연결이 끊겼습니다'); return; }
+    if (last.type === 'error') { alert('키워드 찾기 실패: ' + last.message); return; }
+    if (!last.a.length && !last.b.length) { alert('유효키워드가 없습니다.' + (last.failed ? ` (조회 실패 ${last.failed}건)` : '')); return; }
+    document.getElementById('detail-keyword-input').value = last.a.join(',');
+    const bEl = document.getElementById('detail-keyword-b-input'); if (bEl) bEl.value = last.b.join(',');
+    updateKwCount();
   };
 
   // 상세 검색키워드 = A급 칸 + B급 칸(A→B 순서, 중복 제거)
