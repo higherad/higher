@@ -2811,6 +2811,7 @@ window.toggleProdPanel = function(e) {
           .rx-tab { border:none; background:none; padding:8px 14px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit; border-bottom:2px solid transparent; margin-bottom:-1px; }
           .rx-tab.on { color:#7c3aed; border-bottom-color:#7c3aed; }
           #kf-rows td { padding:5px 6px; border-top:1px solid var(--border); }
+          .rx-close:disabled, #kf-set-btn:disabled { opacity:.45; cursor:not-allowed; }
         </style>
       </div>`;
     document.body.appendChild(overlay);
@@ -2861,6 +2862,7 @@ window.toggleProdPanel = function(e) {
       sum.textContent = !list.length ? '대기 상태인 캠페인(MID 있음)이 없습니다.'
         : `${qMids.length ? `검색 ${vis.length}개` : `대기 MID ${list.length}개`} 중 ${n}개 선택 (최대 ${KF_MAX}개)${miss.length ? ` · 대기 목록에 없음: ${miss.join(', ')}` : ''}`;
       all.checked = !!vis.length && vis.slice(0, KF_MAX).every(x => x.on); all.disabled = !!kfRun; qEl.disabled = !!kfRun;
+      ov.querySelectorAll('.rx-close, #kf-set-btn').forEach(b => b.disabled = !!kfRun);   // 실행 중엔 닫기·설정 막음
       tb.innerHTML = vis.map(x => { const i = list.indexOf(x); return `<tr>
         <td style="text-align:center;"><input type="checkbox" data-i="${i}" ${x.on ? 'checked' : ''} ${kfRun ? 'disabled' : ''}></td>
         <td>${escProd(x.slots[0].storeName || '-')}${x.slots.length > 1 ? ` <span style="color:var(--muted);">외 ${x.slots.length - 1}건</span>` : ''}</td>
