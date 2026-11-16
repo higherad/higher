@@ -594,33 +594,40 @@ const HI = {
       || (r.vendor ? 'background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe' : 'background:#fef3c7;color:#b45309;border:1px solid #fde68a');
     return `<span title="리워드:유입플 (${r.auto ? '승인 때 나뉜 일 목표' : '엑셀 비고'})" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;white-space:nowrap;${color}">${label}</span>`;
   },
-  dailySplitHtml(s) {
-    if (s.yupflTarget == null || !s.dailyTarget || legacySplit(s)) return '';
-    const yup = s.yupflTarget;
-    const ded = Math.round((s.deductTarget || 0) / (s.days || 1));
+  // 일 목표 상품별 수량 [{name, n, kind}] — kind reward(리워드 상품, 이름 = 캠페인 타입) · yupfl(유입플 업체 상품) · ded(차감)
+  //   풀스택 = 서버가 매일 09시 사이트 진행 주문에서 받은 상품별 일 수량(fullstackDaily) → 없으면 풀스택[개별] 고정 비율(fullstackFix) → 없으면 업체 상품 이름에 업체 수량
+  //   fullstackDaily는 풀스택 몫이 있는 캠페인에만 씀 — 같은 MID의 리워드만 캠페인에도 같은 주문이 붙어 와서(배지용) 그대로 쓰면 수량이 두 번 잡힘
+  //   승인 전(yupflTarget 없음)은 풀스택[개별]만 고정 비율로 나눠 보여 줌. 순위표 캠페인 타입도 이 이름(진행현황)
+  dailySplitParts(s) {
+    if (!s.dailyTarget || legacySplit(s)) return [];
+    const list = v => Array.isArray(v) ? v : v ? Object.values(v) : [];
+    const fixParts = n => {
+      const fix = list(s.fullstackFix), q = fix.map(p => Math.floor(n * p.ratio));
+      for (let i = 0, left = n - q.reduce((a, b) => a + b, 0); left > 0 && q.length; i = (i + 1) % q.length, left--) q[i]++;
+      const byName = {};
+      fix.forEach((p, i) => { const k = String(p.name).replace(/\(로그인[OX]\)$/, ''); byName[k] = (byName[k] || 0) + q[i]; });
+      return Object.entries(byName).filter(([, c]) => c > 0).map(([name, c]) => ({ name, n: c, kind: 'yupfl' }));
+    };
+    const site = list(s.fullstackDaily).filter(d => d && d.n > 0).map(d => ({ name: d.name, n: d.n, kind: 'yupfl' }));
+    if (s.yupflTarget == null) return s.fullstackFix ? fixParts(s.dailyTarget) : [];
+    const yup = s.yupflTarget, ded = Math.round((s.deductTarget || 0) / (s.days || 1));
     const normal = Math.max(0, s.dailyTarget - yup - ded);
+    const parts = [];
+    if (normal > 0) parts.push({ name: list(s.campaignTypeShown || s.campaignType).join('·') || '리워드', n: normal, kind: 'reward' });
     const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
-    const vendTxt = vend.length > 1 ? `(${vend.map(([k, n]) => `${k} ${n.toLocaleString()}`).join('·')})` : '';
-    const dedTxt = ded ? ` · 차감 ${ded.toLocaleString()}` : '';
-    // 일반 없이 전부 유입플(비고 업체명·풀스택[개별])이면 일반 대신 들어간 상품별 수량 — 풀스택[개별]은 고정 비율(fullstackFix)로 나누고,
-    // 그 밖은 캠페인 타입의 업체 상품(vendorProducts) 이름에 업체 수량(상품이 여럿이면 이름을 묶어서)
-    if (!normal && yup > 0) {
-      const list = v => Array.isArray(v) ? v : v ? Object.values(v) : [];
-      const parts = (vend.length ? vend : [['', yup]]).flatMap(([v, n]) => {
-        if (v === '풀스택' && s.fullstackFix) {
-          const fix = list(s.fullstackFix), q = fix.map(p => Math.floor(n * p.ratio));
-          for (let i = 0, left = n - q.reduce((a, b) => a + b, 0); left > 0; i = (i + 1) % q.length, left--) q[i]++;
-          const byName = {};
-          fix.forEach((p, i) => { const k = String(p.name).replace(/\(로그인[OX]\)$/, ''); byName[k] = (byName[k] || 0) + q[i]; });
-          return Object.entries(byName).filter(([, c]) => c > 0);
-        }
-        const names = list(s.vendorProducts?.[v]);
-        return [[names.length ? names.join('·') : v || '유입플', n]];
-      });
-      return `<div style="font-size:11px;color:#d97706;font-weight:600;white-space:nowrap;">${parts.map(([k, n]) => `${k} ${n.toLocaleString()}`).join(' · ')}<span style="color:var(--muted);font-weight:400;">${dedTxt}</span></div>`;
+    for (const [v, n] of (vend.length ? vend : yup > 0 ? [['', yup]] : [])) {
+      if ((v === '풀스택' || (!v && !s.yupflByVendor)) && site.length) parts.push(...site);
+      else if (v === '풀스택' && s.fullstackFix) parts.push(...fixParts(n));
+      else { const names = list(s.vendorProducts?.[v]); parts.push({ name: names.length ? names.join('·') : v || '유입플', n, kind: 'yupfl' }); }
     }
-    const yupTxt = yup > 0 ? ` · <span style="color:#d97706;font-weight:600;">유입플 ${yup.toLocaleString()}${vendTxt}</span>` : '';
-    return `<div style="font-size:11px;color:var(--muted);white-space:nowrap;">리워드 ${normal.toLocaleString()}${yupTxt}${dedTxt}</div>`;
+    if (ded) parts.push({ name: '차감', n: ded, kind: 'ded' });
+    return parts;
+  },
+  dailySplitHtml(s) {
+    const parts = HI.dailySplitParts(s);
+    if (!parts.length) return '';
+    const color = { reward: 'color:var(--text2);', yupfl: 'color:#d97706;font-weight:600;', ded: 'color:var(--muted);' };
+    return `<div style="font-size:11px;">${parts.map(p => `<span style="${color[p.kind]}white-space:nowrap;">${HI.esc(p.name)} ${p.n.toLocaleString()}</span>`).join('<span style="color:var(--muted);"> · </span>')}</div>`;
   },
   // 자동 종료 대상 — 종료일 지난 승인 건, 강제종료일 다음 날부터의 강제종료 건(higherad-auto _expire_live와 같은 규칙)
   shouldExpire(s, today) {

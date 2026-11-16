@@ -398,7 +398,11 @@
         createdDate: s.createdAt ? ymd(new Date(s.createdAt)) : '',
         status: s.status === 'expired' ? 'ended' : (s.status || ''),
         isRequeue: !!s.isRequeue,
-        grade: [...typeLabels(s), ...yupflLabels(s)].join(', '),
+        // 캠페인 타입 = 일 목표 칸에 나눠 보이는 상품 이름(차감 빼고, '크림슨·델타' 묶음은 풀어서) — 나눔이 없으면 배지 이름
+        grade: (() => {
+          const names = HI.dailySplitParts(s).filter(p => p.kind !== 'ded').flatMap(p => p.name.split('·'));
+          return [...new Set(names.length ? names : [...typeLabels(s), ...yupflLabels(s)])].join(', ');
+        })(),
       }));
       const res = await fetch('https://higherad-rank-938928195180.asia-northeast3.run.app/rank-table', {
         method: 'POST',
