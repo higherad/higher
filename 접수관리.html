@@ -788,14 +788,14 @@ window.toggleProdPanel = function(e) {
           <td style="color:var(--text2)">${s.createdAt ? ymd(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${escProd(s.agencyId||'-')}</td>
           <td>${HI.ratioBadgeHtml(s.yupflRatio, s.fullstackFix)}</td>
-          <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : escProd(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
+          <td>${s.url ? `<a href="${escProd(s.url)}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${escProd(s.storeName||'-')}</a>` : `<span style="font-weight:500">${escProd(s.storeName||'-')}</span>`}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${escProd(s.mid||'-')}</td>
           <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${escProd(s.rankKeyword)}</a>` : '-'}</td>
           <td style="color:var(--text2)">${s.category ? escProd(s.category) : '<span style="color:#dc2626;font-weight:700;">-</span>'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
-          <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}${HI.dailySplitHtml(s)}</td>
+          <td><strong>${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</strong>${HI.dailySplitHtml(s)}</td>
           <td>${statusBadge(s)}${s.status==='force_stopped' && s.forceStoppedAt ? `<div style="font-size:10px;color:var(--muted);">${s.forceStoppedAt.slice(5)} 강제종료 · 다음 날 종료</div>` : ''}${s.scheduleFailed ? ` <span style="color:#b91c1c;font-size:10px;font-weight:600;" title="시간대 분할 예약 중 ${s.scheduleFailed}건 등록 실패 — 해당 날짜 몫 확인 필요">⚠️ 예약실패 ${s.scheduleFailed}</span>` : ''}${bizfitDeductPending(s) ? ` <button class="action-btn" style="background:#fef2f2;color:#b91c1c;padding:2px 6px;font-size:10px;" title="비즈핏 캐시 차감이 완료되지 않았습니다. 클릭 시 재시도합니다." onclick="retryBizfitDeduct('${s._key}', this)">⚠️ 차감 재시도</button>` : ''}</td>
           <td>
             <div style="display:flex;gap:5px;justify-content:center;">
