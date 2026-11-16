@@ -2610,9 +2610,11 @@ window.toggleProdPanel = function(e) {
     const cutoffDayKw = ymd(new Date(Date.now() - daysKw * 24 * 3600 * 1000));
     const rows = pending.map(s => {
       const k = kwMap.get(s.mid);
-      const kw = k ? [...new Set([...(useA ? kwSplit(k.a) : []), ...(useB ? kwSplit(k.b) : [])])].join(',') : '';  // 고른 급만, 시트 수기 입력의 콤마 뒤 공백도 정리
+      // 고른 급만, 시트 수기 입력의 콤마 뒤 공백도 정리 — A급·B급 칸도 따로 저장해야 상세 팝업이 급별로 나눠 보여줌
+      const a = k && useA ? kwSplit(k.a).join(',') : '', b = k && useB ? kwSplit(k.b).join(',') : '';
+      const kw = joinAB(a, b);
       const matched = !!kw && /^\d{4}-\d{2}-\d{2}$/.test(k.at || '') && k.at >= cutoffDayKw;
-      return { slot: s, matched, newStatus: 'accepted', matchKeyword: matched ? kw : '' };
+      return { slot: s, matched, newStatus: 'accepted', matchKeyword: matched ? kw : '', kwA: a || null, kwB: b || null };
     });
     const matched = rows.filter(r => r.matched);
 
@@ -2634,7 +2636,7 @@ window.toggleProdPanel = function(e) {
     runBtn.textContent = `⏳ 처리 중... (0/${matched.length})`;
     let done = 0;
     for (const r of matched) {
-      const updates = { searchKeyword: r.matchKeyword, status: r.newStatus };
+      const updates = { searchKeyword: r.matchKeyword, searchKeywordA: r.kwA, searchKeywordB: r.kwB, status: r.newStatus };
       await HI.updateCampaign(r.slot._key, updates);
       updateLocalSlot(r.slot._key, updates);
       done++;
