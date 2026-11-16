@@ -1234,7 +1234,7 @@ window.toggleProdPanel = function(e) {
     host.style.gap = '16px';
     const panel = document.createElement('div');
     panel.className = 'modal-box';
-    panel.style.cssText = 'width:560px;padding:20px 22px;';
+    panel.style.cssText = 'width:560px;padding:20px 22px;display:flex;flex-direction:column;overflow:hidden;';   // 패널 자체는 스크롤 없이, 남는 높이를 키워드 표가 씀
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div class="modal-title" style="margin:0;">키워드 찾기 <span id="np-name" style="font-size:12px;font-weight:500;color:var(--text2);"></span></div>
@@ -1253,15 +1253,17 @@ window.toggleProdPanel = function(e) {
         <button type="button" id="np-go" onclick="npStart()" class="btn-save" style="padding:6px 16px;">시작</button>
         <span id="np-prog" style="font-size:11px;color:var(--text2);">규칙 불러오는 중…</span>
       </div>
-      <details id="np-mat" style="font-size:11px;margin-bottom:8px;display:none;"><summary style="cursor:pointer;font-weight:700;color:var(--text2);">추출 재료</summary><div id="np-mat-body" style="margin-top:6px;"></div></details>
+      <details id="np-mat" style="font-size:11px;margin-bottom:8px;display:none;"><summary style="cursor:pointer;font-weight:700;color:var(--text2);">추출 재료</summary><div id="np-mat-body" style="margin-top:6px;max-height:22vh;overflow-y:auto;"></div></details>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-        <button type="button" class="np-tb" onclick="npSelVol(true)">검색량 있음 선택</button>
-        <button type="button" class="np-tb" onclick="npSelVol(false)">검색량 없음 선택</button>
+        <label class="np-f"><input type="checkbox" id="np-f-in" checked onchange="npView()"><span id="np-lb-in">1~10위</span></label>
+        <label class="np-f"><input type="checkbox" id="np-f-out" onchange="npView()"><span id="np-lb-out">10위 밖</span></label>
+        <button type="button" class="np-tb" onclick="npSelVol(true)">검색량 있음</button>
+        <button type="button" class="np-tb" onclick="npSelVol(false)">검색량 없음</button>
         <span style="flex:1;"></span>
         <button type="button" class="np-tb" onclick="npApply('detail-keyword-input')">선택 → A급</button>
         <button type="button" class="np-tb" onclick="npApply('detail-keyword-b-input')">선택 → B급</button>
       </div>
-      <div style="max-height:40vh;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
+      <div style="flex:1;min-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;"><input type="checkbox" id="np-all" onchange="npSelAll(this.checked)"></th><th style="text-align:left;">키워드</th><th>순위</th><th>월검색량</th><th>구분</th></tr></thead>
           <tbody id="np-rows"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px;">시작을 누르면 찾은 키워드가 여기에 나옵니다</td></tr></tbody>
@@ -1273,10 +1275,12 @@ window.toggleProdPanel = function(e) {
         .np-tb { font-size:11px; padding:4px 9px; border:1px solid var(--border); border-radius:5px; background:#fff; cursor:pointer; font-family:inherit; }
         #np-rows td { padding:5px 6px; border-top:1px solid var(--border); text-align:center; }
         #np-rows td.kw { text-align:left; }
+        .np-f { display:flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--text2); cursor:pointer; margin-right:2px; }
+        .np-f input { width:auto; margin:0; }
         .np-chip { display:inline-block; padding:1px 7px; margin:2px; border-radius:9px; background:#f1f5f9; }
       </style>`;
     host.appendChild(panel);
-    np = { mid, panel, ac: null, rows: [], sel: new Set(), busy: false };
+    np = { mid, panel, ac: null, rows: [], out: [], sel: new Set(), busy: false };   // rows = 범위 안(유효), out = 범위 밖(완료 뒤)
     const run = np;
     try {
       const res = await fetch(`${NP_FINDER}/rules`, { method: 'POST', headers: await HI.authHeaders(), body: '{}' });
@@ -1294,17 +1298,42 @@ window.toggleProdPanel = function(e) {
     const host = np.panel.parentElement; np.panel.remove(); if (host) host.style.gap = '';
     np = null;
   };
+  // 표에 보이는 목록 — '1~10위'(범위 안, 순위순) + '10위 밖'(11~50위 순위순, 50위 밖은 맨 뒤). 체크·검색량 선택도 보이는 목록 기준(등록툴과 같음)
+  const npVisible = () => [...(npEl('np-f-in').checked ? np.rows : []), ...(npEl('np-f-out').checked ? [...np.out].sort((a, b) => (a.rank || 1e9) - (b.rank || 1e9)) : [])];
+  window.npView = function() {
+    const fi = npEl('np-f-in'), fo = npEl('np-f-out');
+    if (!fi.checked && !fo.checked) fi.checked = true;   // 둘 다 끌 수는 없음
+    npRender();
+    if (fo.checked) npLoadOutVol();
+  };
+  // 범위 밖 검색량은 '10위 밖'을 켤 때만(검색광고 API 한도 아끼기, 등록툴과 같음)
+  async function npLoadOutVol() {
+    const run = np; if (!run || run.busy || run.volBusy) return;
+    const need = run.out.filter(r => !('vol' in r)); if (!need.length) return;
+    run.volBusy = true; const prog = npEl('np-prog'), base = prog.textContent;
+    prog.textContent = base + ` · 범위 밖 검색량 조회 중(${need.length}개)…`;
+    try {
+      const res = await fetch(`${NP_FINDER}/volumes`, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify({ kws: need.map(r => r.kw) }) });
+      const j = await res.json(); if (j.error) throw new Error(j.error);
+      need.forEach(r => { r.vol = j.vol[r.kw] ?? null; r.yes = r.vol != null && r.vol !== '<10'; });
+      if (np === run) prog.textContent = base;
+    } catch (e) { if (np === run) prog.textContent = base + ' · 범위 밖 검색량 실패: ' + (e.message || e); }
+    run.volBusy = false; if (np === run) npRender();
+  }
   function npRender() {
     const tb = npEl('np-rows'); if (!tb) return;
+    const mx = npEl('np-rankMax').value || 10;
+    npEl('np-lb-in').textContent = `${npEl('np-rankMin').value || 1}~${mx}위`; npEl('np-lb-out').textContent = `${mx}위 밖`;
+    const vis = npVisible();
     const volTxt = v => v == null ? '-' : v === '<10' ? '< 10' : Number(v).toLocaleString();
-    tb.innerHTML = np.rows.length ? np.rows.map((r, i) => `<tr>
-      <td><input type="checkbox" data-i="${i}" ${np.sel.has(r.kw) ? 'checked' : ''} onchange="npSelOne(${i},this.checked)"></td>
-      <td class="kw">${escProd(r.kw)}</td><td>${r.rank}위</td>
+    tb.innerHTML = vis.length ? vis.map((r, i) => `<tr>
+      <td><input type="checkbox" ${np.sel.has(r.kw) ? 'checked' : ''} onchange="npSelOne(${i},this.checked)"></td>
+      <td class="kw">${escProd(r.kw)}</td><td${np.rows.includes(r) ? '' : ' style="color:var(--muted);"'}>${r.rank ? r.rank + '위' : '50위 밖'}</td>
       <td style="${r.yes ? 'color:#1d4ed8;font-weight:600;' : 'color:var(--muted);'}">${'vol' in r ? volTxt(r.vol) : '…'}</td>
       <td style="color:var(--text2);">${NP_KIND[r.kind] || r.kind || ''}</td></tr>`).join('')
-      : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px;">${np.busy ? '찾는 중…' : '유효키워드가 없습니다'}</td></tr>`;
-    const all = npEl('np-all'); const n = np.rows.filter(r => np.sel.has(r.kw)).length;
-    all.checked = !!np.rows.length && n === np.rows.length; all.indeterminate = n > 0 && n < np.rows.length;
+      : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px;">${np.busy ? '찾는 중…' : '키워드가 없습니다'}</td></tr>`;
+    const all = npEl('np-all'); const n = vis.filter(r => np.sel.has(r.kw)).length;
+    all.checked = !!vis.length && n === vis.length; all.indeterminate = n > 0 && n < vis.length;
   }
   function npMat(d, tails) {
     const chips = a => (a && a.length ? a.map(x => `<span class="np-chip">${escProd(x)}</span>`).join('') : '<span style="color:var(--muted);">—</span>');
@@ -1314,11 +1343,30 @@ window.toggleProdPanel = function(e) {
       + R('예약상품 토픽', d.ticketTopics) + R('소개글 토픽', d.introTopics) + R('꼬리키워드', tails) + R('편의시설', d.conveniences)
       + R('업체별 꼬리', d.bizTails) + R('리뷰 빈출어', d.reviewWords);
   }
-  window.npSelOne = (i, on) => { const kw = np.rows[i].kw; on ? np.sel.add(kw) : np.sel.delete(kw); npRender(); };
-  window.npSelAll = on => { np.sel = new Set(on ? np.rows.map(r => r.kw) : []); npRender(); };
-  window.npSelVol = yes => { if (!np.rows.some(r => 'vol' in r)) return alert('검색량을 받은 뒤 고를 수 있어요.'); np.sel = new Set(np.rows.filter(r => 'vol' in r && r.yes === yes).map(r => r.kw)); npRender(); };
+  // /find 한 번 — NDJSON 줄마다 onMsg, 마지막 줄을 돌려줌. 멈춤(ac.abort) = {type:'stopped'}, 연결 실패 = {type:'error'}
+  async function npFindStream(body, ac, onMsg) {
+    let last = null;
+    try {
+      const res = await fetch(`${NP_FINDER}/find`, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify(body), signal: ac.signal });
+      const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n'); buf = lines.pop();
+        for (const ln of lines) { if (!ln.trim()) continue; last = JSON.parse(ln); onMsg(last); if (ac.signal.aborted) return { type: 'stopped' }; }
+      }
+    } catch (e) { return ac.signal.aborted ? { type: 'stopped' } : { type: 'error', message: e.message || String(e) }; }
+    return last;
+  }
+  window.npSelOne = (i, on) => { const kw = npVisible()[i].kw; on ? np.sel.add(kw) : np.sel.delete(kw); npRender(); };
+  window.npSelAll = on => { const vis = npVisible(); vis.forEach(r => on ? np.sel.add(r.kw) : np.sel.delete(r.kw)); npRender(); };
+  window.npSelVol = yes => {   // 보이는 목록에서 그쪽만 체크(보이는 목록의 다른 체크는 풂)
+    const vis = npVisible();
+    if (!vis.some(r => 'vol' in r)) return alert('검색량을 받은 뒤 고를 수 있어요.');
+    vis.forEach(r => np.sel.delete(r.kw)); vis.filter(r => 'vol' in r && r.yes === yes).forEach(r => np.sel.add(r.kw)); npRender();
+  };
   window.npApply = inputId => {
-    const kws = np.rows.filter(r => np.sel.has(r.kw)).map(r => r.kw);
+    const kws = [...np.rows, ...np.out].filter(r => np.sel.has(r.kw)).map(r => r.kw);
     if (!kws.length) return alert('넣을 키워드를 체크해 주세요.');
     const el = document.getElementById(inputId); if (!el) return;
     el.value = kws.join(','); updateKwCount();
@@ -1329,27 +1377,15 @@ window.toggleProdPanel = function(e) {
     const run = np, prog = npEl('np-prog'), go = npEl('np-go');
     const rules = { excludeName: npEl('np-excludeName').checked, required: npList(npEl('np-required').value), exclude: npList(npEl('np-exclude').value) };
     for (const k of ['rankMin', 'rankMax', 'rootCap', 'validLimit', 'nameFallbackN']) { const v = npEl('np-' + k).value.trim(); if (v !== '') rules[k] = Number(v); }
-    Object.assign(run, { ac: new AbortController(), rows: [], sel: new Set(), busy: true });
+    Object.assign(run, { ac: new AbortController(), rows: [], out: [], sel: new Set(), busy: true });
     npEl('np-mat').style.display = 'none';
     go.textContent = '■ 멈춤'; prog.textContent = '시작 중…'; npRender();
-    let last = null;
-    try {
-      const res = await fetch(`${NP_FINDER}/find`, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify({ mid: run.mid, force, rules }), signal: run.ac.signal });
-      const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '';
-      for (;;) {
-        const { value, done } = await reader.read(); if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split('\n'); buf = lines.pop();
-        for (const ln of lines) {
-          if (!ln.trim()) continue;
-          const m = JSON.parse(ln); last = m;
-          if (np !== run || !run.panel.isConnected) { run.ac.abort(); return; }   // 패널·상세가 닫힘
-          if (m.type === 'progress') prog.textContent = m.text;
-          else if (m.type === 'detail') { npEl('np-name').textContent = m.detail.name || ''; npEl('np-mat-body').innerHTML = npMat(m.detail, m.tails); npEl('np-mat').style.display = ''; }
-          else if (m.type === 'kw') { run.rows.push({ kw: m.kw, rank: m.rank, kind: m.kind }); run.rows.sort((a, b) => a.rank - b.rank); npRender(); }
-        }
-      }
-    } catch (e) { if (!run.ac.signal.aborted) last = { type: 'error', message: e.message || String(e) }; else last = { type: 'stopped' }; }
+    const last = await npFindStream({ mid: run.mid, force, rules }, run.ac, m => {
+      if (np !== run || !run.panel.isConnected) { run.ac.abort(); return; }   // 패널·상세가 닫힘
+      if (m.type === 'progress') prog.textContent = m.text;
+      else if (m.type === 'detail') { npEl('np-name').textContent = m.detail.name || ''; npEl('np-mat-body').innerHTML = npMat(m.detail, m.tails); npEl('np-mat').style.display = ''; }
+      else if (m.type === 'kw') { run.rows.push({ kw: m.kw, rank: m.rank, kind: m.kind }); run.rows.sort((a, b) => a.rank - b.rank); npRender(); }
+    });
     if (np !== run || !run.panel.isConnected) return;
     run.busy = false; go.textContent = '시작';
     if (!last || last.type === 'progress' || last.type === 'kw' || last.type === 'detail') { prog.textContent = '서버 연결이 끊겼습니다'; npRender(); return; }
@@ -1360,9 +1396,10 @@ window.toggleProdPanel = function(e) {
       if (confirm(`등록툴 새 버전(${last.latest})이 나왔습니다. 서버는 아직 ${last.current}입니다.\n등록툴이 깔린 PC에서 크롬 확장을 업데이트한 뒤 '등록툴 업데이트'를 실행하면 반영됩니다.\n\n지금은 이전 버전(${last.current})으로 찾을까요?`)) npStart(true);
       npRender(); return;
     }
-    run.rows = last.rows; run.sel = new Set();
+    run.rows = last.rows; run.out = last.out || []; run.sel = new Set();
     prog.textContent = `완료 · 유효 ${last.rows.length}개 (검색량 있음 ${last.a.length} · 없음 ${last.b.length})${last.failed ? ` · 조회 실패 ${last.failed}건` : ''}${last.nameFallback ? ' · 업체명 키워드 추가' : ''} · 등록툴 ${last.version}`;
     npRender();
+    if (npEl('np-f-out').checked) npLoadOutVol();
     if (!last.rows.length) return;
     document.getElementById('detail-keyword-input').value = last.a.join(',');
     const bEl = document.getElementById('detail-keyword-b-input'); if (bEl) bEl.value = last.b.join(',');
@@ -2688,33 +2725,70 @@ window.toggleProdPanel = function(e) {
     await buildAndDownload();
   }
 
-  // ── 대기 슬롯 히스토리 재접수 (같은 MID의 최근 N일 키워드 히스토리로 자동 접수) ──
+  // ── 상단 '키워드 찾기' 팝업 — 탭 2개: 키워드 찾기(일괄, higherad-np-finder) · 재접수(플레이스 키워드 시트) ──
+  // 키워드 찾기 탭: 대기(pending)·MID 있는 캠페인을 MID 단위로 차례로 찾아 검색량 있음 = A급, 없음 = B급으로 채우고 접수 전환(같은 MID 대기 캠페인 전부)
+  //   한 번에 최대 KF_MAX개 MID. 규칙은 등록툴 설정 그대로. 유효키워드 0개면 전환 안 함. 다른 사람이 쓰는 중이면 30초마다 다시 시도
+  const KF_MAX = 50;
   window.openReacceptModal = function() {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal-box" style="width:min(96vw,440px);">
-        <div class="modal-title" style="display:flex;align-items:center;gap:6px;">🔁 대기 히스토리 재접수<span id="reaccept-help-btn" title="도움말" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text2);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer;flex-shrink:0;position:relative;top:1px;">i</span></div>
-        <div id="reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">플레이스 키워드 시트의 최근 수정일이 ①일 이내면 ②에서 고른 키워드(A급·B급)로 채우고 접수로 전환합니다.</div>
-        <div class="pmf" style="margin-bottom:12px;">
-          <label>① 키워드 수정일 기준 (최근 N일)</label>
-          <input type="number" id="reaccept-days-kw" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
+      <div class="modal-box" style="width:min(96vw,620px);">
+        <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;">
+          <button type="button" class="rx-tab" data-tab="kf">키워드 찾기</button>
+          <button type="button" class="rx-tab" data-tab="ra">재접수</button>
         </div>
-        <div class="pmf" style="margin-bottom:12px;">
-          <label>② 불러올 키워드</label>
-          <div style="display:flex;gap:6px;">
-            <button type="button" class="reaccept-kw-btn" id="reaccept-kw-a" data-on="1">A급</button>
-            <button type="button" class="reaccept-kw-btn" id="reaccept-kw-b" data-on="1">B급</button>
+        <div data-pane="kf">
+          <div style="font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 12px;margin-bottom:10px;">
+            대기 캠페인을 차례로 키워드 찾기 → 검색량 있음은 A급, 없음은 B급으로 채우고 접수로 전환합니다. 한 번에 최대 ${KF_MAX}개(같은 MID는 1번), 규칙은 등록툴 설정 그대로입니다. 도는 동안 다른 사람은 키워드 찾기를 쓸 수 없습니다.
+          </div>
+          <div id="kf-sum" style="font-size:12px;font-weight:600;margin-bottom:6px;"></div>
+          <div style="max-height:46vh;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;padding:6px;"><input type="checkbox" id="kf-all"></th><th style="text-align:left;">플레이스명</th><th style="text-align:left;">대행사</th><th>MID</th><th style="text-align:left;">결과</th></tr></thead>
+              <tbody id="kf-rows"></tbody>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel rx-close">닫기</button>
+            <button id="kf-run-btn" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">실행</button>
           </div>
         </div>
-        <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
-        <div class="modal-footer">
-          <button class="btn-cancel" id="reaccept-close-btn">닫기</button>
-          <button id="reaccept-run-btn" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">실행</button>
+        <div data-pane="ra" style="display:none;">
+          <div style="font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 12px;margin-bottom:16px;">플레이스 키워드 시트의 최근 수정일이 ①일 이내면 ②에서 고른 키워드(A급·B급)로 채우고 접수로 전환합니다.</div>
+          <div class="pmf" style="margin-bottom:12px;">
+            <label>① 키워드 수정일 기준 (최근 N일)</label>
+            <input type="number" id="reaccept-days-kw" value="7" min="1" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;">
+          </div>
+          <div class="pmf" style="margin-bottom:12px;">
+            <label>② 불러올 키워드</label>
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="reaccept-kw-btn" id="reaccept-kw-a" data-on="1">A급</button>
+              <button type="button" class="reaccept-kw-btn" id="reaccept-kw-b" data-on="1">B급</button>
+            </div>
+          </div>
+          <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
+          <div class="modal-footer">
+            <button class="btn-cancel rx-close" id="reaccept-close-btn">닫기</button>
+            <button id="reaccept-run-btn" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">실행</button>
+          </div>
         </div>
+        <style>
+          .rx-tab { border:none; background:none; padding:8px 14px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit; border-bottom:2px solid transparent; margin-bottom:-1px; }
+          .rx-tab.on { color:#7c3aed; border-bottom-color:#7c3aed; }
+          #kf-rows td { padding:5px 6px; border-top:1px solid var(--border); }
+        </style>
       </div>`;
     document.body.appendChild(overlay);
-    overlay.querySelector('#reaccept-close-btn').onclick = () => { if (!window.reacceptRunning) overlay.remove(); };
+    const busy = () => window.reacceptRunning || kfRun;
+    overlay.querySelectorAll('.rx-close').forEach(b => b.onclick = () => { if (!busy()) overlay.remove(); });
+    const setTab = t => {
+      if (busy()) return;
+      overlay.querySelectorAll('.rx-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+      overlay.querySelectorAll('[data-pane]').forEach(p => p.style.display = p.dataset.pane === t ? '' : 'none');
+    };
+    overlay.querySelectorAll('.rx-tab').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+    setTab('kf');
     overlay.querySelector('#reaccept-run-btn').onclick = () => runReaccept(overlay);
     // A급·B급 켜고 끄는 버튼(기본 둘 다 켬) — 켜짐 = 보라 채움, 꺼짐 = 테두리만
     const paintKwBtn = b => {
@@ -2725,11 +2799,84 @@ window.toggleProdPanel = function(e) {
       paintKwBtn(b);
       b.onclick = () => { b.dataset.on = b.dataset.on === '1' ? '0' : '1'; paintKwBtn(b); };
     });
-    overlay.querySelector('#reaccept-help-btn').onclick = () => {
-      const el = overlay.querySelector('#reaccept-help');
-      el.style.display = el.style.display === 'none' ? 'block' : 'none';
-    };
+    kfInit(overlay);
   };
+
+  // 키워드 찾기 탭 — 대기 캠페인을 MID로 묶은 목록(오래된 접수부터), 앞에서 KF_MAX개 기본 체크
+  let kfRun = null;   // { ac, stop } — 실행 중
+  function kfInit(ov) {
+    const byMid = new Map();
+    allSlots.filter(s => s.status === 'pending' && s.mid)
+      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
+      .forEach(s => { if (!byMid.has(s.mid)) byMid.set(s.mid, []); byMid.get(s.mid).push(s); });
+    const list = [...byMid.entries()].map(([mid, slots]) => ({ mid, slots, on: false, res: '' }));
+    list.slice(0, KF_MAX).forEach(x => x.on = true);
+    const tb = ov.querySelector('#kf-rows'), sum = ov.querySelector('#kf-sum'), all = ov.querySelector('#kf-all'), runBtn = ov.querySelector('#kf-run-btn');
+    const paint = () => {
+      const n = list.filter(x => x.on).length;
+      sum.textContent = list.length ? `대기 MID ${list.length}개 중 ${n}개 선택 (최대 ${KF_MAX}개)` : '대기 상태인 캠페인(MID 있음)이 없습니다.';
+      all.checked = !!list.length && list.slice(0, KF_MAX).every(x => x.on); all.disabled = !!kfRun;
+      tb.innerHTML = list.map((x, i) => `<tr>
+        <td style="text-align:center;"><input type="checkbox" data-i="${i}" ${x.on ? 'checked' : ''} ${kfRun ? 'disabled' : ''}></td>
+        <td>${escProd(x.slots[0].storeName || '-')}${x.slots.length > 1 ? ` <span style="color:var(--muted);">외 ${x.slots.length - 1}건</span>` : ''}</td>
+        <td>${escProd(x.slots[0].agencyId || '-')}</td><td style="text-align:center;color:var(--text2);">${escProd(x.mid)}</td>
+        <td style="color:${/^실패|^유효키워드 없음/.test(x.res) ? 'var(--danger)' : /^✅/.test(x.res) ? 'var(--accent)' : 'var(--text2)'};">${escProd(x.res)}</td></tr>`).join('');
+    };
+    tb.onchange = e => {
+      const cb = e.target.closest('input[data-i]'); if (!cb) return;
+      const x = list[+cb.dataset.i];
+      if (cb.checked && list.filter(y => y.on).length >= KF_MAX) { cb.checked = false; return alert(`한 번에 최대 ${KF_MAX}개까지 선택할 수 있어요.`); }
+      x.on = cb.checked; paint();
+    };
+    all.onchange = () => { list.forEach((x, i) => x.on = all.checked && i < KF_MAX); paint(); };
+    runBtn.onclick = () => kfRun ? kfStop() : kfStart(list, paint, runBtn);
+    paint();
+  }
+  function kfStop() { if (!kfRun) return; kfRun.stop = true; kfRun.ac.abort(); }
+  const kfSleep = (ms, ac) => new Promise(r => { const t = setTimeout(r, ms); ac.signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true }); });
+  async function kfStart(list, paint, runBtn) {
+    const todo = list.filter(x => x.on);
+    if (!todo.length) return alert('키워드를 찾을 캠페인을 선택해주세요.');
+    const nSlots = todo.reduce((n, x) => n + x.slots.length, 0);
+    if (!confirm(`MID ${todo.length}개(대기 캠페인 ${nSlots}건)를 차례로 키워드 찾기 → 접수 전환합니다.\n한 건에 수 분 걸릴 수 있고, 창을 닫으면 멈춥니다. 계속할까요?`)) return;
+    kfRun = { ac: new AbortController(), stop: false };
+    runBtn.textContent = '■ 멈춤'; todo.forEach(x => x.res = '대기'); paint();
+    let force = false, ok = 0;
+    for (const x of todo) {
+      if (kfRun.stop) break;
+      x.res = '찾는 중…'; paint();
+      let last;
+      for (;;) {   // 버전 확인·다른 사람 사용 중이면 같은 MID 다시
+        kfRun.ac = new AbortController();
+        last = await npFindStream({ mid: x.mid, force }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
+        if (kfRun.stop) break;
+        if (last?.type === 'outdated') {
+          if (!confirm(`등록툴 새 버전(${last.latest})이 나왔습니다. 서버는 아직 ${last.current}입니다.\n등록툴이 깔린 PC에서 '등록툴 업데이트'를 실행하면 반영됩니다.\n\n지금은 이전 버전(${last.current})으로 계속 찾을까요?`)) { kfRun.stop = true; break; }
+          force = true; continue;
+        }
+        if (last?.type === 'error' && /진행 중/.test(last.message)) { x.res = '다른 사람이 키워드 찾기 중 — 30초 뒤 다시'; paint(); await kfSleep(30000, kfRun.ac); if (kfRun.stop) break; continue; }
+        break;
+      }
+      if (kfRun.stop) { x.res = '멈춤'; break; }
+      if (!last || last.type !== 'done') { x.res = '실패: ' + (last?.message || '서버 연결이 끊겼습니다'); paint(); continue; }
+      if (!last.rows.length) { x.res = `유효키워드 없음 — 전환 안 함${last.failed ? ` (조회 실패 ${last.failed}건)` : ''}`; paint(); continue; }
+      const a = last.a.join(','), b = last.b.join(','), kw = joinAB(a, b);
+      const slots = x.slots.filter(s => allSlots.find(y => y._key === s._key)?.status === 'pending');   // 도는 사이 다른 데서 바뀐 건 제외
+      for (const s of slots) {
+        const updates = { searchKeyword: kw, searchKeywordA: a || null, searchKeywordB: b || null, status: 'accepted' };
+        await HI.updateCampaign(s._key, updates);
+        updateLocalSlot(s._key, updates);
+      }
+      // 시트 기입은 상세 '접수'와 같음 — 실패해도 전환은 그대로
+      HI.savePlaceKeywords({ storeName: x.slots[0].storeName || '', mid: x.mid, rankKeyword: x.slots[0].rankKeyword || '', a, b }).catch(e => console.warn('플레이스 키워드 시트 기입 실패', x.mid, e));
+      ok += slots.length;
+      x.res = `✅ A급 ${last.a.length} · B급 ${last.b.length} → 접수 전환 ${slots.length}건`; x.on = false; paint();
+    }
+    todo.forEach(x => { if (x.res === '대기') x.res = ''; });
+    kfRun = null; runBtn.textContent = '실행'; paint();
+    renderReceipts(false);
+    if (ok) alert(`접수 전환 ${ok}건 완료`);
+  }
 
   async function runReaccept(overlay) {
     const runBtn   = overlay.querySelector('#reaccept-run-btn');
