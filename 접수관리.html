@@ -1227,6 +1227,39 @@ window.toggleProdPanel = function(e) {
   let np = null;   // { mid, panel, ac, rows, sel, busy }
   const npEl = id => np && np.panel.querySelector('#' + id);
   const npList = v => (v || '').split(',').map(x => x.trim()).filter(Boolean);
+  // 규칙 칸(상세 패널·일괄 설정 팝업 공용) — 기본값은 /rules(등록툴 설정), 필수·제외키워드는 등록툴 설정에 없어 빈칸
+  const NP_RULE_NUM = ['rankMin', 'rankMax', 'rootCap', 'validLimit', 'nameFallbackN'];
+  const npRulesHtml = () => `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px;font-size:11px;" class="np-rules">
+        <label>순위 범위<span style="display:flex;gap:4px;align-items:center;"><input id="np-rankMin" type="number" min="1" max="10">~<input id="np-rankMax" type="number" min="1" max="10">위</span></label>
+        <label>조합 상한<input id="np-rootCap" type="number" min="10" max="500"></label>
+        <label>유효키워드 상한<input id="np-validLimit" type="number" min="0" max="300" title="0 = 무제한"></label>
+        <label>업체명 폴백 N<input id="np-nameFallbackN" type="number" min="0" title="유효키워드가 N개 미만이면 업체명 키워드 추가"></label>
+        <label style="align-self:end;flex-direction:row;gap:6px;align-items:center;height:30px;"><input id="np-excludeName" type="checkbox" style="width:auto;">업체명 제외</label>
+        <label style="grid-column:1 / -1;"><span>필수키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 하나는 꼭 포함</small></span><input id="np-required" placeholder="예: 광명"></label>
+        <label style="grid-column:1 / -1;"><span>제외키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 들어간 건 조회 안 함</small></span><input id="np-exclude"></label>
+      </div>
+      <style>
+        .np-rules label { display:flex; flex-direction:column; gap:3px; color:var(--text2); font-weight:600; }
+        .np-rules input { padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; width:100%; box-sizing:border-box; }
+      </style>`;
+  function npFillRules(root, r) {
+    const q = id => root.querySelector('#np-' + id);
+    NP_RULE_NUM.forEach(k => q(k).value = r[k] ?? '');
+    q('excludeName').checked = !!r.excludeName;
+    q('required').value = (r.required || []).join(', '); q('exclude').value = (r.exclude || []).join(', ');
+  }
+  function npReadRules(root) {
+    const q = id => root.querySelector('#np-' + id);
+    const r = { excludeName: q('excludeName').checked, required: npList(q('required').value), exclude: npList(q('exclude').value) };
+    NP_RULE_NUM.forEach(k => { const v = q(k).value.trim(); if (v !== '') r[k] = Number(v); });
+    return r;
+  }
+  async function npFetchRules() {
+    const j = await (await fetch(`${NP_FINDER}/rules`, { method: 'POST', headers: await HI.authHeaders(), body: '{}' })).json();
+    if (j.error) throw new Error(j.error);
+    return j;
+  }
   window.findPlaceKeywords = async function(mid) {
     const host = document.getElementById('np-find-btn')?.closest('.modal-overlay');
     if (!host) return;
@@ -1240,15 +1273,7 @@ window.toggleProdPanel = function(e) {
         <div class="modal-title" style="margin:0;">키워드 찾기 <span id="np-name" style="font-size:12px;font-weight:500;color:var(--text2);"></span></div>
         <button type="button" onclick="npClose()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text2);">✕</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px;font-size:11px;" class="np-rules">
-        <label>순위 범위<span style="display:flex;gap:4px;align-items:center;"><input id="np-rankMin" type="number" min="1" max="10">~<input id="np-rankMax" type="number" min="1" max="10">위</span></label>
-        <label>조합 상한<input id="np-rootCap" type="number" min="10" max="500"></label>
-        <label>유효키워드 상한<input id="np-validLimit" type="number" min="0" max="300" title="0 = 무제한"></label>
-        <label>업체명 폴백 N<input id="np-nameFallbackN" type="number" min="0" title="유효키워드가 N개 미만이면 업체명 키워드 추가"></label>
-        <label style="align-self:end;flex-direction:row;gap:6px;align-items:center;height:30px;"><input id="np-excludeName" type="checkbox" style="width:auto;">업체명 제외</label>
-        <label style="grid-column:1 / -1;"><span>필수키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 하나는 꼭 포함</small></span><input id="np-required" placeholder="예: 광명"></label>
-        <label style="grid-column:1 / -1;"><span>제외키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 들어간 건 조회 안 함</small></span><input id="np-exclude"></label>
-      </div>
+      ${npRulesHtml()}
       <div style="display:flex;align-items:center;gap:8px;margin:12px 0 8px;">
         <button type="button" id="np-go" onclick="npStart()" class="btn-save" style="padding:6px 16px;">시작</button>
         <span id="np-prog" style="font-size:11px;color:var(--text2);">규칙 불러오는 중…</span>
@@ -1270,8 +1295,6 @@ window.toggleProdPanel = function(e) {
         </table>
       </div>
       <style>
-        .np-rules label { display:flex; flex-direction:column; gap:3px; color:var(--text2); font-weight:600; }
-        .np-rules input { padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; width:100%; box-sizing:border-box; }
         .np-tb { font-size:11px; padding:4px 9px; border:1px solid var(--border); border-radius:5px; background:#fff; cursor:pointer; font-family:inherit; }
         #np-rows td { padding:5px 6px; border-top:1px solid var(--border); text-align:center; }
         #np-rows td.kw { text-align:left; }
@@ -1283,12 +1306,9 @@ window.toggleProdPanel = function(e) {
     np = { mid, panel, ac: null, rows: [], out: [], sel: new Set(), busy: false };   // rows = 범위 안(유효), out = 범위 밖(완료 뒤)
     const run = np;
     try {
-      const res = await fetch(`${NP_FINDER}/rules`, { method: 'POST', headers: await HI.authHeaders(), body: '{}' });
-      const j = await res.json();
+      const j = await npFetchRules();
       if (np !== run) return;
-      if (j.error) throw new Error(j.error);
-      for (const k of ['rankMin', 'rankMax', 'rootCap', 'validLimit', 'nameFallbackN']) npEl('np-' + k).value = j.rules[k] ?? '';
-      npEl('np-excludeName').checked = !!j.rules.excludeName;
+      npFillRules(panel, j.rules);
       npEl('np-prog').textContent = `등록툴 ${j.version}` + (j.latest && j.latest !== j.version ? ` · 웹스토어 최신 ${j.latest} — 등록툴 깔린 PC에서 '등록툴 업데이트' 필요` : '');
     } catch (e) { if (np === run) npEl('np-prog').textContent = '규칙 불러오기 실패: ' + (e.message || e); }
   };
@@ -1375,8 +1395,7 @@ window.toggleProdPanel = function(e) {
     if (!np) return;
     if (np.busy) { np.ac.abort(); return; }   // 진행 중이면 멈춤
     const run = np, prog = npEl('np-prog'), go = npEl('np-go');
-    const rules = { excludeName: npEl('np-excludeName').checked, required: npList(npEl('np-required').value), exclude: npList(npEl('np-exclude').value) };
-    for (const k of ['rankMin', 'rankMax', 'rootCap', 'validLimit', 'nameFallbackN']) { const v = npEl('np-' + k).value.trim(); if (v !== '') rules[k] = Number(v); }
+    const rules = npReadRules(run.panel);
     Object.assign(run, { ac: new AbortController(), rows: [], out: [], sel: new Set(), busy: true });
     npEl('np-mat').style.display = 'none';
     go.textContent = '■ 멈춤'; prog.textContent = '시작 중…'; npRender();
@@ -2740,9 +2759,12 @@ window.toggleProdPanel = function(e) {
         </div>
         <div data-pane="kf">
           <div style="font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 12px;margin-bottom:10px;">
-            대기 캠페인을 차례로 키워드 찾기 → 검색량 있음은 A급, 없음은 B급으로 채우고 접수로 전환합니다. 한 번에 최대 ${KF_MAX}개(같은 MID는 1번), 규칙은 등록툴 설정 그대로입니다. 도는 동안 다른 사람은 키워드 찾기를 쓸 수 없습니다.
+            대기 캠페인의 키워드를 찾아 접수로 전환합니다 (검색량 있음 → A급 · 없음 → B급)<br>최대 ${KF_MAX}개 · 실행 중엔 다른 사람이 키워드 찾기를 쓸 수 없어요
           </div>
-          <div id="kf-sum" style="font-size:12px;font-weight:600;margin-bottom:6px;"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span id="kf-sum" style="font-size:12px;font-weight:600;"></span>
+            <button type="button" id="kf-set-btn" class="np-tb" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-family:inherit;">⚙ 설정 · <span id="kf-set-lb">등록툴 기본값</span></button>
+          </div>
           <div style="max-height:46vh;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
             <table style="width:100%;border-collapse:collapse;font-size:12px;">
               <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;padding:6px;"><input type="checkbox" id="kf-all"></th><th style="text-align:left;">플레이스명</th><th style="text-align:left;">대행사</th><th>MID</th><th style="text-align:left;">결과</th></tr></thead>
@@ -2830,7 +2852,40 @@ window.toggleProdPanel = function(e) {
     };
     all.onchange = () => { list.forEach((x, i) => x.on = all.checked && i < KF_MAX); paint(); };
     runBtn.onclick = () => kfRun ? kfStop() : kfStart(list, paint, runBtn);
+    const setBtn = ov.querySelector('#kf-set-btn');
+    ov.querySelector('#kf-set-lb').textContent = kfRules ? '직접 설정' : '등록툴 기본값';
+    setBtn.onclick = () => { if (!kfRun) kfOpenSettings(ov); };
     paint();
+  }
+  // 일괄 설정 — 저장 전엔 등록툴 설정 그대로(kfRules = null). 저장한 값은 이 화면을 새로고침할 때까지 일괄 실행에 씀
+  let kfRules = null;
+  async function kfOpenSettings(ov) {
+    const so = document.createElement('div');
+    so.className = 'modal-overlay';
+    so.innerHTML = `<div class="modal-box" style="width:min(96vw,520px);">
+        <div class="modal-title">일괄 키워드 찾기 설정</div>
+        ${npRulesHtml()}
+        <div id="kf-set-msg" style="font-size:11px;color:var(--text2);margin-top:10px;">불러오는 중…</div>
+        <div class="modal-footer">
+          <button class="btn-cancel" id="kf-set-reset" style="margin-right:auto;">등록툴 기본값</button>
+          <button class="btn-cancel" id="kf-set-cancel">취소</button>
+          <button class="btn-save" id="kf-set-save">저장</button>
+        </div>
+      </div>`;
+    document.body.appendChild(so);
+    const msg = so.querySelector('#kf-set-msg');
+    let defaults = null;
+    try { const j = await npFetchRules(); defaults = j.rules; npFillRules(so, kfRules || defaults); msg.textContent = `등록툴 ${j.version} 설정이 기본값입니다`; }
+    catch (e) { msg.textContent = '등록툴 설정 불러오기 실패: ' + (e.message || e); if (kfRules) npFillRules(so, kfRules); }
+    so.querySelector('#kf-set-cancel').onclick = () => so.remove();
+    so.querySelector('#kf-set-reset').onclick = () => { if (defaults) npFillRules(so, defaults); };
+    so.querySelector('#kf-set-save').onclick = () => {
+      const r = npReadRules(so);
+      const same = defaults && NP_RULE_NUM.every(k => Number(defaults[k]) === r[k]) && !!defaults.excludeName === r.excludeName && !r.required.length && !r.exclude.length;
+      kfRules = same ? null : r;
+      ov.querySelector('#kf-set-lb').textContent = kfRules ? '직접 설정' : '등록툴 기본값';
+      so.remove();
+    };
   }
   function kfStop() { if (!kfRun) return; kfRun.stop = true; kfRun.ac.abort(); }
   const kfSleep = (ms, ac) => new Promise(r => { const t = setTimeout(r, ms); ac.signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true }); });
@@ -2848,7 +2903,7 @@ window.toggleProdPanel = function(e) {
       let last;
       for (;;) {   // 버전 확인·다른 사람 사용 중이면 같은 MID 다시
         kfRun.ac = new AbortController();
-        last = await npFindStream({ mid: x.mid, force }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
+        last = await npFindStream({ mid: x.mid, force, rules: kfRules || undefined }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
         if (kfRun.stop) break;
         if (last?.type === 'outdated') {
           if (!confirm(`등록툴 새 버전(${last.latest})이 나왔습니다. 서버는 아직 ${last.current}입니다.\n등록툴이 깔린 PC에서 '등록툴 업데이트'를 실행하면 반영됩니다.\n\n지금은 이전 버전(${last.current})으로 계속 찾을까요?`)) { kfRun.stop = true; break; }
