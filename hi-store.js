@@ -588,7 +588,8 @@ const HI = {
   ratioBadgeHtml(r, fix) {
     if (!r) return '<span style="color:#cbd5e1">-</span>';
     const label = fix ? '풀스택[개별]' : r.vendor || (!r.yupfl ? '리워드' : `${r.reward}:${r.yupfl}`);
-    const color = fix ? 'background:#cffafe;color:#0e7490;border:1px solid #a5f3fc'
+    // 풀스택[개별]도 풀스택과 같은 청록 — 일 목표 칸 상품 글자색(dailySplitHtml)과 같은 색 체계
+    const color = fix ? 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4'
       : { 리워드: 'background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe', 풀스택: 'background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4',
           제이엔: 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa' }[label]
       || (r.vendor ? 'background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe' : 'background:#fef3c7;color:#b45309;border:1px solid #fde68a');
@@ -631,8 +632,8 @@ const HI = {
   dailySplitHtml(s) {
     const parts = HI.dailySplitParts(s);
     if (!parts.length) return '';
-    // 글자색 = 예전 캠페인타입 배지색: 리워드 회색 · 풀스택 청록 · 제이엔 주황 · 그 밖 업체 보라 · 차감 흐리게
-    const color = p => p.kind === 'reward' ? 'color:#334155;' : p.kind === 'ded' ? 'color:var(--muted);'
+    // 글자색 = 비율 배지(ratioBadgeHtml)와 같은 색: 리워드 파랑 · 풀스택 청록 · 제이엔 주황 · 그 밖 업체 보라 · 차감 흐리게
+    const color = p => p.kind === 'reward' ? 'color:#1d4ed8;' : p.kind === 'ded' ? 'color:var(--muted);'
       : `color:${{ 풀스택: '#0f766e', 제이엔: '#c2410c' }[p.vendor] || '#6d28d9'};`;
     return `<div style="font-size:11px;font-weight:600;">${parts.map(p => `<span style="${color(p)}white-space:nowrap;">${HI.esc(p.name)} ${p.n.toLocaleString()}</span>`).join('<span style="color:var(--muted);"> · </span>')}</div>`;
   },
