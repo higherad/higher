@@ -1102,7 +1102,7 @@ window.toggleProdPanel = function(e) {
         <div class="modal-field">
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
-            ${s.mid ? `<button type="button" onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button>` : ''}
+            ${s.mid ? `<span style="display:flex;gap:4px;"><button type="button" onclick="findPlaceKeywords('${escJsAttr(s.mid)}')" id="np-find-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;">키워드 찾기</button><button type="button" onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button></span>` : ''}
           </label>
           <input type="text" id="detail-keyword-input" value="${escProd(kwAB.a)}" placeholder="A급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
           <input type="text" id="detail-keyword-b-input" value="${escProd(kwAB.b)}" placeholder="B급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
@@ -1217,6 +1217,31 @@ window.toggleProdPanel = function(e) {
       const el = document.getElementById(b2.dataset.kwApply);
       if (el) { el.value = b2.dataset.kwApply === 'detail-keyword-input' ? row.a : row.b; updateKwCount(); }
     });
+  };
+
+  // 키워드 찾기 — 「HigherAD 키워드 찾기 연결」 확장(work/np-finder-ext)이 플레이스 유효키워드를 찾아 검색량 있음 → A급, 없음 → B급 칸을 덮어씀(저장은 팝업 닫을 때 기존 흐름)
+  // 다시 누르면 중단. 팝업이 닫혀도 결과가 오면 버리고 확장 조회는 멈춤
+  let npFindListener = null;
+  window.findPlaceKeywords = function(mid) {
+    const btn = document.getElementById('np-find-btn');
+    const stop = () => { window.removeEventListener('message', npFindListener); npFindListener = null; window.postMessage({ src: 'hi-np', type: 'stop' }, location.origin); };
+    if (npFindListener) { const same = npFindListener.btn === btn; stop(); if (same) { btn.textContent = '키워드 찾기'; return; } }   // 같은 팝업 = 중단, 다른 팝업 = 옛 조회 끊고 새로
+    if (document.documentElement.dataset.npFinder !== '1') { alert('「HigherAD 키워드 찾기 연결」 확장이 설치돼 있지 않습니다.'); return; }
+    npFindListener = (e) => {
+      if (e.source !== window || !e.data || e.data.src !== 'np-hi') return;
+      const b = document.getElementById('np-find-btn'), aEl = document.getElementById('detail-keyword-input'), bEl = document.getElementById('detail-keyword-b-input');
+      if (b !== btn || !aEl) { stop(); return; }   // 시작한 팝업이 닫힘
+      const m = e.data;
+      if (m.type === 'progress') { b.textContent = `■ ${m.text}`; return; }
+      stop(); b.textContent = '키워드 찾기';
+      if (m.type === 'error') { if (m.message !== '중단됨') alert('키워드 찾기 실패: ' + m.message); return; }
+      if (!m.a.length && !m.b.length) { alert('유효키워드가 없습니다.' + (m.failed ? ` (조회 실패 ${m.failed}건)` : '')); return; }
+      aEl.value = m.a.join(','); if (bEl) bEl.value = m.b.join(','); updateKwCount();
+    };
+    npFindListener.btn = btn;
+    window.addEventListener('message', npFindListener);
+    if (btn) btn.textContent = '■ 시작 중…';
+    window.postMessage({ src: 'hi-np', type: 'find', mid }, location.origin);
   };
 
   // 상세 검색키워드 = A급 칸 + B급 칸(A→B 순서, 중복 제거)
