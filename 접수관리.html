@@ -1228,16 +1228,27 @@ window.toggleProdPanel = function(e) {
   const npEl = id => np && np.panel.querySelector('#' + id);
   const npList = v => (v || '').split(',').map(x => x.trim()).filter(Boolean);
   // 규칙 칸(상세 패널·일괄 설정 팝업 공용) — 기본값은 /rules(등록툴 설정), 필수·제외키워드는 등록툴 설정에 없어 빈칸
+  // '업체명 · 꼬리키워드' = 등록툴 설정 카드와 같음: 업체명 제외 / 해제 시 유효키워드 N개 미만일 때만 업체명 키워드, 업종별 꼬리키워드(순위 안 뿌리 뒤에 붙임)
   const NP_RULE_NUM = ['rankMin', 'rankMax', 'rootCap', 'validLimit', 'nameFallbackN'];
+  let npSegLabels = {};   // 업종 키 → 한글 이름(/rules)
   const npRulesHtml = () => `
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px;font-size:11px;" class="np-rules">
         <label>순위 범위<span style="display:flex;gap:4px;align-items:center;"><input id="np-rankMin" type="number" min="1" max="10">~<input id="np-rankMax" type="number" min="1" max="10">위</span></label>
         <label>조합 상한<input id="np-rootCap" type="number" min="10" max="500"></label>
         <label>유효키워드 상한<input id="np-validLimit" type="number" min="0" max="300" title="0 = 무제한"></label>
-        <label>업체명 폴백 N<input id="np-nameFallbackN" type="number" min="0" title="유효키워드가 N개 미만이면 업체명 키워드 추가"></label>
-        <label style="align-self:end;flex-direction:row;gap:6px;align-items:center;height:30px;"><input id="np-excludeName" type="checkbox" style="width:auto;">업체명 제외</label>
         <label style="grid-column:1 / -1;"><span>필수키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 하나는 꼭 포함</small></span><input id="np-required" placeholder="예: 광명"></label>
         <label style="grid-column:1 / -1;"><span>제외키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 들어간 건 조회 안 함</small></span><input id="np-exclude"></label>
+        <div style="grid-column:1 / -1;border-top:1px solid var(--border);padding-top:8px;">
+          <div style="font-weight:700;color:var(--text2);margin-bottom:6px;">업체명 · 꼬리키워드</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:var(--text2);">
+            <label style="flex-direction:row;align-items:center;gap:5px;"><input id="np-excludeName" type="checkbox" style="width:auto;">업체명 제외</label>
+            <span>· 해제 시 유효키워드가</span><input id="np-nameFallbackN" type="number" min="0" max="200" style="width:56px;">
+            <span>개 미만일 때만 업체명 키워드 추가</span>
+          </div>
+          <details style="margin-top:6px;"><summary style="cursor:pointer;font-weight:600;color:var(--text2);">업종별 꼬리키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 순위 안에 든 뿌리 뒤에 붙임</small></summary>
+            <div id="np-tails" style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;margin-top:6px;max-height:24vh;overflow-y:auto;"></div>
+          </details>
+        </div>
       </div>
       <style>
         .np-rules label { display:flex; flex-direction:column; gap:3px; color:var(--text2); font-weight:600; }
@@ -1248,16 +1259,21 @@ window.toggleProdPanel = function(e) {
     NP_RULE_NUM.forEach(k => q(k).value = r[k] ?? '');
     q('excludeName').checked = !!r.excludeName;
     q('required').value = (r.required || []).join(', '); q('exclude').value = (r.exclude || []).join(', ');
+    if (r.tailSets) q('tails').innerHTML = Object.entries(r.tailSets).map(([seg, v]) =>
+      `<span style="font-weight:600;color:var(--text2);white-space:nowrap;">${escProd(npSegLabels[seg] || seg)}</span><input data-seg="${escProd(seg)}" value="${escProd(v.join(', '))}">`).join('');
   }
   function npReadRules(root) {
     const q = id => root.querySelector('#np-' + id);
     const r = { excludeName: q('excludeName').checked, required: npList(q('required').value), exclude: npList(q('exclude').value) };
     NP_RULE_NUM.forEach(k => { const v = q(k).value.trim(); if (v !== '') r[k] = Number(v); });
+    const tails = [...q('tails').querySelectorAll('input[data-seg]')];
+    if (tails.length) r.tailSets = Object.fromEntries(tails.map(t => [t.dataset.seg, npList(t.value)]));
     return r;
   }
   async function npFetchRules() {
     const j = await (await fetch(`${NP_FINDER}/rules`, { method: 'POST', headers: await HI.authHeaders(), body: '{}' })).json();
     if (j.error) throw new Error(j.error);
+    npSegLabels = j.segLabels || {};
     return j;
   }
   window.findPlaceKeywords = async function(mid) {
@@ -2758,8 +2774,9 @@ window.toggleProdPanel = function(e) {
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <span id="kf-sum" style="font-size:12px;font-weight:600;"></span>
-            <button type="button" id="kf-set-btn" class="np-tb" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-family:inherit;">⚙ 설정 · <span id="kf-set-lb">등록툴 기본값</span></button>
+            <button type="button" id="kf-set-btn" class="np-tb" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-family:inherit;">⚙ 설정</button>
           </div>
+          <input id="kf-q" placeholder="MID 검색 (콤마로 여러 개)" style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-bottom:6px;">
           <div style="max-height:46vh;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
             <table style="width:100%;border-collapse:collapse;font-size:12px;">
               <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;padding:6px;"><input type="checkbox" id="kf-all"></th><th style="text-align:left;">플레이스명</th><th style="text-align:left;">대행사</th><th>MID</th><th style="text-align:left;">결과</th></tr></thead>
@@ -2823,21 +2840,32 @@ window.toggleProdPanel = function(e) {
   let kfRun = null;   // { ac, stop } — 실행 중
   function kfInit(ov) {
     const byMid = new Map();
-    allSlots.filter(s => s.status === 'pending' && s.mid)
+    // 비율이 풀스택·부산(유입플 업체 100%)이면 키워드가 필요 없어 뺌 — 풀스택[개별](fullstackFix)은 포함
+    const noKw = s => !s.fullstackFix && ['풀스택', '부산'].includes(s.yupflRatio?.vendor);
+    allSlots.filter(s => s.status === 'pending' && s.mid && !noKw(s))
       .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
       .forEach(s => { if (!byMid.has(s.mid)) byMid.set(s.mid, []); byMid.get(s.mid).push(s); });
     const list = [...byMid.entries()].map(([mid, slots]) => ({ mid, slots, on: false, res: '' }));
     list.slice(0, KF_MAX).forEach(x => x.on = true);
-    const tb = ov.querySelector('#kf-rows'), sum = ov.querySelector('#kf-sum'), all = ov.querySelector('#kf-all'), runBtn = ov.querySelector('#kf-run-btn');
+    const tb = ov.querySelector('#kf-rows'), sum = ov.querySelector('#kf-sum'), all = ov.querySelector('#kf-all'), runBtn = ov.querySelector('#kf-run-btn'), qEl = ov.querySelector('#kf-q');
+    // MID 검색(콤마 여러 개) — 찾은 MID만 보이고 그것만 체크(최대 KF_MAX). 비우면 처음처럼 앞 KF_MAX개
+    let qMids = [];
+    const visible = () => qMids.length ? list.filter(x => qMids.includes(x.mid)) : list;
+    qEl.oninput = () => {
+      qMids = npList(qEl.value);
+      const vis = visible(); list.forEach(x => x.on = false); vis.slice(0, KF_MAX).forEach(x => x.on = true); paint();
+    };
     const paint = () => {
-      const n = list.filter(x => x.on).length;
-      sum.textContent = list.length ? `대기 MID ${list.length}개 중 ${n}개 선택 (최대 ${KF_MAX}개)` : '대기 상태인 캠페인(MID 있음)이 없습니다.';
-      all.checked = !!list.length && list.slice(0, KF_MAX).every(x => x.on); all.disabled = !!kfRun;
-      tb.innerHTML = list.map((x, i) => `<tr>
+      const vis = visible(), n = list.filter(x => x.on).length;
+      const miss = qMids.filter(m => !list.some(x => x.mid === m));
+      sum.textContent = !list.length ? '대기 상태인 캠페인(MID 있음)이 없습니다.'
+        : `${qMids.length ? `검색 ${vis.length}개` : `대기 MID ${list.length}개`} 중 ${n}개 선택 (최대 ${KF_MAX}개)${miss.length ? ` · 대기 목록에 없음: ${miss.join(', ')}` : ''}`;
+      all.checked = !!vis.length && vis.slice(0, KF_MAX).every(x => x.on); all.disabled = !!kfRun; qEl.disabled = !!kfRun;
+      tb.innerHTML = vis.map(x => { const i = list.indexOf(x); return `<tr>
         <td style="text-align:center;"><input type="checkbox" data-i="${i}" ${x.on ? 'checked' : ''} ${kfRun ? 'disabled' : ''}></td>
         <td>${escProd(x.slots[0].storeName || '-')}${x.slots.length > 1 ? ` <span style="color:var(--muted);">외 ${x.slots.length - 1}건</span>` : ''}</td>
         <td>${escProd(x.slots[0].agencyId || '-')}</td><td style="text-align:center;color:var(--text2);">${escProd(x.mid)}</td>
-        <td style="color:${/^실패|^유효키워드 없음/.test(x.res) ? 'var(--danger)' : /^✅/.test(x.res) ? 'var(--accent)' : 'var(--text2)'};">${escProd(x.res)}</td></tr>`).join('');
+        <td style="color:${/^실패|^유효키워드 없음/.test(x.res) ? 'var(--danger)' : /^✅/.test(x.res) ? 'var(--accent)' : 'var(--text2)'};">${escProd(x.res)}</td></tr>`; }).join('');
     };
     tb.onchange = e => {
       const cb = e.target.closest('input[data-i]'); if (!cb) return;
@@ -2845,10 +2873,9 @@ window.toggleProdPanel = function(e) {
       if (cb.checked && list.filter(y => y.on).length >= KF_MAX) { cb.checked = false; return alert(`한 번에 최대 ${KF_MAX}개까지 선택할 수 있어요.`); }
       x.on = cb.checked; paint();
     };
-    all.onchange = () => { list.forEach((x, i) => x.on = all.checked && i < KF_MAX); paint(); };
+    all.onchange = () => { const vis = visible(); list.forEach(x => x.on = false); if (all.checked) vis.slice(0, KF_MAX).forEach(x => x.on = true); paint(); };
     runBtn.onclick = () => kfRun ? kfStop() : kfStart(list, paint, runBtn);
     const setBtn = ov.querySelector('#kf-set-btn');
-    ov.querySelector('#kf-set-lb').textContent = kfRules ? '직접 설정' : '등록툴 기본값';
     setBtn.onclick = () => { if (!kfRun) kfOpenSettings(ov); };
     paint();
   }
@@ -2876,9 +2903,9 @@ window.toggleProdPanel = function(e) {
     so.querySelector('#kf-set-reset').onclick = () => { if (defaults) npFillRules(so, defaults); };
     so.querySelector('#kf-set-save').onclick = () => {
       const r = npReadRules(so);
-      const same = defaults && NP_RULE_NUM.every(k => Number(defaults[k]) === r[k]) && !!defaults.excludeName === r.excludeName && !r.required.length && !r.exclude.length;
+      const same = defaults && NP_RULE_NUM.every(k => Number(defaults[k]) === r[k]) && !!defaults.excludeName === r.excludeName && !r.required.length && !r.exclude.length
+        && JSON.stringify(defaults.tailSets || {}) === JSON.stringify(r.tailSets || {});
       kfRules = same ? null : r;
-      ov.querySelector('#kf-set-lb').textContent = kfRules ? '직접 설정' : '등록툴 기본값';
       so.remove();
     };
   }
