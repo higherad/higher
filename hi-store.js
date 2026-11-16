@@ -612,14 +612,19 @@ const HI = {
     if (s.yupflTarget == null) return s.fullstackFix ? fixParts(s.dailyTarget) : [];
     const yup = s.yupflTarget, ded = Math.round((s.deductTarget || 0) / (s.days || 1));
     const normal = Math.max(0, s.dailyTarget - yup - ded);
-    const parts = [];
-    if (normal > 0) parts.push({ name: list(s.campaignTypeShown || s.campaignType).join('·') || '리워드', n: normal, kind: 'reward' });
+    const yparts = [];
+    let usedSite = false;
     const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
     for (const [v, n] of (vend.length ? vend : yup > 0 ? [['', yup]] : [])) {
-      if ((v === '풀스택' || (!v && !s.yupflByVendor)) && site.length) parts.push(...site);
-      else if (v === '풀스택' && s.fullstackFix) parts.push(...fixParts(n));
-      else { const names = list(s.vendorProducts?.[v]); parts.push({ name: names.length ? names.join('·') : v || '유입플', n, kind: 'yupfl' }); }
+      if ((v === '풀스택' || (!v && !s.yupflByVendor)) && site.length) { yparts.push(...site); usedSite = true; }
+      else if (v === '풀스택' && s.fullstackFix) yparts.push(...fixParts(n));
+      else { const names = list(s.vendorProducts?.[v]); yparts.push({ name: names.length ? names.join('·') : v || '유입플', n, kind: 'yupfl' }); }
     }
+    // 사이트 풀스택 수량을 썼으면 리워드 = 일 목표 − 유입플(사이트 수량 포함) − 차감 남은 만큼(접수 때 리워드 몫이 있던 캠페인만, 없던 건 풀스택만)
+    const rewardN = usedSite && normal > 0 ? Math.max(0, s.dailyTarget - ded - yparts.reduce((a, p) => a + p.n, 0)) : normal;
+    const parts = [];
+    if (rewardN > 0) parts.push({ name: list(s.campaignTypeShown || s.campaignType).join('·') || '리워드', n: rewardN, kind: 'reward' });
+    parts.push(...yparts);
     if (ded) parts.push({ name: '차감', n: ded, kind: 'ded' });
     return parts;
   },
