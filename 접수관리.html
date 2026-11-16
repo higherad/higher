@@ -1245,9 +1245,9 @@ window.toggleProdPanel = function(e) {
         <label>조합 상한<input id="np-rootCap" type="number" min="10" max="500"></label>
         <label>유효키워드 상한<input id="np-validLimit" type="number" min="0" max="300" title="0 = 무제한"></label>
         <label>업체명 폴백 N<input id="np-nameFallbackN" type="number" min="0" title="유효키워드가 N개 미만이면 업체명 키워드 추가"></label>
-        <label style="grid-column:span 2;">필수키워드 <small style="color:var(--muted);">콤마 구분 · 하나는 꼭 포함</small><input id="np-required" placeholder="예: 광명"></label>
-        <label style="grid-column:span 2;">제외키워드 <small style="color:var(--muted);">콤마 구분 · 들어간 건 조회 안 함</small><input id="np-exclude"></label>
-        <label style="align-self:end;flex-direction:row;display:flex;gap:6px;align-items:center;"><input id="np-excludeName" type="checkbox" style="width:auto;">업체명 제외</label>
+        <label style="align-self:end;flex-direction:row;gap:6px;align-items:center;height:30px;"><input id="np-excludeName" type="checkbox" style="width:auto;">업체명 제외</label>
+        <label style="grid-column:1 / -1;"><span>필수키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 하나는 꼭 포함</small></span><input id="np-required" placeholder="예: 광명"></label>
+        <label style="grid-column:1 / -1;"><span>제외키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 들어간 건 조회 안 함</small></span><input id="np-exclude"></label>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin:12px 0 8px;">
         <button type="button" id="np-go" onclick="npStart()" class="btn-save" style="padding:6px 16px;">시작</button>
