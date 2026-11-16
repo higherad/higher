@@ -1219,19 +1219,122 @@ window.toggleProdPanel = function(e) {
     });
   };
 
-  // 키워드 찾기 — higherad-np-finder 서버가 플레이스 캠페인 등록툴 엔진·설정으로 유효키워드를 찾아 검색량 있음 → A급, 없음 → B급 칸을 덮어씀(저장은 팝업 닫을 때 기존 흐름)
-  // 진행은 NDJSON 줄로 받음. 다시 누르면 중단, 팝업이 닫히면 결과 버리고 연결 끊음(서버 조회도 멈춤)
-  const NP_FINDER = 'https://higherad-np-finder-938928195180.asia-northeast3.run.app/find';
-  let npFind = null;   // { btn, ac }
+  // 키워드 찾기 패널 — 상세 팝업 옆. higherad-np-finder 서버가 플레이스 캠페인 등록툴 엔진·설정으로 유효키워드를 찾음
+  // 규칙 칸 기본값 = 등록툴 설정(/rules), 여기서 고친 값은 이번 조회에만. 끝나면 검색량 있음 → A급, 없음 → B급 칸을 덮어씀(저장은 상세 닫을 때 기존 흐름)
+  // 표에서 골라 '선택 → A급/B급'으로 다시 넣을 수 있음. 서버 엔진이 웹스토어 최신보다 옛 버전이면 안내(등록툴 깔린 PC에서 '등록툴 업데이트.bat'), 이전 버전으로 계속도 가능(force)
+  const NP_FINDER = 'https://higherad-np-finder-938928195180.asia-northeast3.run.app';
+  const NP_KIND = { root: '뿌리', variant: '꼬리', two: '2토픽', name: '업체명', 'name-variant': '업체명 꼬리' };
+  let np = null;   // { mid, panel, ac, rows, sel, busy }
+  const npEl = id => np && np.panel.querySelector('#' + id);
+  const npList = v => (v || '').split(',').map(x => x.trim()).filter(Boolean);
   window.findPlaceKeywords = async function(mid) {
-    const btn = document.getElementById('np-find-btn');
-    if (npFind) { const same = npFind.btn === btn; npFind.ac.abort(); npFind = null; if (same) { btn.textContent = '키워드 찾기'; return; } }   // 같은 팝업 = 중단, 다른 팝업 = 옛 조회 끊고 새로
-    const run = npFind = { btn, ac: new AbortController() };
-    const alive = () => npFind === run && document.getElementById('np-find-btn') === btn;   // 시작한 팝업이 아직 열려 있음
-    btn.textContent = '■ 시작 중…';
+    const host = document.getElementById('np-find-btn')?.closest('.modal-overlay');
+    if (!host) return;
+    if (np && np.panel.isConnected) { npClose(); return; }   // 버튼 다시 누르면 패널 닫기
+    host.style.gap = '16px';
+    const panel = document.createElement('div');
+    panel.className = 'modal-box';
+    panel.style.cssText = 'width:560px;padding:20px 22px;';
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="modal-title" style="margin:0;">키워드 찾기 <span id="np-name" style="font-size:12px;font-weight:500;color:var(--text2);"></span></div>
+        <button type="button" onclick="npClose()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text2);">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px;font-size:11px;" class="np-rules">
+        <label>순위 범위<span style="display:flex;gap:4px;align-items:center;"><input id="np-rankMin" type="number" min="1" max="10">~<input id="np-rankMax" type="number" min="1" max="10">위</span></label>
+        <label>조합 상한<input id="np-rootCap" type="number" min="10" max="500"></label>
+        <label>유효키워드 상한<input id="np-validLimit" type="number" min="0" max="300" title="0 = 무제한"></label>
+        <label>업체명 폴백 N<input id="np-nameFallbackN" type="number" min="0" title="유효키워드가 N개 미만이면 업체명 키워드 추가"></label>
+        <label style="grid-column:span 2;">필수키워드 <small style="color:var(--muted);">콤마 구분 · 하나는 꼭 포함</small><input id="np-required" placeholder="예: 광명"></label>
+        <label style="grid-column:span 2;">제외키워드 <small style="color:var(--muted);">콤마 구분 · 들어간 건 조회 안 함</small><input id="np-exclude"></label>
+        <label style="align-self:end;flex-direction:row;display:flex;gap:6px;align-items:center;"><input id="np-excludeName" type="checkbox" style="width:auto;">업체명 제외</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin:12px 0 8px;">
+        <button type="button" id="np-go" onclick="npStart()" class="btn-save" style="padding:6px 16px;">시작</button>
+        <span id="np-prog" style="font-size:11px;color:var(--text2);">규칙 불러오는 중…</span>
+      </div>
+      <details id="np-mat" style="font-size:11px;margin-bottom:8px;display:none;"><summary style="cursor:pointer;font-weight:700;color:var(--text2);">추출 재료</summary><div id="np-mat-body" style="margin-top:6px;"></div></details>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+        <button type="button" class="np-tb" onclick="npSelVol(true)">검색량 있음 선택</button>
+        <button type="button" class="np-tb" onclick="npSelVol(false)">검색량 없음 선택</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="np-tb" onclick="npApply('detail-keyword-input')">선택 → A급</button>
+        <button type="button" class="np-tb" onclick="npApply('detail-keyword-b-input')">선택 → B급</button>
+      </div>
+      <div style="max-height:40vh;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;"><input type="checkbox" id="np-all" onchange="npSelAll(this.checked)"></th><th style="text-align:left;">키워드</th><th>순위</th><th>월검색량</th><th>구분</th></tr></thead>
+          <tbody id="np-rows"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px;">시작을 누르면 찾은 키워드가 여기에 나옵니다</td></tr></tbody>
+        </table>
+      </div>
+      <style>
+        .np-rules label { display:flex; flex-direction:column; gap:3px; color:var(--text2); font-weight:600; }
+        .np-rules input { padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; width:100%; box-sizing:border-box; }
+        .np-tb { font-size:11px; padding:4px 9px; border:1px solid var(--border); border-radius:5px; background:#fff; cursor:pointer; font-family:inherit; }
+        #np-rows td { padding:5px 6px; border-top:1px solid var(--border); text-align:center; }
+        #np-rows td.kw { text-align:left; }
+        .np-chip { display:inline-block; padding:1px 7px; margin:2px; border-radius:9px; background:#f1f5f9; }
+      </style>`;
+    host.appendChild(panel);
+    np = { mid, panel, ac: null, rows: [], sel: new Set(), busy: false };
+    const run = np;
+    try {
+      const res = await fetch(`${NP_FINDER}/rules`, { method: 'POST', headers: await HI.authHeaders(), body: '{}' });
+      const j = await res.json();
+      if (np !== run) return;
+      if (j.error) throw new Error(j.error);
+      for (const k of ['rankMin', 'rankMax', 'rootCap', 'validLimit', 'nameFallbackN']) npEl('np-' + k).value = j.rules[k] ?? '';
+      npEl('np-excludeName').checked = !!j.rules.excludeName;
+      npEl('np-prog').textContent = `등록툴 ${j.version}` + (j.latest && j.latest !== j.version ? ` · 웹스토어 최신 ${j.latest} — 등록툴 깔린 PC에서 '등록툴 업데이트' 필요` : '');
+    } catch (e) { if (np === run) npEl('np-prog').textContent = '규칙 불러오기 실패: ' + (e.message || e); }
+  };
+  window.npClose = function() {
+    if (!np) return;
+    np.ac?.abort();
+    const host = np.panel.parentElement; np.panel.remove(); if (host) host.style.gap = '';
+    np = null;
+  };
+  function npRender() {
+    const tb = npEl('np-rows'); if (!tb) return;
+    const volTxt = v => v == null ? '-' : v === '<10' ? '< 10' : Number(v).toLocaleString();
+    tb.innerHTML = np.rows.length ? np.rows.map((r, i) => `<tr>
+      <td><input type="checkbox" data-i="${i}" ${np.sel.has(r.kw) ? 'checked' : ''} onchange="npSelOne(${i},this.checked)"></td>
+      <td class="kw">${escProd(r.kw)}</td><td>${r.rank}위</td>
+      <td style="${r.yes ? 'color:#1d4ed8;font-weight:600;' : 'color:var(--muted);'}">${'vol' in r ? volTxt(r.vol) : '…'}</td>
+      <td style="color:var(--text2);">${NP_KIND[r.kind] || r.kind || ''}</td></tr>`).join('')
+      : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px;">${np.busy ? '찾는 중…' : '유효키워드가 없습니다'}</td></tr>`;
+    const all = npEl('np-all'); const n = np.rows.filter(r => np.sel.has(r.kw)).length;
+    all.checked = !!np.rows.length && n === np.rows.length; all.indeterminate = n > 0 && n < np.rows.length;
+  }
+  function npMat(d, tails) {
+    const chips = a => (a && a.length ? a.map(x => `<span class="np-chip">${escProd(x)}</span>`).join('') : '<span style="color:var(--muted);">—</span>');
+    const R = (lb, a) => `<div style="display:flex;gap:6px;margin-bottom:3px;"><b style="flex:0 0 92px;color:var(--text2);">${lb}</b><div>${chips(a)}</div></div>`;
+    return R('업체', [d.name, d.category].filter(Boolean)) + R('주소 · 지하철', [d.roadAddress || d.address, d.subway].filter(Boolean))
+      + R('지역어', d.regions) + R('대표키워드', d.keywords) + R('핵심키워드', d.topics) + R('메뉴 토픽', d.menuTopics)
+      + R('예약상품 토픽', d.ticketTopics) + R('소개글 토픽', d.introTopics) + R('꼬리키워드', tails) + R('편의시설', d.conveniences)
+      + R('업체별 꼬리', d.bizTails) + R('리뷰 빈출어', d.reviewWords);
+  }
+  window.npSelOne = (i, on) => { const kw = np.rows[i].kw; on ? np.sel.add(kw) : np.sel.delete(kw); npRender(); };
+  window.npSelAll = on => { np.sel = new Set(on ? np.rows.map(r => r.kw) : []); npRender(); };
+  window.npSelVol = yes => { if (!np.rows.some(r => 'vol' in r)) return alert('검색량을 받은 뒤 고를 수 있어요.'); np.sel = new Set(np.rows.filter(r => 'vol' in r && r.yes === yes).map(r => r.kw)); npRender(); };
+  window.npApply = inputId => {
+    const kws = np.rows.filter(r => np.sel.has(r.kw)).map(r => r.kw);
+    if (!kws.length) return alert('넣을 키워드를 체크해 주세요.');
+    const el = document.getElementById(inputId); if (!el) return;
+    el.value = kws.join(','); updateKwCount();
+  };
+  window.npStart = async function(force = false) {
+    if (!np) return;
+    if (np.busy) { np.ac.abort(); return; }   // 진행 중이면 멈춤
+    const run = np, prog = npEl('np-prog'), go = npEl('np-go');
+    const rules = { excludeName: npEl('np-excludeName').checked, required: npList(npEl('np-required').value), exclude: npList(npEl('np-exclude').value) };
+    for (const k of ['rankMin', 'rankMax', 'rootCap', 'validLimit', 'nameFallbackN']) { const v = npEl('np-' + k).value.trim(); if (v !== '') rules[k] = Number(v); }
+    Object.assign(run, { ac: new AbortController(), rows: [], sel: new Set(), busy: true });
+    npEl('np-mat').style.display = 'none';
+    go.textContent = '■ 멈춤'; prog.textContent = '시작 중…'; npRender();
     let last = null;
     try {
-      const res = await fetch(NP_FINDER, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify({ mid }), signal: run.ac.signal });
+      const res = await fetch(`${NP_FINDER}/find`, { method: 'POST', headers: await HI.authHeaders(), body: JSON.stringify({ mid: run.mid, force, rules }), signal: run.ac.signal });
       const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '';
       for (;;) {
         const { value, done } = await reader.read(); if (done) break;
@@ -1239,17 +1342,28 @@ window.toggleProdPanel = function(e) {
         const lines = buf.split('\n'); buf = lines.pop();
         for (const ln of lines) {
           if (!ln.trim()) continue;
-          last = JSON.parse(ln);
-          if (!alive()) { run.ac.abort(); return; }
-          if (last.type === 'progress') btn.textContent = `■ ${last.text}`;
+          const m = JSON.parse(ln); last = m;
+          if (np !== run || !run.panel.isConnected) { run.ac.abort(); return; }   // 패널·상세가 닫힘
+          if (m.type === 'progress') prog.textContent = m.text;
+          else if (m.type === 'detail') { npEl('np-name').textContent = m.detail.name || ''; npEl('np-mat-body').innerHTML = npMat(m.detail, m.tails); npEl('np-mat').style.display = ''; }
+          else if (m.type === 'kw') { run.rows.push({ kw: m.kw, rank: m.rank, kind: m.kind }); run.rows.sort((a, b) => a.rank - b.rank); npRender(); }
         }
       }
-    } catch (e) { if (run.ac.signal.aborted) return; last = { type: 'error', message: e.message || String(e) }; }
-    if (!alive()) return;
-    npFind = null; btn.textContent = '키워드 찾기';
-    if (!last || last.type === 'progress') { alert('키워드 찾기 실패: 서버 연결이 끊겼습니다'); return; }
-    if (last.type === 'error') { alert('키워드 찾기 실패: ' + last.message); return; }
-    if (!last.a.length && !last.b.length) { alert('유효키워드가 없습니다.' + (last.failed ? ` (조회 실패 ${last.failed}건)` : '')); return; }
+    } catch (e) { if (!run.ac.signal.aborted) last = { type: 'error', message: e.message || String(e) }; else last = { type: 'stopped' }; }
+    if (np !== run || !run.panel.isConnected) return;
+    run.busy = false; go.textContent = '시작';
+    if (!last || last.type === 'progress' || last.type === 'kw' || last.type === 'detail') { prog.textContent = '서버 연결이 끊겼습니다'; npRender(); return; }
+    if (last.type === 'stopped') { prog.textContent = '멈춤'; npRender(); return; }
+    if (last.type === 'error') { prog.textContent = last.message === '중단됨' ? '멈춤' : '실패: ' + last.message; npRender(); return; }
+    if (last.type === 'outdated') {
+      prog.textContent = `등록툴 새 버전 ${last.latest} — 서버는 ${last.current}`;
+      if (confirm(`등록툴 새 버전(${last.latest})이 나왔습니다. 서버는 아직 ${last.current}입니다.\n등록툴이 깔린 PC에서 크롬 확장을 업데이트한 뒤 '등록툴 업데이트'를 실행하면 반영됩니다.\n\n지금은 이전 버전(${last.current})으로 찾을까요?`)) npStart(true);
+      npRender(); return;
+    }
+    run.rows = last.rows; run.sel = new Set();
+    prog.textContent = `완료 · 유효 ${last.rows.length}개 (검색량 있음 ${last.a.length} · 없음 ${last.b.length})${last.failed ? ` · 조회 실패 ${last.failed}건` : ''}${last.nameFallback ? ' · 업체명 키워드 추가' : ''} · 등록툴 ${last.version}`;
+    npRender();
+    if (!last.rows.length) return;
     document.getElementById('detail-keyword-input').value = last.a.join(',');
     const bEl = document.getElementById('detail-keyword-b-input'); if (bEl) bEl.value = last.b.join(',');
     updateKwCount();
