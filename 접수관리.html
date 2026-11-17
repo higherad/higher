@@ -1234,8 +1234,6 @@ window.toggleProdPanel = function(e) {
         <label>순위 범위<span style="display:flex;gap:4px;align-items:center;"><input id="np-rankMin" type="number" min="1" max="10">~<input id="np-rankMax" type="number" min="1" max="10">위</span></label>
         <label>조합 상한<input id="np-rootCap" type="number" min="10" max="500"></label>
         <label>유효키워드 상한<input id="np-validLimit" type="number" min="0" max="300" title="0 = 무제한"></label>
-        <label style="grid-column:1 / -1;"><span>필수키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 하나는 꼭 포함</small></span><input id="np-required" placeholder="예: 광명"></label>
-        <label style="grid-column:1 / -1;"><span>제외키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 들어간 건 조회 안 함</small></span><input id="np-exclude"></label>
         <div style="grid-column:1 / -1;border-top:1px solid var(--border);padding-top:8px;">
           <div style="font-weight:700;color:var(--text2);margin-bottom:6px;">업체명 · 꼬리키워드</div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:var(--text2);">
@@ -1243,7 +1241,12 @@ window.toggleProdPanel = function(e) {
             <span>· 해제 시 유효키워드가</span><input id="np-nameFallbackN" type="number" min="0" max="200" style="width:56px;">
             <span>개 미만일 때만 업체명 키워드 추가</span>
           </div>
-          <details style="margin-top:6px;"><summary style="cursor:pointer;font-weight:700;color:#7c3aed;">업종별 꼬리키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 순위 안에 든 뿌리 뒤에 붙임</small></summary>
+          <details style="margin-top:6px;"><summary style="cursor:pointer;font-weight:700;color:#7c3aed;">키워드 세부설정</summary>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+              <label><span>필수키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 하나는 꼭 포함</small></span><input id="np-required" placeholder="예: 광명"></label>
+              <label><span>제외키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 들어간 건 조회 안 함</small></span><input id="np-exclude"></label>
+              <div style="font-weight:600;color:var(--text2);">업종별 꼬리키워드 <small style="color:var(--muted);font-weight:400;">콤마 구분 · 순위 안에 든 뿌리 뒤에 붙임</small></div>
+            </div>
             <div id="np-tails" style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;margin-top:6px;max-height:24vh;overflow-y:auto;"></div>
           </details>
         </div>
