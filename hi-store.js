@@ -82,6 +82,7 @@ const P = {
   ranks:          `${ROOT}/ranks`,
   adClassify:     `${ROOT}/ad_classify`,
   kwCategories:   `${ROOT}/kw_categories`,  // 순위키워드 분류 [{name, keywords:[...]}] — 접수 시 캠페인 category로 저장
+  planB:          `${ROOT}/planb`,          // Plan-B 설정 {enabled, excludeWords:[...]} — google-pipeline planb.py가 읽음
   rankBase:       `${ROOT}/rank_base`,       // MID별 시작일 기준순위 {date, rank} — google-pipeline이 14시에 통째로 저장
   pipeline:       `${ROOT}/pipeline`,
   claims:         `${ROOT}/claims`,
@@ -827,6 +828,8 @@ const HI = {
   kwCategoryOf,
   async getKwCategories() { return Object.values((await get(ref(db, P.kwCategories))).val() || {}); },
   saveKwCategories(list) { return set(ref(db, P.kwCategories), list); },
+  async getPlanB() { return (await get(ref(db, P.planB))).val() || {}; },
+  savePlanB(cfg) { return set(ref(db, P.planB), cfg); },
   async getAdClassify() { return (await get(ref(db, P.adClassify))).val() || { groups: null, result: null }; },
   saveAdClassifyGroups(groups) { return set(ref(db, `${P.adClassify}/groups`), groups); },
   async getAdClassifyDaily() { return (await get(ref(db, `${P.adClassify}/daily`))).val() || {}; },

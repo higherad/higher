@@ -7159,6 +7159,66 @@ window.toggleProdPanel = function(e) {
   const fsSplitBlocked = mid => allSlots.some(s => s.mid === mid && s.status === 'split');
   const fsActiveCount  = mid => allSlots.filter(s => s.mid === mid && s.status === 'active').length;
 
+  // ── 분류 설정 > Plan-B 탭: 설정(hi/planb {enabled, excludeWords})만 저장, 실행은 google-pipeline planb.py(14시 순위 저장 직후)
+  async function initPlanBPane(pane) {
+    pane.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>';
+    let cfg;
+    try { cfg = await HI.getPlanB?.(); } catch (e) { pane.textContent = 'Plan-B 설정을 불러오지 못했습니다: ' + e.message; return; }
+    if (!cfg) { pane.textContent = '페이지를 새로고침한 뒤 다시 열어주세요.'; return; }
+    let enabled = cfg.enabled !== false, words = Object.values(cfg.excludeWords || {});
+    const save = () => HI.savePlanB({ enabled, excludeWords: words }).catch(e => alert('Plan-B 저장 실패: ' + e.message));
+    const applied = allSlots.filter(s => s.planBAt).sort((a, b) => b.planBAt.localeCompare(a.planBAt)).slice(0, 50);
+    const fmt = iso => iso.slice(5, 16).replace('T', ' ');
+    const render = () => {
+      pane.innerHTML = `
+        <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
+          · 매일 14시 순위 저장 직후 실행 · 시작일 전날 순위보다 오늘 순위가 떨어진(또는 순위 없음) <b>분할</b> 캠페인, 캠페인당 1회<br>
+          · 대기 조각 검색키워드 = 히든(10위 이내·조회수 있음) + A급 + B급(제외 키워드가 든 것 빼고 나눠서), 최대 50개 · 결과는 텔레그램
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;margin-bottom:12px;cursor:pointer;">
+          <input type="checkbox" id="pb-on" ${enabled ? 'checked' : ''}> Plan-B 사용
+        </label>
+        <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <b style="font-size:13px;">B급 제외 키워드</b>
+            <span style="font-size:11px;color:var(--muted);">${words.length}개 · 이 단어가 들어간 B급 키워드는 빠짐(띄어쓰기 무시)</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${words.length ? words.map((w, i) =>
+            `<span style="background:#eef2ff;color:#4338ca;border-radius:12px;padding:2px 8px;font-size:12px;">${escProd(w)} <span data-rm="${i}" style="cursor:pointer;color:#94a3b8;">×</span></span>`).join('')
+            : '<span style="font-size:11px;color:var(--muted);">제외 키워드 없음</span>'}</div>
+          <div style="display:flex;gap:6px;">
+            <input id="pb-new" placeholder="예) 가격, 위치 (쉼표로 여러 개)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;">
+            <button class="action-btn" id="pb-add" style="background:#f1f5f9;color:var(--text2);">추가</button>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">적용된 캠페인 <span style="font-size:11px;color:var(--muted);font-weight:400;">${applied.length}건${applied.length === 50 ? ' (최근 50건)' : ''}</span></div>
+        ${applied.length ? `<table style="width:100%;border-collapse:collapse;font-size:12px;">${applied.map(s => `
+          <tr style="border-top:1px solid var(--border);">
+            <td style="padding:5px 6px;color:var(--muted);white-space:nowrap;">${fmt(s.planBAt)}</td>
+            <td style="padding:5px 6px;">${escProd(s.storeName || '')}</td>
+            <td style="padding:5px 6px;color:var(--muted);">${escProd(s.mid || '')}</td>
+            <td style="padding:5px 6px;">${escProd(s.rankKeyword || '')}</td>
+          </tr>`).join('')}</table>`
+          : '<div style="font-size:12px;color:var(--muted);">아직 없습니다.</div>'}`;
+    };
+    const addWords = () => {
+      const inp = pane.querySelector('#pb-new');
+      const n = v => v.replace(/\s+/g, '');
+      const have = new Set(words.map(n));
+      const vals = inp.value.split(',').map(v => v.trim()).filter(v => v && !have.has(n(v)) && have.add(n(v)));
+      inp.value = '';
+      if (!vals.length) return;
+      words.push(...vals); render(); save();
+    };
+    pane.addEventListener('click', e => {
+      if (e.target.id === 'pb-add') addWords();
+      else if (e.target.dataset.rm != null) { words.splice(+e.target.dataset.rm, 1); render(); save(); }
+    });
+    pane.addEventListener('change', e => { if (e.target.id === 'pb-on') { enabled = e.target.checked; save(); } });
+    pane.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pb-new') { e.preventDefault(); addWords(); } });
+    render();
+  }
+
   // ── 분류 설정: 분류별 키워드 — 접수·승인 때 순위키워드에 키워드가 들어 있으면 그 분류를 캠페인에 저장(hi-store writeCampaign)
   window.openKwCategoryModal = async function() {
     if (document.getElementById('kc-modal')) return;
@@ -7167,24 +7227,39 @@ window.toggleProdPanel = function(e) {
     overlay.id = 'kc-modal';
     overlay.innerHTML = `
       <div class="modal-box" style="width:min(96vw,560px);max-height:82vh;overflow-y:auto;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div class="modal-title" style="margin-bottom:0;">분류 설정</div>
-          <span id="kc-x" style="cursor:pointer;font-size:22px;color:var(--muted);line-height:1;">&times;</span>
+        <div style="display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px;">
+          <button type="button" class="kc-tab" data-tab="cat">분류</button>
+          <button type="button" class="kc-tab" data-tab="pb">Plan-B</button>
+          <span id="kc-x" style="margin-left:auto;cursor:pointer;font-size:22px;color:var(--muted);line-height:1;">&times;</span>
         </div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
-          · 접수할 때 순위키워드에 키워드가 들어 있으면 그 분류가 들어갑니다(띄어쓰기 무시)<br>
-          · 여러 분류에 걸리면 위쪽 분류가 우선 · 이미 접수된 건은 바뀌지 않습니다
+        <div data-pane="cat">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
+            · 접수할 때 순위키워드에 키워드가 들어 있으면 그 분류가 들어갑니다(띄어쓰기 무시)<br>
+            · 여러 분류에 걸리면 위쪽 분류가 우선 · 이미 접수된 건은 바뀌지 않습니다
+          </div>
+          <div id="kc-list"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></div>
+          <div style="display:flex;gap:6px;margin-top:12px;">
+            <input id="kc-new" placeholder="새 분류 이름" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;">
+            <button class="action-btn" id="kc-add" style="background:#4f46e5;color:#fff;">분류 추가</button>
+          </div>
         </div>
-        <div id="kc-list"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></div>
-        <div style="display:flex;gap:6px;margin-top:12px;">
-          <input id="kc-new" placeholder="새 분류 이름" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;">
-          <button class="action-btn" id="kc-add" style="background:#4f46e5;color:#fff;">분류 추가</button>
-        </div>
+        <div data-pane="pb" style="display:none;"></div>
+        <style>
+          .kc-tab { border:none; background:none; padding:8px 14px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit; border-bottom:2px solid transparent; margin-bottom:-1px; }
+          .kc-tab.on { color:#4f46e5; border-bottom-color:#4f46e5; }
+        </style>
       </div>`;
     document.body.appendChild(overlay);
     const close = () => overlay.remove();
     overlay.querySelector('#kc-x').onclick = close;
     overlay.onclick = e => { if (e.target === overlay) close(); };
+    const setTab = t => {
+      overlay.querySelectorAll('.kc-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+      overlay.querySelectorAll('[data-pane]').forEach(p => p.style.display = p.dataset.pane === t ? '' : 'none');
+    };
+    overlay.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+    setTab('cat');
+    initPlanBPane(overlay.querySelector('[data-pane="pb"]'));
 
     let cats = (await HI.getKwCategories()).map(c => ({ name: c.name, keywords: Object.values(c.keywords || {}) }));
     const save = () => HI.saveKwCategories(cats).catch(e => alert('분류 저장 실패: ' + e.message));
