@@ -362,7 +362,7 @@
 
 
 
-  // ── Plan-B 팝업(상단 순위표 옆): 설정(hi/planb {enabled, excludeWords})만 저장, 실행은 google-pipeline planb.py(14시 순위 저장 직후)
+  // ── Plan-B 팝업(상단 순위표 옆): 설정(hi/planb {enabled, excludeWords})만 저장, 실행은 google-pipeline planb.py(15시 순위 저장 직후)
   async function initPlanBPane(pane) {
     pane.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>';
     let cfg;
@@ -433,7 +433,7 @@
     const render = () => {
       pane.innerHTML = `
         <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
-          · 매일 14시 순위 저장 직후 실행 · 시작일 전날 순위보다 오늘 순위가 떨어진(또는 순위 없음) <b>분할</b> 캠페인, 캠페인당 1회<br>
+          · 매일 15시 순위 저장 직후 실행 · 시작일 전날 순위보다 오늘 순위가 떨어진(또는 순위 없음) <b>분할</b> 캠페인, 캠페인당 1회<br>
           · 대기 조각 검색키워드 = 히든(10위 이내·조회수 있음) + A급 + B급(제외 키워드가 든 것 빼고 나눠서), 최대 50개 · 결과는 텔레그램(건수)
         </div>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;margin-bottom:12px;cursor:pointer;">
