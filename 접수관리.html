@@ -2944,7 +2944,7 @@ window.toggleProdPanel = function(e) {
       // 시트 기입은 상세 '접수'와 같음 — 실패해도 전환은 그대로
       HI.savePlaceKeywords({ storeName: x.slots[0].storeName || '', mid: x.mid, rankKeyword: x.slots[0].rankKeyword || '', a, b }).catch(e => console.warn('플레이스 키워드 시트 기입 실패', x.mid, e));
       ok += slots.length;
-      x.res = `✅ A급 ${last.a.length} · B급 ${last.b.length} → 접수 전환 ${slots.length}건`; x.on = false; paint();
+      x.res = `✅ A급 ${last.a.length} · B급 ${last.b.length}`; x.on = false; paint();
     }
     todo.forEach(x => { if (x.res === '대기') x.res = ''; });
     kfRun = null; runBtn.textContent = '실행'; paint();
@@ -3383,6 +3383,7 @@ window.toggleProdPanel = function(e) {
         const colsOf = re => hdr.map((h, i) => re.test(h) ? i : -1).filter(i => i >= 0);
         const fixProdCols = colsOf(/^상품\d*$/), fixPctCols = colsOf(/^분할\d*$/);
         // 선택 — 풀스택[개별] 행의 세부조정 열(어드민 양식, 헤더 '세부조정(언제 오나)' 등 = 가이드 풀스택 탭과 같은 이름·값)
+        const kpdCol = hdr.findIndex(h => /하루키워드수/.test(h));  // 풀스택[개별] 행 필수 — 사이트 '키워드 나눠 돌리기'
         const tuneCols = Object.entries(FS_TUNE_COLS).map(([k, w]) => [k, hdr.findIndex(h => h.startsWith('세부조정') && h.includes(w))]).filter(([, c]) => c >= 0);
         const missing = [];
         if (storeCol  < 0) missing.push('업체명/상호명');
@@ -3422,8 +3423,12 @@ window.toggleProdPanel = function(e) {
           const fullstackFix = fix?.list || null;
           const tuneCells = fix ? tuneCols.map(([k, c]) => [k, r[c]]).filter(([, v]) => String(v ?? '').trim() !== '') : [];
           const fullstackTune = tuneCells.length ? Object.fromEntries(tuneCells) : null;
+          const kpdRaw = fix && kpdCol >= 0 ? String(r[kpdCol] ?? '').trim() : '';
+          const fullstackKwPerDay = Number.isInteger(Number(kpdRaw)) && Number(kpdRaw) > 0 ? Number(kpdRaw) : null;
           const errors = [];
           if (fix?.err) errors.push(fix.err);
+          if (fix && !fullstackKwPerDay) errors.push('하루 키워드 수 누락(1 이상 정수)');
+          else if (fix && dailyTarget && fullstackKwPerDay > dailyTarget) errors.push('하루 키워드 수가 일 목표보다 큼');
           const tuneErr = fullstackTune && fsTuneOf(fullstackTune).err;
           if (tuneErr) errors.push(tuneErr.replace('가이드 ', ''));
           const urlMid = url ? rexExtractMid(url) : null;
@@ -3440,7 +3445,7 @@ window.toggleProdPanel = function(e) {
           if (unitErr) errors.push(unitErr);
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
           if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 10) errors.push('일 목표 오류(10 미만)');
-          return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, fullstackFix, fullstackTune, valid: errors.length===0, error: errors.join(' / ') };
+          return { storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, note, yupflRatio, fullstackFix, fullstackTune, fullstackKwPerDay, valid: errors.length===0, error: errors.join(' / ') };
         });
         rexRows.noNoteCol = noteCol < 0;  // 헤더에 '비고' 열 자체가 없음 → 접수 때 확인
         HI.markSameRows(rexRows);
@@ -3477,7 +3482,7 @@ window.toggleProdPanel = function(e) {
         <td style="color:var(--text2)">${r.days ?? '-'}</td>
         <td style="color:var(--text2)">${r.startDate||'-'}</td>
         <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
-        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.note === FS_FIX_NOTE) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * r.dailyTarget)}`).join(' / '))}</div>` : ''}${r.fullstackTune ? `<div style="font-size:10px;color:#64748b">세부조정: ${escProd(Object.values(r.fullstackTune).join(' / '))}</div>` : ''}</td>
+        <td>${r.yupflRatio ? HI.ratioBadgeHtml(r.yupflRatio, r.note === FS_FIX_NOTE) : '-'}${r.fullstackFix ? `<div style="font-size:10px;color:#0f766e">${escProd(r.fullstackFix.map(p => `${p.name} ${Math.round(p.ratio * r.dailyTarget)}`).join(' / '))}</div>` : ''}${r.fullstackTune ? `<div style="font-size:10px;color:#64748b">세부조정: ${escProd(Object.values(r.fullstackTune).join(' / '))}</div>` : ''}${r.fullstackKwPerDay ? `<div style="font-size:10px;color:#64748b">하루 키워드 ${r.fullstackKwPerDay}개</div>` : ''}</td>
         <td>${r.valid ? `<span class="rex-row-status rex-row-ok">정상</span>${r.sameCount ? ` <span class="rex-row-status" style="background:#fef3c7;color:#b45309;" title="MID·순위키워드·시작일·일수·일 목표·비고가 모두 같은 행 — 붙여넣기 실수가 아닌지 확인">⚠ 같은 행 ${r.sameCount}개</span>` : ''}` : `<span class="rex-row-status rex-row-err">${escProd(r.error)}</span>`}</td>
       </tr>`).join('');
     overlay.querySelector('#rex-zone').style.display = 'none';
@@ -3516,6 +3521,7 @@ window.toggleProdPanel = function(e) {
       ...(row.yupflRatio ? { yupflRatio: row.yupflRatio } : {}),
       ...(row.fullstackFix ? { fullstackFix: row.fullstackFix } : {}),
       ...(row.fullstackTune ? { fullstackTune: row.fullstackTune } : {}),
+      ...(row.fullstackKwPerDay ? { fullstackKwPerDay: row.fullstackKwPerDay } : {}),
       createdAt: new Date(excelBaseTs + i).toISOString(),
     })));
 
@@ -3551,10 +3557,10 @@ window.toggleProdPanel = function(e) {
     const head = ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고'];
     for (let i = 1; i <= FS_FORM_PAIRS; i++) head.push(`상품${i}`, `분할${i}`);
     const tune0 = head.length;
-    head.push(...FS_FORM_TUNE.map(([h]) => h));
+    head.push(...FS_FORM_TUNE.map(([h]) => h), '하루 키워드 수');  // 맨 뒤 — 헤더 인식이 '키워드'로 순위키워드 열을 찾아서 그보다 뒤여야 함
     const ws = XLSX.utils.aoa_to_sheet([head]);
     ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}]),
-      ...FS_FORM_TUNE.map(([, , w]) => ({ wch: w }))];
+      ...FS_FORM_TUNE.map(([, , w]) => ({ wch: w })), { wch: 14 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '접수');
     const col = i => XLSX.utils.encode_col(i), rng = i => `${col(i)}2:${col(i)}${FS_FORM_ROWS}`;
@@ -3563,10 +3569,10 @@ window.toggleProdPanel = function(e) {
     const ratios = ['90:10','80:20','70:30','60:40','50:50','40:60','30:70','20:80','10:90'];
     // 비고는 다른 업체명도 쓸 수 있게 경고만, 상품은 목록 밖이면 막음
     const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;
-    const whole = sqref => `<dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" error="1 이상 정수(일 수량)" sqref="${sqref}"><formula1>0</formula1></dataValidation>`;
+    const whole = (sqref, msg = '1 이상 정수(일 수량)') => `<dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" error="${msg}" sqref="${sqref}"><formula1>0</formula1></dataValidation>`;
     const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, '부산', '제이엔', '프리미엄', ...ratios], false),
       ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(8 + i * 2), names, true), whole(rng(9 + i * 2))]),
-      ...FS_FORM_TUNE.map(([, list], i) => dv(rng(tune0 + i), list, true))];
+      ...FS_FORM_TUNE.map(([, list], i) => dv(rng(tune0 + i), list, true)), whole(rng(tune0 + FS_FORM_TUNE.length), '1 이상 정수(하루에 쓸 키워드 수)')];
     // SheetJS(무료판)는 데이터 유효성을 못 써서 만든 xlsx(zip)의 시트 XML에 직접 넣음
     const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' })), { type: 'buffer' });
     const f = zip.FileIndex[zip.FullPaths.findIndex(p => p.endsWith('xl/worksheets/sheet1.xml'))];
@@ -4350,7 +4356,8 @@ window.toggleProdPanel = function(e) {
   // (같은 업체를 순위키워드별로 여러 캠페인 받는 경우 두 번째도 접수되게). 최신 allSlots 기준(이번 접수 중 앞 행 기록 포함)
   const fsAllowed = r => allSlots.filter(c => c._key !== r._slotKey && c.mid === r.mid && c.fullstackOrder && c.status !== 'deleted'
     && (c.startDate === r.start || (c.endDate && c.endDate === r._slot.endDate))).length;
-  const fsReq = r => ({ mid: r.mid, daily: r.daily, days: r.days, start: r.start, variants: r.variants, ...(r.keywords ? { keywords: r.keywords } : {}) });
+  const fsReq = r => ({ mid: r.mid, daily: r.daily, days: r.days, start: r.start, variants: r.variants, ...(r.keywords ? { keywords: r.keywords } : {}),
+    ...(r._slot.fullstackKwPerDay ? { kwPerDay: r._slot.fullstackKwPerDay } : {}) });
 
   // 표 + 미리보기(사이트에 commit:false — 접수 안 됨) + 접수 신청(행마다 1건씩 실제 접수). 같은 MID·기간이 이미 사이트에 있으면 건너뛰고 완료로 침(사이트에서 직접 넣은 것 포함)
   function wireFullstackTab({ rows, bodyEl, subEl, applyBtn, closeBtn, overlay, gate, onDone }) {
