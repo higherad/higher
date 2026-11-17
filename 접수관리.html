@@ -1102,8 +1102,8 @@ window.toggleProdPanel = function(e) {
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
             ${s.mid ? `<span style="display:flex;gap:4px;"><button type="button" onclick="findPlaceKeywords('${escJsAttr(s.mid)}')" id="np-find-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;">키워드 찾기</button><button type="button" onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button></span>` : ''}
           </label>
-          <input type="text" id="detail-keyword-input" value="${escProd(kwAB.a)}" placeholder="A급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
-          <input type="text" id="detail-keyword-b-input" value="${escProd(kwAB.b)}" placeholder="B급 키워드" oninput="updateKwCount()" style="margin-top:5px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;">A급</span><input type="text" id="detail-keyword-input" value="${escProd(kwAB.a)}" placeholder="A급 키워드" oninput="updateKwCount()" style="flex:1;min-width:0;"></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;">B급</span><input type="text" id="detail-keyword-b-input" value="${escProd(kwAB.b)}" placeholder="B급 키워드" oninput="updateKwCount()" style="flex:1;min-width:0;"></div>
           <div id="mid-history-area" style="display:none;margin-top:8px;"></div>
         </div>
         ${(deltaShown || navyShown) ? `
