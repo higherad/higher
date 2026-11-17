@@ -542,6 +542,10 @@
   // upd = 같은 날 문구를 고친 시각 — 노트 날짜는 at, 새로고침 팝업은 upd(없으면 at)가 지금 화면보다 새로우면 보여 줌
   const fetchNotes = () => fetch(`update-notes.json?v=${Date.now()}`, { cache: 'no-store' }).then(r => r.json())
     .then(list => list.map(n => ({ ...n, time: Date.parse(n.at + ':00+09:00'), changed: Date.parse((n.upd || n.at) + ':00+09:00') })).sort((a, b) => b.time - a.time));
+  // 이 화면을 열 때 이미 있던 노트 — 팝업엔 그 뒤에 추가·수정된 노트만(at은 사람이 적는 시각이라 배포 시각보다 늦기도 해서
+  // 배포 시각 비교만 하면 이미 본 노트가 다음 배포 팝업에 또 나옴). 불러오기 실패면 배포 시각 비교로
+  const noteKey = n => `${n.at}|${n.upd || ''}`;
+  const seenNotes = fetchNotes().then(l => new Set(l.map(noteKey))).catch(() => null);
   let lastCheck = 0, outdated = false, changes = [];
   async function checkVersion() {
     if (outdated || Date.now() - lastCheck < 60000) return;
@@ -550,8 +554,8 @@
       const res = await fetch(`index.html?v=${Date.now()}`, { method: 'HEAD', cache: 'no-store' });
       // 같은 배포도 Pages 서버마다 Last-Modified가 1초쯤 다름 → 1분 넘게 새로울 때만 새 버전(배포 간격은 그보다 김)
       outdated = Date.parse(res.headers.get('Last-Modified')) > loadedAt + 60000;
-      // 업데이트 내용 = 지금 화면 배포 이후에 적힌 노트
-      if (outdated) changes = (await fetchNotes()).filter(n => n.changed > loadedAt).map(n => n.text);
+      // 업데이트 내용 = 이 화면을 연 뒤 새로 생긴 노트
+      if (outdated) { const seen = await seenNotes; changes = (await fetchNotes()).filter(n => seen ? !seen.has(noteKey(n)) : n.changed > loadedAt).map(n => n.text); }
     } catch {}
   }
   const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
