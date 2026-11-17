@@ -3544,7 +3544,7 @@ window.toggleProdPanel = function(e) {
     XLSX.writeFile(wb, '엑셀접수_양식.xlsx');
   }
 
-  // 어드민 양식(풀스택[개별]) — 기본 양식 + 상품·분할 4쌍 + 세부조정 5열, 2~101행 선택창(비고·상품·세부조정)·정수 검사(분할).
+  // 어드민 양식(풀스택[개별]) — 기본 양식 + 하루 키워드 수 + 상품·분할 4쌍 + 세부조정 5열, 2~101행 선택창(비고·상품·세부조정)·정수 검사(분할).
   // 비고 '풀스택[개별]' 행만 상품·분할·세부조정을 씀. 세부조정을 다 비우면 가이드 풀스택 탭 행 세부조정
   // 세부조정 헤더·값 = 가이드 풀스택 탭 G~K열·드롭다운과 같음(FS_TUNE_COLS·FS_TUNE_OPTS가 읽음) — 가이드 드롭다운을 바꾸면 같이 고칠 것
   const FS_FORM_PAIRS = 4, FS_FORM_ROWS = 101;
@@ -3554,13 +3554,14 @@ window.toggleProdPanel = function(e) {
     ['세부조정(얼마나 머무나)', ['방식대로', '잠깐 (3초쯤)', '보통 (5초쯤)', '오래 (9초쯤)'], 16],
     ['세부조정(건수를 어디에 쓰나)', ['방식대로', '키워드마다 고르게', '롱테일 키워드로 넓게', '필터 검색어로'], 20]];
   function downloadFullstackTemplate() {
-    const head = ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고'];
+    // 하루 키워드 수는 비고 다음 — 헤더 인식의 '키워드'(순위키워드 열 찾기)는 앞 열부터 찾아서 순위키워드보다 뒤면 됨
+    const head = ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고','하루 키워드 수'];
     for (let i = 1; i <= FS_FORM_PAIRS; i++) head.push(`상품${i}`, `분할${i}`);
     const tune0 = head.length;
-    head.push(...FS_FORM_TUNE.map(([h]) => h), '하루 키워드 수');  // 맨 뒤 — 헤더 인식이 '키워드'로 순위키워드 열을 찾아서 그보다 뒤여야 함
+    head.push(...FS_FORM_TUNE.map(([h]) => h));
     const ws = XLSX.utils.aoa_to_sheet([head]);
-    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}]),
-      ...FS_FORM_TUNE.map(([, , w]) => ({ wch: w })), { wch: 14 }];
+    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}]),
+      ...FS_FORM_TUNE.map(([, , w]) => ({ wch: w }))];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '접수');
     const col = i => XLSX.utils.encode_col(i), rng = i => `${col(i)}2:${col(i)}${FS_FORM_ROWS}`;
@@ -3570,9 +3571,9 @@ window.toggleProdPanel = function(e) {
     // 비고는 다른 업체명도 쓸 수 있게 경고만, 상품은 목록 밖이면 막음
     const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;
     const whole = (sqref, msg = '1 이상 정수(일 수량)') => `<dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" error="${msg}" sqref="${sqref}"><formula1>0</formula1></dataValidation>`;
-    const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, '부산', '제이엔', '프리미엄', ...ratios], false),
-      ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(8 + i * 2), names, true), whole(rng(9 + i * 2))]),
-      ...FS_FORM_TUNE.map(([, list], i) => dv(rng(tune0 + i), list, true)), whole(rng(tune0 + FS_FORM_TUNE.length), '1 이상 정수(하루에 쓸 키워드 수)')];
+    const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, '부산', '제이엔', '프리미엄', ...ratios], false), whole(rng(8), '1 이상 정수(하루에 쓸 키워드 수)'),
+      ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(9 + i * 2), names, true), whole(rng(10 + i * 2))]),
+      ...FS_FORM_TUNE.map(([, list], i) => dv(rng(tune0 + i), list, true))];
     // SheetJS(무료판)는 데이터 유효성을 못 써서 만든 xlsx(zip)의 시트 XML에 직접 넣음
     const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' })), { type: 'buffer' });
     const f = zip.FileIndex[zip.FullPaths.findIndex(p => p.endsWith('xl/worksheets/sheet1.xml'))];
