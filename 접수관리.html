@@ -1102,8 +1102,8 @@ window.toggleProdPanel = function(e) {
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${(s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length}개</span></span>
             ${s.mid ? `<span style="display:flex;gap:4px;"><button type="button" onclick="findPlaceKeywords('${escJsAttr(s.mid)}')" id="np-find-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;">키워드 찾기</button><button type="button" onclick="toggleMidHistory('${escJsAttr(s.mid)}','${key}')" id="mid-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button></span>` : ''}
           </label>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;">A급</span><input type="text" id="detail-keyword-input" value="${escProd(kwAB.a)}" placeholder="A급 키워드" oninput="updateKwCount()" style="flex:1;min-width:0;"></div>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;">B급</span><input type="text" id="detail-keyword-b-input" value="${escProd(kwAB.b)}" placeholder="B급 키워드" oninput="updateKwCount()" style="flex:1;min-width:0;"></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;">A급</span><input type="text" id="detail-keyword-input" value="${escProd(kwAB.a)}" placeholder="A급 키워드" oninput="updateKwCount()" style="flex:1;min-width:0;"><span id="kw-count-a" style="font-size:11px;color:var(--text2);white-space:nowrap;min-width:30px;text-align:right;">${kwSplit(kwAB.a).length}개</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;">B급</span><input type="text" id="detail-keyword-b-input" value="${escProd(kwAB.b)}" placeholder="B급 키워드" oninput="updateKwCount()" style="flex:1;min-width:0;"><span id="kw-count-b" style="font-size:11px;color:var(--text2);white-space:nowrap;min-width:30px;text-align:right;">${kwSplit(kwAB.b).length}개</span></div>
           <div id="mid-history-area" style="display:none;margin-top:8px;"></div>
         </div>
         ${(deltaShown || navyShown) ? `
@@ -1451,6 +1451,11 @@ window.toggleProdPanel = function(e) {
   window.updateKwCount = function() {
     const badge = document.getElementById('kw-count-badge');
     if (badge) badge.textContent = kwSplit(detailKeywords()).length + '개';
+    // 칸별 개수(오른쪽 끝) — 합계 배지는 A·B 중복 뺀 수
+    [['a', 'detail-keyword-input'], ['b', 'detail-keyword-b-input']].forEach(([x, id]) => {
+      const el = document.getElementById('kw-count-' + x), inp = document.getElementById(id);
+      if (el && inp) el.textContent = kwSplit(inp.value).length + '개';
+    });
   };
   // 블로그URL 칸 옆 개수 배지 갱신 — 입력할 때, 그리고 "적용" 클릭 직후에도 호출됨
   window.updateDetailKwBadge = function(inputEl, badgeId) {
