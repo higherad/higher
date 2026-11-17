@@ -370,8 +370,10 @@
     if (!cfg) { pane.textContent = '페이지를 새로고침한 뒤 다시 열어주세요.'; return; }
     let enabled = cfg.enabled !== false, words = Object.values(cfg.excludeWords || {});
     const save = () => HI.savePlanB({ enabled, excludeWords: words }).catch(e => alert('Plan-B 저장 실패: ' + e.message));
-    const applied = allSlots.filter(s => s.planBAt).sort((a, b) => b.planBAt.localeCompare(a.planBAt)).slice(0, 50);
-    const fmt = iso => iso.slice(5, 16).replace('T', ' ');
+    // 오늘 바뀐 캠페인 전체 — planBAt은 KST ISO(+09:00)라 앞 10자리가 KST 날짜
+    const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const applied = allSlots.filter(s => (s.planBAt || '').startsWith(today)).sort((a, b) => b.planBAt.localeCompare(a.planBAt));
+    const th = 'padding:5px 6px;text-align:left;font-weight:700;color:var(--text2);white-space:nowrap;';
     const render = () => {
       pane.innerHTML = `
         <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
@@ -394,15 +396,18 @@
             <button class="action-btn" id="pb-add" style="padding:6px 12px;font-size:12px;background:#f1f5f9;color:var(--text2);">추가</button>
           </div>
         </div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">적용된 캠페인 <span style="font-size:11px;color:var(--muted);font-weight:400;">${applied.length}건${applied.length === 50 ? ' (최근 50건)' : ''}</span></div>
-        ${applied.length ? `<table style="width:100%;border-collapse:collapse;font-size:12px;">${applied.map(s => `
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">오늘 변경 <span style="font-size:11px;color:var(--muted);font-weight:400;">${applied.length}건</span></div>
+        ${applied.length ? `<table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tr><th style="${th}">시간</th><th style="${th}">업체명</th><th style="${th}">MID</th><th style="${th}">순위키워드</th><th style="${th}">변경 순위</th></tr>
+          ${applied.map(s => `
           <tr style="border-top:1px solid var(--border);">
-            <td style="padding:5px 6px;color:var(--muted);white-space:nowrap;">${fmt(s.planBAt)}</td>
+            <td style="padding:5px 6px;color:var(--muted);white-space:nowrap;">${s.planBAt.slice(11, 16)}</td>
             <td style="padding:5px 6px;">${esc(s.storeName || '')}</td>
             <td style="padding:5px 6px;color:var(--muted);">${esc(s.mid || '')}</td>
             <td style="padding:5px 6px;">${esc(s.rankKeyword || '')}</td>
+            <td style="padding:5px 6px;white-space:nowrap;font-weight:700;color:#dc2626;">${esc(s.planBRank || '')}</td>
           </tr>`).join('')}</table>`
-          : '<div style="font-size:12px;color:var(--muted);">아직 없습니다.</div>'}`;
+          : '<div style="font-size:12px;color:var(--muted);">오늘 변경된 캠페인이 없습니다.</div>'}`;
     };
     const addWords = () => {
       const inp = pane.querySelector('#pb-new');
