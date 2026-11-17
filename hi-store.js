@@ -830,6 +830,14 @@ const HI = {
   saveKwCategories(list) { return set(ref(db, P.kwCategories), list); },
   async getPlanB() { return (await get(ref(db, P.planB))).val() || {}; },
   savePlanB(cfg) { return set(ref(db, P.planB), cfg); },
+  // Plan-B 변경 내역(최근 14일, 서버가 정리) — 날짜 목록·그날 캠페인 목록은 작고, 조각(pieces)은 엑셀 받을 때만 읽음
+  async getPlanBDays() { return Object.keys((await get(ref(db, `${ROOT}/planb_days`))).val() || {}).sort().reverse(); },
+  async getPlanBLog(date, part) { return (await get(ref(db, `${ROOT}/planb_log/${date}/${part}`))).val() || {}; },
+  // 예약 조각 현재 상태만(조각 전체 payload는 크니까 status 칸만 하나씩) — 완료 2일 뒤 정리된 조각은 null
+  async getScheduleStatuses(keys) {
+    const vals = await Promise.all(keys.map(k => get(ref(db, `${ROOT}/schedule/dispatch/${k}/status`)).then(s => s.val())));
+    return Object.fromEntries(keys.map((k, i) => [k, vals[i]]));
+  },
   async getAdClassify() { return (await get(ref(db, P.adClassify))).val() || { groups: null, result: null }; },
   saveAdClassifyGroups(groups) { return set(ref(db, `${P.adClassify}/groups`), groups); },
   async getAdClassifyDaily() { return (await get(ref(db, `${P.adClassify}/daily`))).val() || {}; },
