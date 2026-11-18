@@ -1115,7 +1115,7 @@ window.toggleProdPanel = function(e) {
           </div>
         </div>` : ''}
         <div class="modal-footer">
-          <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
+          <button class="btn-cancel" id="detail-close-btn" onclick="closeDetailModal('${key}')">닫기</button>
           ${(s.status==='pending' || s.status==='expired') ? `<button class="btn-save" style="background:rgba(59,130,246,1);" onclick="acceptFromDetail('${key}')">접수</button>` : ''}
         </div>
       </div>`;
@@ -1274,6 +1274,7 @@ window.toggleProdPanel = function(e) {
     const j = await (await fetch(`${NP_FINDER}/rules`, { method: 'POST', headers: await HI.authHeaders(), body: '{}' })).json();
     if (j.error) throw new Error(j.error);
     npSegLabels = j.segLabels || {};
+    j.rules.excludeName = true;   // 업체명 제외가 기본(등록툴 설정과 무관)
     return j;
   }
   window.findPlaceKeywords = async function(mid) {
@@ -1287,7 +1288,7 @@ window.toggleProdPanel = function(e) {
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div class="modal-title" style="margin:0;">키워드 찾기 <span id="np-name" style="font-size:12px;font-weight:500;color:var(--text2);"></span></div>
-        <button type="button" onclick="npClose()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text2);">✕</button>
+        <button type="button" id="np-x" onclick="npClose()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text2);">✕</button>
       </div>
       ${npRulesHtml()}
       <div style="display:flex;align-items:center;gap:8px;margin:12px 0 8px;">
@@ -1319,6 +1320,14 @@ window.toggleProdPanel = function(e) {
         .np-chip { display:inline-block; padding:1px 7px; margin:2px; border-radius:9px; background:#f1f5f9; }
       </style>`;
     host.appendChild(panel);
+    // 표에서 체크한 키워드 Ctrl+C = 콤마로 이어 복사(입력칸에 커서가 있거나 글자를 드래그했으면 기본 복사)
+    panel.addEventListener('keydown', e => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'c' || !np || /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'checkbox' || !getSelection().isCollapsed) return;
+      const kws = [...np.rows, ...np.out].filter(r => np.sel.has(r.kw)).map(r => r.kw);
+      if (!kws.length) return;
+      e.preventDefault();
+      navigator.clipboard.writeText(kws.join(',')).then(() => { const p = npEl('np-prog'); if (p) p.textContent = `키워드 ${kws.length}개 복사됨`; }, err => alert('복사 실패: ' + (err.message || err)));
+    });
     np = { mid, panel, ac: null, rows: [], out: [], sel: new Set(), busy: false };   // rows = 범위 안(유효), out = 범위 밖(완료 뒤)
     const run = np;
     try {
@@ -1415,12 +1424,15 @@ window.toggleProdPanel = function(e) {
     Object.assign(run, { ac: new AbortController(), rows: [], out: [], sel: new Set(), busy: true });
     npEl('np-mat').style.display = 'none';
     go.textContent = '■ 멈춤'; prog.textContent = '시작 중…'; npRender();
+    const lock = on => run.panel.parentElement?.querySelectorAll('#detail-close-btn, #np-x, #np-find-btn').forEach(b => b.disabled = on);   // 찾는 동안 상세·패널 닫기 막음(닫으면 조회가 끊김)
+    lock(true);
     const last = await npFindStream({ mid: run.mid, rules }, run.ac, m => {
       if (np !== run || !run.panel.isConnected) { run.ac.abort(); return; }   // 패널·상세가 닫힘
       if (m.type === 'progress') prog.textContent = m.text;
       else if (m.type === 'detail') { npEl('np-name').textContent = m.detail.name || ''; npEl('np-mat-body').innerHTML = npMat(m.detail, m.tails); npEl('np-mat').style.display = ''; }
       else if (m.type === 'kw') { run.rows.push({ kw: m.kw, rank: m.rank, kind: m.kind }); run.rows.sort((a, b) => a.rank - b.rank); npRender(); }
     });
+    lock(false);
     if (np !== run || !run.panel.isConnected) return;
     run.busy = false; go.textContent = '시작';
     if (!last || last.type === 'progress' || last.type === 'kw' || last.type === 'detail') { prog.textContent = '서버 연결이 끊겼습니다'; npRender(); return; }
@@ -2928,11 +2940,14 @@ window.toggleProdPanel = function(e) {
     let ok = 0;
     for (const x of todo) {
       if (kfRun.stop) break;
+      // 쉬지 않고 이어 돌리면 프록시 IP가 네이버 429에 걸려 재시도로 느려지고 조회 실패가 쌓임 — MID 사이 60초 쉼
+      // ponytail: 고정 60초, 그래도 실패가 쌓이면 늘리거나 직전 failed 수에 맞춰 조절
+      if (x !== todo[0]) { x.res = '차단 방지 대기(60초)'; paint(); await kfSleep(60000, kfRun.ac); if (kfRun.stop) { x.res = '멈춤'; break; } }
       x.res = '찾는 중…'; paint();
       let last;
       for (;;) {   // 다른 사람 사용 중이면 같은 MID 다시
         kfRun.ac = new AbortController();
-        last = await npFindStream({ mid: x.mid, rules: kfRules || undefined }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
+        last = await npFindStream({ mid: x.mid, rules: kfRules || { excludeName: true } }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
         if (kfRun.stop) break;
         if (last?.type === 'error' && /진행 중/.test(last.message)) { x.res = '다른 사람이 키워드 찾기 중 — 30초 뒤 다시'; paint(); await kfSleep(30000, kfRun.ac); if (kfRun.stop) break; continue; }
         break;
@@ -3433,7 +3448,7 @@ window.toggleProdPanel = function(e) {
           const fullstackKwPerDay = Number.isInteger(Number(kpdRaw)) && Number(kpdRaw) > 0 ? Number(kpdRaw) : null;
           const errors = [];
           if (fix?.err) errors.push(fix.err);
-          if (fix && !fullstackKwPerDay) errors.push('하루 키워드 수 누락(1 이상 정수)');
+          if (fix && kpdRaw && !fullstackKwPerDay) errors.push('하루 키워드 수는 1 이상 정수');   // 빈칸 = 키워드 전부 매일(서버가 키워드 수로 보냄)
           else if (fix && dailyTarget && fullstackKwPerDay > dailyTarget) errors.push('하루 키워드 수가 일 목표보다 큼');
           const tuneErr = fullstackTune && fsTuneOf(fullstackTune).err;
           if (tuneErr) errors.push(tuneErr.replace('가이드 ', ''));
