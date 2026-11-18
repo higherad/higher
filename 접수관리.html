@@ -4398,8 +4398,16 @@ window.toggleProdPanel = function(e) {
     const reward = (s.dailyTarget || 0) - (f.yupflTarget || 0) - Math.round((f.deductTarget || 0) / (s.days || 1));
     return reward <= 0 && !Object.entries(f.yupflByVendor || {}).some(([v, n]) => v !== vendor && n > 0);
   }
-  // 풀스택[개별] 사이트 키워드 = 상세 A급 → C급(중복 제거). A·B 구분 전 캠페인은 검색키워드 전체가 A급(detailKwAB)
+  // 풀스택[개별] 사이트 키워드 = 상세 A급 → C급(중복 제거, C급은 키워드 찾기가 순위순으로 넣음). 사이트 한도 100개 — 넘으면 표에 ✂️100, 보낼 때 뒤(C급)부터 자름.
+  // A·B 구분 전 캠페인은 검색키워드 전체가 A급(detailKwAB). 30개 넘으면 사이트가 '하루 키워드 수'를 요구(미리보기에 표시)
+  const FS_KW_MAX = 100;
   const fsFixKeywords = s => [...new Set([...kwSplit(detailKwAB(s).a), ...kwSplit(s.searchKeywordC)])];
+  // 키워드 칸 배지 — 리워드 접수 표(✂️50)와 같은 모양. 풀스택[개별]이 아니면 사이트가 찾은 키워드
+  const fsKwBadge = r => {
+    if (!r._kwAll) return '<span style="font-size:11px;color:var(--muted);">사이트</span>';
+    const n = r._kwAll.length, trim = n > FS_KW_MAX, empty = n === 0;
+    return `<span title="${escProd(r._kwAll.join(','))}${trim ? ` (접수 시 앞 ${FS_KW_MAX}개만 사용)` : ''}" style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${empty ? '#fee2e2' : trim ? '#fef3c7' : '#eff6ff'};color:${empty ? '#dc2626' : trim ? '#b45309' : '#1d4ed8'};border:1px solid ${empty ? '#fca5a5' : trim ? '#fde68a' : '#bfdbfe'};white-space:nowrap">${trim ? `✂️${FS_KW_MAX}` : `${n}개${empty ? ' ⚠️' : ''}`}</span>`;
+  };
   function buildFullstackRows(slots) {
     return slots.flatMap(s => {
       const f = s.yupflTarget != null ? s : allocFieldsFor(s);
@@ -4409,10 +4417,10 @@ window.toggleProdPanel = function(e) {
       const rule = guideRuleFor(s);
       const variants = rule ? fullstackVariants(rule) : [];
       // 풀스택[개별]은 상세 A급+C급만 사이트에 보냄(B급은 무시, 사이트가 찾은 키워드 안 씀), 그 밖은 사이트 키워드 전부
-      const keywords = s.fullstackFix ? fsFixKeywords(s) : null;
+      const kwAll = s.fullstackFix ? fsFixKeywords(s) : null, keywords = kwAll && kwAll.slice(0, FS_KW_MAX);
       return [{ _slotKey: s._key, _slot: s, _fsSubmitted: !!s.fullstackOrder, agencyId: s.agencyId || '', storeName: s.storeName || '', mid: s.mid || '',
         url: s.url || '', rankKeyword: s.rankKeyword || '',
-        daily, days: s.days || 0, start: s.startDate || '', variants, _onlyFs: onlyFs, ...(keywords ? { keywords } : {}),
+        daily, days: s.days || 0, start: s.startDate || '', variants, _onlyFs: onlyFs, _kwAll: kwAll, ...(keywords ? { keywords } : {}),
         err: keywords && !keywords.length ? '풀스택[개별] 상세 키워드 없음' : !rule ? '가이드 분류·구간 없음' : unknownFull(rule).length ? `가이드 풀스택 상품 이름 모름: ${unknownFull(rule).join(', ')}`
           : fsTuneOf(rule.tune).err || (!variants.length ? '가이드 풀스택 비율 없음' : fsPctOf(rule) !== 100 ? `가이드 풀스택 비율 합계 ${fsPctOf(rule)}%` : '') }];
     });
@@ -4443,7 +4451,7 @@ window.toggleProdPanel = function(e) {
         <div style="width:100%"><table class="ag-table ag-table-tight" style="table-layout:fixed;width:100%"><thead><tr>
           <th style="width:98px">업체명</th><th style="width:108px">URL</th><th style="width:96px">MID</th><th style="width:84px">순위키워드</th>
           <th style="width:56px;text-align:right">일 건수</th><th style="width:44px;text-align:center">일수</th><th style="width:74px">시작일</th>
-          <th style="width:150px">방식 비율</th><th style="width:76px;text-align:center">상태</th>
+          <th style="width:58px;text-align:center">키워드</th><th style="width:150px">방식 비율</th><th style="width:76px;text-align:center">상태</th>
         </tr></thead><tbody>${rs.map(r => `<tr>
           <td style="${ell}" title="${escProd(r.storeName)}">${escProd(r.storeName)}</td>
           <td style="${ell}" title="${escProd(r.url)}"><a href="${escProd(r.url)}" target="_blank" style="color:var(--info);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escProd(r.url || '-')}</a></td>
@@ -4452,6 +4460,7 @@ window.toggleProdPanel = function(e) {
           <td style="text-align:right;white-space:nowrap;font-weight:700">${r.daily.toLocaleString()}</td>
           <td style="white-space:nowrap;text-align:center" id="fs-days-${r._i}">${r.days}</td>
           <td style="white-space:nowrap" id="fs-start-${r._i}">${escProd(r.start || '-')}</td>
+          <td style="text-align:center">${fsKwBadge(r)}</td>
           <td style="${ell};font-size:11px" title="${escProd(fsVariantText(r.variants))}">${escProd(fsVariantText(r.variants)) || '-'}</td>
           <td style="text-align:center;white-space:nowrap" id="fs-st-${r._i}">${r._fsSubmitted ? '<span style="color:var(--accent);">✅ 완료</span>' : '-'}</td>
         </tr>`).join('')}</tbody></table></div>
