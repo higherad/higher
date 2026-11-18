@@ -1274,7 +1274,6 @@ window.toggleProdPanel = function(e) {
     const j = await (await fetch(`${NP_FINDER}/rules`, { method: 'POST', headers: await HI.authHeaders(), body: '{}' })).json();
     if (j.error) throw new Error(j.error);
     npSegLabels = j.segLabels || {};
-    j.rules.excludeName = true;   // 업체명 제외가 기본(등록툴 설정과 무관)
     return j;
   }
   window.findPlaceKeywords = async function(mid) {
@@ -2947,7 +2946,7 @@ window.toggleProdPanel = function(e) {
       let last;
       for (;;) {   // 다른 사람 사용 중이면 같은 MID 다시
         kfRun.ac = new AbortController();
-        last = await npFindStream({ mid: x.mid, rules: kfRules || { excludeName: true } }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
+        last = await npFindStream({ mid: x.mid, rules: kfRules || undefined }, kfRun.ac, m => { if (m.type === 'progress') { x.res = m.text; paint(); } });
         if (kfRun.stop) break;
         if (last?.type === 'error' && /진행 중/.test(last.message)) { x.res = '다른 사람이 키워드 찾기 중 — 30초 뒤 다시'; paint(); await kfSleep(30000, kfRun.ac); if (kfRun.stop) break; continue; }
         break;
