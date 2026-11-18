@@ -1305,7 +1305,7 @@ window.toggleProdPanel = function(e) {
       </div>
       <div style="flex:1;min-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;"><input type="checkbox" id="np-all" onchange="npSelAll(this.checked)"></th><th style="text-align:left;">키워드</th><th>순위</th><th>월검색량</th></tr></thead>
+          <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;"><input type="checkbox" id="np-all" onchange="npSelAll(this.checked)"></th><th style="text-align:left;">키워드</th><th>순위</th><th id="np-vol-th" onclick="npSortVol()" style="cursor:pointer;user-select:none;" title="누를 때마다 많은 순 → 적은 순 → 순위순">월검색량</th></tr></thead>
           <tbody id="np-rows"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:14px;">시작을 누르면 찾은 키워드가 여기에 나옵니다</td></tr></tbody>
         </table>
       </div>
@@ -1318,14 +1318,6 @@ window.toggleProdPanel = function(e) {
         .np-chip { display:inline-block; padding:1px 7px; margin:2px; border-radius:9px; background:#f1f5f9; }
       </style>`;
     host.appendChild(panel);
-    // 표에서 체크한 키워드 Ctrl+C = 콤마로 이어 복사(입력칸에 커서가 있거나 글자를 드래그했으면 기본 복사)
-    panel.addEventListener('keydown', e => {
-      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'c' || !np || /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'checkbox' || !getSelection().isCollapsed) return;
-      const kws = [...np.rows, ...np.out].filter(r => np.sel.has(r.kw)).map(r => r.kw);
-      if (!kws.length) return;
-      e.preventDefault();
-      navigator.clipboard.writeText(kws.join(',')).then(() => { const p = npEl('np-prog'); if (p) p.textContent = `키워드 ${kws.length}개 복사됨`; }, err => alert('복사 실패: ' + (err.message || err)));
-    });
     np = { mid, panel, ac: null, rows: [], out: [], sel: new Set(), busy: false };   // rows = 범위 안(유효), out = 범위 밖(완료 뒤)
     const run = np;
     try {
@@ -1335,6 +1327,24 @@ window.toggleProdPanel = function(e) {
       npEl('np-prog').textContent = `등록툴 ${j.version}` + (j.latest && j.latest !== j.version ? ` · 웹스토어 최신 ${j.latest} — 등록툴 깔린 PC에서 '등록툴 업데이트' 필요` : '');
     } catch (e) { if (np === run) npEl('np-prog').textContent = '규칙 불러오기 실패: ' + (e.message || e); }
   };
+  // 표에서 체크한 키워드 Ctrl+C = 콤마로 이어 복사(입력칸에 커서가 있거나 글자를 드래그했으면 기본 복사)
+  // document에 붙임 — 체크하면 npRender가 표를 다시 그려 포커스가 패널 밖(body)으로 빠짐. 페이지를 다시 열어도 리스너는 한 번만
+  window.npCopyKey = e => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'c' || !np || !np.panel.isConnected) return;
+    if (/^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName) && e.target.type !== 'checkbox' || !getSelection().isCollapsed) return;
+    const kws = npVisible().filter(r => np.sel.has(r.kw)).map(r => r.kw);
+    if (!kws.length) return;
+    e.preventDefault();
+    navigator.clipboard.writeText(kws.join(',')).then(() => npToast(`키워드 ${kws.length}개가 복사되었습니다`), err => alert('복사 실패: ' + (err.message || err)));
+  };
+  if (!window._npCopyBound) { window._npCopyBound = true; document.addEventListener('keydown', e => window.npCopyKey?.(e)); }
+  function npToast(t) {
+    const d = document.createElement('div');
+    d.textContent = t;
+    d.style.cssText = 'position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:rgba(15,23,42,.88);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;z-index:99999;pointer-events:none;transition:opacity .3s;';
+    document.body.appendChild(d);
+    setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 300); }, 1500);
+  }
   window.npClose = function() {
     if (!np) return;
     np.ac?.abort();
@@ -1342,7 +1352,18 @@ window.toggleProdPanel = function(e) {
     np = null;
   };
   // 표에 보이는 목록 — '1~10위'(범위 안, 순위순) + '10위 밖'(11~50위 순위순, 50위 밖은 맨 뒤). 체크·검색량 선택도 보이는 목록 기준(등록툴과 같음)
-  const npVisible = () => [...(npEl('np-f-in').checked ? np.rows : []), ...(npEl('np-f-out').checked ? [...np.out].sort((a, b) => (a.rank || 1e9) - (b.rank || 1e9)) : [])];
+  // 월검색량 정렬(np.sort 'desc'·'asc', 없으면 순위순) — '< 10'은 0~9 사이로, 자료 없음·아직 안 받음은 항상 맨 뒤
+  const npVolNum = r => !('vol' in r) || r.vol == null ? null : r.vol === '<10' ? 5 : Number(r.vol);
+  const npVisible = () => {
+    const vis = [...(npEl('np-f-in').checked ? np.rows : []), ...(npEl('np-f-out').checked ? [...np.out].sort((a, b) => (a.rank || 1e9) - (b.rank || 1e9)) : [])];
+    if (!np.sort) return vis;
+    const d = np.sort === 'desc' ? -1 : 1;
+    return vis.map((r, i) => [r, i]).sort(([a, i], [b, j]) => {
+      const x = npVolNum(a), y = npVolNum(b);
+      return x == null || y == null ? (x == null) - (y == null) || i - j : (x - y) * d || i - j;
+    }).map(([r]) => r);
+  };
+  window.npSortVol = () => { if (!np) return; np.sort = np.sort === 'desc' ? 'asc' : np.sort === 'asc' ? null : 'desc'; npRender(); };
   window.npView = function() {
     const fi = npEl('np-f-in'), fo = npEl('np-f-out');
     if (!fi.checked && !fo.checked) fi.checked = true;   // 둘 다 끌 수는 없음
@@ -1368,6 +1389,7 @@ window.toggleProdPanel = function(e) {
     const mx = npEl('np-rankMax').value || 10;
     npEl('np-lb-in').textContent = `${npEl('np-rankMin').value || 1}~${mx}위`; npEl('np-lb-out').textContent = `${mx}위 밖`;
     const vis = npVisible();
+    npEl('np-vol-th').textContent = '월검색량' + (np.sort === 'desc' ? ' ▼' : np.sort === 'asc' ? ' ▲' : '');
     const volTxt = v => v == null ? '-' : v === '<10' ? '< 10' : Number(v).toLocaleString();
     tb.innerHTML = vis.length ? vis.map((r, i) => `<tr>
       <td><input type="checkbox" ${np.sel.has(r.kw) ? 'checked' : ''} onchange="npSelOne(${i},this.checked)"></td>
