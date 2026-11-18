@@ -1221,7 +1221,6 @@ window.toggleProdPanel = function(e) {
   // 규칙 칸 기본값 = 등록툴 설정(/rules), 여기서 고친 값은 이번 조회에만. 끝나면 검색량 있음 → A급, 없음 → B급 칸을 덮어씀(저장은 상세 닫을 때 기존 흐름)
   // 표에서 골라 '선택 → A급/B급'으로 다시 넣을 수 있음. 서버 엔진이 웹스토어 최신보다 옛 버전이면 진행 줄에 표시만(막지 않음 — 필요할 때 등록툴 깔린 PC에서 '등록툴 업데이트.bat')
   const NP_FINDER = 'https://higherad-np-finder-938928195180.asia-northeast3.run.app';
-  const NP_KIND = { root: '뿌리', variant: '꼬리', two: '2토픽', name: '업체명', 'name-variant': '업체명 꼬리' };
   let np = null;   // { mid, panel, ac, rows, sel, busy }
   const npEl = id => np && np.panel.querySelector('#' + id);
   const npList = v => (v || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -1306,8 +1305,8 @@ window.toggleProdPanel = function(e) {
       </div>
       <div style="flex:1;min-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;"><input type="checkbox" id="np-all" onchange="npSelAll(this.checked)"></th><th style="text-align:left;">키워드</th><th>순위</th><th>월검색량</th><th>구분</th></tr></thead>
-          <tbody id="np-rows"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px;">시작을 누르면 찾은 키워드가 여기에 나옵니다</td></tr></tbody>
+          <thead><tr style="background:#f8fafc;position:sticky;top:0;"><th style="width:28px;"><input type="checkbox" id="np-all" onchange="npSelAll(this.checked)"></th><th style="text-align:left;">키워드</th><th>순위</th><th>월검색량</th></tr></thead>
+          <tbody id="np-rows"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:14px;">시작을 누르면 찾은 키워드가 여기에 나옵니다</td></tr></tbody>
         </table>
       </div>
       <style>
@@ -1373,9 +1372,8 @@ window.toggleProdPanel = function(e) {
     tb.innerHTML = vis.length ? vis.map((r, i) => `<tr>
       <td><input type="checkbox" ${np.sel.has(r.kw) ? 'checked' : ''} onchange="npSelOne(${i},this.checked)"></td>
       <td class="kw">${escProd(r.kw)}</td><td${np.rows.includes(r) ? '' : ' style="color:var(--muted);"'}>${r.rank ? r.rank + '위' : '50위 밖'}</td>
-      <td style="${r.yes ? 'color:#1d4ed8;font-weight:600;' : 'color:var(--muted);'}">${'vol' in r ? volTxt(r.vol) : '…'}</td>
-      <td style="color:var(--text2);">${NP_KIND[r.kind] || r.kind || ''}</td></tr>`).join('')
-      : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px;">${np.busy ? '찾는 중…' : '키워드가 없습니다'}</td></tr>`;
+      <td style="${r.yes ? 'color:#1d4ed8;font-weight:600;' : 'color:var(--muted);'}">${'vol' in r ? volTxt(r.vol) : '…'}</td></tr>`).join('')
+      : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:14px;">${np.busy ? '찾는 중…' : '키워드가 없습니다'}</td></tr>`;
     const all = npEl('np-all'); const n = vis.filter(r => np.sel.has(r.kw)).length;
     all.checked = !!vis.length && n === vis.length; all.indeterminate = n > 0 && n < vis.length;
   }
