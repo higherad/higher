@@ -951,6 +951,7 @@ window.toggleProdPanel = function(e) {
     const kw = detailKeywords();
     const kwA = document.getElementById('detail-keyword-input')?.value.trim() ?? '';
     const kwB = document.getElementById('detail-keyword-b-input')?.value.trim() ?? '';
+    const kwC = document.getElementById('detail-keyword-c-input')?.value.trim() ?? null;
     const deltaInput = document.getElementById('detail-delta-url-input');
     const deltaUrl = deltaInput ? deltaInput.value.trim() : null;
     const s = allSlots.find(x => x._key === key);
@@ -960,6 +961,8 @@ window.toggleProdPanel = function(e) {
     if (kw !== null && (kwB || s.searchKeywordA || s.searchKeywordB) && (kwA !== (s.searchKeywordA||'') || kwB !== (s.searchKeywordB||''))) {
       Object.assign(kwPatch, { searchKeywordA: kwA || null, searchKeywordB: kwB || null });
     }
+    // C급 = 풀스택[개별] 전용(검색키워드 합계엔 안 들어감)
+    if (kwC !== null && kwC !== (s.searchKeywordC || '')) kwPatch.searchKeywordC = kwC || null;
     if (Object.keys(kwPatch).length) {
       await HI.updateCampaign(key, kwPatch);
       updateLocalSlot(key, { ...kwPatch, searchKeywordA: kwPatch.searchKeywordA ?? s.searchKeywordA, searchKeywordB: kwPatch.searchKeywordB ?? s.searchKeywordB });
@@ -984,11 +987,12 @@ window.toggleProdPanel = function(e) {
   window.acceptFromDetail = async function(key) {
     const a = document.getElementById('detail-keyword-input')?.value || '';
     const b = document.getElementById('detail-keyword-b-input')?.value || '';
+    const c = document.getElementById('detail-keyword-c-input')?.value || '';
     await saveDetailFields(key);
     const s = allSlots.find(x => x._key === key);
-    if (s?.mid && (a.trim() || b.trim())) {
+    if (s?.mid && (a.trim() || b.trim() || c.trim())) {
       // 시트 기입은 접수와 따로 — 실패해도 접수는 그대로, 알림만
-      HI.savePlaceKeywords({ storeName: s.storeName || '', mid: s.mid, rankKeyword: s.rankKeyword || '', a, b })
+      HI.savePlaceKeywords({ storeName: s.storeName || '', mid: s.mid, rankKeyword: s.rankKeyword || '', a, b, c })
         .catch(e => alert(`플레이스 키워드 시트 기입 실패: ${s.storeName || s.mid}\n${e.message}`));
     }
     const patch = { status: 'accepted', ...unapprovePatch(key) };
@@ -1104,6 +1108,7 @@ window.toggleProdPanel = function(e) {
           </label>
           <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;">A급</span><input type="text" id="detail-keyword-input" value="${escProd(kwAB.a)}" placeholder="A급 키워드" oninput="updateKwCount()" style="flex:1;min-width:0;"><span id="kw-count-a" style="font-size:11px;color:var(--text2);white-space:nowrap;min-width:30px;text-align:right;">${kwSplit(kwAB.a).length}개</span></div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;">B급</span><input type="text" id="detail-keyword-b-input" value="${escProd(kwAB.b)}" placeholder="B급 키워드" oninput="updateKwCount()" style="flex:1;min-width:0;"><span id="kw-count-b" style="font-size:11px;color:var(--text2);white-space:nowrap;min-width:30px;text-align:right;">${kwSplit(kwAB.b).length}개</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;"><span style="font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;" title="풀스택[개별] 전용 — 검색키워드 합계엔 안 들어감">C급</span><input type="text" id="detail-keyword-c-input" value="${escProd(s.searchKeywordC || '')}" placeholder="C급 키워드 (풀스택 전용)" oninput="updateKwCount()" style="flex:1;min-width:0;"><span id="kw-count-c" style="font-size:11px;color:var(--text2);white-space:nowrap;min-width:30px;text-align:right;">${kwSplit(s.searchKeywordC).length}개</span></div>
           <div id="mid-history-area" style="display:none;margin-top:8px;"></div>
         </div>
         ${(deltaShown || navyShown) ? `
@@ -1209,11 +1214,12 @@ window.toggleProdPanel = function(e) {
       </div>`;
     };
     area.innerHTML = head + `<div style="background:#f8fafc;border-radius:7px;padding:2px 12px;border:1px solid var(--border);">
-      ${kwRow('A급', row.a, 'detail-keyword-input')}${kwRow('B급', row.b, 'detail-keyword-b-input')}
+      ${kwRow('A급', row.a, 'detail-keyword-input')}${kwRow('B급', row.b, 'detail-keyword-b-input')}${kwRow('C급', row.c || '', 'detail-keyword-c-input')}
     </div>`;
+    const byInput = { 'detail-keyword-input': row.a, 'detail-keyword-b-input': row.b, 'detail-keyword-c-input': row.c || '' };
     area.querySelectorAll('[data-kw-apply]').forEach(b2 => b2.onclick = () => {
       const el = document.getElementById(b2.dataset.kwApply);
-      if (el) { el.value = b2.dataset.kwApply === 'detail-keyword-input' ? row.a : row.b; updateKwCount(); }
+      if (el) { el.value = byInput[b2.dataset.kwApply]; updateKwCount(); }
     });
   };
 
@@ -1302,6 +1308,7 @@ window.toggleProdPanel = function(e) {
         <span style="flex:1;"></span>
         <button type="button" class="np-tb" onclick="npApply('detail-keyword-input')">선택 → A급</button>
         <button type="button" class="np-tb" onclick="npApply('detail-keyword-b-input')">선택 → B급</button>
+        <button type="button" class="np-tb" onclick="npApply('detail-keyword-c-input')">선택 → C급</button>
       </div>
       <div style="flex:1;min-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -1467,12 +1474,15 @@ window.toggleProdPanel = function(e) {
     if (last.type === 'stopped') { prog.textContent = '멈춤'; npRender(); return; }
     if (last.type === 'error') { prog.textContent = last.message === '중단됨' ? '멈춤' : '실패: ' + last.message; npRender(); return; }
     run.rows = last.rows; run.out = last.out || []; run.sel = new Set();
-    prog.textContent = `완료 · 유효 ${last.rows.length}개 (검색량 있음 ${last.a.length} · 없음 ${last.b.length})${last.failed ? ` · 조회 실패 ${last.failed}건` : ''}${last.nameFallback ? ' · 업체명 키워드 추가' : ''} · 등록툴 ${last.version}`;
+    prog.textContent = `완료 · 유효 ${last.rows.length}개 (검색량 있음 ${last.a.length} · 없음 ${last.b.length}) · C급 ${(last.c || []).length}${last.failed ? ` · 조회 실패 ${last.failed}건` : ''}${last.nameFallback ? ' · 업체명 키워드 추가' : ''} · 등록툴 ${last.version}`;
     npRender();
     if (npEl('np-f-out').checked) npLoadOutVol();
-    if (!last.rows.length) return;
-    document.getElementById('detail-keyword-input').value = last.a.join(',');
-    const bEl = document.getElementById('detail-keyword-b-input'); if (bEl) bEl.value = last.b.join(',');
+    // C급 = 범위 밖 11~50위 + 월검색량 20 이상(서버 done.c) — 범위 안이 0개여도 채움
+    const cEl = document.getElementById('detail-keyword-c-input'); if (cEl && last.c) cEl.value = last.c.join(',');
+    if (last.rows.length) {
+      document.getElementById('detail-keyword-input').value = last.a.join(',');
+      const bEl = document.getElementById('detail-keyword-b-input'); if (bEl) bEl.value = last.b.join(',');
+    }
     updateKwCount();
   };
 
@@ -1494,7 +1504,7 @@ window.toggleProdPanel = function(e) {
     const badge = document.getElementById('kw-count-badge');
     if (badge) badge.textContent = kwSplit(detailKeywords()).length + '개';
     // 칸별 개수(오른쪽 끝) — 합계 배지는 A·B 중복 뺀 수
-    [['a', 'detail-keyword-input'], ['b', 'detail-keyword-b-input']].forEach(([x, id]) => {
+    [['a', 'detail-keyword-input'], ['b', 'detail-keyword-b-input'], ['c', 'detail-keyword-c-input']].forEach(([x, id]) => {
       const el = document.getElementById('kw-count-' + x), inp = document.getElementById(id);
       if (el && inp) el.textContent = kwSplit(inp.value).length + '개';
     });
@@ -2844,6 +2854,7 @@ window.toggleProdPanel = function(e) {
             <div style="display:flex;gap:6px;">
               <button type="button" class="reaccept-kw-btn" id="reaccept-kw-a" data-on="1">A급</button>
               <button type="button" class="reaccept-kw-btn" id="reaccept-kw-b" data-on="1">B급</button>
+              <button type="button" class="reaccept-kw-btn" id="reaccept-kw-c" data-on="1">C급</button>
             </div>
           </div>
           <div id="reaccept-result" style="font-size:12px;margin-top:14px;"></div>
@@ -2983,17 +2994,17 @@ window.toggleProdPanel = function(e) {
       if (kfRun.stop) { x.res = '멈춤'; break; }
       if (!last || last.type !== 'done') { x.res = '실패: ' + (last?.message || '서버 연결이 끊겼습니다'); paint(); continue; }
       if (!last.rows.length) { x.res = `유효키워드 없음 — 전환 안 함${last.failed ? ` (조회 실패 ${last.failed}건)` : ''}`; paint(); continue; }
-      const a = last.a.join(','), b = last.b.join(','), kw = joinAB(a, b);
+      const a = last.a.join(','), b = last.b.join(','), c = (last.c || []).join(','), kw = joinAB(a, b);
       const slots = x.slots.filter(s => allSlots.find(y => y._key === s._key)?.status === 'pending');   // 도는 사이 다른 데서 바뀐 건 제외
       for (const s of slots) {
-        const updates = { searchKeyword: kw, searchKeywordA: a || null, searchKeywordB: b || null, status: 'accepted' };
+        const updates = { searchKeyword: kw, searchKeywordA: a || null, searchKeywordB: b || null, searchKeywordC: c || null, status: 'accepted' };
         await HI.updateCampaign(s._key, updates);
         updateLocalSlot(s._key, updates);
       }
       // 시트 기입은 상세 '접수'와 같음 — 실패해도 전환은 그대로
-      HI.savePlaceKeywords({ storeName: x.slots[0].storeName || '', mid: x.mid, rankKeyword: x.slots[0].rankKeyword || '', a, b }).catch(e => console.warn('플레이스 키워드 시트 기입 실패', x.mid, e));
+      HI.savePlaceKeywords({ storeName: x.slots[0].storeName || '', mid: x.mid, rankKeyword: x.slots[0].rankKeyword || '', a, b, c }).catch(e => console.warn('플레이스 키워드 시트 기입 실패', x.mid, e));
       ok += slots.length;
-      x.res = `✅ A급 ${last.a.length} · B급 ${last.b.length}`; x.on = false; paint();
+      x.res = `✅ A급 ${last.a.length} · B급 ${last.b.length} · C급 ${(last.c || []).length}`; x.on = false; paint();
     }
     todo.forEach(x => { if (x.res === '대기') x.res = ''; });
     kfRun = null; runBtn.textContent = '실행'; paint();
@@ -3010,8 +3021,9 @@ window.toggleProdPanel = function(e) {
       alert('수정일 기준 일수를 1 이상의 숫자로 입력해주세요.');
       return;
     }
-    const useA = overlay.querySelector('#reaccept-kw-a').dataset.on === '1', useB = overlay.querySelector('#reaccept-kw-b').dataset.on === '1';
-    if (!useA && !useB) { alert('불러올 키워드를 A급·B급 중 하나 이상 선택해주세요.'); return; }
+    const on = id => overlay.querySelector('#reaccept-kw-' + id).dataset.on === '1';
+    const useA = on('a'), useB = on('b'), useC = on('c');
+    if (!useA && !useB && !useC) { alert('불러올 키워드를 A급·B급·C급 중 하나 이상 선택해주세요.'); return; }
 
     const pending = allSlots.filter(s => s.status === 'pending' && s.mid);
     if (!pending.length) { resultEl.innerHTML = '<span style="color:var(--muted)">대기 상태인 슬롯이 없습니다.</span>'; return; }
@@ -3032,9 +3044,11 @@ window.toggleProdPanel = function(e) {
       const k = kwMap.get(s.mid);
       // 고른 급만, 시트 수기 입력의 콤마 뒤 공백도 정리 — A급·B급 칸도 따로 저장해야 상세 팝업이 급별로 나눠 보여줌
       const a = k && useA ? kwSplit(k.a).join(',') : '', b = k && useB ? kwSplit(k.b).join(',') : '';
+      const c = k && useC ? kwSplit(k.c).join(',') : '';
       const kw = joinAB(a, b);
-      const matched = !!kw && /^\d{4}-\d{2}-\d{2}$/.test(k.at || '') && k.at >= cutoffDayKw;
-      return { slot: s, matched, newStatus: 'accepted', matchKeyword: matched ? kw : '', kwA: a || null, kwB: b || null };
+      const matched = !!(kw || c) && /^\d{4}-\d{2}-\d{2}$/.test(k.at || '') && k.at >= cutoffDayKw;
+      // A·B가 없으면(C급만) C급 칸만 채우고 접수 전환은 안 함
+      return { slot: s, matched, toAccept: !!kw, matchKeyword: kw, kwA: a || null, kwB: b || null, kwC: c || null };
     });
     const matched = rows.filter(r => r.matched);
 
@@ -3046,7 +3060,8 @@ window.toggleProdPanel = function(e) {
       return;
     }
 
-    if (!confirm(`대기 ${matched.length}건을 최근 검색키워드로 채우고 접수로 전환합니다. 계속할까요?`)) {
+    const nAccept = matched.filter(r => r.toAccept).length, nCOnly = matched.length - nAccept;
+    if (!confirm(`대기 ${matched.length}건을 최근 키워드로 채웁니다 — 접수 전환 ${nAccept}건${nCOnly ? ` · C급만 채움(전환 안 함) ${nCOnly}건` : ''}. 계속할까요?`)) {
       runBtn.disabled = false; runBtn.textContent = '실행';
       closeBtn.disabled = false;
       window.reacceptRunning = false;
@@ -3056,7 +3071,8 @@ window.toggleProdPanel = function(e) {
     runBtn.textContent = `⏳ 처리 중... (0/${matched.length})`;
     let done = 0;
     for (const r of matched) {
-      const updates = { searchKeyword: r.matchKeyword, searchKeywordA: r.kwA, searchKeywordB: r.kwB, status: r.newStatus };
+      const updates = { ...(r.toAccept ? { searchKeyword: r.matchKeyword, searchKeywordA: r.kwA, searchKeywordB: r.kwB, status: 'accepted' } : {}),
+        ...(r.kwC ? { searchKeywordC: r.kwC } : {}) };
       await HI.updateCampaign(r.slot._key, updates);
       updateLocalSlot(r.slot._key, updates);
       done++;
@@ -3064,7 +3080,7 @@ window.toggleProdPanel = function(e) {
     }
     renderReceipts(false);
 
-    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 접수 전환 ${matched.length}건 처리 완료</span>`;
+    resultEl.innerHTML = `<span style="color:var(--accent);font-weight:600;">✅ 접수 전환 ${nAccept}건${nCOnly ? ` · C급만 채움 ${nCOnly}건` : ''} 처리 완료</span>`;
     runBtn.textContent = '✅ 완료'; runBtn.disabled = true;
     closeBtn.disabled = false;
     window.reacceptRunning = false;
@@ -4382,6 +4398,8 @@ window.toggleProdPanel = function(e) {
     const reward = (s.dailyTarget || 0) - (f.yupflTarget || 0) - Math.round((f.deductTarget || 0) / (s.days || 1));
     return reward <= 0 && !Object.entries(f.yupflByVendor || {}).some(([v, n]) => v !== vendor && n > 0);
   }
+  // 풀스택[개별] 사이트 키워드 = 상세 A급 → C급(중복 제거). A·B 구분 전 캠페인은 검색키워드 전체가 A급(detailKwAB)
+  const fsFixKeywords = s => [...new Set([...kwSplit(detailKwAB(s).a), ...kwSplit(s.searchKeywordC)])];
   function buildFullstackRows(slots) {
     return slots.flatMap(s => {
       const f = s.yupflTarget != null ? s : allocFieldsFor(s);
@@ -4390,8 +4408,8 @@ window.toggleProdPanel = function(e) {
       const onlyFs = onlyVendorOf(s, f, '풀스택');
       const rule = guideRuleFor(s);
       const variants = rule ? fullstackVariants(rule) : [];
-      // 풀스택[개별]은 상세 검색키워드(A·B)만 사이트에 보냄(사이트가 찾은 키워드 안 씀), 그 밖은 사이트 키워드 전부
-      const keywords = s.fullstackFix ? kwSplit(s.searchKeyword) : null;
+      // 풀스택[개별]은 상세 A급+C급만 사이트에 보냄(B급은 무시, 사이트가 찾은 키워드 안 씀), 그 밖은 사이트 키워드 전부
+      const keywords = s.fullstackFix ? fsFixKeywords(s) : null;
       return [{ _slotKey: s._key, _slot: s, _fsSubmitted: !!s.fullstackOrder, agencyId: s.agencyId || '', storeName: s.storeName || '', mid: s.mid || '',
         url: s.url || '', rankKeyword: s.rankKeyword || '',
         daily, days: s.days || 0, start: s.startDate || '', variants, _onlyFs: onlyFs, ...(keywords ? { keywords } : {}),

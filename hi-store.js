@@ -99,13 +99,13 @@ const CLOSED_STATUSES   = new Set(['expired', 'deleted']);
 // force_stopped: 강제종료돼도 원 캠페인 금액은 그대로 정산(남은 기간은 정산 제외인 재접수 캠페인으로 이어감)
 const BILLABLE_STATUSES = new Set(['active', 'accepted', 'expired', 'pending', 'split', 'force_stopped']);
 // 캠페인 필드명 → campaign_keywords 필드명 (페이지는 왼쪽 필드명으로 읽고 씀)
-// searchKeywordA·B = 상세 팝업 A급·B급 칸 원문(searchKeyword는 둘을 합친 값 — 배분·등록은 이것만 씀)
-const KW_FIELDS = { searchKeyword: 'search', yupflKeyword: 'yupfl', splitKeywords: 'split', searchKeywordA: 'searchA', searchKeywordB: 'searchB' };
+// searchKeywordA·B·C = 상세 팝업 A급·B급·C급 칸 원문(searchKeyword는 A+B 합친 값 — 배분·등록은 이것만 씀, C급은 풀스택[개별] 전용)
+const KW_FIELDS = { searchKeyword: 'search', yupflKeyword: 'yupfl', splitKeywords: 'split', searchKeywordA: 'searchA', searchKeywordB: 'searchB', searchKeywordC: 'searchC' };
 const HISTORY_KW = new Set(['search', 'yupfl']);
 // campaign_keywords 노드 → 페이지 필드명
 const kwToFields = kw => ({
   searchKeyword: kw.search || '', yupflKeyword: kw.yupfl || '', splitKeywords: kw.split || null,
-  searchKeywordA: kw.searchA || '', searchKeywordB: kw.searchB || '',
+  searchKeywordA: kw.searchA || '', searchKeywordB: kw.searchB || '', searchKeywordC: kw.searchC || '',
 });
 const KW_HISTORY_MAX = 10;
 const CLAIM_TTL_MS = 10 * 60 * 1000;      // 등록·충전 선점 만료 — 실패 후 다른 직원이 너무 오래 막히지 않게

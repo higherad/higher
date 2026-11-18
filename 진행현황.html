@@ -394,13 +394,14 @@
           </button>
         </div>
         ${camps.length ? `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <tr><th style="${th}">시간</th><th style="${th}">업체명</th><th style="${th}">MID</th><th style="${th}">순위키워드</th><th style="${th}">변경 순위</th></tr>
+          <tr><th style="${th}">시간</th><th style="${th}">업체명</th><th style="${th}">MID</th><th style="${th}">순위키워드</th><th style="${th}">일차</th><th style="${th}">변경 순위</th></tr>
           ${camps.map(c => `
           <tr style="border-top:1px solid var(--border);">
             <td style="padding:5px 6px;color:var(--muted);white-space:nowrap;">${esc((c.at || '').slice(11, 16))}</td>
             <td style="padding:5px 6px;">${esc(c.store || '')}</td>
             <td style="padding:5px 6px;color:var(--muted);">${esc(c.mid || '')}</td>
             <td style="padding:5px 6px;">${esc(c.rankKeyword || '')}</td>
+            <td style="padding:5px 6px;white-space:nowrap;color:var(--muted);" title="${c.a ? esc(`A급 ${c.a} · D급 ${c.d} · 히든 ${c.hidden}`) : ''}">${c.day ? esc(c.day + '일차') : '-'}</td>
             <td style="padding:5px 6px;white-space:nowrap;font-weight:700;color:#dc2626;">${esc(c.rank || '')}</td>
           </tr>`).join('')}</table>`
           : '<div style="font-size:12px;color:var(--muted);">변경된 캠페인이 없습니다.</div>'}`;
@@ -433,8 +434,9 @@
     const render = () => {
       pane.innerHTML = `
         <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
-          · 매일 15시 순위 저장 직후 실행 · 시작일 전날 순위보다 오늘 순위가 떨어진(또는 순위 없음) <b>분할</b> 캠페인, 캠페인당 1회<br>
-          · 대기 조각 검색키워드 = 히든(10위 이내·조회수 있음) + A급 + B급(제외 키워드가 든 것 빼고 나눠서), 최대 50개 · 결과는 텔레그램(건수)
+          · 매일 15시 순위 저장 직후 실행 · 시작일 전날 순위보다 오늘 순위가 떨어진(또는 순위 없음) <b>분할</b> 캠페인, 2일차부터 매일 · 남은 대기 조각 전부 교체<br>
+          · 2일차 A급 + D급 50% · 3일차 A급 + D급 10%(2일차에 안 쓴 것) · 4일차~ A급 — 모두 + 히든(10위 이내·조회수 있음), 최대 50개<br>
+          · D급 = B급에서 제외 키워드가 든 것 뺀 나머지 · A·D는 오늘 순위 1~10위만 남김(D는 순위 좋은 순, 조각끼리 나눠서) · 결과는 텔레그램(건수)
         </div>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;margin-bottom:12px;cursor:pointer;">
           <input type="checkbox" id="pb-on" ${enabled ? 'checked' : ''}> Plan-B 사용
