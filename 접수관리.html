@@ -1358,9 +1358,9 @@ window.toggleProdPanel = function(e) {
     const host = np.panel.parentElement; np.panel.remove(); if (host) host.style.gap = '';
     np = null;
   };
-  // 표에 보이는 목록 — '1~10위'(범위 안, 순위순) + '10위 밖'(11~50위 순위순, 50위 밖은 맨 뒤). 체크·검색량 선택도 보이는 목록 기준(등록툴과 같음)
+  // 표에 보이는 목록 — '1~10위'(범위 안, 순위순) + '10위 밖'(11~100위 순위순, 100위 밖은 서버가 안 보냄). 체크·검색량 선택도 보이는 목록 기준(등록툴과 같음)
   // 머리 정렬 np.sort = {key:'rank'|'vol', dir:'asc'|'desc'}, 없으면 기본(범위 안 → 범위 밖 순위순)
-  // 순위: 50위 밖 맨 뒤 · 월검색량: '< 10'은 0~9 사이로, 자료 없음·아직 안 받음 맨 뒤
+  // 순위: 순위 없음 맨 뒤 · 월검색량: '< 10'은 0~9 사이로, 자료 없음·아직 안 받음 맨 뒤
   const NP_SORT_VAL = { rank: r => r.rank || null, vol: r => !('vol' in r) || r.vol == null ? null : r.vol === '<10' ? 5 : Number(r.vol) };
   const npVisible = () => {
     const vis = [...(npEl('np-f-in').checked ? np.rows : []), ...(npEl('np-f-out').checked ? [...np.out].sort((a, b) => (a.rank || 1e9) - (b.rank || 1e9)) : [])];
@@ -1409,7 +1409,7 @@ window.toggleProdPanel = function(e) {
     const volTxt = v => v == null ? '-' : v === '<10' ? '< 10' : Number(v).toLocaleString();
     tb.innerHTML = vis.length ? vis.map((r, i) => `<tr>
       <td><input type="checkbox" ${np.sel.has(r.kw) ? 'checked' : ''} onchange="npSelOne(${i},this.checked)"></td>
-      <td class="kw">${escProd(r.kw)}</td><td${np.rows.includes(r) ? '' : ' style="color:var(--muted);"'}>${r.rank ? r.rank + '위' : '50위 밖'}</td>
+      <td class="kw">${escProd(r.kw)}</td><td${np.rows.includes(r) ? '' : ' style="color:var(--muted);"'}>${r.rank ? r.rank + '위' : '-'}</td>
       <td style="${r.yes ? 'color:#1d4ed8;font-weight:600;' : 'color:var(--muted);'}">${'vol' in r ? volTxt(r.vol) : '…'}</td></tr>`).join('')
       : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:14px;">${np.busy ? '찾는 중…' : '키워드가 없습니다'}</td></tr>`;
     const all = npEl('np-all'); const n = vis.filter(r => np.sel.has(r.kw)).length;
@@ -1477,7 +1477,7 @@ window.toggleProdPanel = function(e) {
     prog.textContent = `완료 · 유효 ${last.rows.length}개 (검색량 있음 ${last.a.length} · 없음 ${last.b.length}) · C급 ${(last.c || []).length}${last.failed ? ` · 조회 실패 ${last.failed}건` : ''}${last.nameFallback ? ' · 업체명 키워드 추가' : ''} · 등록툴 ${last.version}`;
     npRender();
     if (npEl('np-f-out').checked) npLoadOutVol();
-    // C급 = 범위 밖 11~50위 + 월검색량 20 이상(서버 done.c) — 범위 안이 0개여도 채움
+    // C급 = 범위 밖 11~100위 + 월검색량 20 이상(서버 done.c) — 범위 안이 0개여도 채움
     const cEl = document.getElementById('detail-keyword-c-input'); if (cEl && last.c) cEl.value = last.c.join(',');
     if (last.rows.length) {
       document.getElementById('detail-keyword-input').value = last.a.join(',');
