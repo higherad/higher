@@ -1421,7 +1421,8 @@ window.toggleProdPanel = function(e) {
     return R('업체', [d.name, d.category].filter(Boolean)) + R('주소 · 지하철', [d.roadAddress || d.address, d.subway].filter(Boolean))
       + R('지역어', d.regions) + R('대표키워드', d.keywords) + R('핵심키워드', d.topics) + R('메뉴 토픽', d.menuTopics)
       + R('예약상품 토픽', d.ticketTopics) + R('소개글 토픽', d.introTopics) + R('꼬리키워드', tails) + R('편의시설', d.conveniences)
-      + R('업체별 꼬리', d.bizTails) + R('리뷰 빈출어', d.reviewWords);
+      + R('업체별 꼬리', d.bizTails) + R('리뷰 빈출어', d.reviewWords)
+      + (d.segment === 'restaurant' ? R('필수 조합 지역', d.mustRegions) + R('리뷰 메뉴', d.reviewMenus) : '');
   }
   // /find 한 번 — NDJSON 줄마다 onMsg, 마지막 줄을 돌려줌. 멈춤(ac.abort) = {type:'stopped'}, 연결 실패 = {type:'error'}
   async function npFindStream(body, ac, onMsg) {
