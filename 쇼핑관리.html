@@ -118,7 +118,8 @@
   #sh-or-list div { padding:10px 16px; cursor:pointer; font-size:13px; } #sh-or-list div:hover { background:#f1f5f9; }
   #sh-or-list div.sel { background:rgba(16,185,129,.08); color:var(--accent); font-weight:700; } #sh-or-list span { color:var(--muted); font-size:12px; font-weight:400; }
   /* 엑셀 끌어다 놓기 칸 — 접수관리 엑셀 접수(rex-zone)와 같은 모양 */
-  #sh-or-zone { border:2px dashed var(--border); border-radius:14px; padding:26px; margin-bottom:12px; text-align:center; cursor:pointer; transition:.2s; font-size:14px; font-weight:700; color:var(--text2); }
+  #sh-or-zone { border:2px dashed var(--border); border-radius:14px; padding:26px; margin-bottom:12px; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; transition:.2s; font-size:14px; font-weight:700; color:var(--text2); }
+  #sh-or-zone svg { width:20px; height:20px; }
   #sh-or-zone:hover, #sh-or-zone.drag { border-color:var(--accent); background:rgba(16,185,129,.03); color:var(--accent); }
   #shop-or .foot { display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:16px; }
   #shop-or .foot button { padding:8px 20px; border-radius:7px; font-size:13px; cursor:pointer; font-family:inherit; }
@@ -231,9 +232,9 @@
       <button class="act act-edit" style="margin-top:10px;padding:7px 14px" id="sh-or-add">+ 캠페인 추가</button>
     </div>
     <div id="sh-or-xlsx" style="display:none">
-      <div class="filter-bar" style="justify-content:flex-end"><span class="lb" id="sh-or-xinfo"></span><button class="act act-edit" style="padding:7px 12px" id="sh-or-tmpl">양식 다운로드</button><button class="act act-ok" style="padding:7px 12px" id="sh-or-pick">엑셀 선택</button>
+      <div class="filter-bar" style="justify-content:flex-end"><span class="lb" id="sh-or-xinfo"></span><button class="act act-edit" style="padding:7px 12px" id="sh-or-tmpl">양식 다운로드</button>
         <input type="file" id="sh-or-file" accept=".xlsx,.xls" style="display:none"></div>
-      <div id="sh-or-zone">엑셀 파일을 여기에 끌어다 놓거나 클릭하여 선택</div>
+      <div id="sh-or-zone"><i data-lucide="file-spreadsheet"></i>엑셀 파일을 여기에 끌어다 놓거나 클릭하여 선택</div>
       <div class="tbl-wrap" style="max-height:45vh"><table>
         <thead><tr><th>#</th><th>순위 키워드</th><th>단독 URL</th><th>원부 URL</th><th>시작일</th><th>일수</th><th>일 목표</th><th>캠페인 금액</th><th>상태</th></tr></thead>
         <tbody id="sh-or-xrows"></tbody>
@@ -449,8 +450,7 @@
   $('sh-or-rows').onclick = e => { if (e.target.closest('.or-del')) { e.target.closest('tr').remove(); orSync(); } };
   // 엑셀 양식 — 헤더 글자로 열을 찾으므로 순서는 바뀌어도 됨(접수관리 엑셀 접수와 같은 방식)
   $('sh-or-tmpl').onclick = () => { location.href = 'https://hireward.co.kr/바구니_접수양식.xlsx'; };  // 양식 = higher_shop/바구니_접수양식.xlsx(쇼핑 접수 가이드 그대로, 당일 진행 여부 드롭다운)
-  $('sh-or-pick').onclick = () => $('sh-or-file').click();
-  // 엑셀 선택 = 버튼·칸 클릭(파일 창) 또는 칸에 끌어다 놓기
+  // 엑셀 선택 = 칸 클릭(파일 창) 또는 칸에 끌어다 놓기
   $('sh-or-file').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) orFile(f); };
   const zone = $('sh-or-zone');
   zone.onclick = () => $('sh-or-file').click();

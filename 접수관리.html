@@ -2979,9 +2979,9 @@ window.toggleProdPanel = function(e) {
     let ok = 0;
     for (const x of todo) {
       if (kfRun.stop) break;
-      // 쉬지 않고 이어 돌리면 프록시 IP가 네이버 429에 걸려 재시도로 느려지고 조회 실패가 쌓임 — MID 사이 60초 쉼
-      // ponytail: 고정 60초, 그래도 실패가 쌓이면 늘리거나 직전 failed 수에 맞춰 조절
-      if (x !== todo[0]) { x.res = '차단 방지 대기(60초)'; paint(); await kfSleep(60000, kfRun.ac); if (kfRun.stop) { x.res = '멈춤'; break; } }
+      // 쉬지 않고 이어 돌리면 프록시 IP가 네이버 429에 걸려 재시도로 느려지고 조회 실패가 쌓임 — MID 사이 15초 쉼
+      // ponytail: 고정 15초, 그래도 실패가 쌓이면 늘리거나 직전 failed 수에 맞춰 조절
+      if (x !== todo[0]) { x.res = '차단 방지 대기(15초)'; paint(); await kfSleep(15000, kfRun.ac); if (kfRun.stop) { x.res = '멈춤'; break; } }
       x.res = '찾는 중…'; paint();
       let last;
       for (;;) {   // 다른 사람 사용 중이면 같은 MID 다시
