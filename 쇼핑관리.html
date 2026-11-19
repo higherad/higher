@@ -601,9 +601,12 @@
   const srName = n => { n = String(n || '').replace(/\s*\[SR\]\s*$/i, '').trim(); return n ? n + '[SR]' : ''; };
   const agencyOf = u => u.parent ? userOf(u.parent) : u;
   const srAgency = u => srName(agencyOf(u).company);
+  // 당일 진행 여부·일수 — 시작일이 지난 캠페인은 '접수일 지남'(사람이 당일·익일 골라 고침) + 일수 = 오늘부터 종료일까지 남은 일수
+  const excelTerm = x => x.start >= today() ? [x.start > today() ? '익일진행' : '당일진행', termDays(x)]
+    : [`접수일 지남(시작 ${md(x.start)}) — 당일진행/익일진행으로 수정`, daysBetween(today(), x.end) + 1];
   window.shopExcel = () => {
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
-      .sort(newestFirst).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.ourl || '', x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
+      .sort(newestFirst).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.ourl || '', x.kw, ...excelTerm(x), dailyOf(x)]);
     if (!rows.length) return alert('내보낼 접수·진행중 캠페인이 없습니다.');
     const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '원부URL\n(가격비교 상품)', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
     ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 50 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
