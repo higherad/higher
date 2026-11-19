@@ -149,7 +149,7 @@
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:40px"><col style="width:50px"><col style="width:90px"><col style="width:140px"><col style="width:130px"><col style="width:130px"><col style="width:260px"><col style="width:200px"><col style="width:50px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:100px"><col style="width:80px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>단독 URL</th><th>원부 URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>상품 URL</th><th>원부 URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -226,7 +226,7 @@
     <div class="tabs"><button data-t="one" class="on">개별 접수</button><button data-t="xlsx">엑셀 접수</button></div>
     <div id="sh-or-one">
       <div class="tbl-wrap"><table>
-        <thead><tr><th style="width:34px">#</th><th style="width:170px">순위 키워드</th><th>단독 URL</th><th>원부 URL</th><th style="width:130px">시작일</th><th style="width:76px">일수</th><th style="width:90px">일 목표</th><th style="width:110px">캠페인 금액</th><th style="width:40px"></th></tr></thead>
+        <thead><tr><th style="width:34px">#</th><th style="width:170px">순위 키워드</th><th>상품 URL</th><th>원부 URL</th><th style="width:130px">시작일</th><th style="width:76px">일수</th><th style="width:90px">일 목표</th><th style="width:110px">캠페인 금액</th><th style="width:40px"></th></tr></thead>
         <tbody id="sh-or-rows"></tbody>
       </table></div>
       <button class="act act-edit" style="margin-top:10px;padding:7px 14px" id="sh-or-add">+ 캠페인 추가</button>
@@ -236,7 +236,7 @@
         <input type="file" id="sh-or-file" accept=".xlsx,.xls" style="display:none"></div>
       <div id="sh-or-zone"><i data-lucide="file-spreadsheet"></i>엑셀 파일을 여기에 끌어다 놓거나 클릭하여 선택</div>
       <div class="tbl-wrap" style="max-height:45vh"><table>
-        <thead><tr><th>#</th><th>순위 키워드</th><th>단독 URL</th><th>원부 URL</th><th>시작일</th><th>일수</th><th>일 목표</th><th>캠페인 금액</th><th>상태</th></tr></thead>
+        <thead><tr><th>#</th><th>순위 키워드</th><th>상품 URL</th><th>원부 URL</th><th>시작일</th><th>일수</th><th>일 목표</th><th>캠페인 금액</th><th>상태</th></tr></thead>
         <tbody id="sh-or-xrows"></tbody>
       </table></div>
     </div>
@@ -409,7 +409,7 @@
     start: addDays(today(), +tr.querySelector('.or-when').value), days: +tr.querySelector('.or-days').value, daily: Number(tr.querySelector('.or-daily').value) })) : xRows;
   function orAddRow(base = {}) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td class="or-n"></td><td><input class="or-kw" maxlength="50" placeholder="키워드"></td><td><input class="or-url" maxlength="500" placeholder="단독 URL"></td><td><input class="or-ourl" maxlength="500" placeholder="가격비교 상품만"></td>
+    tr.innerHTML = `<td class="or-n"></td><td><input class="or-kw" maxlength="50" placeholder="키워드"></td><td><input class="or-url" maxlength="500" placeholder="상품 URL"></td><td><input class="or-ourl" maxlength="500" placeholder="가격비교 상품만"></td>
       <td><select class="or-when">${whenOpts(base.off)}</select></td><td><select class="or-days">${termOpts(base.days)}</select></td><td><input class="or-daily" type="number" style="text-align:center"></td>
       <td class="or-amt"></td><td><button class="act act-del or-del" title="줄 삭제">✕</button></td>`;
     tr.querySelector('.or-daily').value = base.daily || MIN_DAILY;
@@ -460,7 +460,7 @@
       const [head = [], ...data] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', range });
       const hdr = head.map(h => String(h).replace(/\s+/g, '')), col = re => hdr.findIndex(h => re.test(h));
       const c = { kw: col(/키워드/), url: col(/단독|상품url/i), ourl: col(/원부/), start: col(/시작일|진행여부/), days: col(/일수/), daily: col(/일목표/) };
-      const miss = [['순위키워드', c.kw], ['단독 URL', c.url], ['당일 진행 여부', c.start], ['일수', c.days], ['일목표', c.daily]].filter(([, i]) => i < 0).map(([n]) => n);
+      const miss = [['순위키워드', c.kw], ['상품URL', c.url], ['당일 진행 여부', c.start], ['일수', c.days], ['일목표', c.daily]].filter(([, i]) => i < 0).map(([n]) => n);
       if (miss.length) throw new Error(`엑셀 첫 줄(헤더)에서 다음 항목을 찾을 수 없습니다: ${miss.join(', ')}\n양식 다운로드로 받은 파일에 작성해 주세요.`);
       const num = v => String(v).trim() === '' ? NaN : Number(v);
       xRows = data.filter(r => String(r[c.kw]).trim() || String(r[c.url]).trim()).map(r => {
