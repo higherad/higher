@@ -136,8 +136,8 @@
         <button class="act act-del" style="padding:7px 12px" title="진행 전: 바로 취소(전액 환불) / 진행중·환불 요청: 비즈핏 강제종료 후 남은 일수만큼 환불" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:40px"><col style="width:50px"><col style="width:90px"><col style="width:70px"><col style="width:120px"><col style="width:130px"><col style="width:130px"><col style="width:260px"><col style="width:200px"><col style="width:50px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:100px"><col style="width:80px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>구분</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>단독 URL</th><th>원부 URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:40px"><col style="width:50px"><col style="width:90px"><col style="width:140px"><col style="width:130px"><col style="width:130px"><col style="width:260px"><col style="width:200px"><col style="width:50px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:100px"><col style="width:80px"></colgroup>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>단독 URL</th><th>원부 URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -172,8 +172,8 @@
       <span class="lb">영업점</span><select id="sh-fh-user"></select>
       <span class="lb">구분</span><select id="sh-fh-type"><option value="">전체</option><option>접수</option><option>정보 수정</option><option>환불 요청</option><option>환불</option><option>취소</option><option>입금 확인</option></select>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:120px"><col style="width:100px"><col style="width:150px"><col style="width:160px"><col style="width:130px"><col></colgroup>
-      <thead><tr><th>일시</th><th>구분</th><th>계정 구분</th><th>영업점</th><th>대상</th><th>내용</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:120px"><col style="width:100px"><col style="width:180px"><col style="width:130px"><col></colgroup>
+      <thead><tr><th>일시</th><th>구분</th><th>영업점</th><th>대상</th><th>내용</th></tr></thead>
       <tbody id="sh-hist-rows"></tbody>
     </table></div>
   </section>
@@ -440,10 +440,10 @@
     } catch (err) { alert(err.message || '파일을 읽지 못했습니다. 양식을 확인해 주세요.'); }
     orSync();
   };
-  window.shopOrderOpen = () => {
+  window.shopOrderOpen = (tab = 'one') => {  // tab = 'xlsx'면 엑셀 접수 탭으로(상단 '엑셀 접수' 버튼)
     if (closedNow()) return alert(closedMsg());
     $('sh-or-user').innerHTML = '<option value="">-- 영업점 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
-    xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab('one');
+    xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab(tab);
     $('shop-or').classList.add('show');
   };
   $('sh-or-user').onchange = orSync;
@@ -587,12 +587,12 @@
     $('sh-slot-rows').innerHTML = rows.slice(0, 1000).map(x => {
       const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund';
       return `<tr${st === 'stop' ? ' class="void"' : ''}><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
-        <td>${seqNo(x)}</td><td>${md(issueAt(x))}</td><td>${gradePill(userOf(x.userId))}</td><td><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
+        <td>${seqNo(x)}</td><td>${md(issueAt(x))}</td><td><div style="font-size:11px">${gradePill(userOf(x.userId))}</div><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         ${[x.url, x.ourl].map((u, i) => `<td>${safeUrl(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(u)}</a>` : u ? esc(u) : i ? '-' : miss}</td>`).join('')}
         <td>${termDays(x)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td><td>${dailyOf(x).toLocaleString()}</td>
         ${(r => `<td>${rk(r?.prev)}</td><td>${rk(r?.rank)}</td><td>${delta(r?.delta)}</td><td${r ? ` data-rk="${esc(slotKey(x))}" style="cursor:pointer" title="클릭하면 순위 추이 상세"` : ''}>${spark(r?.hist)}</td>`)(RANKS[slotKey(x)])}
         <td class="void-keep"><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="18">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="17">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   /* ── 정산 ── */
@@ -1080,8 +1080,8 @@
     // 시각이 분 단위라 같은 분이면 나중에 넣은(접수→환불→입금) 이벤트가 위로
     ev.sort((a, b) => b[0].localeCompare(a[0]) || b[6] - a[6]);
     $('sh-hist-rows').innerHTML = ev.slice(0, 1000).map(([at, t, cls, userId, tg, txt]) => `<tr><td>${md(at)}</td><td><span class="pill p-${cls}">${t}</span></td>
-      <td>${gradePill(userOf(userId))}</td><td>${esc(userOf(userId).company)}</td><td>${tg}</td><td>${txt}</td></tr>`).join('')
-      || `<tr class="empty-row"><td colspan="6">${loaded ? '이력이 없습니다.' : '불러오는 중…'}</td></tr>`;
+      <td><div style="font-size:11px">${gradePill(userOf(userId))}</div><b>${esc(userOf(userId).company)}</b></td><td>${tg}</td><td>${txt}</td></tr>`).join('')
+      || `<tr class="empty-row"><td colspan="5">${loaded ? '이력이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   function renderAll() {
