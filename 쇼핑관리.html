@@ -145,7 +145,6 @@
       <span class="lb">상태</span><select id="sh-fs-st"><option value="">전체</option><option value="wait">접수</option><option value="run">진행중</option><option value="refund">환불 요청</option><option value="stop">환불</option><option value="end">종료</option></select>
       <label><input id="sh-fs-noend" type="checkbox" checked>종료 제외</label>
       <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><span class="lb" id="sh-run-n"></span>
-        <button class="act act-ok" style="padding:7px 12px;display:inline-flex;align-items:center;gap:5px" onclick="shopOrderOpen()"><i data-lucide="clipboard-plus" style="width:13px;height:13px"></i>접수</button>
         <button class="act act-del" style="padding:7px 12px" title="진행 전: 바로 취소(전액 환불) / 진행중·환불 요청: 비즈핏 강제종료 후 남은 일수만큼 환불" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
@@ -224,7 +223,7 @@
     <div class="ttl">접수</div>
     <div class="sub">시작일 당일·익일 · 일수 1~7일 · 일 목표 10개 이상</div>
     <div id="sh-or-wrap"><input id="sh-or-user" placeholder="영업점명 또는 아이디 검색" autocomplete="off"><i data-lucide="chevron-down" id="sh-or-chev"></i></div><div id="sh-or-list"></div>
-    <div class="tabs"><button data-t="one" class="on">개별 접수</button><button data-t="xlsx">엑셀 접수</button></div>
+    <div class="tabs"><button data-t="one">개별 접수</button><button data-t="xlsx" class="on">엑셀 접수</button></div>
     <div id="sh-or-one">
       <div class="tbl-wrap"><table>
         <thead><tr><th style="width:34px">#</th><th style="width:170px">순위 키워드</th><th>상품 URL</th><th>원부 URL</th><th style="width:130px">시작일</th><th style="width:76px">일수</th><th style="width:90px">일 목표</th><th style="width:110px">캠페인 금액</th><th style="width:40px"></th></tr></thead>
@@ -480,7 +479,7 @@
     } catch (err) { alert(err.message || '파일을 읽지 못했습니다. 양식을 확인해 주세요.'); }
     orSync();
   }
-  window.shopOrderOpen = (tab = 'one') => {  // tab = 'xlsx'면 엑셀 접수 탭으로(상단 '엑셀 접수' 버튼)
+  window.shopOrderOpen = (tab = 'xlsx') => {  // 상단 '접수' 버튼 — 엑셀 접수 탭으로 열림
     $('sh-or-user').value = ''; orSel = '';
     xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab(tab);
     $('shop-or').classList.add('show');
