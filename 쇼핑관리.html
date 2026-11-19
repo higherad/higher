@@ -136,8 +136,8 @@
         <button class="act act-del" style="padding:7px 12px" title="진행 전: 바로 취소(전액 환불) / 진행중·환불 요청: 비즈핏 강제종료 후 남은 일수만큼 환불" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:40px"><col style="width:50px"><col style="width:90px"><col style="width:70px"><col style="width:120px"><col style="width:130px"><col style="width:130px"><col style="width:300px"><col style="width:50px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:100px"><col style="width:80px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>구분</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
+    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:40px"><col style="width:50px"><col style="width:90px"><col style="width:70px"><col style="width:120px"><col style="width:130px"><col style="width:130px"><col style="width:260px"><col style="width:200px"><col style="width:50px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:100px"><col style="width:80px"></colgroup>
+      <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>구분</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>단독 URL</th><th>원부 URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
   </section>
@@ -214,7 +214,7 @@
     <div class="tabs"><button data-t="one" class="on">개별 접수</button><button data-t="xlsx">엑셀 접수</button></div>
     <div id="sh-or-one">
       <div class="tbl-wrap"><table>
-        <thead><tr><th style="width:34px">#</th><th style="width:170px">순위 키워드</th><th>상품 URL</th><th style="width:130px">시작일</th><th style="width:76px">일수</th><th style="width:90px">일 목표</th><th style="width:110px">캠페인 금액</th><th style="width:40px"></th></tr></thead>
+        <thead><tr><th style="width:34px">#</th><th style="width:170px">순위 키워드</th><th>단독 URL</th><th>원부 URL</th><th style="width:130px">시작일</th><th style="width:76px">일수</th><th style="width:90px">일 목표</th><th style="width:110px">캠페인 금액</th><th style="width:40px"></th></tr></thead>
         <tbody id="sh-or-rows"></tbody>
       </table></div>
       <button class="act act-edit" style="margin-top:10px;padding:7px 14px" id="sh-or-add">+ 캠페인 추가</button>
@@ -223,7 +223,7 @@
       <div class="filter-bar"><button class="act act-edit" style="padding:7px 12px" id="sh-or-tmpl">양식 다운로드</button><button class="act act-ok" style="padding:7px 12px" id="sh-or-pick">엑셀 선택</button>
         <input type="file" id="sh-or-file" accept=".xlsx,.xls" style="display:none"><span class="lb" id="sh-or-xinfo"></span></div>
       <div class="tbl-wrap" style="max-height:45vh"><table>
-        <thead><tr><th>#</th><th>순위 키워드</th><th>상품 URL</th><th>시작일</th><th>일수</th><th>일 목표</th><th>캠페인 금액</th><th>상태</th></tr></thead>
+        <thead><tr><th>#</th><th>순위 키워드</th><th>단독 URL</th><th>원부 URL</th><th>시작일</th><th>일수</th><th>일 목표</th><th>캠페인 금액</th><th>상태</th></tr></thead>
         <tbody id="sh-or-xrows"></tbody>
       </table></div>
     </div>
@@ -361,12 +361,13 @@
   const newReqId = () => crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2);
   // 시작일 = 당일·익일 둘 중 하나(접수하면 그 날짜로 저장)
   const whenOpts = (v = 0) => [0, 1].map(n => `<option value="${n}"${n === v ? ' selected' : ''}>${n ? '익일' : '당일'}</option>`).join('');
-  const WHEN = { '당일': 0, '익일': 1 };
+  const WHEN = { '당일': 0, '익일': 1, '당일진행': 0, '익일진행': 1 };
   // 한 줄 검사(서버 shop_order와 같음) → 오류 문구, 없으면 ''
   function orderErr(r) {
     if (!r.kw) return '키워드 누락';
     if (r.kw.length > 50) return '키워드 50자 초과';
     if (!parseMid(r.url)) return r.url ? '네이버 상품 URL 아님' : 'URL 누락';
+    if (r.ourl && !parseMid(r.ourl)) return '원부 URL 확인';
     if (r.start !== today() && r.start !== addDays(today(), 1)) return '시작일은 당일·익일만';
     if (!Number.isInteger(r.days) || r.days < 1 || r.days > TERM_DAYS) return `일수는 1~${TERM_DAYS}만`;
     if (!Number.isInteger(r.daily) || r.daily < MIN_DAILY) return `일 목표 최소 ${MIN_DAILY}개`;
@@ -374,11 +375,11 @@
   }
   const orderAmt = r => (orUser()?.price || 0) * r.days * r.daily;
   const orderRows = () => orderTab === 'one' ? [...$('sh-or-rows').children].map(tr => ({
-    kw: tr.querySelector('.or-kw').value.trim(), url: tr.querySelector('.or-url').value.trim(), off: +tr.querySelector('.or-when').value,
+    kw: tr.querySelector('.or-kw').value.trim(), url: tr.querySelector('.or-url').value.trim(), ourl: tr.querySelector('.or-ourl').value.trim(), off: +tr.querySelector('.or-when').value,
     start: addDays(today(), +tr.querySelector('.or-when').value), days: +tr.querySelector('.or-days').value, daily: Number(tr.querySelector('.or-daily').value) })) : xRows;
   function orAddRow(base = {}) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td class="or-n"></td><td><input class="or-kw" maxlength="50" placeholder="키워드"></td><td><input class="or-url" maxlength="500" placeholder="상품 URL"></td>
+    tr.innerHTML = `<td class="or-n"></td><td><input class="or-kw" maxlength="50" placeholder="키워드"></td><td><input class="or-url" maxlength="500" placeholder="단독 URL"></td><td><input class="or-ourl" maxlength="500" placeholder="가격비교 상품만"></td>
       <td><select class="or-when">${whenOpts(base.off)}</select></td><td><select class="or-days">${termOpts(base.days)}</select></td><td><input class="or-daily" type="number" style="text-align:center"></td>
       <td class="or-amt"></td><td><button class="act act-del or-del" title="줄 삭제">✕</button></td>`;
     tr.querySelector('.or-daily').value = base.daily || MIN_DAILY;
@@ -391,13 +392,14 @@
       const r = rows[i];
       tr.querySelector('.or-n').textContent = i + 1;
       tr.querySelector('.or-url').classList.toggle('bad', !!r.url && !parseMid(r.url));
+      tr.querySelector('.or-ourl').classList.toggle('bad', !!r.ourl && !parseMid(r.ourl));
       tr.querySelector('.or-daily').classList.toggle('bad', !Number.isInteger(r.daily) || r.daily < MIN_DAILY);
       tr.querySelector('.or-amt').textContent = errs[i] || !ok ? '-' : won(orderAmt(r)) + '원';
     });
-    else $('sh-or-xrows').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.kw) || '-'}</td><td style="text-align:left;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url) || '-'}</td>
+    else $('sh-or-xrows').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.kw) || '-'}</td><td style="text-align:left;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url) || '-'}</td><td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.ourl) || '-'}</td>
         <td>${esc(r.raw) || '-'}</td><td>${esc(r.daysRaw) || '-'}</td><td>${esc(r.dailyRaw) || '-'}</td>
         <td>${errs[i] || !ok ? '-' : won(orderAmt(r)) + '원'}</td><td>${errs[i] ? `<span class="pill p-r">${errs[i]}</span>` : '<span class="pill p-g">정상</span>'}</td></tr>`).join('')
-      || '<tr><td colspan="8" style="height:100px;text-align:center;color:var(--muted)">양식에 맞춰 작성한 엑셀을 선택해 주세요.</td></tr>';
+      || '<tr><td colspan="9" style="height:100px;text-align:center;color:var(--muted)">양식에 맞춰 작성한 엑셀을 선택해 주세요.</td></tr>';
     const bad = errs.filter(Boolean).length, amt = rows.reduce((a, r, i) => a + (errs[i] ? 0 : orderAmt(r)), 0);
     $('sh-or-sum').innerHTML = rows.length && ok ? `${bad ? `<b style="color:var(--danger)">오류 ${bad}건</b> · ` : ''}${rows.length}건 합계 <b style="color:var(--text);font-size:15px">${won(amt)}원</b> (VAT 별도)` : '';
     $('sh-or-go').disabled = !rows.length || bad > 0 || !ok;
@@ -412,12 +414,7 @@
   $('sh-or-rows').oninput = orSync; $('sh-or-rows').onchange = orSync;
   $('sh-or-rows').onclick = e => { if (e.target.closest('.or-del')) { e.target.closest('tr').remove(); orSync(); } };
   // 엑셀 양식 — 헤더 글자로 열을 찾으므로 순서는 바뀌어도 됨(접수관리 엑셀 접수와 같은 방식)
-  $('sh-or-tmpl').onclick = () => {
-    const ws = XLSX.utils.aoa_to_sheet([['순위키워드', '상품URL', '시작일\n(당일 or 익일)', '일수\n(1~7)', '일목표\n(최소 10)']]);
-    ws['!cols'] = [{ wch: 24 }, { wch: 60 }, { wch: 16 }, { wch: 10 }, { wch: 12 }];
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '접수');
-    XLSX.writeFile(wb, '쇼핑슬롯_접수양식.xlsx');
-  };
+  $('sh-or-tmpl').onclick = () => { location.href = 'https://hireward.co.kr/바구니_접수양식.xlsx'; };  // 양식 = higher_shop/바구니_접수양식.xlsx(쇼핑 접수 가이드 그대로, 당일 진행 여부 드롭다운)
   $('sh-or-pick').onclick = () => $('sh-or-file').click();
   $('sh-or-file').onchange = async e => {
     const file = e.target.files[0]; e.target.value = '';
@@ -428,13 +425,13 @@
       if (range.e.r > 5000) range.e.r = 5000;  // 서식만 있는 빈 칸으로 범위가 100만 행까지 부풀려진 파일 대비
       const [head = [], ...data] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', range });
       const hdr = head.map(h => String(h).replace(/\s+/g, '')), col = re => hdr.findIndex(h => re.test(h));
-      const c = { kw: col(/키워드/), url: col(/url|주소/i), start: col(/시작일/), days: col(/일수/), daily: col(/일목표/) };
-      const miss = [['순위키워드', c.kw], ['상품URL', c.url], ['시작일', c.start], ['일수', c.days], ['일목표', c.daily]].filter(([, i]) => i < 0).map(([n]) => n);
+      const c = { kw: col(/키워드/), url: col(/단독|상품url/i), ourl: col(/원부/), start: col(/시작일|진행여부/), days: col(/일수/), daily: col(/일목표/) };
+      const miss = [['순위키워드', c.kw], ['단독 URL', c.url], ['당일 진행 여부', c.start], ['일수', c.days], ['일목표', c.daily]].filter(([, i]) => i < 0).map(([n]) => n);
       if (miss.length) throw new Error(`엑셀 첫 줄(헤더)에서 다음 항목을 찾을 수 없습니다: ${miss.join(', ')}\n양식 다운로드로 받은 파일에 작성해 주세요.`);
       const num = v => String(v).trim() === '' ? NaN : Number(v);
       xRows = data.filter(r => String(r[c.kw]).trim() || String(r[c.url]).trim()).map(r => {
         const raw = String(r[c.start]).trim(), off = WHEN[raw];
-        return { kw: String(r[c.kw]).trim(), url: String(r[c.url]).trim(), raw, start: off === undefined ? '' : addDays(today(), off),
+        return { kw: String(r[c.kw]).trim(), url: String(r[c.url]).trim(), ourl: c.ourl < 0 ? '' : String(r[c.ourl]).trim(), raw, start: off === undefined ? '' : addDays(today(), off),
           days: num(r[c.days]), daily: num(r[c.daily]), daysRaw: String(r[c.days]).trim(), dailyRaw: String(r[c.daily]).trim() };
       });
       if (!xRows.length) throw new Error('접수할 줄이 없습니다.');
@@ -458,7 +455,7 @@
     if (!rows.length) throw new Error('접수할 줄이 없습니다.');
     if (bad >= 0) throw new Error(`${bad + 1}번째 줄: ${orderErr(rows[bad])}`);
     if (!confirm(`${u.company}에 캠페인 ${rows.length}개를 접수합니다. 금액 ${won(rows.reduce((a, r) => a + orderAmt(r), 0))}원(VAT 별도)`)) return;
-    const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, start, days, daily }) => ({ kw, url, start, days, daily })), reqId: newReqId() });
+    const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, ourl, start, days, daily }) => ({ kw, url, ourl, start, days, daily })), reqId: newReqId() });
     $('shop-or').classList.remove('show');
     alert(`${r.count}개 캠페인이 접수되었습니다.`);
   });
@@ -570,10 +567,10 @@
   const srAgency = u => srName(agencyOf(u).company);
   window.shopExcel = () => {
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
-      .sort(newestFirst).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
+      .sort(newestFirst).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.ourl || '', x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
     if (!rows.length) return alert('내보낼 접수·진행중 캠페인이 없습니다.');
-    const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
-    ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
+    const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '단독 URL', '원부URL\n(가격비교 상품)', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
+    ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 50 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '접수');
     XLSX.writeFile(wb, `쇼핑접수_${today()}.xlsx`);
   };
@@ -591,11 +588,11 @@
       const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund';
       return `<tr${st === 'stop' ? ' class="void"' : ''}><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
         <td>${seqNo(x)}</td><td>${md(issueAt(x))}</td><td>${gradePill(userOf(x.userId))}</td><td><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
-        <td>${safeUrl(x.url) ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(x.url)}</a>` : x.url ? esc(x.url) : miss}</td>
+        ${[x.url, x.ourl].map((u, i) => `<td>${safeUrl(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(u)}</a>` : u ? esc(u) : i ? '-' : miss}</td>`).join('')}
         <td>${termDays(x)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td><td>${dailyOf(x).toLocaleString()}</td>
         ${(r => `<td>${rk(r?.prev)}</td><td>${rk(r?.rank)}</td><td>${delta(r?.delta)}</td><td${r ? ` data-rk="${esc(slotKey(x))}" style="cursor:pointer" title="클릭하면 순위 추이 상세"` : ''}>${spark(r?.hist)}</td>`)(RANKS[slotKey(x)])}
         <td class="void-keep"><span class="pill p-${STATE[st][1]}"${x.runAt ? ` title="${esc(x.runAt)} ${esc(x.runBy)}"` : ''}>${STATE[st][0]}</span></td></tr>`;
-    }).join('') || `<tr class="empty-row"><td colspan="17">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
+    }).join('') || `<tr class="empty-row"><td colspan="18">${loaded ? '조회된 캠페인이 없습니다.' : '불러오는 중…'}</td></tr>`;
   }
 
   /* ── 정산 ── */
@@ -1116,7 +1113,7 @@
   const pageEl = $('shop-page');
   // 기획 확인용 데모 보기 — true면 데모 계정(zzdemo*) 데이터만 화면에 표시. 실데이터는 DB에 그대로, 화면에서만 숨김
   // 상용 화면으로 되돌릴 땐 false (데모 데이터 넣기·지우기 = work/cloudrun/higherad-macro/higherad-shop/demo_data.py seed|clean)
-  const DEMO_ONLY = true, DEMO_PRE = 'zzdemo';
+  const DEMO_ONLY = false, DEMO_PRE = 'zzdemo';
   const demoView = v => !DEMO_ONLY ? v : Object.fromEntries(Object.entries(v || {}).map(([k, o]) =>
     [k, o && typeof o === 'object' && k !== 'meta' ? Object.fromEntries(Object.entries(o).filter(([id]) => id.startsWith(DEMO_PRE))) : o]));
   let unsub = null;
