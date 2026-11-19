@@ -62,6 +62,7 @@
   #shop-page thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; }
   #shop-page tbody td { padding:10px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #shop-page table.fx { table-layout:fixed; min-width:1100px; } /* 열 너비 고정 — 긴 글자는 … (마우스 올리면 전체) */
+  #shop-page table.slim th, #shop-page table.slim td { padding-left:6px; padding-right:6px; } /* 접수 현황 = 열 많아서 좌우 여백 줄이고 URL 두 칸이 남는 폭을 나눔(가로 스크롤 없게) */
   #shop-page tbody tr:hover { background:#f8fafc; }
   #shop-page tr.void td { text-decoration:line-through; color:var(--muted); } #shop-page tr.void td.void-keep { text-decoration:none; }
   #shop-page tr.grp { cursor:pointer; } #shop-page tr.child td { background:#f8fafc; font-size:11.5px; }
@@ -129,7 +130,7 @@
 
 <div id="shop-page">
   <div class="tabs">
-    <div class="tab on" data-t="slots"><i data-lucide="layout-list"></i>접수 현황</div>
+    <div class="tab on" data-t="slots"><i data-lucide="layout-list"></i>접수 현황 <span class="cnt" id="sh-tab-wait" style="display:none;background:#1d4ed8"></span></div>
     <div class="tab" data-t="settle"><i data-lucide="receipt"></i>정산 <span class="cnt" id="sh-tab-unpaid" style="display:none"></span></div>
     <div class="tab" data-t="users"><i data-lucide="users-round"></i>영업점 관리</div>
     <div class="tab" data-t="hist"><i data-lucide="history"></i>변경 이력</div>
@@ -148,7 +149,7 @@
         <button class="act act-del" style="padding:7px 12px" title="진행 전: 바로 취소(전액 환불) / 진행중·환불 요청: 비즈핏 강제종료 후 남은 일수만큼 환불" onclick="shopStop(this)">환불</button>
         <button class="btn-go" style="padding:7px 18px" onclick="shopRun(this)">진행중 전환</button></span>
     </div>
-    <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:40px"><col style="width:50px"><col style="width:90px"><col style="width:140px"><col style="width:130px"><col style="width:130px"><col style="width:260px"><col style="width:200px"><col style="width:50px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:70px"><col style="width:100px"><col style="width:80px"></colgroup>
+    <div class="tbl-wrap"><table class="fx slim"><colgroup><col style="width:32px"><col style="width:44px"><col style="width:52px"><col style="width:104px"><col style="width:116px"><col style="width:104px"><col><col><col style="width:44px"><col style="width:52px"><col style="width:52px"><col style="width:58px"><col style="width:68px"><col style="width:68px"><col style="width:68px"><col style="width:84px"><col style="width:64px"></colgroup>
       <thead><tr><th><input type="checkbox" id="sh-cb-all"></th><th>번호</th><th>접수일</th><th>영업점</th><th>순위 키워드</th><th>MID</th><th>상품 URL</th><th>원부 URL</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>전일 순위</th><th>현재 순위</th><th>순위 변동</th><th>순위 그래프</th><th>상태</th></tr></thead>
       <tbody id="sh-slot-rows"></tbody>
     </table></div>
@@ -262,6 +263,11 @@
   // 정산 금액 = 발급 금액 - 중단 슬롯 환불액(refund) - 추가 환불(adj = 정산 '환불' 버튼, autoAdj = 환불 등록 자동 차감, 하이어 청구 쪽)
   const refundOf = is => (is.refund || 0) + (is.adj || 0) + (is.autoAdj || 0);
   const billOf = is => is.qty * is.price - refundOf(is);
+  // 한 번에 들어온 엑셀 접수(같은 batch) = 정산 한 줄 — 개별 접수(batch 없음)는 발급 건 하나씩. 줄 = 발급 건 배열(정렬 순서 유지)
+  const byBatch = L => { const out = [], seen = {};
+    L.forEach(is => { const k = is.batch && `${is.userId}|${is.batch}`; if (k && seen[k]) return void seen[k].push(is); const g = [is]; out.push(g); if (k) seen[k] = g; });
+    return out; };
+  const gSum = (g, f) => g.reduce((a, is) => a + f(is), 0);
   // 진행중은 직원이 접수 현황에서 직접 전환(runAt) — 시작일이 지나도 자동으로 바뀌지 않음
   const STATE = { run: ['진행중', 'g'], wait: ['접수', 'b'], refund: ['환불 요청', 'r'], stop: ['환불', 'rd'], end: ['종료', 'n'] };
   const slotState = sl => sl.stoppedAt ? 'stop' : sl.end < today() ? 'end' : sl.refundAt ? 'refund' : sl.runAt ? 'run' : 'wait';
@@ -486,7 +492,7 @@
     if (!rows.length) throw new Error('접수할 줄이 없습니다.');
     if (bad >= 0) throw new Error(`${bad + 1}번째 줄: ${orderErr(rows[bad])}`);
     if (!confirm(`${u.company}에 캠페인 ${rows.length}개를 접수합니다. 금액 ${won(rows.reduce((a, r) => a + orderAmt(r), 0))}원(VAT 별도)`)) return;
-    const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, ourl, start, days, daily }) => ({ kw, url, ourl, start, days, daily })), reqId: newReqId() });
+    const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, ourl, start, days, daily }) => ({ kw, url, ourl, start, days, daily })), xlsx: orderTab === 'xlsx', reqId: newReqId() });
     $('shop-or').classList.remove('show');
     alert(`${r.count}개 캠페인이 접수되었습니다.`);
   });
@@ -658,16 +664,16 @@
     const goalOf = is => is.qty * termDays(is) * dailyOf(is);
     const units = L => { const u = [...new Set(L.map(x => x.unitShown).filter(Boolean))]; return u.length ? u.map(won).join(' / ') : '-'; };
     // 펼친 개별 건(발급 건 하나씩) — 상태·담당자·액션은 묶음 줄에만
-    const issueCells = is => { const b = billOf(is); return `<td style="font-size:11px">${md(is.at)}</td><td>${agencyCell(userOf(is.userId))}</td>
-        <td>${units([is])}</td><td>${is.qty}건</td><td>${goalOf(is).toLocaleString()}</td><td>${won(b)}원</td><td>${won(Math.round(b * VAT))}원</td>
-        <td style="color:var(--danger)">${refundOf(is) ? won(refundOf(is)) + '원' : '-'}</td><td></td><td></td><td></td><td></td>`; };
+    const issueCells = g => { const b = gSum(g, billOf), rf = gSum(g, refundOf); return `<td style="font-size:11px">${md(g[0].at)}</td><td>${agencyCell(userOf(g[0].userId))}</td>
+        <td>${units(g)}</td><td>${gSum(g, is => is.qty)}건</td><td>${gSum(g, goalOf).toLocaleString()}</td><td>${won(b)}원</td><td>${won(Math.round(b * VAT))}원</td>
+        <td style="color:var(--danger)">${rf ? won(rf) + '원' : '-'}</td><td></td><td></td><td></td><td></td>`; };
     const box = keys => `<input type="checkbox" class="sh-sc" data-k="${esc(keys.join(','))}"${keys.every(k => SPICK.has(k)) ? ' checked' : ''}>`;
     $('sh-settle-rows').innerHTML = items.map(it => {
       const L = it.list, b = L.reduce((a, x) => a + billOf(x), 0), rf = L.reduce((a, x) => a + refundOf(x), 0), allPaid = L.every(x => x.paidAt), open = OPEN.has('s|' + it.k);
       const lastPaid = L.reduce((a, x) => (x.paidAt || '') > (a.paidAt || '') ? x : a, {});
       const S = SETTLE[settleKey(it.payer, it.date)] || {}, ek = esc(it.k);
       const tgl = on => on ? 'background:#f1f5f9;color:var(--text2);box-shadow:inset 0 2px 4px rgba(0,0,0,.15)' : '';
-      return `<tr class="grp" data-g="s|${esc(it.k)}"><td>${box(L.map(slotKey))}</td><td>${md(it.date)}<br><span class="tg" style="font-size:11px">${L.length}건 ${open ? '▾' : '▸'}</span></td>
+      return `<tr class="grp" data-g="s|${esc(it.k)}"><td>${box(L.map(slotKey))}</td><td>${md(it.date)}<br><span class="tg" style="font-size:11px">${byBatch(L).length}건 ${open ? '▾' : '▸'}</span></td>
         <td>${agencyCell(userOf(it.payer))}</td><td>${units(L)}</td><td>${L.reduce((a, x) => a + x.qty, 0)}건</td><td>${L.reduce((a, x) => a + goalOf(x), 0).toLocaleString()}</td>
         <td style="font-weight:700;color:var(--accent)">${won(b)}원</td><td style="font-weight:700;color:var(--info)">${won(Math.round(b * VAT))}원</td>
         <td style="color:var(--danger);font-weight:700">${rf ? won(rf) + '원' : '-'}</td>
@@ -677,7 +683,7 @@
           <button class="act" style="background:var(--accent);color:#fff;${tgl(allPaid)}" onclick="shopPaidGroup('${ek}',${!allPaid},this)">입금</button>
           <button class="act" style="${S.memo ? 'background:rgba(239,68,68,.12);color:var(--danger);border:1.5px solid var(--danger)' : 'background:#f1f5f9;color:var(--text2);border:1.5px solid var(--border)'}" title="${esc(S.memo || '')}" onclick="shopMemoGroup('${ek}')">메모</button>
           <button class="act act-del" onclick="shopRefundGroup('${ek}')">환불</button></td></tr>`
-        + (open ? L.map(is => `<tr class="child"><td></td>${issueCells(is)}</tr>`).join('') : '');
+        + (open ? byBatch(L).map(g => `<tr class="child"><td></td>${issueCells(g)}</tr>`).join('') : '');
     }).join('') || (`<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
   const pickSet = (c, on) => c.dataset.k.split(',').forEach(k => on ? SPICK.add(k) : SPICK.delete(k));
@@ -707,7 +713,7 @@
       block.className = 'agency-block';
       block.innerHTML = `<div class="agency-hd"><div><div class="aname">${esc(userOf(p).company)}${userOf(p).role === 'dist' ? ' (총판)' : ''}</div><div class="ameta">총 ${qty.toLocaleString()}건 · 전체 목표 ${totalGoal.toLocaleString()}건</div></div><button class="agency-copy-btn">복사</button></div>
         <div style="overflow-x:auto"><table class="ag-table"><thead><tr><th>접수일시</th><th>영업점</th><th>캠페인 수</th><th>전체 목표 합산</th><th>단가(원)</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>상태</th></tr></thead><tbody>
-        ${list.map(is => `<tr><td>${esc(is.at)}</td><td>${esc(userOf(is.userId).company)}</td><td>${is.qty}</td><td>${goal(is).toLocaleString()}</td><td>${is.unitShown ? won(is.unitShown) : '-'}</td><td><b>${won(billOf(is))}</b></td><td style="color:var(--info);font-weight:700">${won(Math.round(billOf(is) * VAT))}</td><td style="${refundOf(is) ? 'color:#dc2626;font-weight:700' : ''}">${refundOf(is) ? won(refundOf(is)) : '-'}</td><td>${is.paidAt ? '<span class="pill p-g">정산완료</span>' : '<span class="pill p-w">미정산</span>'}</td></tr>`).join('')}
+        ${byBatch(list).map(g => ({ ...g[0], qty: gSum(g, is => is.qty), paidAt: g.every(x => x.paidAt) ? g[0].paidAt || '1' : '', _g: g })).map(is => `<tr><td>${esc(is.at)}</td><td>${esc(userOf(is.userId).company)}</td><td>${is.qty}</td><td>${gSum(is._g, goal).toLocaleString()}</td><td>${[...new Set(is._g.map(x => x.unitShown).filter(Boolean))].map(won).join(' / ') || '-'}</td><td><b>${won(gSum(is._g, billOf))}</b></td><td style="color:var(--info);font-weight:700">${won(Math.round(gSum(is._g, billOf) * VAT))}</td><td style="${gSum(is._g, refundOf) ? 'color:#dc2626;font-weight:700' : ''}">${gSum(is._g, refundOf) ? won(gSum(is._g, refundOf)) : '-'}</td><td>${is.paidAt ? '<span class="pill p-g">정산완료</span>' : '<span class="pill p-w">미정산</span>'}</td></tr>`).join('')}
         </tbody></table></div>
         <div class="agency-ft"><span>정산 합계 <b>${won(amt)}원</b></span><span>입금 합계 <b>${won(dep)}원</b></span>${rf ? `<span style="color:var(--danger)">환불 <b style="color:var(--danger)">${won(rf)}원</b></span>` : ''}<span class="charge-cell" style="margin-left:auto"></span></div>`;
       block.dataset.payer = p; block.dataset.amount = amt;
@@ -1120,8 +1126,9 @@
     const opts = all => (all ? `<option value="">${all}</option>` : '') + USERS.map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})${u.deleted ? ' · 삭제' : ''}</option>`).join('');
     const keep = (id, html) => { const el = $(id), v = el.value; el.innerHTML = html; el.value = v; if (el.selectedIndex < 0) el.selectedIndex = 0; };
     ['sh-fs-user', 'sh-ft-user', 'sh-fh-user'].forEach(id => keep(id, opts('전체 영업점')));
-    const nUnpaid = ISSUES.filter(x => !x.paidAt && !x.revokedAt).length;
-    [['sh-tab-unpaid', nUnpaid]].forEach(([id, n]) => { $(id).textContent = n; $(id).style.display = n ? '' : 'none'; });
+    // 탭 배지 = 접수(진행중 전환 전) 캠페인 수 · 미정산 정산 줄 수(엑셀 한 번 = 1줄, 정산 표와 같은 단위)
+    const nUnpaid = byBatch(ISSUES.filter(x => !x.paidAt && !x.revokedAt)).length, nWait = SLOTS.filter(x => slotState(x) === 'wait').length;
+    [['sh-tab-unpaid', nUnpaid], ['sh-tab-wait', nWait]].forEach(([id, n]) => { $(id).textContent = n; $(id).style.display = n ? '' : 'none'; });
     renderSlots(); renderSettle(); renderUsers(); renderHistory();
   }
 
