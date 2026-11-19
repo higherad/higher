@@ -103,11 +103,11 @@
   #shop-or { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:none; align-items:center; justify-content:center; }
   #shop-or.show { display:flex; }
   #shop-or .box { background:#fff; border-radius:16px; width:1080px; max-width:calc(100vw - 24px); max-height:88vh; overflow:auto; padding:26px 28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
-  #shop-or .ttl { font-size:17px; font-weight:700; margin-bottom:4px; } #shop-or .sub { font-size:12px; color:var(--text2); margin-bottom:14px; }
+  #shop-or .ttl { font-size:17px; font-weight:700; margin-bottom:4px; } #shop-or .sub { font-size:12px; color:var(--danger); margin-bottom:14px; }
   #shop-or .tabs { display:flex; gap:6px; margin:14px 0 12px; border-bottom:none; }  /* 페이지 탭 막대(#shop-page .tabs)의 밑줄을 끔 */
   #shop-or .tabs button { padding:7px 16px; border:1px solid var(--border); border-radius:8px; background:#fff; font-weight:600; color:var(--text2); cursor:pointer; font-family:inherit; }
   #shop-or .tabs button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
-  #shop-or td input, #shop-or td select, #shop-or > .box > select { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; box-sizing:border-box; }
+  #shop-or td input, #shop-or td select, #shop-or > .box > input { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; box-sizing:border-box; }
   #shop-or td .bad { border-color:var(--danger); background:#fef2f2; }
   #shop-or .foot { display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:16px; }
   #shop-or .foot button { padding:8px 20px; border-radius:7px; font-size:13px; cursor:pointer; font-family:inherit; }
@@ -210,7 +210,7 @@
   <div id="shop-or"><div class="box">
     <div class="ttl">접수</div>
     <div class="sub">시작일 당일·익일 · 일수 1~7일 · 일 목표 10개 이상 · 평일 17시 마감 · 주말 접수 불가</div>
-    <select id="sh-or-user" style="width:280px"></select>
+    <input id="sh-or-user" list="sh-or-users" placeholder="영업점명 또는 아이디 검색" autocomplete="off" style="width:280px"><datalist id="sh-or-users"></datalist>
     <div class="tabs"><button data-t="one" class="on">개별 접수</button><button data-t="xlsx">엑셀 접수</button></div>
     <div id="sh-or-one">
       <div class="tbl-wrap"><table>
@@ -220,8 +220,8 @@
       <button class="act act-edit" style="margin-top:10px;padding:7px 14px" id="sh-or-add">+ 캠페인 추가</button>
     </div>
     <div id="sh-or-xlsx" style="display:none">
-      <div class="filter-bar"><button class="act act-edit" style="padding:7px 12px" id="sh-or-tmpl">양식 다운로드</button><button class="act act-ok" style="padding:7px 12px" id="sh-or-pick">엑셀 선택</button>
-        <input type="file" id="sh-or-file" accept=".xlsx,.xls" style="display:none"><span class="lb" id="sh-or-xinfo"></span></div>
+      <div class="filter-bar" style="justify-content:flex-end"><span class="lb" id="sh-or-xinfo"></span><button class="act act-edit" style="padding:7px 12px" id="sh-or-tmpl">양식 다운로드</button><button class="act act-ok" style="padding:7px 12px" id="sh-or-pick">엑셀 선택</button>
+        <input type="file" id="sh-or-file" accept=".xlsx,.xls" style="display:none"></div>
       <div class="tbl-wrap" style="max-height:45vh"><table>
         <thead><tr><th>#</th><th>순위 키워드</th><th>단독 URL</th><th>원부 URL</th><th>시작일</th><th>일수</th><th>일 목표</th><th>캠페인 금액</th><th>상태</th></tr></thead>
         <tbody id="sh-or-xrows"></tbody>
@@ -354,7 +354,8 @@
 
   const parseMid = v => { v = (v || '').trim(); if (/^\d{6,}$/.test(v)) return v; if (!safeUrl(v)) return ''; const m = v.match(/(?:products|catalog)\/(\d{6,})/) || v.match(/[?&](?:nvMid|nv_mid)=(\d{6,})/); return m ? m[1] : ''; };
   const termOpts = (v = TERM_DAYS) => Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === v ? ' selected' : ''}>${i + 1}</option>`).join('');
-  const orUser = () => USERS.find(u => u.id === $('sh-or-user').value);
+  // 영업점 검색칸(datalist 'company (id)') — 고른 값·아이디·업체명 그대로 입력 모두 인식
+  const orUser = () => { const v = $('sh-or-user').value.trim(), id = (v.match(/\(([^()]+)\)$/) || [])[1]; return USERS.find(u => !u.blocked && (u.id === id || u.id === v || u.company === v)); };
   /* ── 접수(개별·엑셀) — 서버 /shop-order가 같은 시작일·일수·일 목표끼리 발급 건 1개로 묶음
      광고주 사이트(higher_shop index.html)·어드민(쇼핑관리.html)이 같은 로직 — 한쪽을 고치면 같이 고칠 것 ── */
   let orderTab = 'one', xRows = [];
@@ -442,11 +443,11 @@
   };
   window.shopOrderOpen = (tab = 'one') => {  // tab = 'xlsx'면 엑셀 접수 탭으로(상단 '엑셀 접수' 버튼)
     if (closedNow()) return alert(closedMsg());
-    $('sh-or-user').innerHTML = '<option value="">-- 영업점 선택 --</option>' + USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.id)}">${esc(u.company)} (${esc(u.id)})</option>`).join('');
+    $('sh-or-user').value = ''; $('sh-or-users').innerHTML = USERS.filter(u => !u.blocked).map(u => `<option value="${esc(u.company)} (${esc(u.id)})"></option>`).join('');
     xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab(tab);
     $('shop-or').classList.add('show');
   };
-  $('sh-or-user').onchange = orSync;
+  $('sh-or-user').oninput = orSync;
   document.querySelectorAll('#shop-or .tabs button').forEach(b => b.onclick = () => orTab(b.dataset.t));
   $('sh-or-go').onclick = () => busy($('sh-or-go'), async () => {
     if (closedNow()) throw new Error(closedMsg());
