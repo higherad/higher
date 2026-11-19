@@ -480,20 +480,20 @@
     orSync();
   }
   window.shopOrderOpen = (tab = 'one') => {  // tab = 'xlsx'면 엑셀 접수 탭으로(상단 '엑셀 접수' 버튼)
-    if (closedNow()) return alert(closedMsg());
+    if (closedNow()) tab = 'xlsx';  // 마감·주말엔 엑셀 접수만(서버도 같음)
     $('sh-or-user').value = ''; orSel = '';
     xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab(tab);
     $('shop-or').classList.add('show');
   };
   document.querySelectorAll('#shop-or .tabs button').forEach(b => b.onclick = () => orTab(b.dataset.t));
   $('sh-or-go').onclick = () => busy($('sh-or-go'), async () => {
-    if (closedNow()) throw new Error(closedMsg());
+    if (closedNow() && orderTab !== 'xlsx') throw new Error(closedMsg());
     const u = orUser(), rows = orderRows(), bad = rows.findIndex(orderErr);
     if (!u) throw new Error('영업점을 선택해 주세요.');
     if (!rows.length) throw new Error('접수할 줄이 없습니다.');
     if (bad >= 0) throw new Error(`${bad + 1}번째 줄: ${orderErr(rows[bad])}`);
     if (!confirm(`${u.company}에 캠페인 ${rows.length}개를 접수합니다. 금액 ${won(rows.reduce((a, r) => a + orderAmt(r), 0))}원(VAT 별도)`)) return;
-    const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, ourl, start, days, daily }) => ({ kw, url, ourl, start, days, daily })), reqId: newReqId() });
+    const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, ourl, start, days, daily }) => ({ kw, url, ourl, start, days, daily })), xlsx: orderTab === 'xlsx', reqId: newReqId() });
     $('shop-or').classList.remove('show');
     alert(`${r.count}개 캠페인이 접수되었습니다.`);
   });
