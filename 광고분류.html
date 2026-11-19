@@ -321,11 +321,23 @@
         window._acMonthData=buildMonthData(daily);
       }
       renderRealtimeResult(result,'');
-      setStatus('실시간 조회 완료 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
+      const doneAt='실시간 조회 완료 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+      setStatus(doneAt+' · 텔레그램 전송 중...');
+      sendRealtimeTelegram().then(()=>setStatus(doneAt+' · 텔레그램 전송 완료'))
+        .catch(e=>{ setStatus(doneAt); toast('텔레그램 전송 실패: '+e.message,'err'); });
     }catch(e){
       showEmpty('실시간 데이터 조회 실패: '+e.message);
     }
   };
+  // 실시간 조회 결과 캡처 → higherad-jobs /notify-photo → Hi_Key_Bot 개인 대화
+  async function sendRealtimeTelegram(){
+    const out=await buildCaptureCanvas();
+    const image=out.toDataURL('image/png').split(',')[1];
+    const r=await fetch(`${LIVE_URL}/notify-photo`,{method:'POST',headers:await HI.authHeaders(),
+      body:JSON.stringify({image,caption:'⚡ 광고분류 실시간 '+new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.success) throw new Error(j.message||(j.logs||[]).pop()||('HTTP '+r.status));
+  }
   function renderRealtimeResult(result,keyword){
     if(!result){showEmpty('실시간 데이터를 불러오는 중입니다...');return;}
     window._acLastResult=result;
@@ -813,11 +825,10 @@
     a.download=prefix+dateStr+'.csv'; a.click();
   }
 
-  /* ── 이미지 캡처 ── */
-  window.acCapture = async function(){
+  /* ── 이미지 캡처 (이미지 저장 버튼·실시간 조회 텔레그램 전송 공용) — 화면 표를 타이틀 붙인 canvas로 ── */
+  async function buildCaptureCanvas(){
     const scroll = document.getElementById('ac-tbl-target');
-    const btn    = document.getElementById('ac-cap-btn');
-    if(!scroll) return;
+    if(!scroll) throw new Error('캡처할 표가 없습니다');
 
     // 실제 테이블 콘텐츠 영역 (스크롤 컨테이너 안의 wrap) 사용
     const target = scroll.querySelector('.ac-tbl-wrap') || scroll;
@@ -833,9 +844,7 @@
       });
     }
 
-    try{
-      btn.disabled=true; btn.textContent='캡처 중...';
-      await ensureH2C();
+    await ensureH2C();
 
       // sticky thead 임시 해제 (캡처 시 잘림 방지)
       const ths=target.querySelectorAll('thead th');
@@ -902,6 +911,15 @@
 
       // 테이블 이미지 붙이기
       ctx.drawImage(canvas, 0, headerH);
+      return out;
+  }
+
+  window.acCapture = async function(){
+    const btn = document.getElementById('ac-cap-btn');
+    if(!document.getElementById('ac-tbl-target')) return;
+    try{
+      btn.disabled=true; btn.textContent='캡처 중...';
+      const out = await buildCaptureCanvas();
 
       // 다운로드
       const a=document.createElement('a');
