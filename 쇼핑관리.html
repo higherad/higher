@@ -589,7 +589,7 @@
       && !(noEnd && closedState(slotState(x))) && (!fst || slotState(x) === fst);
   }
   // 확장(키워드 추출·캠페인 등록) 업로드용 — 쇼핑 접수 가이드 양식. 선택한 슬롯, 없으면 화면에 보이는 접수·진행중 슬롯
-  // 확장 업로드용 엑셀 — 영업점 = 대행사 업체명 그대로(하부점은 총판) · 등급 스모키 · 일수·일목표 = 캠페인 값(없는 옛 건 7·100)
+  // 확장 업로드용 엑셀 — URL 머리글은 '상품URL'(확장은 '단독 URL'을 모름) · 영업점 = 대행사 업체명 그대로(하부점은 총판) · 등급 스모키 · 일수·일목표 = 캠페인 값(없는 옛 건 7·100)
   // 비즈핏 영업점 이름 = 대행사 업체명 + '[SR]'(매크로가 영업점[SR]로 등록) — 하부점은 총판, 그 밖은 본인 업체명. 이미 [SR]로 끝나면 그대로
   // 쓰는 곳: 환불(비즈핏 캠페인 조회) · 충전 입금완료 확정. 화면·엑셀은 업체명 그대로
   // 공백 없이 붙여 씀(코로나[SR]) — 업체명 끝 공백·이미 붙은 '[SR]'/' [SR]'은 떼고 다시 붙임
@@ -600,7 +600,7 @@
     const rows = SLOTS.filter(x => PICKED.size ? PICKED.has(slotKey(x)) : ['wait', 'run'].includes(slotState(x)) && slotShown(x))
       .sort(newestFirst).map(x => [String(agencyOf(userOf(x.userId)).company || '').trim(), '스모키', x.url, x.ourl || '', x.kw, x.start > today() ? '익일진행' : '당일진행', termDays(x), dailyOf(x)]);
     if (!rows.length) return alert('내보낼 접수·진행중 캠페인이 없습니다.');
-    const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '단독 URL', '원부URL\n(가격비교 상품)', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
+    const ws = XLSX.utils.aoa_to_sheet([['영업점', '등급', '상품URL', '원부URL\n(가격비교 상품)', '순위키워드', '당일 진행 여부\n(당일진행 or 익일진행 택1)', '일수\n(1~7)', '일목표\n(최소 10)'], ...rows]);
     ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 50 }, { wch: 50 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 20 }];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '접수');
     XLSX.writeFile(wb, `쇼핑접수_${today()}.xlsx`);
