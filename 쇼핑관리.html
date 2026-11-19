@@ -221,7 +221,7 @@
   <!-- 접수(개별·엑셀) — 광고주 사이트 접수와 같음 -->
   <div id="shop-or"><div class="box">
     <div class="ttl">접수</div>
-    <div class="sub">시작일 당일·익일 · 일수 1~7일 · 일 목표 10개 이상 · 평일 17시 마감 · 주말 접수 불가</div>
+    <div class="sub">시작일 당일·익일 · 일수 1~7일 · 일 목표 10개 이상</div>
     <div id="sh-or-wrap"><input id="sh-or-user" placeholder="영업점명 또는 아이디 검색" autocomplete="off"><i data-lucide="chevron-down" id="sh-or-chev"></i></div><div id="sh-or-list"></div>
     <div class="tabs"><button data-t="one" class="on">개별 접수</button><button data-t="xlsx">엑셀 접수</button></div>
     <div id="sh-or-one">
@@ -246,7 +246,7 @@
 
 <script>
 (() => {
-  const TERM_DAYS = 7, MAX_QTY = 500, CUTOFF_HOUR = 17, MIN_DAILY = 10, VAT = 1.1;
+  const TERM_DAYS = 7, MAX_QTY = 500, MIN_DAILY = 10, VAT = 1.1;
   const $ = id => document.getElementById(id);
   // 잘린 칸은 마우스 올리면 전체 글자
   $('shop-page').addEventListener('mouseover', e => { const td = e.target.closest('td'); if (td && !td.title && td.scrollWidth > td.clientWidth) td.title = td.innerText; });
@@ -255,11 +255,6 @@
   const today = () => kstNow().toISOString().slice(0, 10);
   const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5);
-  // 접수 마감 = 평일 17시~자정 + 주말(토·일) 종일 발급 불가(서버 closed_now와 같음) — 금 17시 이후는 월요일 0시부터
-  const weekendNow = () => [0, 6].includes(kstNow().getUTCDay());
-  const closedNow = () => weekendNow() || kstNow().getUTCHours() >= CUTOFF_HOUR;
-  const closedMsg = () => { const reopen = [5, 6, 0].includes(kstNow().getUTCDay()) ? '월요일' : '내일';
-    return `${weekendNow() ? '주말(토·일)에는 접수할 수 없습니다.' : `오늘 접수는 ${CUTOFF_HOUR}시에 마감되었습니다.`} ${reopen} 0시부터 접수할 수 있습니다.`; };
   // 발급 건 price = 단가 × 일수 × 일 목표(슬롯 1개 금액). days·daily 없는 옛 건·슬롯 = 7일·100개
   const termDays = x => x.days || TERM_DAYS, dailyOf = x => x.daily || 100;
   const md = s => s ? s.slice(5) : '-';
@@ -480,20 +475,18 @@
     orSync();
   }
   window.shopOrderOpen = (tab = 'one') => {  // tab = 'xlsx'면 엑셀 접수 탭으로(상단 '엑셀 접수' 버튼)
-    if (closedNow()) tab = 'xlsx';  // 마감·주말엔 엑셀 접수만(서버도 같음)
     $('sh-or-user').value = ''; orSel = '';
     xRows = []; $('sh-or-xinfo').textContent = ''; $('sh-or-rows').innerHTML = ''; orAddRow(); orTab(tab);
     $('shop-or').classList.add('show');
   };
   document.querySelectorAll('#shop-or .tabs button').forEach(b => b.onclick = () => orTab(b.dataset.t));
   $('sh-or-go').onclick = () => busy($('sh-or-go'), async () => {
-    if (closedNow() && orderTab !== 'xlsx') throw new Error(closedMsg());
     const u = orUser(), rows = orderRows(), bad = rows.findIndex(orderErr);
     if (!u) throw new Error('영업점을 선택해 주세요.');
     if (!rows.length) throw new Error('접수할 줄이 없습니다.');
     if (bad >= 0) throw new Error(`${bad + 1}번째 줄: ${orderErr(rows[bad])}`);
     if (!confirm(`${u.company}에 캠페인 ${rows.length}개를 접수합니다. 금액 ${won(rows.reduce((a, r) => a + orderAmt(r), 0))}원(VAT 별도)`)) return;
-    const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, ourl, start, days, daily }) => ({ kw, url, ourl, start, days, daily })), xlsx: orderTab === 'xlsx', reqId: newReqId() });
+    const r = await HI.shopCall('/shop-order', { userId: u.id, items: rows.map(({ kw, url, ourl, start, days, daily }) => ({ kw, url, ourl, start, days, daily })), reqId: newReqId() });
     $('shop-or').classList.remove('show');
     alert(`${r.count}개 캠페인이 접수되었습니다.`);
   });
