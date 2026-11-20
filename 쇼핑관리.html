@@ -636,13 +636,15 @@
     $('sh-slot-stats').innerHTML = [['wait', '접수 (진행 대기)', 'b'], ['run', '진행중', 'g'], ['refund', '환불 요청', 'r'], ['stop', '환불', 'r'], ['end', '종료', '']]
       .map(([k, l, c]) => `<div class="sb ${c}${fst === k ? ' on' : ''}" data-st="${k}"><div class="sb-l">${l}</div><div class="sb-v">${cnt(k)}</div></div>`).join('');
     const rows = SLOTS.filter(slotShown).sort(newestFirst);
+    // 번호 = 필터 결과 안에서 접수 순서(맨 위 = 건수). 접수번호(seqNo, 변경 이력·환불 안내 번호)와 다르면 아래 작은 글씨로 같이 표시
+    const pos = new Map(rows.map((x, i) => [slotKey(x), rows.length - i]));
     const live = new Set(SLOTS.map(slotKey));
     [...PICKED].forEach(k => live.has(k) || PICKED.delete(k));
     const miss = '<span class="muted">미세팅</span>';
     $('sh-slot-rows').innerHTML = pageOf(rows, 'sh-slot', renderSlots).map(x => {
       const st = slotState(x), pick = st === 'wait' || st === 'run' || st === 'refund';
       return `<tr${st === 'stop' ? ' class="void"' : ''}><td>${pick ? `<input type="checkbox" class="sh-cb" data-k="${esc(slotKey(x))}"${PICKED.has(slotKey(x)) ? ' checked' : ''}>` : ''}</td>
-        <td>${seqNo(x)}</td><td>${md(issueAt(x).slice(0, 10))}</td><td><div style="font-size:11px">${gradePill(userOf(x.userId))}</div><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
+        <td>${(n => n === seqNo(x) ? n : `${n}<div style="font-size:10px;color:#94a3b8" title="접수번호(변경 이력·환불 안내에 쓰는 번호)">#${seqNo(x)}</div>`)(pos.get(slotKey(x)))}</td><td>${md(issueAt(x).slice(0, 10))}</td><td><div style="font-size:11px">${gradePill(userOf(x.userId))}</div><a data-imp="${esc(x.userId)}" style="cursor:pointer;color:var(--info);font-weight:600" title="광고주 사이트로 로그인">${esc(userOf(x.userId).company)}</a></td><td>${esc(x.kw) || miss}</td><td>${x.mid ? `<span class="mid">${esc(x.mid)}</span>` : miss}</td>
         ${[x.url, x.ourl].map((u, i) => `<td>${safeUrl(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--text2)">${esc(u)}</a>` : u ? esc(u) : i ? '-' : miss}</td>`).join('')}
         <td>${termDays(x)}</td><td>${md(x.start)}</td><td>${md(x.end)}</td><td>${dailyOf(x).toLocaleString()}</td>
         ${(r => `<td>${rk(r?.prev)}</td><td>${rk(r?.rank)}</td><td>${delta(r?.delta)}</td><td${r ? ` data-rk="${esc(slotKey(x))}" style="cursor:pointer" title="클릭하면 순위 추이 상세"` : ''}>${spark(r?.hist)}</td>`)(RANKS[slotKey(x)])}
