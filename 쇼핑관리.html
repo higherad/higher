@@ -164,7 +164,7 @@
       <span class="lb">접수일</span><input id="sh-ft-from" type="date"> ~ <input id="sh-ft-to" type="date">
     </div>
     <div class="tbl-wrap"><table class="fx"><colgroup><col style="width:44px"><col style="width:120px"><col style="width:190px"><col style="width:80px"><col style="width:80px"><col style="width:110px"><col style="width:130px"><col style="width:130px"><col style="width:100px"><col style="width:90px"><col style="width:110px"><col style="width:110px"><col style="width:240px"></colgroup>
-      <thead><tr><th><input type="checkbox" id="sh-sc-all"></th><th>접수일시</th><th>영업점</th><th>단가(원)</th><th>캠페인 수</th><th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="sh-sc-all"></th><th>접수번호</th><th>접수일시</th><th>영업점</th><th>단가(원)</th><th>캠페인 수</th><th>전체 목표 합산</th><th>정산 금액(VAT 별도)</th><th>입금액(VAT 포함)</th><th>환불 금액</th><th>정산상태</th><th>충전 담당자</th><th>입금 담당자</th><th>액션</th></tr></thead>
       <tbody id="sh-settle-rows"></tbody>
     </table></div>
     <div class="pagination" id="sh-settle-pg"></div>
@@ -604,6 +604,20 @@
   // 화면 번호 = 전체 캠페인 1번부터 접수 순서(광고주 사이트는 영업점마다 따로 1번부터)
   // ponytail: 행마다 전체를 세는 O(n²) — 캠페인이 수천 개를 넘으면 번호표 캐시로
   const seqNo = x => { const k = orderKey(x); return SLOTS.filter(y => orderKey(y) <= k).length; };
+  // 접수번호 표시 '#n' — 3개 이상 이어지는 번호는 '#n~m'으로 묶음(정산·변경 이력 같은 표기)
+  const noLabel = nos => {
+    nos = [...new Set(nos)].sort((a, b) => a - b);
+    if (!nos.length) return '-';
+    const out = [];
+    for (let i = 0; i < nos.length;) {
+      let j = i; while (j + 1 < nos.length && nos[j + 1] === nos[j] + 1) j++;
+      if (j - i >= 2) out.push(`#${nos[i]}~${nos[j]}`); else for (let k = i; k <= j; k++) out.push(`#${nos[k]}`);
+      i = j + 1;
+    }
+    return out.join(', ');
+  };
+  // 발급 건들에 속한 캠페인의 접수번호
+  const issueNos = list => { const ks = new Set(list.map(is => `${is.userId}|${is.no}`)); return SLOTS.filter(x => ks.has(`${x.userId}|${x.issueNo}`)).map(seqNo); };
   function slotShown(x) {
     const uid = $('sh-fs-user').value, q = $('sh-fs-q').value.trim(), noEnd = $('sh-fs-noend').checked, fst = $('sh-fs-st').value;
     return (!uid || x.userId === uid) && (!q || (x.kw || '').includes(q) || (x.mid || '').includes(q))
@@ -684,7 +698,8 @@
     const goalOf = is => is.qty * termDays(is) * dailyOf(is);
     const units = L => { const u = [...new Set(L.map(x => x.unitShown).filter(Boolean))]; return u.length ? u.map(won).join(' / ') : '-'; };
     // 펼친 개별 건(발급 건 하나씩) — 상태·담당자·액션은 묶음 줄에만
-    const issueCells = g => { const b = gSum(g, billOf), rf = gSum(g, refundOf); return `<td style="font-size:11px">${md(g[0].at)}</td><td>${agencyCell(userOf(g[0].userId))}</td>
+    const noCell = L => `<td style="font-size:11px;color:var(--text2)">${noLabel(issueNos(L))}</td>`;
+    const issueCells = g => { const b = gSum(g, billOf), rf = gSum(g, refundOf); return `${noCell(g)}<td style="font-size:11px">${md(g[0].at)}</td><td>${agencyCell(userOf(g[0].userId))}</td>
         <td>${units(g)}</td><td>${gSum(g, is => is.qty)}건</td><td>${gSum(g, goalOf).toLocaleString()}</td><td>${won(b)}원</td><td>${won(Math.round(b * VAT))}원</td>
         <td style="color:var(--danger)">${rf ? won(rf) + '원' : '-'}</td><td></td><td></td><td></td><td></td>`; };
     const box = keys => `<input type="checkbox" class="sh-sc" data-k="${esc(keys.join(','))}"${keys.every(k => SPICK.has(k)) ? ' checked' : ''}>`;
@@ -693,7 +708,7 @@
       const lastPaid = L.reduce((a, x) => (x.paidAt || '') > (a.paidAt || '') ? x : a, {});
       const S = SETTLE[settleKey(it.payer, it.date)] || {}, ek = esc(it.k);
       const tgl = on => on ? 'background:#f1f5f9;color:var(--text2);box-shadow:inset 0 2px 4px rgba(0,0,0,.15)' : '';
-      return `<tr class="grp" data-g="s|${esc(it.k)}"><td>${box(L.map(slotKey))}</td><td>${md(it.date)}<br><span class="tg" style="font-size:11px">${byBatch(L).length}건 ${open ? '▾' : '▸'}</span></td>
+      return `<tr class="grp" data-g="s|${esc(it.k)}"><td>${box(L.map(slotKey))}</td>${noCell(L)}<td>${md(it.date)}<br><span class="tg" style="font-size:11px">${byBatch(L).length}건 ${open ? '▾' : '▸'}</span></td>
         <td>${agencyCell(userOf(it.payer))}</td><td>${units(L)}</td><td>${L.reduce((a, x) => a + x.qty, 0)}건</td><td>${L.reduce((a, x) => a + goalOf(x), 0).toLocaleString()}</td>
         <td style="font-weight:700;color:var(--accent)">${won(b)}원</td><td style="font-weight:700;color:var(--info)">${won(Math.round(b * VAT))}원</td>
         <td style="color:var(--danger);font-weight:700">${rf ? won(rf) + '원' : '-'}</td>
@@ -704,7 +719,7 @@
           <button class="act" style="${S.memo ? 'background:rgba(239,68,68,.12);color:var(--danger);border:1.5px solid var(--danger)' : 'background:#f1f5f9;color:var(--text2);border:1.5px solid var(--border)'}" title="${esc(S.memo || '')}" onclick="shopMemoGroup('${ek}')">메모</button>
           <button class="act act-del" onclick="shopRefundGroup('${ek}')">환불</button></td></tr>`
         + (open ? byBatch(L).map(g => `<tr class="child"><td></td>${issueCells(g)}</tr>`).join('') : '');
-    }).join('') || (`<tr class="empty-row"><td colspan="13">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
+    }).join('') || (`<tr class="empty-row"><td colspan="14">${loaded ? '정산 내역이 없습니다.' : '불러오는 중…'}</td></tr>`);
   }
   const pickSet = (c, on) => c.dataset.k.split(',').forEach(k => on ? SPICK.add(k) : SPICK.delete(k));
   $('sh-settle-rows').addEventListener('change', e => { if (e.target.classList.contains('sh-sc')) pickSet(e.target, e.target.checked); });
@@ -1126,11 +1141,6 @@
     const uid = $('sh-fh-user').value, type = $('sh-fh-type').value, ev = [];
     const issueOf = new Map(ISSUES.map(is => [`${is.userId}|${is.no}`, is]));
     // 대상 = 접수 현황 번호 열과 같은 접수번호(발급 묶음은 그 안의 캠페인 번호들)
-    const noLabel = nos => {
-      nos = [...nos].sort((a, b) => a - b);
-      if (!nos.length) return '-';
-      return '접수번호 ' + (nos.length > 2 && nos.at(-1) - nos[0] + 1 === nos.length ? `${nos[0]}~${nos.at(-1)}` : nos.join(', '));
-    };
     const slotNos = new Map();
     SLOTS.forEach(x => { const k = `${x.userId}|${x.issueNo}`; slotNos.set(k, [...(slotNos.get(k) || []), seqNo(x)]); });
     const add = (at, t, cls, userId, tg, txt) => { if ((!type || type === t) && (!uid || userId === uid || userOf(userId).parent === uid)) ev.push([at, t, cls, userId, tg, txt, ev.length]); };
