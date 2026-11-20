@@ -198,7 +198,12 @@
 
   /* ── 구분 편집기 ── */
   let _groups=DEFAULTS;
+  // 업체 정렬: 영문·숫자 먼저(abc) → 한글(가나다), 앞의 [단독]·(주)·주식회사는 빼고 비교
+  const storeKey=s=>String(s).replace(/^(\[[^\]]*\]|\([^)]*\)|주식회사)\s*/,'');
+  const storeCmp=(a,b)=>{const x=storeKey(a),y=storeKey(b),lx=/^[a-z0-9]/i.test(x),ly=/^[a-z0-9]/i.test(y);
+    return lx!==ly?(lx?-1:1):x.localeCompare(y,'ko');};
   function renderEditor(){
+    _groups.forEach(g=>(g.stores||[]).sort(storeCmp));  // 제자리 정렬 → 삭제 인덱스 일치, 다음 저장부터 정렬된 순서로 저장
     document.getElementById('ac-editor').innerHTML=_groups.map((g,gi)=>{
       const cls=gcls(g.name);
       const tags=(g.stores||[]).length
