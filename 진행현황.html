@@ -522,7 +522,7 @@
         isRequeue: !!s.isRequeue,
         // 캠페인 타입 = 일 목표 칸에 나눠 보이는 상품 이름(차감 빼고, '크림슨·델타' 묶음은 풀어서) — 나눔이 없으면 배지 이름
         grade: (() => {
-          const names = HI.dailySplitParts(s).filter(p => p.kind !== 'ded').flatMap(p => p.bizfit ? typeLabels(s) : p.name.split('·'));  // 비즈핏 광고타입 이름 대신 상품명
+          const names = HI.dailySplitParts(s).filter(p => p.kind !== 'ded').flatMap(p => p.name.split('·'));
           return [...new Set(names.length ? names : [...typeLabels(s), ...yupflLabels(s)])].join(', ');
         })(),
       }));
