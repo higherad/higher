@@ -879,7 +879,6 @@
       if (!confirm(`${label} 충전 기록을 지웁니다. (비즈핏 충전은 취소되지 않습니다)`)) return;
       return busy(btn, () => HI.shopUpdate({ [`settle/${sk}/chargedAt`]: null, [`settle/${sk}/chargedBy`]: null, [`settle/${sk}/chargeAmt`]: null }));
     }
-    const acct = CHARGE[g.payer]?.id || '';
     // 정산관리 충전 금액 팝업(openChargeAmountModal)과 같은 모양 — 오른쪽 위 ✕로 닫기, 충전·완료 두 버튼
     const m = document.createElement('div');
     m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
@@ -888,7 +887,7 @@
         <div style="font-size:15px;font-weight:700;">충전 금액 입력</div>
         <button class="cg-x" title="취소" style="flex-shrink:0;width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;color:var(--text2);line-height:1;">✕</button>
       </div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">${esc(label)} · 충전 아이디 ${acct ? esc(acct) : '<b style="color:var(--danger)">미입력</b>'}</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">${esc(label)}</div>
       <div style="margin-bottom:20px;">
         <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">충전 금액 (VAT 별도)</label>
         <input class="cg-amt" type="text" inputmode="numeric" value="${groupAmt(g) || ''}" style="${inCss}" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
