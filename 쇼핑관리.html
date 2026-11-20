@@ -880,11 +880,24 @@
       return busy(btn, () => HI.shopUpdate({ [`settle/${sk}/chargedAt`]: null, [`settle/${sk}/chargedBy`]: null, [`settle/${sk}/chargeAmt`]: null }));
     }
     const acct = CHARGE[g.payer]?.id || '';
-    const m = miniModal('충전 금액 입력', `${esc(label)} · 충전 아이디 ${acct ? esc(acct) : '<b style="color:var(--danger)">미입력</b>'}`,
-      `<label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">충전 금액 (VAT 별도)</label>
-       <input class="cg-amt" type="text" inputmode="numeric" value="${groupAmt(g)}" style="${inCss}margin-bottom:12px">
-       <div class="cg-st" style="font-size:12px;color:var(--danger);margin-bottom:12px;display:none"></div>
-       <div style="display:flex;gap:8px"><button class="cg-go" style="${btnCss('#4f46e5')}">충전</button><button class="cg-done" title="비즈핏에서 이미 직접 충전한 경우 — API 호출 없이 기록만" style="${btnCss('#64748b')}">완료</button><button class="cg-x" style="${btnCss('#fff', 'var(--text2)')}">취소</button></div>`);
+    // 정산관리 충전 금액 팝업(openChargeAmountModal)과 같은 모양 — 오른쪽 위 ✕로 닫기, 충전·완료 두 버튼
+    const m = document.createElement('div');
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    m.innerHTML = `<div style="background:#fff;border-radius:16px;padding:28px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+        <div style="font-size:15px;font-weight:700;">충전 금액 입력</div>
+        <button class="cg-x" title="취소" style="flex-shrink:0;width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;color:var(--text2);line-height:1;">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:20px;">${esc(label)} · 충전 아이디 ${acct ? esc(acct) : '<b style="color:var(--danger)">미입력</b>'}</div>
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">충전 금액 (VAT 별도)</label>
+        <input class="cg-amt" type="text" inputmode="numeric" value="${groupAmt(g) || ''}" style="${inCss}" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+      </div>
+      <div class="cg-st" style="font-size:12px;color:var(--danger);margin-bottom:12px;display:none"></div>
+      <div style="display:flex;gap:8px"><button class="cg-go" style="${btnCss('#4f46e5')}">충전</button><button class="cg-done" title="비즈핏에서 이미 직접 충전한 경우 — API 호출 없이 기록만" style="${btnCss('#64748b')}">완료</button></div>
+    </div>`;
+    document.body.appendChild(m);
+    m.querySelector('.cg-amt').focus();
     const $m = c => m.querySelector(c), amtOf = () => Number(String($m('.cg-amt').value).replace(/[^\d]/g, '')) || 0;
     const lock = on => ['.cg-amt', '.cg-go', '.cg-done', '.cg-x'].forEach(c => $m(c).disabled = on);
     const fail = msg => { $m('.cg-st').style.display = 'block'; $m('.cg-st').textContent = msg; };
