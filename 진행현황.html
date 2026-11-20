@@ -115,7 +115,7 @@
   const PER = 20;
   let allSlots = [];
   let _slotsCacheLoaded = false;
-  let _alarms = {};   // 캠페인 알림 {id: {slotKey, at, memo, by}} — 🔔 버튼 표시용, 목록 불러올 때·알림 추가/삭제 후 다시 읽음
+  let _alarms = {};   // 캠페인 종료 알림 {id: {slotKey, days, by}} — 🔔 버튼 표시용, 목록 불러올 때·알림 추가/삭제 후 다시 읽음
 
   const stLabel = {
     active:  '<span class="status-badge s-active">진행</span>',
@@ -332,7 +332,7 @@
           <td>
             <button class="action-btn" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;" onclick="openRankPopup('${s._key}')">순위</button>
             ${(() => { const n = Object.values(_alarms).filter(a => a.slotKey === s._key).length;
-              return `<button class="action-btn" title="알림 예약${n ? ` (${n}개)` : ''}" style="${n ? 'background:#fef3c7;border:1px solid #fcd34d;' : 'background:#fff;border:1px solid var(--border);filter:grayscale(1);opacity:.6;'}" onclick="openAlarmModal('${s._key}')">🔔${n > 1 ? n : ''}</button>`; })()}
+              return `<button class="action-btn" title="종료 알림${n ? ` (${n}개)` : ''}" style="${n ? 'background:#fef3c7;border:1px solid #fcd34d;' : 'background:#fff;border:1px solid var(--border);filter:grayscale(1);opacity:.6;'}" onclick="openAlarmModal('${s._key}')">🔔${n > 1 ? n : ''}</button>`; })()}
           </td>
         </tr>`;
       }).join('');
@@ -582,37 +582,30 @@
   };
 
 
-  // ── 캠페인 알림 — 날짜·시각에 Hi_Key_Bot '캠페인 알림' 구독 방으로 발송(naver-keyword-bot 매시 정각) ──
+  // ── 캠페인 알림 — 종료 D-N일이 되면 Hi_Key_Bot '캠페인 알림' 구독 방으로 발송(naver-keyword-bot 09~21시 매시, 종료일은 보낼 때 다시 읽음) ──
   window.openAlarmModal = function(slotKey) {
     if (document.getElementById('alarm-modal')) return;
     const s = allSlots.find(x => x._key === slotKey);
     if (!s) return;
     if (!HI.addCampaignAlarm) { alert('새 버전을 불러오는 중입니다. 새로고침 후 다시 시도해 주세요.'); return; }
-    const pad = n => String(n).padStart(2, '0');
-    const d = s.endDate ? new Date(s.endDate + 'T00:00:00') : new Date();
-    if (s.endDate) d.setDate(d.getDate() - 3);   // 기본 = 종료 3일 전(오늘보다 앞이면 오늘)
-    const today = todayYMD();
-    let def = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    if (def < today) def = today;
+    const left = s.endDate ? getDday(s.endDate) : null;
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'alarm-modal';
     overlay.innerHTML = `
-      <div style="background:#fff;border-radius:16px;width:min(96vw,440px);max-height:82vh;overflow-y:auto;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+      <div style="background:#fff;border-radius:16px;width:min(96vw,380px);max-height:82vh;overflow-y:auto;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:17px;font-weight:700;">🔔 알림 예약</div>
+          <div style="font-size:17px;font-weight:700;">🔔 종료 알림</div>
           <span id="al-x" style="cursor:pointer;font-size:22px;color:var(--muted);line-height:1;">&times;</span>
         </div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">${esc(s.storeName || '-')} · ${esc(s.mid || '-')} · 종료 ${esc(s.endDate || '-')}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">${esc(s.storeName || '-')} · 종료 ${esc(s.endDate || '-')}${left != null ? ` (D-${Math.max(left, 0)})` : ''}</div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
-          <input id="al-date" type="date" value="${def}" min="${today}" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;">
-          <select id="al-hour" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;">
-            ${Array.from({ length: 24 }, (_, h) => `<option value="${pad(h)}" ${h === 9 ? 'selected' : ''}>${pad(h)}시</option>`).join('')}
-          </select>
+          <span style="font-size:14px;font-weight:600;">D-</span>
+          <input id="al-days" inputmode="numeric" placeholder="3" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;text-align:center;">
+          <span style="font-size:13px;color:var(--text2);flex:1;">일에 알림</span>
+          <button id="al-add" class="action-btn" style="background:#475569;color:#fff;padding:7px 14px;">추가</button>
         </div>
-        <input id="al-memo" placeholder="메모 (선택)" maxlength="200" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:10px;">
-        <button id="al-add" class="action-btn" style="width:100%;background:#475569;color:#fff;padding:8px;">추가</button>
-        <div style="font-size:11px;color:var(--muted);margin:8px 0 12px;">텔레그램 Hi_Key_Bot '알림 설정'에서 캠페인 알림을 켠 방으로 보냅니다</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">그날 오전 9시에 Hi_Key_Bot '알림 설정'에서 캠페인 알림을 켠 방으로 보냅니다</div>
         <div id="al-list"></div>
       </div>`;
     document.body.appendChild(overlay);
@@ -620,29 +613,35 @@
     overlay.querySelector('#al-x').onclick = close;
     overlay.onclick = e => { if (e.target === overlay) close(); };
     const listEl = overlay.querySelector('#al-list');
+    const mine = () => Object.entries(_alarms).filter(([, a]) => a.slotKey === slotKey);
     const draw = () => {
-      const mine = Object.entries(_alarms).filter(([, a]) => a.slotKey === slotKey).sort(([, a], [, b]) => String(a.at).localeCompare(String(b.at)));
-      listEl.innerHTML = mine.length ? mine.map(([id, a]) => `
+      const rows = mine().sort(([, a], [, b]) => (b.days || 0) - (a.days || 0));
+      listEl.innerHTML = rows.length ? rows.map(([id, a]) => `
         <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border);font-size:13px;">
-          <div style="flex:1;"><b>${esc(String(a.at).replace('T', ' '))}시</b>${a.memo ? ` · ${esc(a.memo)}` : ''}<div style="font-size:11px;color:var(--muted);">${esc(a.by || '')}</div></div>
+          <div style="flex:1;"><b>D-${a.days}</b> 알림<span style="font-size:11px;color:var(--muted);margin-left:6px;">${esc(a.by || '')}</span></div>
           <button class="action-btn" data-rm="${id}" style="background:#fff;border:1px solid var(--border);color:#dc2626;">삭제</button>
         </div>`).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px 0;">예약된 알림 없음</div>';
     };
     const reload = async () => { _alarms = await HI.getCampaignAlarms(); draw(); renderSlots(false); };
-    overlay.querySelector('#al-add').onclick = async () => {
-      const date = overlay.querySelector('#al-date').value, hour = overlay.querySelector('#al-hour').value;
-      if (!date) { alert('날짜를 고르세요.'); return; }
-      const at = `${date}T${hour}`, now = new Date();
-      if (at <= `${todayYMD()}T${pad(now.getHours())}`) { alert('지난 시각입니다. 다음 시각부터 고를 수 있습니다.'); return; }
-      try { await HI.addCampaignAlarm(slotKey, at, overlay.querySelector('#al-memo').value.trim()); overlay.querySelector('#al-memo').value = ''; await reload(); }
+    const add = async () => {
+      const input = overlay.querySelector('#al-days');
+      const v = input.value.trim();
+      if (!/^\d+$/.test(v) || +v > 60) { alert('0~60 사이 숫자를 넣으세요. (0 = 종료일 당일)'); return; }
+      const days = +v;
+      if (mine().some(([, a]) => a.days === days)) { alert(`D-${days} 알림이 이미 있습니다.`); return; }
+      if (left != null && left < days && !confirm(`이미 D-${Math.max(left, 0)}입니다. 다음 정각에 바로 보낼까요?`)) return;
+      try { await HI.addCampaignAlarm(slotKey, days); input.value = ''; await reload(); }
       catch (e) { alert('알림 저장 실패: ' + e.message); }
     };
+    overlay.querySelector('#al-add').onclick = add;
+    overlay.querySelector('#al-days').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); add(); } };
     listEl.onclick = async e => {
       const id = e.target.dataset.rm;
       if (!id) return;
       try { await HI.removeCampaignAlarm(id); await reload(); } catch (err) { alert('삭제 실패: ' + err.message); }
     };
     draw();
+    overlay.querySelector('#al-days').focus();
   };
 
   renderSlots(false);

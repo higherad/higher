@@ -93,7 +93,7 @@ const P = {
   costs:          `${ROOT}/costs`,              // 지출관리 원가 {reward:[{name, price}](계산은 첫 줄), yupfl:{업체명: 원}} — 전 직원 공용
   guideItems:     `${ROOT}/guide_items`,        // 단가·원가 항목 = 가이드 시트 탭 이름 {rewards: '리워드' 탭, vendors: 그 외 탭} — 불러오기 누를 때만 갱신
   costSnapshots:  `${ROOT}/cost_snapshots`,     // 지출관리 지난 날짜 묶음 금액 고정(키 = settleGroupKey, 1회 저장 후 안 바뀜)
-  alarms:         `${ROOT}/campaign_alarms`,    // 진행현황 캠페인 알림 {slotKey, at:'YYYY-MM-DDTHH'(KST), memo, by} — naver-keyword-bot이 매시 보내고 지움
+  alarms:         `${ROOT}/campaign_alarms`,    // 진행현황 캠페인 종료 알림 {slotKey, days(종료 D-N), by} — naver-keyword-bot이 그날 보내고 지움
 };
 
 const CLOSED_STATUSES   = new Set(['expired', 'deleted']);
@@ -826,9 +826,9 @@ const HI = {
   // ════════════════════════════════════════════════════════
   // 플레이스 키워드 시트 메인 탭 그 MID 줄(higherad-auto가 매일 01:10 복사) — {store, a, b, at} 또는 null
   async getCampaignAlarms() { return (await get(ref(db, P.alarms))).val() || {}; },
-  async addCampaignAlarm(slotKey, at, memo) {
+  async addCampaignAlarm(slotKey, days) {
     const cu = HI.getCurrentUser() || {};
-    await set(_push(ref(db, P.alarms)), { slotKey, at, memo: memo || '', by: cu.name || cu.username || '', createdAt: nowIso() });
+    await set(_push(ref(db, P.alarms)), { slotKey, days, by: cu.name || cu.username || '', createdAt: nowIso() });
   },
   async removeCampaignAlarm(id) { await remove(ref(db, `${P.alarms}/${id}`)); },
   async getPlaceKeyword(mid) { return (await get(ref(db, `hi/place_keywords/${safeKey(mid)}`))).val(); },
