@@ -600,12 +600,13 @@
         </div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">${esc(s.storeName || '-')} · 종료 ${esc(s.endDate || '-')}${left != null ? ` (D-${Math.max(left, 0)})` : ''}</div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;">
-          <span style="font-size:14px;font-weight:600;">D-</span>
-          <input id="al-days" inputmode="numeric" style="width:60px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;text-align:center;">
+          <span style="font-size:13px;color:var(--text2);">알림 시각</span>
           <select id="al-hour" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;">
             ${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === 9 ? 'selected' : ''}>${String(h).padStart(2, '0')}시</option>`).join('')}
           </select>
-          <span style="font-size:13px;color:var(--text2);flex:1;">알림</span>
+          <span style="font-size:14px;font-weight:600;margin-left:4px;">D-</span>
+          <input id="al-days" inputmode="numeric" style="width:60px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;text-align:center;">
+          <span style="flex:1;"></span>
           <button id="al-add" class="action-btn" style="background:#475569;color:#fff;padding:7px 14px;">추가</button>
         </div>
         <div id="al-list"></div>
@@ -621,7 +622,7 @@
       const rows = mine().sort(([, a], [, b]) => (b.days || 0) - (a.days || 0) || hourOf(a) - hourOf(b));
       listEl.innerHTML = rows.length ? rows.map(([id, a]) => `
         <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border);font-size:13px;">
-          <div style="flex:1;"><b>D-${a.days} ${String(hourOf(a)).padStart(2, '0')}시</b> 알림<span style="font-size:11px;color:var(--muted);margin-left:6px;">${esc(a.by || '')}</span></div>
+          <div style="flex:1;"><b>${String(hourOf(a)).padStart(2, '0')}시 · D-${a.days}</b><span style="font-size:11px;color:var(--muted);margin-left:6px;">${esc(a.by || '')}</span></div>
           <button class="action-btn" data-rm="${id}" style="background:#fff;border:1px solid var(--border);color:#dc2626;">삭제</button>
         </div>`).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px 0;">예약된 알림 없음</div>';
     };
