@@ -895,7 +895,6 @@
     };
     $m('.cg-go').onclick = async () => {
       const amount = amtOf(); if (amount <= 0) return fail('금액을 입력해 주세요.');
-      if (!confirm(`${label}\n충전 아이디 ${acct || '-'}로 ${won(amount)}원을 비즈핏에 충전합니다.`)) return;
       lock(true); $m('.cg-go').textContent = '처리 중...';
       const keys = claimKeysOf([sk]), claim = await HI.claimCharge(keys, staffName());
       if (!claim.ok) { lock(false); $m('.cg-go').textContent = '충전'; return fail(`${claim.by || '다른 직원'}님이 이 항목을 충전 중입니다.`); }
