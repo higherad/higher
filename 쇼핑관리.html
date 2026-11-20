@@ -913,7 +913,6 @@
   // 정산 등록 '충전 신청' — 입금할 쪽 블록마다 합계 금액을 충전(이미 충전된 묶음이 섞이면 건너뜀)
   async function regCharge(body, btn) {
     const badge = (bg, fg, t) => `<span style="display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:${bg};color:${fg}">${t}</span>`;
-    if (!confirm('블록별 정산 합계를 각 충전 계정으로 비즈핏에 충전합니다.')) return;
     btn.disabled = true; btn.textContent = '처리 중...';
     for (const bl of body.children) {
       const cell = bl.querySelector('.charge-cell'), payer = bl.dataset.payer, amount = +bl.dataset.amount, amts = JSON.parse(bl.dataset.amts), keys = Object.keys(amts);
