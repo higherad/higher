@@ -861,23 +861,24 @@
   // 충전 담당자 도장(기록만) — amount = 묶음별 충전 당시 정산 금액
   const stampCharge = amounts => HI.shopUpdate(Object.fromEntries(Object.entries(amounts).flatMap(([k, amt]) => [[`settle/${k}/chargedAt`, nowStr()], [`settle/${k}/chargedBy`, staffName()], [`settle/${k}/chargeAmt`, amt]])));
   const groupAmt = g => g.list.reduce((a, is) => a + billOf(is), 0);
-  function miniModal(title, sub, html) {
+  // 정산관리 팝업과 같은 틀 — 바깥 클릭으로 닫히지 않음, o = {w: 폭, tm: 제목 아래 간격, sm: 부제 아래 간격}
+  function miniModal(title, sub, html, o = {}) {
     const m = document.createElement('div');
     m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    m.innerHTML = `<div style="background:#fff;border-radius:16px;padding:28px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
-      <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${title}</div><div style="font-size:12px;color:var(--text2);margin-bottom:18px;">${sub}</div>${html}</div>`;
-    m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+    m.innerHTML = `<div style="background:#fff;border-radius:16px;padding:28px;width:${o.w || 360}px;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:${o.tm ?? 4}px;">${title}</div><div style="font-size:12px;color:var(--text2);margin-bottom:${o.sm ?? 18}px;">${sub}</div>${html}</div>`;
     document.body.appendChild(m);
     return m;
   }
   const inCss = 'width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+  // 오른쪽 정렬 작은 버튼(정산관리 메모·환불 팝업의 취소·저장)
+  const rBtnCss = (bg, fg = '#fff') => `padding:9px 20px;border:${bg === '#fff' ? '1px solid var(--border)' : 'none'};border-radius:8px;background:${bg};color:${fg};cursor:pointer;font-size:13px;font-weight:${bg === '#fff' ? 400 : 600};font-family:inherit;`;
   const btnCss = (bg, fg = '#fff') => `flex:1;padding:9px 0;border:${bg === '#fff' ? '1px solid var(--border)' : 'none'};border-radius:8px;background:${bg};color:${fg};cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;`;
   // 충전 — 도장이 있으면 도장만 지움(비즈핏 충전은 그대로), 없으면 금액 입력 팝업(충전 = 비즈핏 API, 완료 = 이미 직접 충전한 경우 기록만)
   window.shopChargeGroup = (k, btn) => {
     const g = GROUPS[k]; if (!g) return;
     const sk = settleKey(g.payer, g.date), S = SETTLE[sk] || {}, label = `${userOf(g.payer).company} · ${g.date}`;
     if (S.chargedBy) {
-      if (!confirm(`${label} 충전 기록을 지웁니다. (비즈핏 충전은 취소되지 않습니다)`)) return;
       return busy(btn, () => HI.shopUpdate({ [`settle/${sk}/chargedAt`]: null, [`settle/${sk}/chargedBy`]: null, [`settle/${sk}/chargeAmt`]: null }));
     }
     // 정산관리 충전 금액 팝업(openChargeAmountModal)과 같은 모양 — 오른쪽 위 ✕로 닫기, 충전·완료 두 버튼
@@ -949,9 +950,9 @@
   window.shopMemoGroup = k => {
     const g = GROUPS[k]; if (!g) return;
     const sk = settleKey(g.payer, g.date);
-    const m = miniModal('메모', `${esc(userOf(g.payer).company)} · ${g.date}`,
+    const m = miniModal('메모', esc(userOf(g.payer).company),
       `<textarea class="mm-v" rows="4" placeholder="메모를 입력해 주세요." style="${inCss}font-size:13px;resize:vertical">${esc(SETTLE[sk]?.memo || '')}</textarea>
-       <div style="display:flex;gap:8px;margin-top:16px"><button class="mm-x" style="${btnCss('#fff', 'var(--text2)')}">취소</button><button class="mm-go" style="${btnCss('var(--accent)')}">저장</button></div>`);
+       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="mm-x" style="${rBtnCss('#fff', 'var(--text)')}">취소</button><button class="mm-go" style="${rBtnCss('var(--accent)')}">저장</button></div>`, { sm: 16 });
     m.querySelector('.mm-x').onclick = () => m.remove();
     m.querySelector('.mm-go').onclick = () => busy(m.querySelector('.mm-go'), async () => { await HI.shopUpdate({ [`settle/${sk}/memo`]: m.querySelector('.mm-v').value.trim() || null }); m.remove(); });
     m.querySelector('.mm-v').focus();
@@ -961,11 +962,11 @@
     const g = GROUPS[k]; if (!g) return;
     const cur = g.list.reduce((a, is) => a + (is.adj || 0), 0), auto = g.list.reduce((a, is) => a + (is.refund || 0) + (is.autoAdj || 0), 0);
     const m = miniModal('환불 금액 입력', `${esc(userOf(g.payer).company)} · ${g.date}`,
-      `<div style="background:#f8fafc;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:12px;color:var(--text2);display:grid;grid-template-columns:1fr auto;gap:6px">
+      `<div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:12px;color:var(--text2);display:grid;grid-template-columns:1fr auto;gap:6px">
          <span>현재 추가 환불</span><b style="color:var(--danger)">${won(cur)}원</b><span>환불 처리·환불 등록 차감(자동)</span><b>${won(auto)}원</b></div>
        <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">추가 환불 금액 (VAT 별도, 0 입력 시 삭제)</label>
-       <input class="rf-v" type="text" inputmode="numeric" value="${cur || ''}" style="${inCss}margin-bottom:18px">
-       <div style="display:flex;gap:8px"><button class="rf-x" style="${btnCss('#fff', 'var(--text2)')}">취소</button><button class="rf-go" style="${btnCss('var(--danger)')}">저장</button></div>`);
+       <input class="rf-v" type="text" inputmode="numeric" value="${cur || ''}" style="${inCss}margin-bottom:20px" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+       <div style="display:flex;gap:8px;justify-content:flex-end"><button class="rf-x" style="${rBtnCss('#fff', 'var(--text)')}">취소</button><button class="rf-go" style="${rBtnCss('var(--danger)')}">저장</button></div>`, { w: 340, tm: 6, sm: 20 });
     m.querySelector('.rf-x').onclick = () => m.remove();
     m.querySelector('.rf-go').onclick = () => busy(m.querySelector('.rf-go'), async () => {
       const v = Number(String(m.querySelector('.rf-v').value).replace(/[^\d]/g, '')) || 0;
@@ -974,6 +975,7 @@
       await HI.shopUpdate(Object.fromEntries(g.list.map(is => [`issues/${is.userId}/i${is.no}/adj`, is === first && v ? v : null])));
       m.remove();
     });
+    m.querySelector('.rf-v').addEventListener('keydown', e => { if (e.key === 'Enter') m.querySelector('.rf-go').click(); });
     m.querySelector('.rf-v').focus();
   };
   // 환불 등록 — 입금할 쪽(총판·일반 광고주)별 금액. 등록 다음 날 이후 발급 건에서 서버가 자동 차감(남으면 다음 발급으로 이월)
