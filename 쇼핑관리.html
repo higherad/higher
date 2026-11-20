@@ -805,11 +805,10 @@
       '월별 합산', ['월', '발급 건수', '캠페인 수', '정산 금액(VAT 별도)', '입금액(VAT 포함)'],
       Object.keys(byMonth).sort().reverse().map(m => amtRow(m, byMonth[m])), 1000);
   };
-  // 입금 확인·취소(정산 묶음 '입금' 버튼) — 하부점 발급 건은 총판이 하이어에 낸 돈(distPaid)
+  // 입금 확인·취소(정산 묶음 '입금' 버튼, 정산관리처럼 확인 창 없이 토글) — 하부점 발급 건은 총판이 하이어에 낸 돈(distPaid)
   function paidMany(list, on, label, btn, done) {
-    const todo = list.filter(is => !!is.paidAt !== on), amt = todo.reduce((a, is) => a + billOf(is), 0);
+    const todo = list.filter(is => !!is.paidAt !== on);
     if (!todo.length) return alert(on ? '입금 확인할 건이 없습니다.' : '입금 취소할 건이 없습니다.');
-    if (!confirm(on ? `${label}${todo.length}건 ${won(Math.round(amt * VAT))}원 입금 확인 처리합니다.` : `${label}${todo.length}건 입금 확인을 취소합니다.`)) return;
     const who = staffName(), at = on ? kstNow().toISOString().slice(0, 16).replace('T', ' ') : null, upd = {};
     todo.forEach(is => { const f = is.dist ? 'distPaid' : 'paid'; upd[`issues/${is.userId}/i${is.no}/${f}At`] = at; upd[`issues/${is.userId}/i${is.no}/${f}By`] = on ? who : null; });
     busy(btn, async () => { await HI.shopUpdate(upd); done?.(); });
