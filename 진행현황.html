@@ -115,7 +115,7 @@
   const PER = 20;
   let allSlots = [];
   let _slotsCacheLoaded = false;
-  let _alarms = {};   // 캠페인 종료 알림 {id: {slotKey, days, by}} — 🔔 버튼 표시용, 목록 불러올 때·알림 추가/삭제 후 다시 읽음
+  let _alarms = {};   // 캠페인 종료 알림 {id: {slotKey, days, hour, by}} — 🔔 버튼 표시용, 목록 불러올 때·알림 추가/삭제 후 다시 읽음
 
   const stLabel = {
     active:  '<span class="status-badge s-active">진행</span>',
@@ -582,7 +582,7 @@
   };
 
 
-  // ── 캠페인 알림 — 종료 D-N일이 되면 Hi_Key_Bot '캠페인 알림' 구독 방으로 발송(naver-keyword-bot 09~21시 매시, 종료일은 보낼 때 다시 읽음) ──
+  // ── 캠페인 알림 — 종료 D-N일 고른 시각에 Hi_Key_Bot '캠페인 알림' 구독 방으로 발송(naver-keyword-bot 매시 정각, 종료일은 보낼 때 다시 읽음) ──
   window.openAlarmModal = function(slotKey) {
     if (document.getElementById('alarm-modal')) return;
     const s = allSlots.find(x => x._key === slotKey);
@@ -599,13 +599,15 @@
           <span id="al-x" style="cursor:pointer;font-size:22px;color:var(--muted);line-height:1;">&times;</span>
         </div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">${esc(s.storeName || '-')} · 종료 ${esc(s.endDate || '-')}${left != null ? ` (D-${Math.max(left, 0)})` : ''}</div>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;">
           <span style="font-size:14px;font-weight:600;">D-</span>
-          <input id="al-days" inputmode="numeric" placeholder="3" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;text-align:center;">
-          <span style="font-size:13px;color:var(--text2);flex:1;">일에 알림</span>
+          <input id="al-days" inputmode="numeric" style="width:60px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;text-align:center;">
+          <select id="al-hour" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;">
+            ${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === 9 ? 'selected' : ''}>${String(h).padStart(2, '0')}시</option>`).join('')}
+          </select>
+          <span style="font-size:13px;color:var(--text2);flex:1;">알림</span>
           <button id="al-add" class="action-btn" style="background:#475569;color:#fff;padding:7px 14px;">추가</button>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">그날 오전 9시에 Hi_Key_Bot '알림 설정'에서 캠페인 알림을 켠 방으로 보냅니다</div>
         <div id="al-list"></div>
       </div>`;
     document.body.appendChild(overlay);
@@ -615,10 +617,11 @@
     const listEl = overlay.querySelector('#al-list');
     const mine = () => Object.entries(_alarms).filter(([, a]) => a.slotKey === slotKey);
     const draw = () => {
-      const rows = mine().sort(([, a], [, b]) => (b.days || 0) - (a.days || 0));
+      const hourOf = a => a.hour ?? 9;   // 시각 없는 예전 알림 = 09시
+      const rows = mine().sort(([, a], [, b]) => (b.days || 0) - (a.days || 0) || hourOf(a) - hourOf(b));
       listEl.innerHTML = rows.length ? rows.map(([id, a]) => `
         <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border);font-size:13px;">
-          <div style="flex:1;"><b>D-${a.days}</b> 알림<span style="font-size:11px;color:var(--muted);margin-left:6px;">${esc(a.by || '')}</span></div>
+          <div style="flex:1;"><b>D-${a.days} ${String(hourOf(a)).padStart(2, '0')}시</b> 알림<span style="font-size:11px;color:var(--muted);margin-left:6px;">${esc(a.by || '')}</span></div>
           <button class="action-btn" data-rm="${id}" style="background:#fff;border:1px solid var(--border);color:#dc2626;">삭제</button>
         </div>`).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px 0;">예약된 알림 없음</div>';
     };
@@ -628,9 +631,11 @@
       const v = input.value.trim();
       if (!/^\d+$/.test(v) || +v > 60) { alert('0~60 사이 숫자를 넣으세요. (0 = 종료일 당일)'); return; }
       const days = +v;
-      if (mine().some(([, a]) => a.days === days)) { alert(`D-${days} 알림이 이미 있습니다.`); return; }
-      if (left != null && left < days && !confirm(`이미 D-${Math.max(left, 0)}입니다. 다음 정각에 바로 보낼까요?`)) return;
-      try { await HI.addCampaignAlarm(slotKey, days); input.value = ''; await reload(); }
+      const hour = +overlay.querySelector('#al-hour').value;
+      if (mine().some(([, a]) => a.days === days && (a.hour ?? 9) === hour)) { alert('같은 알림이 이미 있습니다.'); return; }
+      const passed = left != null && (left < days || (left === days && new Date().getHours() >= hour));
+      if (passed && !confirm('이미 지난 시점입니다. 다음 정각에 바로 보낼까요?')) return;
+      try { await HI.addCampaignAlarm(slotKey, days, hour); input.value = ''; await reload(); }
       catch (e) { alert('알림 저장 실패: ' + e.message); }
     };
     overlay.querySelector('#al-add').onclick = add;
