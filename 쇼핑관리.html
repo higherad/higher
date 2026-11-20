@@ -963,7 +963,7 @@
     const cur = g.list.reduce((a, is) => a + (is.adj || 0), 0), auto = g.list.reduce((a, is) => a + (is.refund || 0) + (is.autoAdj || 0), 0);
     const m = miniModal('환불 금액 입력', `${esc(userOf(g.payer).company)} · ${g.date}`,
       `<div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:12px;color:var(--text2);display:grid;grid-template-columns:1fr auto;gap:6px">
-         <span>현재 추가 환불</span><b style="color:var(--danger)">${won(cur)}원</b><span>환불 처리·환불 등록 차감(자동)</span><b>${won(auto)}원</b></div>
+         <span>현재 환불 금액</span><b style="color:var(--danger)">${won(cur)}원</b>${auto ? `<span>추가 환불 처리</span><b>${won(auto)}원</b>` : ''}</div>
        <label style="display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;">추가 환불 금액 (VAT 별도, 0 입력 시 삭제)</label>
        <input class="rf-v" type="text" inputmode="numeric" value="${cur || ''}" style="${inCss}margin-bottom:20px" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
        <div style="display:flex;gap:8px;justify-content:flex-end"><button class="rf-x" style="${rBtnCss('#fff', 'var(--text)')}">취소</button><button class="rf-go" style="${rBtnCss('var(--danger)')}">저장</button></div>`, { w: 340, tm: 6, sm: 20 });
