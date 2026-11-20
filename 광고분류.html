@@ -26,7 +26,7 @@
     .ac-bg-agency{background:rgba(34,197,94,.05)}.ac-bg-direct{background:rgba(245,158,11,.05)}.ac-bg-solo{background:rgba(59,130,246,.05)}
     .ac-bg-agency:hover td{background:rgba(34,197,94,.1)!important}.ac-bg-direct:hover td{background:rgba(245,158,11,.1)!important}.ac-bg-solo:hover td{background:rgba(59,130,246,.1)!important}
     .ac-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px}
-    .ac-badge-agency{background:rgba(34,197,94,.15);color:#16a34a}.ac-badge-direct{background:rgba(245,158,11,.15);color:#d97706}.ac-badge-youpfl{background:rgba(168,85,247,.15);color:#9333ea}.ac-badge-solo{background:rgba(59,130,246,.15);color:#2563eb}.ac-badge-sr{background:rgba(225,29,72,.13);color:#e11d48}
+    .ac-badge-agency{background:rgba(34,197,94,.15);color:#16a34a}.ac-badge-direct{background:rgba(245,158,11,.15);color:#d97706}.ac-badge-youpfl{background:rgba(168,85,247,.15);color:#9333ea}.ac-badge-solo{background:rgba(59,130,246,.15);color:#2563eb}.ac-badge-sr{background:rgba(225,29,72,.13);color:#e11d48}.ac-badge-etc{background:rgba(100,116,139,.15);color:#475569}
     .ac-highlight{background:#fef08a;border-radius:3px;padding:0 1px}
     .ac-no-result{padding:48px;text-align:center;color:var(--muted);font-size:13px;background:#fff;border-radius:14px;border:1px solid var(--border)}
     .ac-save-status{font-size:11px;color:var(--muted);text-align:right;min-height:16px;margin-bottom:16px}
@@ -36,7 +36,7 @@
     .ac-editor-row{display:flex;align-items:flex-start;border-bottom:1px solid var(--border)}
     .ac-editor-row:last-child{border-bottom:none}
     .ac-editor-label{width:86px;padding:14px;font-size:13px;font-weight:700;background:#f8fafc;border-right:1px solid var(--border);display:flex;align-items:flex-start;flex-shrink:0;padding-top:16px}
-    .ac-editor-label.agency{color:#22c55e}.ac-editor-label.direct{color:var(--warn)}.ac-editor-label.solo{color:var(--info)}
+    .ac-editor-label.agency{color:#22c55e}.ac-editor-label.direct{color:var(--warn)}.ac-editor-label.solo{color:var(--info)}.ac-editor-label.etc{color:#64748b}
     .ac-editor-body{flex:1;padding:12px 14px}
     .ac-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;min-height:10px}
     .ac-tag{display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:500}
@@ -127,8 +127,8 @@
   const norm =s=>String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^\w가-힣]/g,'').trim();
   const normT=s=>String(s||'').toLowerCase().replace(/\s+/g,'').trim();
   const fmt  =n=>n?Number(n).toLocaleString():'';
-  const gcls =n=>({대행사:'agency',직광고주:'direct',유입플:'youpfl',SR:'sr'})[n]||'solo';
-  const COLORS={agency:'34,197,94',direct:'245,158,11',youpfl:'168,85,247',solo:'59,130,246',sr:'225,29,72'};
+  const gcls =n=>({대행사:'agency',직광고주:'direct',유입플:'youpfl',SR:'sr',기타:'etc'})[n]||'solo';
+  const COLORS={agency:'34,197,94',direct:'245,158,11',youpfl:'168,85,247',solo:'59,130,246',sr:'225,29,72',etc:'100,116,139'};
   const esc  =s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
   function toast(msg,type='ok'){
@@ -575,8 +575,9 @@
         });
       });
     });
-    // 월별: 합계 0인 업체도 모두 표시 (필터 없이 gSum, total 재계산)
+    // 월별: 그 달 합계 0인 업체는 숨김(구분 설정 업체가 많아 목록이 길어짐)
     base.groupSums.forEach(g=>{
+      g.stores=g.stores.filter(r=>r.sum>0);
       g.gSum=g.stores.reduce((a,r)=>a+r.sum,0);
     });
     base.groupSums.sort((a,b)=>(a.name==='유입플')-(b.name==='유입플')); // SR이 생기기 전 날짜 때문에 순서가 섞이지 않게 유입플은 맨 뒤
