@@ -600,6 +600,7 @@ const HI = {
   // 일 목표 상품별 수량 [{name, n, kind}] — kind reward(리워드 상품, 이름 = 캠페인 타입) · yupfl(유입플 업체 상품) · ded(차감)
   //   풀스택 = 서버가 매일 09시 사이트 진행 주문에서 받은 상품별 일 수량(fullstackDaily) → 없으면 풀스택[개별] 고정 비율(fullstackFix) → 없으면 업체 상품 이름에 업체 수량
   //   fullstackDaily는 풀스택 몫이 있는 캠페인에만 씀 — 같은 MID의 리워드만 캠페인에도 같은 주문이 붙어 와서(배지용) 그대로 쓰면 수량이 두 번 잡힘
+  //   같은 09시 동기화의 bizfitDaily(비즈핏 진행중 광고타입별 일 목표)·busanDaily(부산 진행 슬롯×100)도 리워드·부산 몫 있을 때만 교체, 없으면(false) 승인 때 배분값
   //   승인 전(yupflTarget 없음)은 풀스택[개별]만 고정 비율로 나눠 보여 줌. 순위표 캠페인 타입도 이 이름(진행현황)
   dailySplitParts(s) {
     if (!s.dailyTarget || legacySplit(s)) return [];
@@ -617,16 +618,23 @@ const HI = {
     const normal = Math.max(0, s.dailyTarget - yup - ded);
     const yparts = [];
     let usedSite = false;
+    const busanN = Number(s.busanDaily) || 0;
     const vend = Object.entries(s.yupflByVendor || {}).filter(([, n]) => n > 0);
     for (const [v, n] of (vend.length ? vend : yup > 0 ? [['', yup]] : [])) {
       if ((v === '풀스택' || (!v && !s.yupflByVendor)) && site.length) { yparts.push(...site); usedSite = true; }
       else if (v === '풀스택' && s.fullstackFix) yparts.push(...fixParts(n));
-      else { const names = list(s.vendorProducts?.[v]); yparts.push({ name: names.length ? names.join('·') : v || '유입플', n, kind: 'yupfl', vendor: v || '풀스택' }); }
+      else {
+        const names = list(s.vendorProducts?.[v]), useBusan = v === '부산' && busanN > 0;
+        if (useBusan) usedSite = true;
+        yparts.push({ name: names.length ? names.join('·') : v || '유입플', n: useBusan ? busanN : n, kind: 'yupfl', vendor: v || '풀스택' });
+      }
     }
+    const biz = normal > 0 ? list(s.bizfitDaily).filter(d => d && d.n > 0) : [];
     // 사이트 풀스택 수량을 썼으면 리워드 = 일 목표 − 유입플(사이트 수량 포함) − 차감 남은 만큼(접수 때 리워드 몫이 있던 캠페인만, 없던 건 풀스택만)
     const rewardN = usedSite && normal > 0 ? Math.max(0, s.dailyTarget - ded - yparts.reduce((a, p) => a + p.n, 0)) : normal;
     const parts = [];
-    if (rewardN > 0) parts.push({ name: list(s.campaignTypeShown || s.campaignType).join('·') || '리워드', n: rewardN, kind: 'reward' });
+    if (biz.length) parts.push(...biz.map(d => ({ name: d.name, n: d.n, kind: 'reward', bizfit: true })));
+    else if (rewardN > 0) parts.push({ name: list(s.campaignTypeShown || s.campaignType).join('·') || '리워드', n: rewardN, kind: 'reward' });
     parts.push(...yparts);
     if (ded) parts.push({ name: '차감', n: ded, kind: 'ded' });
     return parts;

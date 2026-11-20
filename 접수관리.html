@@ -912,7 +912,7 @@ window.toggleProdPanel = function(e) {
   const unapprovePatch = key => {
     const s = allSlots.find(x => x._key === key);
     if (s?.status !== 'active' && s?.status !== 'expired') return {};
-    return { campaignType: null, campaignTypeShown: null, fullstackType: null, fullstackShown: null, fullstackDaily: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null,
+    return { campaignType: null, campaignTypeShown: null, fullstackType: null, fullstackShown: null, fullstackDaily: null, bizfitDaily: null, busanDaily: null, yupflTarget: null, yupflByVendor: null, yupflAmount: null, vendorProducts: null,
       ...(s.yupflRatio?.auto ? { yupflRatio: null } : {}),
       ...(s.status === 'expired' ? { scheduleFailed: null, normalDoneProducts: null } : {}) };
   };
