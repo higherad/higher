@@ -716,13 +716,15 @@
   // 정산 등록(정산관리와 같은 구성) — 체크한 건(없으면 지금 목록 전체)을 입금할 쪽별로 묶고 '복사'로 입금 안내 문구
   // 입금할 쪽 = 하부점 발급 건은 총판(총판 단가로 청구), 나머지는 광고주 본인
   window.shopSettleReg = () => {
-    const rows = SPICK.size ? settleShown.filter(is => SPICK.has(slotKey(is))) : settleShown;
-    if (!rows.length) return alert('정산할 건이 없습니다.');
+    // 체크한 묶음만 — 체크 없이 누르면 전체를 불러오지 않고 안내
+    if (!SPICK.size) return alert('정산할 항목을 먼저 체크해 주세요.');
+    const rows = settleShown.filter(is => SPICK.has(slotKey(is)));
+    if (!rows.length) return alert('체크한 항목이 지금 목록에 없습니다.');
     const order = [], groups = {};
     rows.forEach(is => { const p = is.dist || is.userId; if (!groups[p]) { groups[p] = []; order.push(p); } groups[p].push(is); });
     const ov = document.createElement('div');
     ov.className = 'sp-overlay';
-    ov.innerHTML = `<div class="reg-box"><div class="sp-title">정산 등록 — 영업점별 분류</div><div class="sp-sub">${SPICK.size ? '선택' : '전체'} ${rows.length}건</div><div class="reg-body"></div>
+    ov.innerHTML = `<div class="reg-box"><div class="sp-title">정산 등록 — 영업점별 분류</div><div class="sp-sub">선택 ${rows.length}건</div><div class="reg-body"></div>
       <div class="sp-footer"><button class="btn-go sh-reg-charge" style="padding:8px 16px">충전 신청</button><button class="btn-close-sp">닫기</button></div></div>`;
     const body = ov.querySelector('.reg-body');
     order.forEach(p => {

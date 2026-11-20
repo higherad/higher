@@ -1357,16 +1357,10 @@
 
   window.openSettleRegModal=function(){
     const safe=s=>s.replace(/[.#$[\]/]/g,'_');
-    let rows;
-    if(selectedSnapKeys.size>0){
-      rows=filteredRows.filter(g=>{
-        const sk=`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`;
-        return selectedSnapKeys.has(sk);
-      });
-    } else {
-      rows=filteredRows;
-    }
-    if(!rows.length) return;
+    // 체크한 묶음만 — 체크 없이 누르면 전체를 불러오지 않고 안내
+    if(!selectedSnapKeys.size) return alert('정산할 항목을 먼저 체크해 주세요.');
+    const rows=filteredRows.filter(g=>selectedSnapKeys.has(`${safe(g.timeKey)}__${safe(g.agencyId)}__${safe(g.userId)}`));
+    if(!rows.length) return alert('체크한 항목이 지금 목록에 없습니다.');
     const regBody=document.getElementById('settle-reg-body');
     const regSub=document.getElementById('settle-reg-sub');
     const regOverlay=document.getElementById('settle-reg-overlay');
@@ -1447,7 +1441,7 @@
     }
     regBody.innerHTML='';
     regBody.appendChild(container);
-    regSub.textContent=selectedSnapKeys.size>0?`선택 ${rows.length}건`:`전체 ${rows.length}건`;
+    regSub.textContent=`선택 ${rows.length}건`;
     regOverlay.style.display='flex';
   };
 
