@@ -431,7 +431,7 @@
   // 영업점 = 검색 드롭다운에서 고른 계정(업체명·아이디로 거름) — 접수관리 엑셀 접수와 같은 방식
   let orSel = '';
   const cho = s => [...s].map(c => { const k = c.charCodeAt(0) - 0xAC00; return k >= 0 && k < 11172 ? 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'[Math.floor(k / 588)] : c; }).join('');
-  const orHit = (u, q) => { const t = `${u.company} ${u.id}`.toLowerCase(); return t.includes(q) || cho(t).includes(q); };
+  const orHit = (u, q) => { const t = `${u.company || ''} ${u.id}`.toLowerCase(); return t.includes(q) || cho(t).includes(q); };
   const orUser = () => USERS.find(u => u.id === orSel);
   function orList(open) {
     const wrap = $('sh-or-wrap'), list = $('sh-or-list'), q = $('sh-or-user').value.trim().toLowerCase();
@@ -1087,9 +1087,9 @@
 
   /* ── 영업점 관리 ── */
   function renderUsers() {
-    const q = $('sh-fu-q').value.trim();
+    const q = $('sh-fu-q').value.trim().toLowerCase();
     // 하부점은 총판 줄 아래에 접어 둠(총판 줄 클릭 = 펼침). 검색이 하부점에 걸리면 그 총판을 펼쳐서 보여줌
-    const hit = u => !q || (u.company || '').includes(q) || u.id.includes(q), has = id => USERS.some(x => x.id === id);
+    const hit = u => !q || orHit(u, q), has = id => USERS.some(x => x.id === id);
     const subsOf = id => USERS.filter(x => x.parent === id && !x.deleted);
     const list = pageOf(USERS.filter(u => !u.deleted && !(u.parent && has(u.parent)) && (hit(u) || subsOf(u.id).some(hit))), 'sh-user', renderUsers).flatMap(u => {
       const subs = subsOf(u.id).filter(x => hit(u) || hit(x)), open = OPEN.has('u|' + u.id) || (q && subs.some(hit) && !hit(u));
