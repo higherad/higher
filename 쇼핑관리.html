@@ -381,6 +381,8 @@
   }
 
 
+  // 원부 URL = 네이버 가격비교 주소만(확장이 catalog 뒤 숫자를 원부 MID로 읽고, 다른 값이면 등록을 거절)
+  const parseOmid = v => ((v || '').trim().match(/^https:\/\/search\.shopping\.naver\.com\/catalog\/(\d{6,})/i) || [])[1] || '';
   const parseMid = v => { v = (v || '').trim(); if (/^\d{6,}$/.test(v)) return v; if (!safeUrl(v)) return ''; const m = v.match(/(?:products|catalog)\/(\d{6,})/) || v.match(/[?&](?:nvMid|nv_mid)=(\d{6,})/); return m ? m[1] : ''; };
   const termOpts = (v = TERM_DAYS) => Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === v ? ' selected' : ''}>${i + 1}</option>`).join('');
   // 영업점 = 검색 드롭다운에서 고른 계정(업체명·아이디로 거름) — 접수관리 엑셀 접수와 같은 방식
@@ -418,7 +420,7 @@
     if (!r.kw) return '키워드 누락';
     if (r.kw.length > 50) return '키워드 50자 초과';
     if (!parseMid(r.url)) return r.url ? '네이버 상품 URL 아님' : 'URL 누락';
-    if (r.ourl && !parseMid(r.ourl)) return '원부 URL 확인';
+    if (r.ourl && !parseOmid(r.ourl)) return '원부 URL은 가격비교 주소만';
     if (r.start !== today() && r.start !== addDays(today(), 1)) return '시작일은 당일·익일만';
     if (!Number.isInteger(r.days) || r.days < 1 || r.days > TERM_DAYS) return `일수는 1~${TERM_DAYS}만`;
     if (!Number.isInteger(r.daily) || r.daily < MIN_DAILY) return `일 목표 최소 ${MIN_DAILY}개`;
@@ -443,7 +445,7 @@
       const r = rows[i];
       tr.querySelector('.or-n').textContent = i + 1;
       tr.querySelector('.or-url').classList.toggle('bad', !!r.url && !parseMid(r.url));
-      tr.querySelector('.or-ourl').classList.toggle('bad', !!r.ourl && !parseMid(r.ourl));
+      tr.querySelector('.or-ourl').classList.toggle('bad', !!r.ourl && !parseOmid(r.ourl));
       tr.querySelector('.or-daily').classList.toggle('bad', !Number.isInteger(r.daily) || r.daily < MIN_DAILY);
       tr.querySelector('.or-amt').textContent = errs[i] || !ok ? '-' : won(orderAmt(r)) + '원';
     });
