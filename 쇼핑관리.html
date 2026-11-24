@@ -113,6 +113,8 @@
   #shop-mc input.bad { border-color:var(--danger); }
   #shop-mc .acct { flex-wrap:nowrap; } #shop-mc .acct > span:first-child { width:90px; flex:none; } #shop-mc .acct input { flex:1; min-width:0; width:auto; text-align:left; } #shop-mc .acct .pw-masked { -webkit-text-security:disc; }
   #shop-mc .acct button { border:none; background:none; color:var(--muted); cursor:pointer; font-size:15px; }
+  #shop-mc .mc-pwbox { position:relative; flex:1; min-width:0; display:flex; } #shop-mc .mc-pwbox input { padding-right:30px; }
+  #shop-mc .acct .mc-eye { position:absolute; right:4px; top:50%; transform:translateY(-50%); display:flex; padding:4px; } #shop-mc .acct .mc-eye.on { color:var(--text); }
   #sh-mc-retry { margin-top:16px; font-size:12px; color:var(--text2); } #sh-mc-retry summary { font-size:13px; font-weight:700; color:var(--text); cursor:pointer; }
   #sh-mc-retry ul { margin:8px 0 0; padding-left:18px; line-height:1.7; }
   #shop-mc .foot { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
@@ -1163,10 +1165,12 @@
   let MACRO_CFG = {};
   const MACRO_DEF = { cut: 100, overGoal: 40, overTol: 5, underRate: 80, underTol: 1, escStep: 50, underTpl: 'KW-022', overTpl: 'KW-017' };
   // 계정 줄 = 크롤 창 번호 순서(1번부터) — 비운 줄은 저장 안 함
+  const EYE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   const mcAcct = (a = {}) => { const d = document.createElement('div'); d.className = 'ln acct';
-    d.innerHTML = `<span></span><input class="mc-id" placeholder="아이디" autocomplete="off"><input class="mc-pw pw-masked" placeholder="비밀번호" autocomplete="off"><button type="button" title="삭제">✕</button>`;
+    d.innerHTML = `<span></span><input class="mc-id" placeholder="아이디" autocomplete="off"><span class="mc-pwbox"><input class="mc-pw pw-masked" placeholder="비밀번호" autocomplete="off"><button type="button" class="mc-eye" title="비밀번호 보기">${EYE}</button></span><button type="button" class="mc-del" title="삭제">✕</button>`;
+    d.querySelector('.mc-eye').onclick = e => { const on = d.querySelector('.mc-pw').classList.toggle('pw-masked'); e.currentTarget.title = on ? '비밀번호 보기' : '비밀번호 숨기기'; e.currentTarget.classList.toggle('on', !on); };
     d.querySelector('.mc-id').value = a.id || ''; d.querySelector('.mc-pw').value = a.pw || '';
-    d.querySelector('button').onclick = () => { d.remove(); mcNums(); };
+    d.querySelector('.mc-del').onclick = () => { d.remove(); mcNums(); };
     $('sh-mc-accts').append(d); mcNums(); };
   const mcNums = () => [...$('sh-mc-accts').children].forEach((d, i) => { d.firstChild.textContent = `크롤 창 ${i + 1}번`; });
   $('sh-mc-add').onclick = () => mcAcct();
