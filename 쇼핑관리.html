@@ -430,6 +430,8 @@
   const termOpts = (v = TERM_DAYS) => Array.from({ length: TERM_DAYS }, (_, i) => `<option value="${i + 1}"${i + 1 === v ? ' selected' : ''}>${i + 1}</option>`).join('');
   // 영업점 = 검색 드롭다운에서 고른 계정(업체명·아이디로 거름) — 접수관리 엑셀 접수와 같은 방식
   let orSel = '';
+  const cho = s => [...s].map(c => { const k = c.charCodeAt(0) - 0xAC00; return k >= 0 && k < 11172 ? 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'[Math.floor(k / 588)] : c; }).join('');
+  const orHit = (u, q) => { const t = `${u.company} ${u.id}`.toLowerCase(); return t.includes(q) || cho(t).includes(q); };
   const orUser = () => USERS.find(u => u.id === orSel);
   function orList(open) {
     const wrap = $('sh-or-wrap'), list = $('sh-or-list'), q = $('sh-or-user').value.trim().toLowerCase();
@@ -437,7 +439,7 @@
     if (!open) return;
     const r = wrap.getBoundingClientRect();
     Object.assign(list.style, { top: r.bottom + 4 + 'px', left: r.left + 'px', width: r.width + 'px' });
-    const us = USERS.filter(u => !u.blocked && (!q || orSel || `${u.company} ${u.id}`.toLowerCase().includes(q)));
+    const us = USERS.filter(u => !u.blocked && (!q || orSel || orHit(u, q)));
     list.innerHTML = us.map(u => `<div data-id="${esc(u.id)}"${u.id === orSel ? ' class="sel"' : ''}>${esc(u.company)} <span>(${esc(u.id)})</span></div>`).join('')
       || '<div style="color:var(--muted);cursor:default">검색 결과 없음</div>';
   }
