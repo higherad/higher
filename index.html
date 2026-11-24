@@ -382,7 +382,7 @@
   // 타이틀 바로 오른쪽 버튼 묶음(형식 PAGE_ACTIONS와 같음)
   const PAGE_HEADING_ACTIONS = {
     '접수관리.html': [[['ban', '강제종료', 'openForceStopModal()', { danger: true }], ['wallet', '자동 차감', 'openCashDeductModal()', { title: '대행사 비즈핏 캐시에서 입력한 금액을 차감하고 충전 메모 유입플 금액에 더함' }]]],
-    '쇼핑관리.html': [[['external-link', 'SR 어드민', "window.open('https://admin.smart-redirect.com/','_blank')"]]],
+    '쇼핑관리.html': [[['external-link', 'SR 어드민', "window.open('https://admin.smart-redirect.com/','_blank')"], ['settings', '매크로 설정', 'openShopMacroCfg()', { title: '자동 접수·템플릿 매크로 기준값(유효키워드 개수·SR 템플릿·재시도)' }]]],
   };
   function renderPageActions(page) {
     fillPageActions(document.getElementById('page-actions'), PAGE_ACTIONS[page]);
