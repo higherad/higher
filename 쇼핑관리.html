@@ -111,6 +111,10 @@
   #shop-mc .ln > span:first-child { width:120px; }
   #shop-mc input { width:72px; padding:6px 8px; border:1px solid var(--border); border-radius:7px; font-size:13px; text-align:center; font-family:inherit; }
   #shop-mc input.bad { border-color:var(--danger); }
+  #shop-mc .acct input { width:140px; } #shop-mc .acct .pw-masked { -webkit-text-security:disc; }
+  #shop-mc .acct button { border:none; background:none; color:var(--muted); cursor:pointer; font-size:15px; }
+  #sh-mc-retry { margin-top:16px; font-size:12px; color:var(--text2); } #sh-mc-retry summary { font-size:13px; font-weight:700; color:var(--text); cursor:pointer; }
+  #sh-mc-retry ul { margin:8px 0 0; padding-left:18px; line-height:1.7; }
   #shop-mc .foot { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
   #shop-mc .foot button { padding:8px 18px; border-radius:7px; font-size:13px; cursor:pointer; font-family:inherit; }
   /* 접수 팝업(개별·엑셀) */
@@ -247,9 +251,15 @@
     <h4>SR 템플릿 (템플릿 매크로)</h4>
     <div class="ln"><span>기준 미만</span><input data-k="underTpl" style="width:100px"></div>
     <div class="ln"><span>기준 이상</span><input data-k="overTpl" style="width:100px"></div>
-    <h4>재시도 횟수</h4>
-    <div class="ln"><span>정보 불러오기</span><input data-k="crawlRetry"> 번</div>
-    <div class="ln"><span>로그인</span><input data-k="loginRetry"> 번</div>
+    <h4>네이버 로그인 계정 <span style="font-weight:400;color:var(--muted)">(넣은 개수만큼 크롤 창 1번부터 로그인)</span></h4>
+    <div id="sh-mc-accts"></div>
+    <button type="button" id="sh-mc-add" style="border:1px dashed var(--border);background:#fff;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit">+ 계정 추가</button>
+    <details id="sh-mc-retry"><summary>재시도 방법</summary><ul>
+      <li>정보 불러오기 실패 행 = 비우고 다시 불러오기, 최대 3번 — 그래도 실패하면 매크로 중단</li>
+      <li>도중에 로그인·보안문자 안내가 뜨면 네이버 로그인부터 다시(최대 5번) 하고 이어서 진행</li>
+      <li>로그인 대기는 시간 제한 없음 — 보안문자·새 기기 등록 화면은 그 크롤 창에서 직접 처리</li>
+      <li>유효키워드 부족 = 조합 검사 상한 +일목표 → 조합 단어수 +1 → 상한 +추가폭 순서로 그 행만 다시 추출</li>
+    </ul></details>
     <div class="foot"><button style="border:1px solid var(--border);background:#fff;margin-right:auto" id="sh-mc-reset">기본값</button><button style="border:1px solid var(--border);background:#fff" onclick="document.getElementById('shop-mc').classList.remove('show')">취소</button><button class="btn-go" id="sh-mc-save">저장</button></div>
   </div></div>
 
@@ -1151,11 +1161,20 @@
   });
   // 매크로 설정 — shop/macro_cfg, 기본값은 매크로 코드 CFG와 같음(저장 안 한 항목은 매크로가 기본값으로)
   let MACRO_CFG = {};
-  const MACRO_DEF = { cut: 100, overGoal: 40, overTol: 5, underRate: 80, underTol: 1, escStep: 50, underTpl: 'KW-022', overTpl: 'KW-017', crawlRetry: 3, loginRetry: 5 };
+  const MACRO_DEF = { cut: 100, overGoal: 40, overTol: 5, underRate: 80, underTol: 1, escStep: 50, underTpl: 'KW-022', overTpl: 'KW-017' };
+  // 계정 줄 = 크롤 창 번호 순서(1번부터) — 비운 줄은 저장 안 함
+  const mcAcct = (a = {}) => { const d = document.createElement('div'); d.className = 'ln acct';
+    d.innerHTML = `<span></span><input class="mc-id" placeholder="아이디" autocomplete="off"><input class="mc-pw pw-masked" placeholder="비밀번호" autocomplete="off"><button type="button" title="삭제">✕</button>`;
+    d.querySelector('.mc-id').value = a.id || ''; d.querySelector('.mc-pw').value = a.pw || '';
+    d.querySelector('button').onclick = () => { d.remove(); mcNums(); };
+    $('sh-mc-accts').append(d); mcNums(); };
+  const mcNums = () => [...$('sh-mc-accts').children].forEach((d, i) => { d.firstChild.textContent = `크롤 창 ${i + 1}번`; });
+  $('sh-mc-add').onclick = () => mcAcct();
   const mcInputs = () => [...$('shop-mc').querySelectorAll('input[data-k]')];
   const mcFill = c => mcInputs().forEach(el => { el.value = c[el.dataset.k] ?? MACRO_DEF[el.dataset.k]; el.classList.remove('bad'); });
+  const mcFillAccts = list => { $('sh-mc-accts').innerHTML = ''; const a = Object.values(list || {}); [...a, ...Array(Math.max(0, 2 - a.length)).fill({})].forEach(mcAcct); };
   window.openShopMacroCfg = () => {
-    mcFill(MACRO_CFG);
+    mcFill(MACRO_CFG); mcFillAccts(MACRO_CFG.accounts); $('sh-mc-retry').open = false;
     $('sh-mc-at').textContent = MACRO_CFG.at ? `마지막 저장 ${MACRO_CFG.at} · ${MACRO_CFG.by || ''} — 다음 매크로 실행부터 적용` : '저장하면 다음 매크로 실행부터 적용됩니다.';
     $('shop-mc').classList.add('show');
   };
@@ -1168,8 +1187,14 @@
       el.classList.toggle('bad', !ok); bad ||= !ok;
       out[k] = tpl ? v.toUpperCase() : +v;
     });
-    if (bad) return alert('빨간 칸을 확인해 주세요. (숫자 칸은 0 이상 정수, 템플릿은 KW-000 형식)');
-    busy($('sh-mc-save'), async () => { await HI.shopUpdate({ macro_cfg: { ...out, at: nowStr(), by: staffName() } }); $('shop-mc').classList.remove('show'); });
+    const accounts = [];
+    [...$('sh-mc-accts').children].forEach(d => {
+      const [i, p] = d.querySelectorAll('input'), id = i.value.trim(), pw = p.value;
+      i.classList.toggle('bad', !id && !!pw); p.classList.toggle('bad', !!id && !pw); bad ||= !id !== !pw;
+      if (id && pw) accounts.push({ id, pw });
+    });
+    if (bad) return alert('빨간 칸을 확인해 주세요. (숫자 칸은 0 이상 정수, 템플릿은 KW-000 형식, 계정은 아이디·비밀번호 둘 다)');
+    busy($('sh-mc-save'), async () => { await HI.shopUpdate({ macro_cfg: { ...out, accounts, at: nowStr(), by: staffName() } }); $('shop-mc').classList.remove('show'); });
   };
   // 단가 변경 이력 팝업 — 기록은 서버(/shop-user)가 단가가 바뀔 때만 남김
   window.shopPriceLog = id => {
