@@ -67,10 +67,6 @@
   <div class="loading-wrap"><div class="spinner"></div> 로드 중...</div>
 </div>
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-  <span id="slots-count" style="font-size:13px;color:var(--text2)">로드 중...</span>
-</div>
-
 <div class="filter-bar">
   <select id="f-status" onchange="renderSlots()">
     <option value="">진행 전체</option>
@@ -304,7 +300,6 @@
       loadSlotsHistory();
     }
     const all   = getFiltered();
-    document.getElementById('slots-count').textContent = `전체 ${all.length}건`;
     const start = (page-1)*PER;
     const list  = all.slice(start, start+PER);
     const body  = document.getElementById('slots-body');
