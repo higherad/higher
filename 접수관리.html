@@ -6278,15 +6278,19 @@ window.toggleProdPanel = function(e) {
   }
 
   // 트래픽/저장 두 계열 다 조회해 합쳐서 반환 — 하나만 조회하면 반대 계열 등급이 선택지에 안 뜸.
+  // 계정 = 대행사의 현재 충전 계정(hi/bizfit_charge), 없으면 접수 때 저장된 계정. classType은 계정마다 달라
+  // 재생성 항목도 이 계정(acct)으로 등록해야 함 — 각 등급에 acct를 실어 보냄.
   async function fetchScheduleGradeGroups(sample, prodsList) {
-    const base = { domain: sample.payload?.domain || BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd, tab: BIZFIT_TAB, rawData: [] };
+    const charge = sample.agency ? await fetchBizfitAccount(sample.agency) : null;
+    const acct = charge?.id && charge?.pw ? { loginId: charge.id, pwd: charge.pw } : { loginId: sample.payload?.loginId, pwd: sample.payload?.pwd };
+    const base = { domain: sample.payload?.domain || BIZFIT_DOMAIN, ...acct, tab: BIZFIT_TAB, rawData: [] };
     const [giTraffic, giStorage] = await Promise.all([
       callBizfitProxy('/grade-info', base).catch(() => ({ success:false })),
       callBizfitProxy('/grade-info', { ...base, adrole: '100' }).catch(() => ({ success:false })),
     ]);
     const traffic = (giTraffic.success && giTraffic.gradeGroups) ? giTraffic.gradeGroups.map(g => ({ ...g, adrole: null,  category: '트래픽' })) : [];
     const storage = (giStorage.success && giStorage.gradeGroups) ? giStorage.gradeGroups.map(g => ({ ...g, adrole: '100', category: '저장'   })) : [];
-    return [...traffic, ...storage].map(g => ({ ...g, ckey: scheduleGradeCkey(g.adrole, g.gradeName), structKey: gradeStructKey(g.gradeName, prodsList, g.adrole) }));
+    return [...traffic, ...storage].map(g => ({ ...g, acct, ckey: scheduleGradeCkey(g.adrole, g.gradeName), structKey: gradeStructKey(g.gradeName, prodsList, g.adrole) }));
   }
 
   // 그룹당 하나만 존재하는 재분류 상태 — 패널 열기 전에 행 체크박스를 먼저 누를 수도 있어서
@@ -6343,6 +6347,16 @@ window.toggleProdPanel = function(e) {
       _ssBulk.loading = false;
     }
     renderSplitScheduleList();
+  };
+  // 🔄 — 캐시한 등급 목록을 버리고 충전 계정으로 다시 조회(체크·비율은 유지)
+  window.refreshBulkResplitGrades = function() {
+    _ssBulk.gradeGroups = null; _ssBulk.open = false;
+    return toggleBulkResplitPanel();
+  };
+  window.refreshScheduleResplitGrades = function(slotKey) {
+    const st = _ssResplit[slotKey]; if (!st) return;
+    st.gradeGroups = null; st.open = false;
+    return toggleScheduleResplit(slotKey);
   };
   window.onBulkResplitCheck = function(ckey, checked) {
     const pctInput = document.getElementById(`ss-bulk-pct-${idSafe(ckey)}`);
@@ -6420,12 +6434,13 @@ window.toggleProdPanel = function(e) {
       if (_ssBulk.loading) {
         panel = '<div style="font-size:12px;color:var(--muted);margin-top:8px;">등급 조회 중...</div>';
       } else if (!_ssBulk.gradeGroups || !_ssBulk.gradeGroups.length) {
-        panel = '<div style="font-size:12px;color:var(--danger);margin-top:8px;">등급 조회 실패 — 계정 정보를 확인해주세요.</div>';
+        panel = `<div style="font-size:12px;color:var(--danger);margin-top:8px;">등급 조회 실패 — 계정 정보를 확인해주세요. <button type="button" onclick="refreshBulkResplitGrades()" title="충전 계정에서 등급 다시 불러오기" style="border:none;background:none;cursor:pointer;font-size:13px;padding:0 2px;">🔄</button></div>`;
       } else {
         const categories = [...new Set(_ssBulk.gradeGroups.map(gg => gg.category))];
         const v = computeBulkValidity();
         panel = `
         <div style="margin-top:10px;padding:10px;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:-18px;"><button type="button" onclick="refreshBulkResplitGrades()" title="충전 계정에서 등급 다시 불러오기" style="border:none;background:none;cursor:pointer;font-size:13px;padding:0 2px;">🔄</button></div>
           ${categories.map(cat => `
           <div style="margin-bottom:8px;">
             <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:4px;">${escProd(cat)}</div>
@@ -6511,7 +6526,7 @@ window.toggleProdPanel = function(e) {
       const curStructs = new Set(items.map(e => gradeStructKey(e.payload?.gradeName || '', prodsList, e.adrole)));
       const applicable = v.grades.map(g => {
         const gg = groupGrades.find(x => x.ckey === g.ckey && curStructs.has(x.structKey));
-        return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct: g.pct } : null;
+        return gg ? { ckey: gg.ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, acct: gg.acct, pct: g.pct } : null;
       }).filter(Boolean);
       if (applicable.length !== v.grades.length) { failed.push(`${label} : 등급 설정 필요`); continue; }
       ready.push({ gid, applicable });
@@ -6569,7 +6584,7 @@ window.toggleProdPanel = function(e) {
       // 시작점 제공 — 대상(선택했으면 선택분, 아니면 전체)이 지금 쓰고 있는 등급들을 기본 체크해두고
       // 등급 수만큼 균등 비율을 미리 채워줌(그대로 써도 되고 고쳐도 됨)
       const curKeys = [...new Set(targetItems.map(e => scheduleGradeCkey(e.adrole, e.payload?.gradeName)).filter(k => k && !k.endsWith('::')))];
-      if (curKeys.length) {
+      if (curKeys.length && !Object.keys(st.sel).length) {
         const pct = Math.round(100 / curKeys.length);
         curKeys.forEach(k => { st.sel[k] = pct; });
       }
@@ -6724,7 +6739,7 @@ window.toggleProdPanel = function(e) {
     if (!st) return null;
     const grades = Object.entries(st.sel).filter(([,pct]) => pct > 0).map(([ckey,pct]) => {
       const gg = (st.gradeGroups||[]).find(x => x.ckey === ckey);
-      return gg ? { ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, pct } : null;
+      return gg ? { ckey, gradeName: gg.gradeName, classType: gg.classType, gradeType: gg.gradeType, actualTab: gg.actualTab, adrole: gg.adrole, acct: gg.acct, pct } : null;
     }).filter(Boolean);
     const pctSum = grades.reduce((a,g) => a+g.pct, 0);
     // 선택한 항목이 있으면 시각 재설정도 그 항목만 대상. 시각 재설정은 새 시각으로 옮기므로 같은 시각 일부 선택 제한은 안 걸음
@@ -6779,14 +6794,16 @@ window.toggleProdPanel = function(e) {
     if (!st || !st.open) return '';
     const slotKey = g.gid;
     let body;
+    const refreshBtn = `<button type="button" onclick="refreshScheduleResplitGrades('${slotKey}')" title="충전 계정에서 등급 다시 불러오기" style="border:none;background:none;cursor:pointer;font-size:13px;padding:0 2px;">🔄</button>`;
     if (st.loading) {
       body = '<span style="font-size:12px;color:var(--muted);">등급 조회 중...</span>';
     } else if (!st.gradeGroups || !st.gradeGroups.length) {
-      body = '<span style="font-size:12px;color:var(--danger);">등급 조회 실패 — 계정 정보를 확인해주세요.</span>';
+      body = `<span style="font-size:12px;color:var(--danger);">등급 조회 실패 — 계정 정보를 확인해주세요.</span> ${refreshBtn}`;
     } else {
+      body = `<div style="display:flex;justify-content:flex-end;margin-bottom:-18px;">${refreshBtn}</div>`;
       const categories = [...new Set(st.gradeGroups.map(gg => gg.category))];
       const v = computeResplitValidity(slotKey);
-      body = `
+      body += `
         ${categories.map(cat => `
         <div style="margin-bottom:8px;">
           <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:4px;">${escProd(cat)}</div>
@@ -6913,7 +6930,7 @@ window.toggleProdPanel = function(e) {
         patch[`dispatch/${key}`] = {
           slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '', adrole: g.adrole ?? null,
           payload: {
-            ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || BIZFIT_TAB,
+            ...sample.payload, ...g.acct, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || BIZFIT_TAB,
             rowData: [{ ...sampleRow, 일목표: amt, 상품등급명: g.gradeName, ...kwOverride }],
           },
           status: 'pending', createdAt: new Date().toISOString(),
@@ -7063,7 +7080,10 @@ window.toggleProdPanel = function(e) {
           'payload/gradeType':  g.gradeType,
           'payload/tab':        g.actualTab || BIZFIT_TAB,
           'payload/rowData/0/상품등급명': g.gradeName,
+          'payload/loginId': g.acct.loginId,
+          'payload/pwd':     g.acct.pwd,
         });
+        Object.assign(e.payload, g.acct);
         e.adrole = g.adrole ?? null;
         e.payload.gradeName = g.gradeName; e.payload.classType = g.classType;
         e.payload.gradeType = g.gradeType; e.payload.tab = g.actualTab || BIZFIT_TAB;
