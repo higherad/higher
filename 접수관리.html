@@ -2430,10 +2430,8 @@ window.toggleProdPanel = function(e) {
   // 켜면 캠페인마다 분류 × 일 목표 구간으로 구글시트 '접수 가이드'의 리워드 상품·비율(시트 분류와 같은 규칙)을 골라 그 상품들로 배분.
   // 분류·구간을 못 찾은 캠페인은 상품 유형 설정으로.
   let guideModeOn = false, guideRules = [], guideCats = [], guideTimes = [], guideSplit = null;
-  // 풀스텍 상품 = [배지 짧은 이름, 사이트 프리셋, 로그인 가능(검색 유입)] — 시트 분류 열·배지 순서도 이 순서. 시트 분류·가이드_접수·풀스택 탭 공용
-  const FULL_PRODS = [['기본', 'basic', 1], ['둘러보고', 'browse', 1], ['카톡(길찾기)', 'kakao_route'], ['카톡(공유)', 'kakao_share'],
-    ['길찾기', 'action', 1], ['지도', 'map'], ['인스타', 'insta_vendor'], ['저장', 'save'], ['리뷰', 'react'],
-    ['블로그', 'external'], ['필터', 'filter', 1], ['근처', 'near', 1], ['AI', 'ai_home'], ['AI(길찾기)', 'ai_route']];
+  // 풀스택 상품 목록 = hi-store.js FULL_PRODS(진행현황 '풀스택 접수 양식'과 공용). 옛 hi-store 캐시면 빈 목록 → 풀스택 탭이 '상품 이름 모름'으로 막음
+  const FULL_PRODS = HI.FULL_PRODS || [];
   // 홈페이지(website)·급등형(surge)은 없음 — 사이트가 홈페이지 주소·피크 시각·세기 없이는 접수를 거절(가이드 드롭다운에도 없음)
   // 가이드 상품 이름 → 배지 이름: 위에서부터 처음 맞는 말(사이트 프리셋 이름 그대로든 배지 이름이든). 못 찾으면 이름 그대로
   const FULL_MATCH = [[/AI.*길찾기/, 'AI(길찾기)'], [/AI/, 'AI'], [/카톡.*공유/, '카톡(공유)'], [/카톡/, '카톡(길찾기)'], [/인스타/, '인스타'], [/급등/, '급등형'], [/필터/, '필터'], [/근처/, '근처'],
@@ -2454,7 +2452,7 @@ window.toggleProdPanel = function(e) {
     ? { ...(rule || {}), reward: [], vendors: { 풀스택: asList(s.fullstackFix) }, full: asList(s.fullstackFix), tune: s.fullstackTune || rule?.tune || {} } : rule;
   // 비고 '풀스택[개별]' 행의 상품N·분할N 열 쌍 [[상품, 일 수량], …] → 고정 풀스택 상품. 분할 합 = 일 목표, 저장은 비율(수량 ÷ 일 목표)
   // — 차감이 켜져 있으면 차감 뒤 남은 수량을 이 비율로 나눔. 풀스택 사이트엔 정수 %로 반올림해 넘어감(fullstackVariants)
-  const FS_FIX_NOTE = '풀스택[개별]';
+  const FS_FIX_NOTE = HI.FS_FIX_NOTE || '풀스택[개별]';
   function parseFixNote(pairs, target) {
     const list = pairs.filter(([n, v]) => String(n ?? '').trim() || String(v ?? '').trim()).map(([n, v]) => {
       const name = String(n ?? '').trim(), x = Number(String(v ?? '').trim());
@@ -3210,7 +3208,7 @@ window.toggleProdPanel = function(e) {
         <div id="rex-mode-excel" class="rex-card">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
             <div class="rex-card-title" style="margin-bottom:0;">엑셀 일괄 업로드</div>
-            <div style="display:flex;gap:6px;"><button class="rex-btn-template" id="rex-tmpl-btn">양식 다운</button><button class="rex-btn-template" id="rex-fs-tmpl-btn" style="background:#0f766e;">어드민 양식 다운</button></div>
+            <div style="display:flex;gap:6px;"><button class="rex-btn-template" id="rex-tmpl-btn">양식 다운</button></div>
           </div>
           <div class="rex-zone" id="rex-zone">
             <input type="file" id="rex-file" accept=".xlsx,.xls">
@@ -3249,7 +3247,6 @@ window.toggleProdPanel = function(e) {
     overlay.querySelector('#rex-tab-excel').onclick  = () => rexSwitchTab(overlay, 'excel');
     overlay.querySelector('#rex-s-submit-btn').onclick = () => rexSubmitSingle(overlay);
     overlay.querySelector('#rex-tmpl-btn').onclick     = () => downloadRexTemplate();
-    overlay.querySelector('#rex-fs-tmpl-btn').onclick  = () => downloadFullstackTemplate();
     overlay.querySelector('#rex-e-reset-btn').onclick  = () => rexResetExcel(overlay);
     overlay.querySelector('#rex-e-submit-btn').onclick = () => rexSubmitExcel(overlay);
     overlay.querySelector('#rex-file').onchange = function() { if (this.files[0]) rexProcessExcel(overlay, this.files[0]); };
@@ -3610,46 +3607,6 @@ window.toggleProdPanel = function(e) {
     XLSX.writeFile(wb, '엑셀접수_양식.xlsx');
   }
 
-  // 어드민 양식(풀스택[개별]) — 기본 양식 + 하루 키워드 수 + 상품·분할 4쌍 + 세부조정 5열, 2~101행 선택창(비고·상품·세부조정)·정수 검사(분할).
-  // 비고 '풀스택[개별]' 행만 상품·분할·세부조정을 씀. 세부조정을 다 비우면 가이드 풀스택 탭 행 세부조정
-  // 세부조정 헤더·값 = 가이드 풀스택 탭 G~K열·드롭다운과 같음(FS_TUNE_COLS·FS_TUNE_OPTS가 읽음) — 가이드 드롭다운을 바꾸면 같이 고칠 것
-  const FS_FORM_PAIRS = 4, FS_FORM_ROWS = 101;
-  const FS_HOURS = Array.from({ length: 24 }, (_, h) => `${h}시`);
-  const FS_FORM_TUNE = [['세부조정(언제 오나)', ['방식대로', '사람들이 검색하는 시간대로', '낮 영업시간에 몰아서', '하루 종일 고르게', '시간대 직접 고르기'], 22],
-    ['세부조정(시작 시각)', FS_HOURS, 10], ['세부조정(끝 시각)', FS_HOURS, 10],
-    ['세부조정(얼마나 머무나)', ['방식대로', '잠깐 (3초쯤)', '보통 (5초쯤)', '오래 (9초쯤)'], 16],
-    ['세부조정(건수를 어디에 쓰나)', ['방식대로', '키워드마다 고르게', '롱테일 키워드로 넓게', '필터 검색어로'], 20]];
-  function downloadFullstackTemplate() {
-    // 하루 키워드 수는 비고 다음 — 헤더 인식의 '키워드'(순위키워드 열 찾기)는 앞 열부터 찾아서 순위키워드보다 뒤면 됨
-    const head = ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고','하루 키워드 수'];
-    for (let i = 1; i <= FS_FORM_PAIRS; i++) head.push(`상품${i}`, `분할${i}`);
-    const tune0 = head.length;
-    head.push(...FS_FORM_TUNE.map(([h]) => h));
-    const ws = XLSX.utils.aoa_to_sheet([head]);
-    ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}]),
-      ...FS_FORM_TUNE.map(([, , w]) => ({ wch: w }))];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '접수');
-    const col = i => XLSX.utils.encode_col(i), rng = i => `${col(i)}2:${col(i)}${FS_FORM_ROWS}`;
-    // 로그인 가능한 상품은 O/X를 골라야 함(이름에 '로그인O'가 없으면 로그인 안 함 — fullstackVariants)
-    const names = FULL_PRODS.flatMap(([k, , login]) => login ? [`${k}(로그인O)`, `${k}(로그인X)`] : [k]);
-    const ratios = ['90:10','80:20','70:30','60:40','50:50','40:60','30:70','20:80','10:90'];
-    // 비고는 다른 업체명도 쓸 수 있게 경고만, 상품은 목록 밖이면 막음
-    const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;
-    const whole = (sqref, msg = '1 이상 정수(일 수량)') => `<dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" error="${msg}" sqref="${sqref}"><formula1>0</formula1></dataValidation>`;
-    const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, '부산', '제이엔', '프리미엄', ...ratios], false), whole(rng(8), '1 이상 정수(하루에 쓸 키워드 수)'),
-      ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(9 + i * 2), names, true), whole(rng(10 + i * 2))]),
-      ...FS_FORM_TUNE.map(([, list], i) => dv(rng(tune0 + i), list, true))];
-    // SheetJS(무료판)는 데이터 유효성을 못 써서 만든 xlsx(zip)의 시트 XML에 직접 넣음
-    const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' })), { type: 'buffer' });
-    const f = zip.FileIndex[zip.FullPaths.findIndex(p => p.endsWith('xl/worksheets/sheet1.xml'))];
-    const xml = new TextDecoder().decode(f.content).replace(/(<\/sheetData>(?:<mergeCells[\s\S]*?<\/mergeCells>)?)/,
-      `$1<dataValidations count="${rules.length}">${rules.join('')}</dataValidations>`);
-    f.content = new TextEncoder().encode(xml); f.size = f.content.length;
-    const blob = new Blob([XLSX.CFB.write(zip, { type: 'array', fileType: 'zip' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: '엑셀접수_어드민양식.xlsx' });
-    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }
 
   // ── 애드로그 대량등록 접수 (그룹/키워드/URL/메모) ────────────
   // 프론트(SheetJS) xlsx를 그대로 릴레이 — 서버에서 새로 생성한 xlsx(openpyxl 등)는 adlog.kr이 거부함(실측 확인)

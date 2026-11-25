@@ -372,7 +372,7 @@
       [['calculator', '정산하기', 'openSettleRegModal()'], ['undo-2', '환불 등록', 'openPendingRefundModal()']],
       [['download', '엑셀 다운로드', 'exportSettleExcel()']],
     ],
-    '진행현황.html': [[['trophy', '순위표', 'downloadRankTable()', { id: 'rank-table-btn' }], ['trending-down', 'Plan-B', 'openPlanBModal()']], [['trash-2', '휴지통', 'openTrashView()']]],
+    '진행현황.html': [[['file-spreadsheet', '풀스택 접수 양식', "HI.downloadFullstackTemplate ? HI.downloadFullstackTemplate() : alert('새 버전이 아직 반영되지 않았습니다. Ctrl+F5로 새로고침해 주세요')"]], [['trophy', '순위표', 'downloadRankTable()', { id: 'rank-table-btn' }], ['trending-down', 'Plan-B', 'openPlanBModal()']], [['trash-2', '휴지통', 'openTrashView()']]],
     '지출관리.html': [[['settings-2', '원가 설정', 'openCostModal()']], [['download', '엑셀 다운로드', 'exportCostExcel()']]],
     // tab = 쇼핑관리 탭 이름 — 그 탭에서만 보임(탭 전환 때 쇼핑관리.html이 data-tab으로 켜고 끔)
     '쇼핑관리.html': [[['clipboard-plus', '접수', "shopOrderOpen('xlsx')", { tab: 'slots' }]], [['calculator', '정산하기', 'shopSettleReg()', { tab: 'settle' }], ['undo-2', '환불 등록', 'shopPendingRefund()', { tab: 'settle' }]],

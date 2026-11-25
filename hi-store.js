@@ -395,7 +395,55 @@ export function remainingAfterCancel(slot, canceledDates, keptDates) {
 }
 
 // ════════════════════════════════════════════════════════════
+// 풀스텍 상품 = [배지 짧은 이름, 사이트 프리셋, 로그인 가능(검색 유입)] — 시트 분류 열·배지 순서도 이 순서. 시트 분류·가이드_접수·풀스택 탭 공용
+export const FULL_PRODS = [['기본', 'basic', 1], ['둘러보고', 'browse', 1], ['카톡(길찾기)', 'kakao_route'], ['카톡(공유)', 'kakao_share'],
+  ['길찾기', 'action', 1], ['지도', 'map'], ['인스타', 'insta_vendor'], ['저장', 'save'], ['리뷰', 'react'],
+  ['블로그', 'external'], ['필터', 'filter', 1], ['근처', 'near', 1], ['AI', 'ai_home'], ['AI(길찾기)', 'ai_route']];
+export const FS_FIX_NOTE = '풀스택[개별]';
+
+// 풀스택 접수 양식(풀스택[개별], 접수관리 엑셀 접수 창·진행현황 상단 버튼) — 기본 양식 + 하루 키워드 수 + 상품·분할 4쌍 + 세부조정 5열, 2~101행 선택창(비고·상품·세부조정)·정수 검사(분할).
+// 비고 '풀스택[개별]' 행만 상품·분할·세부조정을 씀. 세부조정을 다 비우면 가이드 풀스택 탭 행 세부조정
+// 세부조정 헤더·값 = 가이드 풀스택 탭 G~K열·드롭다운과 같음(FS_TUNE_COLS·FS_TUNE_OPTS가 읽음) — 가이드 드롭다운을 바꾸면 같이 고칠 것
+const FS_FORM_PAIRS = 4, FS_FORM_ROWS = 101;
+const FS_HOURS = Array.from({ length: 24 }, (_, h) => `${h}시`);
+const FS_FORM_TUNE = [['세부조정(언제 오나)', ['방식대로', '사람들이 검색하는 시간대로', '낮 영업시간에 몰아서', '하루 종일 고르게', '시간대 직접 고르기'], 22],
+  ['세부조정(시작 시각)', FS_HOURS, 10], ['세부조정(끝 시각)', FS_HOURS, 10],
+  ['세부조정(얼마나 머무나)', ['방식대로', '잠깐 (3초쯤)', '보통 (5초쯤)', '오래 (9초쯤)'], 16],
+  ['세부조정(건수를 어디에 쓰나)', ['방식대로', '키워드마다 고르게', '롱테일 키워드로 넓게', '필터 검색어로'], 20]];
+export function downloadFullstackTemplate() {
+  // 하루 키워드 수는 비고 다음 — 헤더 인식의 '키워드'(순위키워드 열 찾기)는 앞 열부터 찾아서 순위키워드보다 뒤면 됨
+  const head = ['업체명','URL','MID','순위키워드','일 수','시작일','일 목표','비고','하루 키워드 수'];
+  for (let i = 1; i <= FS_FORM_PAIRS; i++) head.push(`상품${i}`, `분할${i}`);
+  const tune0 = head.length;
+  head.push(...FS_FORM_TUNE.map(([h]) => h));
+  const ws = XLSX.utils.aoa_to_sheet([head]);
+  ws['!cols'] = [{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:14},{wch:14}, ...Array(FS_FORM_PAIRS).fill(0).flatMap(() => [{wch:16},{wch:7}]),
+    ...FS_FORM_TUNE.map(([, , w]) => ({ wch: w }))];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '접수');
+  const col = i => XLSX.utils.encode_col(i), rng = i => `${col(i)}2:${col(i)}${FS_FORM_ROWS}`;
+  // 로그인 가능한 상품은 O/X를 골라야 함(이름에 '로그인O'가 없으면 로그인 안 함 — fullstackVariants)
+  const names = FULL_PRODS.flatMap(([k, , login]) => login ? [`${k}(로그인O)`, `${k}(로그인X)`] : [k]);
+  const ratios = ['90:10','80:20','70:30','60:40','50:50','40:60','30:70','20:80','10:90'];
+  // 비고는 다른 업체명도 쓸 수 있게 경고만, 상품은 목록 밖이면 막음
+  const dv = (sqref, list, strict) => `<dataValidation type="list" allowBlank="1" showErrorMessage="1"${strict ? '' : ' errorStyle="warning"'} sqref="${sqref}"><formula1>"${list.join(',')}"</formula1></dataValidation>`;
+  const whole = (sqref, msg = '1 이상 정수(일 수량)') => `<dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" error="${msg}" sqref="${sqref}"><formula1>0</formula1></dataValidation>`;
+  const rules = [dv(rng(7), ['리워드', '풀스택', FS_FIX_NOTE, '부산', '제이엔', '프리미엄', ...ratios], false), whole(rng(8), '1 이상 정수(하루에 쓸 키워드 수)'),
+    ...Array(FS_FORM_PAIRS).fill(0).flatMap((_, i) => [dv(rng(9 + i * 2), names, true), whole(rng(10 + i * 2))]),
+    ...FS_FORM_TUNE.map(([, list], i) => dv(rng(tune0 + i), list, true))];
+  // SheetJS(무료판)는 데이터 유효성을 못 써서 만든 xlsx(zip)의 시트 XML에 직접 넣음
+  const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' })), { type: 'buffer' });
+  const f = zip.FileIndex[zip.FullPaths.findIndex(p => p.endsWith('xl/worksheets/sheet1.xml'))];
+  const xml = new TextDecoder().decode(f.content).replace(/(<\/sheetData>(?:<mergeCells[\s\S]*?<\/mergeCells>)?)/,
+    `$1<dataValidations count="${rules.length}">${rules.join('')}</dataValidations>`);
+  f.content = new TextEncoder().encode(xml); f.size = f.content.length;
+  const blob = new Blob([XLSX.CFB.write(zip, { type: 'array', fileType: 'zip' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: '풀스택_접수_양식.xlsx' });
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 const HI = {
+  FULL_PRODS, FS_FIX_NOTE, downloadFullstackTemplate,
   // HTML 특수문자 이스케이프(화면 표시용)
   esc: v => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
   // 직원 전용 서버(higherad-direct-proxy 등) 호출용 로그인 토큰 헤더
