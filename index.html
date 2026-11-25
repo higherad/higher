@@ -547,7 +547,7 @@
   const noteKey = n => `${n.at}|${n.upd || ''}`;
   const firstNotes = fetchNotes().catch(() => null);
   const seenNotes = firstNotes.then(l => l && new Set(l.map(noteKey)));
-  // 이 브라우저가 본 노트(localStorage) — 업데이트 뒤 처음 접속하면 안 본 노트를 팝업으로. 처음 쓰는 브라우저는 지난 노트를 본 것으로 치고 안 띄움
+  // 이 브라우저가 본 노트(localStorage) — 업데이트 뒤 처음 접속하면 안 본 노트를 팝업으로. 처음 쓰는 브라우저는 가장 최근 날짜 노트만(지난 노트 전부는 너무 많아서)
   const SEEN_KEY = 'ha_seen_notes';
   const markSeen = l => { try { localStorage.setItem(SEEN_KEY, JSON.stringify(l.map(noteKey))); } catch {} };
   firstNotes.then(l => {
@@ -555,7 +555,7 @@
     let prev = null;
     try { prev = JSON.parse(localStorage.getItem(SEEN_KEY)); } catch {}
     markSeen(l);
-    if (!Array.isArray(prev)) return;
+    if (!Array.isArray(prev)) prev = l.filter(n => n.at.slice(0, 10) !== l[0].at.slice(0, 10)).map(noteKey);
     const fresh = l.filter(n => !prev.includes(noteKey(n)));
     if (fresh.length) showNotesPopup(fresh.map(n => n.text));
   });
