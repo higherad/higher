@@ -248,6 +248,7 @@
     <h4>유효키워드 개수 (자동 접수)</h4>
     <div class="ln"><span>기준 일목표</span><input data-k="cut"> 개</div>
     <div class="ln"><span>기준 이상</span><input data-k="overGoal"> 개 ± <input data-k="overTol"></div>
+    <div class="ln"><span>기준 이상·장기</span>일수 <input data-k="longDays"> 일 이상은 <input data-k="longGoal"> 개 (± 위와 같음)</div>
     <div class="ln"><span>기준 미만</span>일목표의 <input data-k="underRate"> % ± <input data-k="underTol"></div>
     <div class="ln"><span>부족 시 추가폭</span>조합 검사 상한 + <input data-k="escStep"></div>
     <h4>SR 템플릿 (템플릿 매크로)</h4>
@@ -1165,7 +1166,7 @@
   });
   // 매크로 설정 — shop/macro_cfg, 기본값은 매크로 코드 CFG와 같음(저장 안 한 항목은 매크로가 기본값으로)
   let MACRO_CFG = {};
-  const MACRO_DEF = { cut: 100, overGoal: 40, overTol: 5, underRate: 80, underTol: 1, escStep: 50, underTpl: 'KW-022', overTpl: 'KW-017' };
+  const MACRO_DEF = { cut: 100, overGoal: 40, overTol: 5, longDays: 4, longGoal: 80, underRate: 80, underTol: 1, escStep: 50, underTpl: 'KW-022', overTpl: 'KW-017' };
   // 계정 줄 = 크롤 창 번호 순서(1번부터) — 비운 줄은 저장 안 함
   const EYE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   const mcAcct = (a = {}) => { const d = document.createElement('div'); d.className = 'ln acct';
