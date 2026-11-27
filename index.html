@@ -112,6 +112,7 @@
     .site-link:hover { background:#f1f5f9; }
     .site-link i { width:16px; height:16px; color:var(--muted); flex-shrink:0; }
     .site-link-name { font-size:13px; font-weight:700; }
+    .site-group { font-size:11px; font-weight:700; color:var(--muted); padding:8px 8px 2px; }
     .site-link-url { margin-left:auto; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
     .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:14px; gap:10px; }
@@ -315,18 +316,23 @@
     loadUpdateNotes(area.querySelector('#notes-body'));
   };
 
-  const YUPFL_SITES = [
-    { name:'풀스택',   url:'http://183.100.195.91:3005/' },
-    { name:'프리미엄', url:'http://premiumset.store/sb/' },
-    { name:'부산',     url:'https://busan2027.link/' },
-  ];
+  const YUPFL_SITES = {
+    '플레이스': [
+      { name:'풀스택',   url:'http://183.100.195.91:3005/' },
+      { name:'프리미엄', url:'http://premiumset.store/sb/' },
+      { name:'부산',     url:'https://busan2027.link/' },
+    ],
+    '쇼핑': [{ name:'비전21', url:'https://vision21.mine.bz/manager/v2/listUserAdv.php' }],
+    '블로그': [{ name:'애드민포스터', url:'https://adminposter.kr/' }],
+  };
   function renderSiteCard() {
-    const links = YUPFL_SITES.map(s => `
+    const links = Object.entries(YUPFL_SITES).map(([group, sites]) => `
+      <div class="site-group">${group}</div>` + sites.map(s => `
       <a class="site-link" href="${s.url}" target="_blank" rel="noopener noreferrer">
         <i data-lucide="external-link"></i>
         <span class="site-link-name">${s.name}</span>
         <span class="site-link-url">${s.url.replace(/^https?:\/\//, '')}</span>
-      </a>`).join('');
+      </a>`).join('')).join('');
     return `
       <div class="dash-card">
         <div class="dash-card-header">
